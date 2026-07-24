@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ public final class Teleports
         "slayer ring", "ectophial", "royal seed pod", "enchanted lyre",
         "drakan's medallion", "xeric's talisman", "chronicle", "ring of the elements",
         // Transport networks whose right-click options name a destination.
+        "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
         "spirit tree", "gnome glider", "glider", "charter", "fairy ring", "quetzal",
     };
 
@@ -185,5 +187,16 @@ public final class Teleports
             }
         }
         return null;
+    }
+
+    public static Map<String, CanonicalChunk> destinations()
+    {
+        Map<String, CanonicalChunk> result = new LinkedHashMap<>();
+        for (Map.Entry<String, int[]> entry : PLACES.entrySet())
+        {
+            result.put(entry.getKey(),
+                new CanonicalChunk(entry.getValue()[0], entry.getValue()[1]));
+        }
+        return Collections.unmodifiableMap(result);
     }
 }
