@@ -65,6 +65,19 @@ public class GuardedActionFactoryTest
             factory.from(entry("Continue", ""), client).getKind());
     }
 
+    @Test
+    public void transportFormsRemainUnknownUntilTravelGuardianIntegrates()
+    {
+        String[] transports = {
+            "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport"
+        };
+        for (String transport : transports)
+        {
+            assertEquals(GuardedAction.Kind.UNKNOWN,
+                factory.from(entry("Travel via " + transport, "Falador"), client).getKind());
+        }
+    }
+
     private static MenuEntry entry(String option, String target)
     {
         MenuEntry entry = mock(MenuEntry.class);

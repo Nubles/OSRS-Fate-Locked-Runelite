@@ -29,8 +29,11 @@ public final class Teleports
         "slayer ring", "ectophial", "royal seed pod", "enchanted lyre",
         "drakan's medallion", "xeric's talisman", "chronicle", "ring of the elements",
         // Transport networks whose right-click options name a destination.
-        "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
         "spirit tree", "gnome glider", "glider", "charter", "fairy ring", "quetzal",
+    };
+
+    private static final String[] TRAVEL_TRANSPORT_ITEMS = {
+        "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
     };
 
     private static final Map<String, int[]> PLACES = new LinkedHashMap<>();
@@ -167,14 +170,24 @@ public final class Teleports
      */
     public static CanonicalChunk destinationChunk(String option, String target)
     {
+        return destinationChunk(option, target, false);
+    }
+
+    public static CanonicalChunk destinationChunk(String option, String target,
+        boolean includeTravelTransportItems)
+    {
         String text = ((option == null ? "" : option) + " " + (target == null ? "" : target))
             .toLowerCase()
             .replaceAll("<[^>]*>", " "); // strip colour/format tags
 
-        boolean looksTele = false;
-        for (String item : TELE_ITEMS)
+        boolean looksTele = contains(text, TELE_ITEMS);
+        if (!includeTravelTransportItems && text.contains("minigame teleport"))
         {
-            if (text.contains(item)) { looksTele = true; break; }
+            return null;
+        }
+        if (!looksTele && includeTravelTransportItems)
+        {
+            looksTele = contains(text, TRAVEL_TRANSPORT_ITEMS);
         }
         if (!looksTele) return null;
 
@@ -187,6 +200,15 @@ public final class Teleports
             }
         }
         return null;
+    }
+
+    private static boolean contains(String text, String[] items)
+    {
+        for (String item : items)
+        {
+            if (text.contains(item)) return true;
+        }
+        return false;
     }
 
     public static Map<String, CanonicalChunk> destinations()

@@ -27,7 +27,7 @@ public final class TravelActionResolver
                     origin, destination, null);
         }
 
-        CanonicalChunk destination = Teleports.destinationChunk(option, target);
+        CanonicalChunk destination = Teleports.destinationChunk(option, target, true);
         if (destination != null)
         {
             Transport transport = transport(option + " " + target);
