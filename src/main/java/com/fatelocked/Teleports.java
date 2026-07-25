@@ -159,6 +159,18 @@ public final class Teleports
         p("lemantolly undri", 39, 46);
         p("ookookolly undri", 43, 43);
 
+        // Checked named destinations for travel-network menus.
+        p("lunar isle", 33, 61);
+        p("zanaris", 37, 69);
+        p("prifddinas", 51, 95);
+        p("lovakengj", 23, 58);
+        p("nardah", 53, 47);
+        p("taverley", 45, 54);
+        p("eagles' peak", 36, 54);
+        p("nightmare zone", 41, 54);
+        p("hunter guild", 24, 47);
+        p("port khazard", 41, 49);
+
         List<String> keys = new ArrayList<>(PLACES.keySet());
         keys.sort((a, b) -> b.length() - a.length()); // longest first for specificity
         KEYS_BY_LEN = keys;

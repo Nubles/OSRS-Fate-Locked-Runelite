@@ -179,6 +179,15 @@ public class TravelGuardianCoordinatorTest
     }
 
     @Test
+    public void genericTravelWordsWithoutADestinationStayFailOpen()
+    {
+        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+
+        assertGenericTravelWordFailsOpen("Travel", rules);
+        assertGenericTravelWordFailsOpen("Enter", rules);
+        assertGenericTravelWordFailsOpen("Teleport", rules);
+    }
+    @Test
     public void notReadyDestinationLeavesTravelUnconsumedAndUnrecorded()
     {
         MenuOptionClicked click = walkClick();
@@ -294,6 +303,18 @@ public class TravelGuardianCoordinatorTest
         return click;
     }
 
+    private void assertGenericTravelWordFailsOpen(String option, FateRuleEngine rules)
+    {
+        MenuOptionClicked click = namedTeleportClick(option, "New destination");
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
+
+        assertFailOpen(click, result);
+        assertEquals(TravelAction.Confidence.UNKNOWN,
+            result.getAction().getConfidence());
+        assertNull(result.getAction().getDestination());
+    }
     private MockedStatic<WorldPoint> walkDestination()
     {
         return walkDestination(DESTINATION);

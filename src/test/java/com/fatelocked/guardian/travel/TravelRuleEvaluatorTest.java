@@ -109,6 +109,19 @@ public class TravelRuleEvaluatorTest
         assertNull(unknown.getReason());
     }
 
+    @Test
+    public void unresolvedNamedMethodsRemainUnknownEvenWhenTheDestinationWouldLock()
+        throws Exception
+    {
+        FateRuleEngine locked = engine("LOCKED", "[\"Fairy Rings\"]", true, false);
+        TravelAction unresolved = new TravelAction(
+            TravelAction.Family.SPELL_OR_ITEM, "named-teleport",
+            "Teleport New destination", new CanonicalChunk(49, 50), null,
+            null, TravelAction.Confidence.UNKNOWN);
+
+        assertEquals(PermissionStatus.UNKNOWN,
+            evaluator.evaluate(unresolved, locked).getStatus());
+    }
     private TravelAction exact(String requiredUnlock)
     {
         return exactAt(destination, requiredUnlock);
