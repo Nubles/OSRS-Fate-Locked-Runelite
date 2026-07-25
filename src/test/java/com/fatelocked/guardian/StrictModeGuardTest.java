@@ -100,6 +100,26 @@ public class StrictModeGuardTest
     }
 
     @Test
+    public void travelAllowsOtherStatusesAndNullInputs()
+    {
+        TravelAction exact = exactTravel();
+        TravelDecision locked = travelDecision(PermissionStatus.LOCKED);
+
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(exact, travelDecision(PermissionStatus.ALLOWED),
+                enabled()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(exact, travelDecision(PermissionStatus.NOT_READY),
+                enabled()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(null, locked, enabled()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(exact, null, enabled()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(exact, locked, null).getOutcome());
+    }
+
+    @Test
     public void travelBlockAlwaysImpliesExactLockedDecision()
     {
         for (PermissionStatus status : PermissionStatus.values())

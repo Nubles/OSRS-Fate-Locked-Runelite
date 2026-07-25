@@ -9,6 +9,7 @@ import com.fatelocked.guardian.travel.TravelDecision;
 import net.runelite.api.events.MenuOptionClicked;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -61,6 +62,10 @@ public class StrictModeClickHandlerTest
         handler.handleTravel(lockedEvent, exact, locked, enabled());
         verify(lockedEvent, times(1)).consume();
 
+        assertNotConsumed(handler, exact, travelDecision(PermissionStatus.ALLOWED),
+            enabled());
+        assertNotConsumed(handler, exact, travelDecision(PermissionStatus.NOT_READY),
+            enabled());
         assertNotConsumed(handler, exact, travelDecision(PermissionStatus.UNKNOWN),
             enabled());
         assertNotConsumed(handler, exact, locked, disabled());
@@ -68,6 +73,9 @@ public class StrictModeClickHandlerTest
         assertNotConsumed(handler, exact, locked, stale());
         assertNotConsumed(handler, exact, locked, wrongAccount());
         assertNotConsumed(handler, unknownTravel(), locked, enabled());
+        assertNotConsumed(handler, null, locked, enabled());
+        assertNotConsumed(handler, exact, null, enabled());
+        assertNotConsumed(handler, exact, locked, null);
     }
 
     private static void assertNotConsumed(
@@ -77,7 +85,10 @@ public class StrictModeClickHandlerTest
         GuardContext context)
     {
         MenuOptionClicked event = mock(MenuOptionClicked.class);
-        handler.handleTravel(event, action, decision, context);
+        GuardResult result = handler.handleTravel(
+            event, action, decision, context);
+        assertEquals(GuardResult.Outcome.ALLOW,
+            result.getOutcome());
         verify(event, never()).consume();
     }
 
