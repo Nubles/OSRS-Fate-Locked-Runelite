@@ -22,7 +22,9 @@ public final class TravelActionResolver
         if (action == MenuAction.WALK)
         {
             CanonicalChunk destination = tileChunk(entry, client);
-            return destination == null ? unknown(option, target, origin)
+            return origin == null || destination == null
+                || origin.equals(destination)
+                ? unknown(option, target, origin)
                 : exact(TravelAction.Family.WALK, "walk", option, target,
                     origin, destination, null);
         }

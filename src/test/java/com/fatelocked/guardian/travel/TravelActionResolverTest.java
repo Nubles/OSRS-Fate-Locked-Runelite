@@ -51,6 +51,35 @@ public class TravelActionResolverTest
     }
 
     @Test
+    public void sameChunkAndOriginUnknownWalksStayUnresolved()
+    {
+        MenuEntry sameChunk = entry("Walk here", "", MenuAction.WALK);
+        when(sameChunk.getParam0()).thenReturn(10);
+        when(sameChunk.getParam1()).thenReturn(20);
+        when(client.getPlane()).thenReturn(0);
+        try (MockedStatic<WorldPoint> points = mockStatic(WorldPoint.class))
+        {
+            points.when(() -> WorldPoint.fromScene(client, 10, 20, 0))
+                .thenReturn(new WorldPoint(3201, 3201, 0));
+            assertUnknown(sameChunk);
+        }
+
+        MenuEntry unknownOrigin = entry("Walk here", "", MenuAction.WALK);
+        when(unknownOrigin.getParam0()).thenReturn(11);
+        when(unknownOrigin.getParam1()).thenReturn(21);
+        try (MockedStatic<WorldPoint> points = mockStatic(WorldPoint.class))
+        {
+            points.when(() -> WorldPoint.fromScene(client, 11, 21, 0))
+                .thenReturn(new WorldPoint(3264, 3264, 0));
+            TravelAction unresolved = resolver.resolve(
+                unknownOrigin, client, null);
+            assertEquals(TravelAction.Confidence.UNKNOWN,
+                unresolved.getConfidence());
+            assertNull(unresolved.getDestination());
+        }
+    }
+
+    @Test
     public void resolvesKnownTransportKeywordsWithTheirUnlocks()
     {
         assertTransport("fairy ring", TravelAction.Family.FAIRY_RING,

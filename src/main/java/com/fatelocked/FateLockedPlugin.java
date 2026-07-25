@@ -20,15 +20,13 @@ import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.StrictModePause;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
+import com.fatelocked.guardian.StrictModeAuditPresenter;
 import com.fatelocked.guardian.travel.RuneLiteTravelAvailability;
-import com.fatelocked.guardian.travel.TravelAction;
 import com.fatelocked.guardian.travel.TravelActionResolver;
-import com.fatelocked.guardian.travel.TravelAlternative;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
-import com.fatelocked.guardian.travel.TravelGuardianResult;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
 import com.fatelocked.detectors.BossRaidDetector;
 import com.fatelocked.detectors.CollectionLogDetector;
@@ -206,7 +204,9 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     private TravelAlternativeFinder travelAlternativeFinder;
     private TravelBlockNoticeStore travelNoticeStore;
     private TravelGuardianCoordinator travelGuardianCoordinator;
+    private TravelGuardianPluginShell travelGuardianShell;
     private FateLockedTravelBlockOverlay travelBlockOverlay;
+    private TravelGuardianOverlayLifecycle travelOverlayLifecycle;
 
     /** How long the locked-entry screen flash lasts. */
     public static final long LOCKED_FLASH_MS = 1600;
@@ -386,6 +386,15 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
             travelAlternativeFinder,
             travelNoticeStore,
             strictClickHandler);
+        travelGuardianShell = new TravelGuardianPluginShell(
+            travelGuardianCoordinator,
+            travelAvailability,
+            this::writeTravelChat,
+            this::writeTravelAudit,
+            this::handleGenericGuard,
+            (stage, error) -> log.debug(
+                "Travel Guardian {} failed: {}", stage, error.getMessage()),
+            Clock.systemUTC());
         travelBlockOverlay = new FateLockedTravelBlockOverlay(
             travelNoticeStore,
             config::strictMode,
@@ -398,9 +407,13 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
         overlayManager.add(hudOverlay);
         overlayManager.add(contentOverlay);
         overlayManager.add(flashOverlay);
-        overlayManager.add(travelBlockOverlay);
-        mouseManager.registerMouseListener(travelBlockOverlay);
         travelBlockOverlay.setPauseGuardian(this::pauseStrictModeForSixtySeconds);
+        travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
+            () -> overlayManager.add(travelBlockOverlay),
+            () -> mouseManager.registerMouseListener(travelBlockOverlay),
+            () -> mouseManager.unregisterMouseListener(travelBlockOverlay),
+            () -> overlayManager.remove(travelBlockOverlay));
+        travelOverlayLifecycle.start();
 
         panel.setCallbacks(this::applyPastedBundle, () -> clientThread.invoke(this::reloadBundle));
         panel.setGuardianCallbacks(
@@ -430,10 +443,17 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
     @Override
     protected void shutDown()
     {
-        if (travelBlockOverlay != null)
+        if (travelOverlayLifecycle != null)
         {
-            mouseManager.unregisterMouseListener(travelBlockOverlay);
-            overlayManager.remove(travelBlockOverlay);
+            try
+            {
+                travelOverlayLifecycle.stop();
+            }
+            catch (RuntimeException ex)
+            {
+                log.debug("Could not fully clean up Travel Guardian overlay: {}",
+                    ex.getMessage());
+            }
         }
         overlayManager.remove(worldMapOverlay);
         overlayManager.remove(sceneOverlay);
@@ -1036,60 +1056,18 @@ java.util.Optional<DetectedEvent> detected =
         GuardContext context = new GuardContext(
             config.strictMode(), strictPause.isPaused(), accountMatch,
             rulesAreFresh(), rules);
-
-        TravelGuardianResult travelResult;
-        try
+        CanonicalChunk origin = null;
+        Player local = client.getLocalPlayer();
+        if (local != null && local.getWorldLocation() != null)
         {
-            CanonicalChunk origin = null;
-            Player local = client.getLocalPlayer();
-            if (local != null && local.getWorldLocation() != null)
-            {
-                origin = CanonicalChunk.of(local.getWorldLocation());
-            }
-            travelResult = travelGuardianCoordinator.handle(
-                event, event.getMenuEntry(), client, origin,
-                context, rules, travelAvailability);
+            origin = CanonicalChunk.of(local.getWorldLocation());
         }
-        catch (RuntimeException ex)
-        {
-            log.debug("Travel Guardian failed open before enforcement: {}",
-                ex.getMessage());
-            return;
-        }
+        travelGuardianShell.handle(event, client, origin, context, rules);
+    }
 
-        if (travelResult != null
-            && travelResult.getAction() != null
-            && travelResult.getAction().getConfidence()
-                == TravelAction.Confidence.EXACT)
-        {
-            if (travelResult.isWriteChat())
-            {
-                try
-                {
-                    writeTravelChat(travelResult);
-                }
-                catch (RuntimeException ex)
-                {
-                    log.debug("Could not write Travel Guardian chat: {}",
-                        ex.getMessage());
-                }
-            }
-            if (travelResult.isWriteBlockedAudit()
-                || travelResult.isWritePausedAudit())
-            {
-                try
-                {
-                    writeTravelAudit(travelResult);
-                }
-                catch (IOException | RuntimeException ex)
-                {
-                    log.debug("Could not write Travel Guardian audit: {}",
-                        ex.getMessage());
-                }
-            }
-            return;
-        }
-
+    private void handleGenericGuard(
+        MenuOptionClicked event, GuardContext context)
+    {
         GuardedAction action = guardedActionFactory.from(
             event.getMenuEntry(), client);
         GuardResult result = strictClickHandler.handle(event, action, context);
@@ -1126,72 +1104,32 @@ java.util.Optional<DetectedEvent> detected =
         }
     }
 
-    private void writeTravelChat(TravelGuardianResult result)
+    private void writeTravelChat(String text)
     {
-        String reason = result.getDecision().getReason();
-        if (reason == null || reason.trim().isEmpty())
-        {
-            reason = "Travel is locked";
-        }
-        StringBuilder content = new StringBuilder()
-            .append("Blocked ")
-            .append(result.getDecision().getLabel())
-            .append(": ")
-            .append(reason)
-            .append('.');
-        TravelAlternative alternative = result.getAlternative();
-        if (alternative != null
-            && alternative.getLabel() != null
-            && !alternative.getLabel().trim().isEmpty())
-        {
-            content.append(" Suggested: ")
-                .append(alternative.getLabel())
-                .append('.');
-        }
+        String prefix = "[Fate Guardian] ";
+        String content = text.startsWith(prefix)
+            ? text.substring(prefix.length()) : text;
         ChatMessageBuilder message = new ChatMessageBuilder()
-            .append(ChatColorType.HIGHLIGHT).append("[Fate Guardian] ")
-            .append(ChatColorType.NORMAL).append(content.toString());
+            .append(ChatColorType.HIGHLIGHT).append(prefix)
+            .append(ChatColorType.NORMAL).append(content);
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(message.build())
             .build());
     }
 
-    private void writeTravelAudit(TravelGuardianResult result) throws IOException
+    private void writeTravelAudit(StrictModeAuditEntry entry) throws IOException
     {
         if (strictAuditLog == null) return;
-        TravelAction action = result.getAction();
-        CanonicalChunk destination = action.getDestination();
-        String chunk = destination == null ? null
-            : destination.getCx() + "," + destination.getCy();
-        boolean paused = result.isWritePausedAudit();
-        TravelAlternative alternative = result.getAlternative();
-        strictAuditLog.append(new StrictModeAuditEntry(
-            System.currentTimeMillis(),
-            "TRAVEL",
-            result.getDecision().getLabel(),
-            chunk,
-            result.getDecision().getReason(),
-            paused ? "ALLOWED_PAUSED" : "BLOCKED",
-            paused,
-            !paused && alternative != null));
+        strictAuditLog.append(entry);
         updateStrictAuditPanel();
     }
 
     private void updateStrictAuditPanel()
     {
-        List<String> lines = new ArrayList<>();
-        if (strictAuditLog != null)
-        {
-            for (StrictModeAuditEntry entry : strictAuditLog.recent(5))
-            {
-                if ("BLOCKED".equals(entry.getOutcome()))
-                {
-                    lines.add(entry.getTarget() + " \u2014 " + entry.getReason());
-                }
-            }
-        }
-        panel.updateRecentPrevented(lines);
+        panel.updateRecentPrevented(
+            StrictModeAuditPresenter.recentPrevented(
+                strictAuditLog == null ? null : strictAuditLog.recent(5)));
     }
     void pauseStrictModeForSixtySeconds()
     {

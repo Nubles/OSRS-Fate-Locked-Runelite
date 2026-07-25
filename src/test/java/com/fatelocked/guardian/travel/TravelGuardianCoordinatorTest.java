@@ -197,6 +197,46 @@ public class TravelGuardianCoordinatorTest
     }
 
     @Test
+    public void sameChunkWalkInsideALockedChunkRemainsUnconsumedAndUnrecorded()
+    {
+        MenuOptionClicked click = walkClick();
+        FateRuleEngine rules = rulesAt(ORIGIN, PermissionStatus.LOCKED);
+
+        TravelGuardianResult result;
+        try (MockedStatic<WorldPoint> points = walkDestination(ORIGIN))
+        {
+            result = coordinator.handle(
+                click, click.getMenuEntry(), client, ORIGIN,
+                context(true, false, true, true, rules), rules, availability);
+        }
+
+        assertFailOpen(click, result);
+        assertEquals(TravelAction.Confidence.UNKNOWN,
+            result.getAction().getConfidence());
+        assertNull(result.getAction().getDestination());
+    }
+
+    @Test
+    public void walkWithoutAKnownOriginRemainsUnconsumedAndUnrecorded()
+    {
+        MenuOptionClicked click = walkClick();
+        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+
+        TravelGuardianResult result;
+        try (MockedStatic<WorldPoint> points = walkDestination())
+        {
+            result = coordinator.handle(
+                click, click.getMenuEntry(), client, null,
+                context(true, false, true, true, rules), rules, availability);
+        }
+
+        assertFailOpen(click, result);
+        assertEquals(TravelAction.Confidence.UNKNOWN,
+            result.getAction().getConfidence());
+        assertNull(result.getAction().getDestination());
+    }
+
+    @Test
     public void alternativeLookupFailureNeverCancelsAProvenBlock()
     {
         MenuOptionClicked click = walkClick();
@@ -256,10 +296,15 @@ public class TravelGuardianCoordinatorTest
 
     private MockedStatic<WorldPoint> walkDestination()
     {
+        return walkDestination(DESTINATION);
+    }
+
+    private MockedStatic<WorldPoint> walkDestination(CanonicalChunk destination)
+    {
         MockedStatic<WorldPoint> points = mockStatic(WorldPoint.class);
         points.when(() -> WorldPoint.fromScene(client, 10, 20, 0))
-            .thenReturn(new WorldPoint(DESTINATION.getCx() << 6,
-                DESTINATION.getCy() << 6, 0));
+            .thenReturn(new WorldPoint(destination.getCx() << 6,
+                destination.getCy() << 6, 0));
         return points;
     }
 
@@ -276,8 +321,14 @@ public class TravelGuardianCoordinatorTest
 
     private static FateRuleEngine rules(PermissionStatus status)
     {
+        return rulesAt(DESTINATION, status);
+    }
+
+    private static FateRuleEngine rulesAt(
+        CanonicalChunk destination, PermissionStatus status)
+    {
         FateRuleEngine rules = mock(FateRuleEngine.class);
-        when(rules.entry(DESTINATION)).thenReturn(
+        when(rules.entry(destination)).thenReturn(
             new RuleDecision(status, "Locked destination", null));
         return rules;
     }
