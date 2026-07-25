@@ -66,16 +66,23 @@ public class GuardedActionFactoryTest
     }
 
     @Test
-    public void transportFormsRemainUnknownUntilTravelGuardianIntegrates()
+    public void newNonTeleportTransportFormsRemainUnknownUntilTravelGuardianIntegrates()
     {
         String[] transports = {
-            "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport"
+            "mine cart", "magic carpet", "balloon", "eagle"
         };
         for (String transport : transports)
         {
             assertEquals(GuardedAction.Kind.UNKNOWN,
                 factory.from(entry("Travel via " + transport, "Falador"), client).getKind());
         }
+    }
+
+    @Test
+    public void minigameTeleportRetainsLegacyTeleportClassification()
+    {
+        assertEquals(GuardedAction.Kind.TELEPORT,
+            factory.from(entry("Travel via minigame teleport", "Falador"), client).getKind());
     }
 
     private static MenuEntry entry(String option, String target)

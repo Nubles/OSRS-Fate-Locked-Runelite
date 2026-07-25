@@ -181,10 +181,6 @@ public final class Teleports
             .replaceAll("<[^>]*>", " "); // strip colour/format tags
 
         boolean looksTele = contains(text, TELE_ITEMS);
-        if (!includeTravelTransportItems && text.contains("minigame teleport"))
-        {
-            return null;
-        }
         if (!looksTele && includeTravelTransportItems)
         {
             looksTele = contains(text, TRAVEL_TRANSPORT_ITEMS);
