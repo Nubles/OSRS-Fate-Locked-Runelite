@@ -139,7 +139,7 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
 
     private void buildStrictIntro()
     {
-        JLabel copy = new JLabel("<html>Strict Mode is now on. It prevents only actions proven locked by the current rules. Unknown actions and walking are never blocked. You can pause it for 60 seconds here or turn it off immediately in plugin settings.</html>");
+        JLabel copy = new JLabel("<html>Strict Mode prevents only actions proven locked by fresh rules. Known locked travel clicks can be stopped; uncertain movement is never blocked. Pause it for 60 seconds here or turn it off immediately in plugin settings.</html>");
         copy.setForeground(Color.LIGHT_GRAY);
         strictIntro.add(copy);
         JButton dismiss = new JButton("Got it");

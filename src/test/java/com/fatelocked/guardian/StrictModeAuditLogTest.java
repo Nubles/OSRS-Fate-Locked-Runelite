@@ -8,6 +8,7 @@ import java.nio.file.Path;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class StrictModeAuditLogTest
 {
@@ -20,16 +21,22 @@ public class StrictModeAuditLogTest
         for (int i = 0; i < 101; i++)
         {
             log.append(new StrictModeAuditEntry(
-                i, "NPC", "goblin-" + i, "50,50", "locked"));
+                i, "TRAVEL", "goblin-" + i, "50,50", "locked",
+                "BLOCKED", false, i == 100));
         }
 
         StrictModeAuditLog reloaded = new StrictModeAuditLog(new Gson(), file);
         assertEquals(100, reloaded.recent(200).size());
-        assertEquals("goblin-100", reloaded.recent(1).get(0).getTarget());
+        StrictModeAuditEntry latest = reloaded.recent(1).get(0);
+        assertEquals("goblin-100", latest.getTarget());
+        assertEquals("BLOCKED", latest.getOutcome());
+        assertFalse(latest.isPaused());
+        assertTrue(latest.isAlternativeAvailable());
         String json = Files.readString(file);
         assertFalse(json.contains("account"));
         assertFalse(json.contains("inventory"));
         assertFalse(json.contains("chat"));
         assertFalse(json.contains("token"));
+        assertFalse(json.contains("route"));
     }
 }
