@@ -106,8 +106,10 @@ the bundle file.
 
 ## Notes
 
-- The plugin can't physically stop you walking into a locked chunk — movement is
-  server-authoritative. It marks, tags, and warns; the rest is on you.
+- Outside Strict Mode, walking remains warning-only. With Strict Mode enabled,
+  Travel Guardian may consume an exact `Walk here` click into an adjacent
+  locked chunk before RuneLite sends it; RuneLite never moves the player or
+  performs the travel.
 - Right-click tagging covers NPC / object / ground-item / walk targets. Widget
   and spell menu entries have no world tile, so they can't be tagged.
 
@@ -118,13 +120,23 @@ Building from source, the bundle format, and other developer notes are in
 
 ## Strict Mode
 
-Strict Mode is off by default. It activates only when you check its config
-checkbox. It cancels only actions the current rules snapshot proves are locked,
-never Unknown actions, and can be paused for 60 seconds from the side panel.
+Travel Guardian is part of the existing Strict Mode checkbox and is off by
+default. It blocks only known locked travel clicks from fresh rules, explains
+the reason in a four-second banner and a chat record, and may suggest a locally
+verified alternative. Unknown or stale travel is never blocked. RuneLite never
+activates the suggestion or moves the player.
 
-Walking is always warning-only. Wrong-account, legacy, missing, invalid, or
-stale rules disable prevention. Every prevented click is explained immediately
-and recorded only in a bounded local troubleshooting log.
+Prevention requires a fresh rules snapshot for the currently logged-in,
+correctly bound account and an exactly recognised destination that the snapshot
+proves is **Locked**. Wrong-account, legacy, missing, invalid, stale, ambiguous,
+or otherwise Unknown travel remains available. Repeated chat for the same
+travel action is suppressed for ten seconds.
+
+The side-panel pause lasts 60 seconds, resumes automatically, and applies to
+every Strict Mode category, including Travel Guardian. Prevented and
+pause-allowed travel is recorded only in the bounded local troubleshooting log;
+it is never relayed as gameplay or activated on the player's behalf.
+
 ### Expanded detectors
 
 All expanded detectors queue observations only and start in **Needs review**.
