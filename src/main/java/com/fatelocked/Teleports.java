@@ -37,9 +37,12 @@ public final class Teleports
     };
 
     private static final Map<String, int[]> PLACES = new LinkedHashMap<>();
+    private static final Map<String, int[]> CHECKED_TRAVEL_PLACES = new LinkedHashMap<>();
     private static final List<String> KEYS_BY_LEN;
+    private static final List<String> CHECKED_TRAVEL_KEYS_BY_LEN;
 
     private static void p(String key, int cx, int cy) { PLACES.put(key, new int[]{ cx, cy }); }
+    private static void t(String key, int cx, int cy) { CHECKED_TRAVEL_PLACES.put(key, new int[]{ cx, cy }); }
 
     static
     {
@@ -160,20 +163,25 @@ public final class Teleports
         p("ookookolly undri", 43, 43);
 
         // Checked named destinations for travel-network menus.
-        p("lunar isle", 33, 61);
-        p("zanaris", 37, 69);
-        p("prifddinas", 51, 95);
-        p("lovakengj", 23, 58);
-        p("nardah", 53, 47);
-        p("taverley", 45, 54);
-        p("eagles' peak", 36, 54);
-        p("nightmare zone", 41, 54);
-        p("hunter guild", 24, 47);
-        p("port khazard", 41, 49);
+        t("lunar isle", 33, 61);
+        t("zanaris", 37, 69);
+        t("prifddinas", 51, 95);
+        t("lovakengj", 23, 58);
+        t("nardah", 53, 45);
+        t("taverley", 45, 53);
+        t("eagles' peak", 36, 54);
+        t("nightmare zone", 40, 48);
+        t("hunter guild", 24, 47);
+        t("port khazard", 41, 49);
 
         List<String> keys = new ArrayList<>(PLACES.keySet());
         keys.sort((a, b) -> b.length() - a.length()); // longest first for specificity
         KEYS_BY_LEN = keys;
+
+        List<String> checkedTravelKeys = new ArrayList<>(keys);
+        checkedTravelKeys.addAll(CHECKED_TRAVEL_PLACES.keySet());
+        checkedTravelKeys.sort((a, b) -> b.length() - a.length());
+        CHECKED_TRAVEL_KEYS_BY_LEN = checkedTravelKeys;
     }
 
     /**
@@ -199,11 +207,14 @@ public final class Teleports
         }
         if (!looksTele) return null;
 
-        for (String key : KEYS_BY_LEN)
+        List<String> keys = includeTravelTransportItems
+            ? CHECKED_TRAVEL_KEYS_BY_LEN : KEYS_BY_LEN;
+        for (String key : keys)
         {
             if (text.contains(key))
             {
                 int[] c = PLACES.get(key);
+                if (c == null) c = CHECKED_TRAVEL_PLACES.get(key);
                 return new CanonicalChunk(c[0], c[1]);
             }
         }

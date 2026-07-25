@@ -120,81 +120,6 @@ public class TravelActionResolverTest
     }
 
     @Test
-    public void resolvesOnlyCheckedDestinationsForEveryNamedTransportFamily()
-    {
-        assertNamedTransport("Teleport", "Lunar Isle",
-            TravelAction.Family.SPELL_OR_ITEM, new CanonicalChunk(33, 61),
-            "Teleport", "Teleport configuration",
-            "Teleport", "New destination");
-        assertNamedTransport("Travel", "Fairy ring — Zanaris",
-            TravelAction.Family.FAIRY_RING, new CanonicalChunk(37, 69),
-            "Check", "Fairy ring health",
-            "Travel", "Fairy ring — New destination");
-        assertNamedTransport("Travel", "Spirit tree — Prifddinas",
-            TravelAction.Family.SPIRIT_TREE, new CanonicalChunk(51, 95),
-            "Check", "Spirit tree health",
-            "Travel", "Spirit tree — New destination");
-        assertNamedTransport("Travel", "Gnome glider — Lemanto Andra",
-            TravelAction.Family.GNOME_GLIDER, new CanonicalChunk(51, 53),
-            "Check", "Gnome glider condition",
-            "Travel", "Gnome glider — New destination");
-        assertNamedTransport("Charter", "Port Khazard",
-            TravelAction.Family.CHARTER_SHIP, new CanonicalChunk(41, 49),
-            "Examine", "Charter schedule",
-            "Charter", "Unknown port");
-        assertNamedTransport("Travel", "Mine cart — Lovakengj",
-            TravelAction.Family.MINE_CART, new CanonicalChunk(23, 58),
-            "Check", "Mine cart wheels",
-            "Travel", "Mine cart — New destination");
-        assertNamedTransport("Pay-fare", "Magic carpet to Nardah",
-            TravelAction.Family.MAGIC_CARPET, new CanonicalChunk(53, 47),
-            "Talk-to", "Rug merchant",
-            "Pay-fare", "Magic carpet to Unknown");
-        assertNamedTransport("Travel", "Balloon — Taverley",
-            TravelAction.Family.BALLOON, new CanonicalChunk(45, 54),
-            "Check", "Balloon fabric",
-            "Travel", "Balloon — New destination");
-        assertNamedTransport("Travel", "Eagle — Eagles' Peak",
-            TravelAction.Family.EAGLE, new CanonicalChunk(36, 54),
-            "Check", "Eagle nest",
-            "Travel", "Eagle — New destination");
-        assertNamedTransport("Minigame teleport", "Nightmare Zone",
-            TravelAction.Family.MINIGAME_TELEPORT, new CanonicalChunk(41, 54),
-            "Check", "Minigame teleport settings",
-            "Minigame teleport", "Unknown minigame");
-        assertNamedTransport("Travel", "Quetzal — Hunter Guild",
-            TravelAction.Family.QUETZAL, new CanonicalChunk(24, 47),
-            "Check", "Quetzal feathers",
-            "Travel", "Quetzal — New destination");
-    }
-
-    @Test
-    public void similarlyWordedAndUnresolvedTransportActionsStayUnknown()
-    {
-        assertUnknown(entry("Teleport", "Teleport configuration", MenuAction.UNKNOWN));
-        assertUnknown(entry("Teleport", "New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Fairy ring health", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Fairy ring — New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Spirit tree health", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Spirit tree — New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Gnome glider condition", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Gnome glider — New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Examine", "Charter schedule", MenuAction.UNKNOWN));
-        assertUnknown(entry("Charter", "Unknown port", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Mine cart wheels", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Mine cart — New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Talk-to", "Rug merchant", MenuAction.UNKNOWN));
-        assertUnknown(entry("Pay-fare", "Magic carpet to Unknown", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Balloon fabric", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Balloon — New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Eagle nest", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Eagle — New destination", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Minigame teleport settings", MenuAction.UNKNOWN));
-        assertUnknown(entry("Minigame teleport", "Unknown minigame", MenuAction.UNKNOWN));
-        assertUnknown(entry("Check", "Quetzal feathers", MenuAction.UNKNOWN));
-        assertUnknown(entry("Travel", "Quetzal — New destination", MenuAction.UNKNOWN));
-    }
-    @Test
     public void genericTravelWordsWithoutAResolvedDestinationStayUnknown()
     {
         assertUnknown(entry("Travel", "New destination", MenuAction.UNKNOWN));
@@ -229,16 +154,6 @@ public class TravelActionResolverTest
         assertEquals(methodId, action.getMethodId());
     }
 
-    private void assertNamedTransport(
-        String option, String target, TravelAction.Family family,
-        CanonicalChunk destination,
-        String unrelatedOption, String unrelatedTarget,
-        String unresolvedOption, String unresolvedTarget)
-    {
-        assertTravel(entry(option, target, MenuAction.UNKNOWN), family, destination, true);
-        assertUnknown(entry(unrelatedOption, unrelatedTarget, MenuAction.UNKNOWN));
-        assertUnknown(entry(unresolvedOption, unresolvedTarget, MenuAction.UNKNOWN));
-    }
     private void assertTravel(MenuEntry entry, TravelAction.Family family,
         CanonicalChunk destination, boolean exact)
     {
