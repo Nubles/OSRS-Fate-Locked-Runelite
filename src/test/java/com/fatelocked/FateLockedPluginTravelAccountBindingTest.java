@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.travel.TravelActionResolver;
@@ -60,6 +61,24 @@ public class FateLockedPluginTravelAccountBindingTest
         assertUnboundFailsOpen(lockedBundle(), true, "Other Player");
     }
 
+    @Test
+    public void unboundRulesWithAbsentPlayerRetainGenericEquipmentEnforcement()
+        throws Exception
+    {
+        Harness harness = new Harness(lockedBundle().replace(
+            "\"account\": \"Nubles\"," , ""), false, null);
+        MenuEntry entry = mock(MenuEntry.class);
+        when(entry.getOption()).thenReturn("Wield");
+        when(entry.getTarget()).thenReturn("Abyssal whip");
+        when(entry.getType()).thenReturn(MenuAction.UNKNOWN);
+        when(entry.getItemId()).thenReturn(4151);
+        MenuOptionClicked click = mock(MenuOptionClicked.class);
+        when(click.getMenuEntry()).thenReturn(entry);
+
+        harness.plugin.onMenuOptionClicked(click);
+
+        verify(click).consume();
+    }
     @Test
     public void normalizedMatchingAccountCanEnforceAndLookUpAlternatives()
         throws Exception
@@ -158,12 +177,16 @@ public class FateLockedPluginTravelAccountBindingTest
                     finder,
                     noticeStore,
                     new StrictModeClickHandler(new StrictModeGuard()));
+            GuardedActionFactory genericFactory = new GuardedActionFactory();
+            StrictModeClickHandler genericClickHandler =
+                new StrictModeClickHandler(new StrictModeGuard());
             TravelGuardianPluginShell shell = new TravelGuardianPluginShell(
                 coordinator,
                 availability,
                 message -> { },
                 entry -> { },
-                (event, context) -> { },
+                (event, context) -> genericClickHandler.handle(
+                    event, genericFactory.from(event.getMenuEntry(), client), context),
                 (stage, error) -> { },
                 Clock.systemUTC());
 

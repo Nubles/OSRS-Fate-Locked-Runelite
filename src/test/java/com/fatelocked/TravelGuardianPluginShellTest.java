@@ -23,6 +23,7 @@ import com.fatelocked.rules.RuleDecision;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.NPC;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuOptionClicked;
 import org.junit.Test;
@@ -62,10 +63,10 @@ public class TravelGuardianPluginShellTest
 
         TravelGuardianPluginShell.Route exact = shell.handle(
             click("Teleport", "Falador", MenuAction.UNKNOWN),
-            harness.client, ORIGIN, enabled(rules), rules);
+            harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
         TravelGuardianPluginShell.Route unresolved = shell.handle(
             click("Continue", "", MenuAction.UNKNOWN),
-            harness.client, ORIGIN, enabled(rules), rules);
+            harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
 
         assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL, exact);
         assertEquals(TravelGuardianPluginShell.Route.GENERIC, unresolved);
@@ -88,7 +89,7 @@ public class TravelGuardianPluginShellTest
             new CanonicalChunk(46, 52), PermissionStatus.LOCKED);
 
         TravelGuardianPluginShell.Route route = shell.handle(
-            click, harness.client, ORIGIN, enabled(rules), rules);
+            click, harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
 
         assertEquals(TravelGuardianPluginShell.Route.FAIL_OPEN, route);
         verify(click, never()).consume();
@@ -110,7 +111,7 @@ public class TravelGuardianPluginShellTest
             walkDestination(chatFailure.client, DESTINATION))
         {
             chatFailure.actualShell().handle(
-                first, chatFailure.client, ORIGIN, enabled(locked), locked);
+                first, chatFailure.client, ORIGIN, enabled(locked), locked, enabled(locked));
         }
 
         verify(first).consume();
@@ -129,7 +130,7 @@ public class TravelGuardianPluginShellTest
         {
             auditFailure.actualShell().handle(
                 second, auditFailure.client, ORIGIN,
-                enabled(secondLocked), secondLocked);
+                enabled(secondLocked), secondLocked, enabled(secondLocked));
         }
 
         verify(second).consume();
@@ -157,9 +158,9 @@ public class TravelGuardianPluginShellTest
         FateRuleEngine rules = rulesAt(DESTINATION, PermissionStatus.LOCKED);
 
         shell.handle(click("Walk here", "", MenuAction.WALK),
-            harness.client, ORIGIN, enabled(rules), rules);
+            harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
         shell.handle(click("Walk here", "", MenuAction.WALK),
-            harness.client, ORIGIN, enabled(rules), rules);
+            harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
 
         assertEquals(
             "[Fate Guardian] Blocked Walk here: Morytania is locked. "
@@ -189,9 +190,9 @@ public class TravelGuardianPluginShellTest
         FateRuleEngine rules = rulesAt(DESTINATION, PermissionStatus.LOCKED);
 
         shell.handle(click("Walk here", "", MenuAction.WALK),
-            harness.client, ORIGIN, enabled(rules), rules);
+            harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
         shell.handle(click("Walk here", "", MenuAction.WALK),
-            harness.client, ORIGIN, enabled(rules), rules);
+            harness.client, ORIGIN, enabled(rules), rules, enabled(rules));
 
         StrictModeAuditEntry blocked = harness.audit.get(0);
         assertEquals(CLOCK.millis(), blocked.getTimestamp());
@@ -210,6 +211,100 @@ public class TravelGuardianPluginShellTest
     }
 
     @Test
+    public void mappedNonActivationOptionsStayUnknownThroughGenericFallback()
+    {
+        Harness harness = new Harness();
+        harness.useRealGenericGuard();
+        TravelGuardianPluginShell shell = harness.actualShell();
+        FateRuleEngine locked = rulesAt(
+            new CanonicalChunk(50, 53), PermissionStatus.LOCKED);
+        String[] nonActivationOptions = {
+            "Drop", "Examine", "Destroy", "Check", "Configure", "Cancel"
+        };
+
+        for (String option : nonActivationOptions)
+        {
+            MenuOptionClicked click = click(
+                option, "Varrock teleport", MenuAction.UNKNOWN);
+
+            TravelGuardianPluginShell.Route route = shell.handle(
+                click, harness.client, ORIGIN, enabled(locked), locked, enabled(locked));
+
+            assertEquals(TravelGuardianPluginShell.Route.GENERIC, route);
+            verify(click, never()).consume();
+        }
+
+        assertEquals(nonActivationOptions.length, harness.genericCalls);
+        assertTrue(harness.chat.isEmpty());
+        assertTrue(harness.audit.isEmpty());
+        assertFalse(harness.noticeStore.current().isPresent());
+    }
+    @Test
+    public void genericFallbackUsesItsOwnTrustContextForLegacyCategories()
+    {
+        Harness harness = new Harness();
+        harness.useRealGenericGuard();
+        TravelGuardianPluginShell shell = harness.actualShell();
+        FateRuleEngine travelRules = mock(FateRuleEngine.class);
+        GuardContext unboundTravel = new GuardContext(
+            true, false, false, true, travelRules);
+        FateRuleEngine genericRules = mock(FateRuleEngine.class);
+        GuardContext trustedGeneric = new GuardContext(
+            true, false, true, true, genericRules);
+        CanonicalChunk targetChunk = new CanonicalChunk(50, 50);
+        RuleDecision locked = new RuleDecision(
+            PermissionStatus.LOCKED, "Legacy target", "locked");
+        when(genericRules.equipment(4151)).thenReturn(locked);
+        when(genericRules.target(targetChunk, "BANK", "")).thenReturn(locked);
+        when(genericRules.target(targetChunk, "NPC", "goblin")).thenReturn(locked);
+        when(genericRules.target(targetChunk, "OBJECT", "oak tree")).thenReturn(locked);
+
+        MenuOptionClicked equipment = click(
+            "Wield", "Abyssal whip", MenuAction.UNKNOWN);
+        when(equipment.getMenuEntry().getItemId()).thenReturn(4151);
+        shell.handle(equipment, harness.client, ORIGIN,
+            unboundTravel, travelRules, trustedGeneric);
+
+        NPC bankerNpc = mock(NPC.class);
+        when(bankerNpc.getWorldLocation()).thenReturn(
+            new WorldPoint(3200, 3200, 0));
+        MenuOptionClicked bank = click(
+            "Bank", "Banker", MenuAction.NPC_FIRST_OPTION);
+        when(bank.getMenuEntry().getNpc()).thenReturn(bankerNpc);
+        shell.handle(bank, harness.client, ORIGIN,
+            unboundTravel, travelRules, trustedGeneric);
+
+        NPC goblinNpc = mock(NPC.class);
+        when(goblinNpc.getWorldLocation()).thenReturn(
+            new WorldPoint(3200, 3200, 0));
+        MenuOptionClicked npc = click(
+            "Attack", "Goblin", MenuAction.NPC_FIRST_OPTION);
+        when(npc.getMenuEntry().getNpc()).thenReturn(goblinNpc);
+        shell.handle(npc, harness.client, ORIGIN,
+            unboundTravel, travelRules, trustedGeneric);
+
+        MenuOptionClicked object = click(
+            "Chop down", "Oak tree", MenuAction.GAME_OBJECT_FIRST_OPTION);
+        when(object.getMenuEntry().getParam0()).thenReturn(10);
+        when(object.getMenuEntry().getParam1()).thenReturn(20);
+        when(harness.client.getPlane()).thenReturn(0);
+        try (MockedStatic<WorldPoint> points = mockStatic(WorldPoint.class))
+        {
+            points.when(() -> WorldPoint.fromScene(harness.client, 10, 20, 0))
+                .thenReturn(new WorldPoint(3200, 3200, 0));
+            shell.handle(object, harness.client, ORIGIN,
+                unboundTravel, travelRules, trustedGeneric);
+        }
+
+        verify(equipment).consume();
+        verify(bank).consume();
+        verify(npc).consume();
+        verify(object).consume();
+        assertEquals(4, harness.genericCalls);
+        assertTrue(harness.chat.isEmpty());
+        assertTrue(harness.audit.isEmpty());
+    }
+    @Test
     public void nullOriginAndSameChunkWalksRemainGenericAndUnconsumed()
     {
         Harness harness = new Harness();
@@ -222,7 +317,7 @@ public class TravelGuardianPluginShellTest
             walkDestination(harness.client, DESTINATION))
         {
             shell.handle(nullOrigin, harness.client, null,
-                enabled(locked), locked);
+                enabled(locked), locked, enabled(locked));
         }
 
         MenuOptionClicked sameChunk = walkClick(harness.client);
@@ -230,7 +325,7 @@ public class TravelGuardianPluginShellTest
             walkDestination(harness.client, DESTINATION))
         {
             shell.handle(sameChunk, harness.client, DESTINATION,
-                enabled(locked), locked);
+                enabled(locked), locked, enabled(locked));
         }
 
         verify(nullOrigin, never()).consume();
@@ -241,6 +336,38 @@ public class TravelGuardianPluginShellTest
         assertFalse(harness.noticeStore.current().isPresent());
     }
 
+    @Test
+    public void destinationNamedCarrierMenusRouteThroughMobilityEnforcement()
+    {
+        Harness harness = new Harness();
+        TravelGuardianPluginShell shell = harness.actualShell();
+
+        FateRuleEngine jewelryRules = mobilityLocked(
+            new CanonicalChunk(48, 54), "Edgeville", "Jewelry Teleports");
+        MenuOptionClicked jewelry = click(
+            "Edgeville", "Amulet of glory(6)", MenuAction.UNKNOWN);
+        assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
+            shell.handle(jewelry, harness.client, ORIGIN,
+                enabled(jewelryRules), jewelryRules, enabled(jewelryRules)));
+        verify(jewelry).consume();
+        assertTrue(harness.noticeStore.current().isPresent());
+        assertEquals("BLOCKED", harness.audit.get(0).getOutcome());
+
+        FateRuleEngine spiritTreeRules = mobilityLocked(
+            new CanonicalChunk(38, 53), "Tree Gnome Stronghold", "Spirit Trees");
+        MenuOptionClicked spiritTree = click(
+            "Tree Gnome Stronghold", "Spirit tree", MenuAction.UNKNOWN);
+        assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
+            shell.handle(spiritTree, harness.client, ORIGIN,
+                enabled(spiritTreeRules), spiritTreeRules, enabled(spiritTreeRules)));
+        verify(spiritTree).consume();
+        assertTrue(harness.noticeStore.current().isPresent());
+        assertEquals("BLOCKED", harness.audit.get(1).getOutcome());
+
+        assertEquals(2, harness.chat.size());
+        assertEquals(2, harness.audit.size());
+        assertEquals(0, harness.genericCalls);
+    }
     private static TravelGuardianResult blockedResult(
         TravelAlternative alternative)
     {
@@ -281,6 +408,17 @@ public class TravelGuardianPluginShellTest
         return new GuardContext(true, false, true, true, rules);
     }
 
+    private static FateRuleEngine mobilityLocked(
+        CanonicalChunk destination, String label, String mobility)
+    {
+        FateRuleEngine rules = mock(FateRuleEngine.class);
+        when(rules.entry(destination)).thenReturn(
+            new RuleDecision(PermissionStatus.ALLOWED, label, null));
+        when(rules.mobility(mobility)).thenReturn(
+            new RuleDecision(PermissionStatus.LOCKED, mobility,
+                mobility + " is locked"));
+        return rules;
+    }
     private static FateRuleEngine rulesAt(
         CanonicalChunk chunk, PermissionStatus status)
     {

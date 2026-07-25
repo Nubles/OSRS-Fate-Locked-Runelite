@@ -29,8 +29,9 @@ public final class TravelActionResolver
                     origin, destination, null);
         }
 
-        CanonicalChunk destination = Teleports.destinationChunk(option, target, true);
-        if (destination != null && isNamedActivationOption(option))
+        CanonicalChunk destination = Teleports.checkedTravelDestinationChunk(
+            option, target, true);
+        if (destination != null)
         {
             Transport transport = transport(option + " " + target);
             return exact(transport.family, transport.methodId, option, target,
@@ -121,15 +122,6 @@ public final class TravelActionResolver
             return null;
         WorldPoint point = WorldPoint.fromScene(client, x, y, client.getPlane());
         return point == null ? null : CanonicalChunk.of(point);
-    }
-
-    private static boolean isNamedActivationOption(String option)
-    {
-        return option.equals("teleport") || option.equals("cast")
-            || option.equals("break") || option.equals("rub")
-            || option.equals("travel") || option.startsWith("travel via ")
-            || option.equals("charter") || option.equals("pay-fare")
-            || option.equals("minigame teleport");
     }
 
     private static boolean isBoundaryObject(MenuAction action)

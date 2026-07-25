@@ -120,6 +120,26 @@ public class TravelActionResolverTest
     }
 
     @Test
+    public void resolvesDestinationNamedMenusOnlyForAllowlistedTravelCarriers()
+    {
+        TravelAction jewelry = resolver.resolve(
+            entry("Edgeville", "Amulet of glory(6)", MenuAction.UNKNOWN),
+            client, origin);
+        assertTravel(jewelry, TravelAction.Family.SPELL_OR_ITEM,
+            new CanonicalChunk(48, 54), true);
+        assertEquals("Jewelry Teleports", jewelry.getRequiredUnlock());
+
+        TravelAction spiritTree = resolver.resolve(
+            entry("Tree Gnome Stronghold", "Spirit tree", MenuAction.UNKNOWN),
+            client, origin);
+        assertTravel(spiritTree, TravelAction.Family.SPIRIT_TREE,
+            new CanonicalChunk(38, 53), true);
+        assertEquals("Spirit Trees", spiritTree.getRequiredUnlock());
+
+        assertUnknown(entry("Edgeville", "Treasure map", MenuAction.UNKNOWN));
+        assertUnknown(entry("Configure", "Amulet of glory", MenuAction.UNKNOWN));
+    }
+    @Test
     public void genericTravelWordsWithoutAResolvedDestinationStayUnknown()
     {
         assertUnknown(entry("Travel", "New destination", MenuAction.UNKNOWN));

@@ -80,15 +80,16 @@ final class TravelGuardianPluginShell
         MenuOptionClicked event,
         Client client,
         CanonicalChunk origin,
-        GuardContext context,
-        FateRuleEngine rules)
+        GuardContext travelContext,
+        FateRuleEngine travelRules,
+        GuardContext genericContext)
     {
         TravelGuardianResult result;
         try
         {
             result = coordinator.handle(
                 event, event.getMenuEntry(), client, origin,
-                context, rules, availability);
+                travelContext, travelRules, availability);
         }
         catch (RuntimeException ex)
         {
@@ -107,7 +108,7 @@ final class TravelGuardianPluginShell
         if (action == null
             || action.getConfidence() != TravelAction.Confidence.EXACT)
         {
-            genericHandler.handle(event, context);
+            genericHandler.handle(event, genericContext);
             return Route.GENERIC;
         }
 

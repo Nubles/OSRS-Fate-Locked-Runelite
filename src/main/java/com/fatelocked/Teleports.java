@@ -36,6 +36,18 @@ public final class Teleports
         "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
     };
 
+    // Destination-named menu options are only activations when their target is a
+    // specific known carrier or network. Deliberately excludes generic "teleport".
+    private static final String[] NAMED_DESTINATION_CARRIERS = {
+        "amulet of glory", "amulet of eternal glory", "ring of dueling",
+        "ring of duelling", "games necklace", "combat bracelet", "skills necklace",
+        "ring of wealth", "necklace of passage", "burning amulet", "digsite pendant",
+        "slayer ring", "ectophial", "royal seed pod", "enchanted lyre",
+        "drakan's medallion", "xeric's talisman", "chronicle", "ring of the elements",
+        "spirit tree", "gnome glider", "glider", "charter", "fairy ring", "quetzal",
+        "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
+    };
+
     private static final Map<String, int[]> PLACES = new LinkedHashMap<>();
     private static final Map<String, int[]> CHECKED_TRAVEL_PLACES = new LinkedHashMap<>();
     private static final List<String> KEYS_BY_LEN;
@@ -196,17 +208,41 @@ public final class Teleports
     public static CanonicalChunk destinationChunk(String option, String target,
         boolean includeTravelTransportItems)
     {
-        String text = ((option == null ? "" : option) + " " + (target == null ? "" : target))
-            .toLowerCase()
-            .replaceAll("<[^>]*>", " "); // strip colour/format tags
-
+        String text = normalize(option) + " " + normalize(target);
         boolean looksTele = contains(text, TELE_ITEMS);
         if (!looksTele && includeTravelTransportItems)
         {
             looksTele = contains(text, TRAVEL_TRANSPORT_ITEMS);
         }
-        if (!looksTele) return null;
+        return looksTele
+            ? destinationFromText(text, includeTravelTransportItems) : null;
+    }
 
+    /**
+     * Destination for a checked travel activation. This is the authoritative
+     * activation classifier shared by Travel Guardian and the legacy guard.
+     */
+    public static CanonicalChunk checkedTravelDestinationChunk(
+        String option, String target, boolean includeTravelTransportItems)
+    {
+        String cleanOption = normalize(option);
+        String cleanTarget = normalize(target);
+        CanonicalChunk destination = destinationChunk(
+            cleanOption, cleanTarget, includeTravelTransportItems);
+        if (destination == null) return null;
+        if (isActivationOption(cleanOption)) return destination;
+
+        CanonicalChunk namedDestination = destinationFromText(
+            cleanOption, includeTravelTransportItems);
+        return namedDestination != null
+            && namedDestination.equals(destination)
+            && contains(cleanTarget, NAMED_DESTINATION_CARRIERS)
+            ? destination : null;
+    }
+
+    private static CanonicalChunk destinationFromText(
+        String text, boolean includeTravelTransportItems)
+    {
         List<String> keys = includeTravelTransportItems
             ? CHECKED_TRAVEL_KEYS_BY_LEN : KEYS_BY_LEN;
         for (String key : keys)
@@ -221,6 +257,23 @@ public final class Teleports
         return null;
     }
 
+    private static boolean isActivationOption(String option)
+    {
+        return option.equals("teleport") || option.equals("cast")
+            || option.equals("break") || option.equals("rub")
+            || option.equals("travel") || option.startsWith("travel via ")
+            || option.equals("charter") || option.equals("pay-fare")
+            || option.equals("minigame teleport");
+    }
+
+    private static String normalize(String value)
+    {
+        return (value == null ? "" : value)
+            .toLowerCase()
+            .replaceAll("<[^>]*>", " ")
+            .replaceAll("\\s+", " ")
+            .trim();
+    }
     private static boolean contains(String text, String[] items)
     {
         for (String item : items)
