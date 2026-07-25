@@ -29,11 +29,11 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
     private static final int BUTTON_HORIZONTAL_PADDING = 8;
     private static final int BUTTON_VERTICAL_PADDING = 5;
 
+    private final Object interactionLock = new Object();
     private final TravelBlockNoticeStore noticeStore;
     private final BooleanSupplier strictModeEnabled;
     private final BooleanSupplier strictModePaused;
-    private Runnable pauseGuardian;
-    private Rectangle pauseButtonBounds;
+    private volatile InteractionState interactionState;
 
     public FateLockedTravelBlockOverlay(
         TravelBlockNoticeStore noticeStore,
@@ -45,10 +45,14 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         {
             throw new IllegalArgumentException("notice store and Strict Mode state are required");
         }
+        if (pauseGuardian == null)
+        {
+            throw new IllegalArgumentException("pause callback is required");
+        }
         this.noticeStore = noticeStore;
         this.strictModeEnabled = strictModeEnabled;
         this.strictModePaused = strictModePaused;
-        setPauseGuardian(pauseGuardian);
+        interactionState = InteractionState.hidden(pauseGuardian);
         setPosition(OverlayPosition.TOP_CENTER);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
         setResizable(false);
@@ -60,12 +64,16 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         {
             throw new IllegalArgumentException("pause callback is required");
         }
-        this.pauseGuardian = pauseGuardian;
+        synchronized (interactionLock)
+        {
+            interactionState = interactionState.withPauseGuardian(pauseGuardian);
+        }
     }
 
     public Rectangle getPauseButtonBounds()
     {
-        return pauseButtonBounds == null ? null : new Rectangle(pauseButtonBounds);
+        Rectangle bounds = interactionState.localButtonBounds;
+        return bounds == null ? null : new Rectangle(bounds);
     }
 
     @Override
@@ -73,14 +81,14 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
     {
         if (!strictModeEnabled.getAsBoolean() || strictModePaused.getAsBoolean())
         {
-            pauseButtonBounds = null;
+            clearInteractionState();
             return null;
         }
 
         Optional<TravelBlockNotice> current = noticeStore.current();
         if (!current.isPresent())
         {
-            pauseButtonBounds = null;
+            clearInteractionState();
             return null;
         }
 
@@ -121,23 +129,40 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         }
 
         int buttonY = height - PADDING - buttonHeight;
-        pauseButtonBounds = new Rectangle(PADDING, buttonY, buttonWidth, buttonHeight);
+        Rectangle localButtonBounds = new Rectangle(PADDING, buttonY, buttonWidth, buttonHeight);
+        Rectangle canvasButtonBounds = new Rectangle(localButtonBounds);
+        Rectangle overlayBounds = getBounds();
+        canvasButtonBounds.translate(overlayBounds.x, overlayBounds.y);
+        publishInteractionState(localButtonBounds, canvasButtonBounds);
         graphics.setColor(AMBER);
-        graphics.fillRect(pauseButtonBounds.x, pauseButtonBounds.y,
-            pauseButtonBounds.width, pauseButtonBounds.height);
+        graphics.fillRect(localButtonBounds.x, localButtonBounds.y,
+            localButtonBounds.width, localButtonBounds.height);
         graphics.setColor(PANEL);
-        graphics.drawString(PAUSE_LABEL, pauseButtonBounds.x + BUTTON_HORIZONTAL_PADDING,
-            pauseButtonBounds.y + BUTTON_VERTICAL_PADDING + metrics.getAscent());
+        graphics.drawString(PAUSE_LABEL, localButtonBounds.x + BUTTON_HORIZONTAL_PADDING,
+            localButtonBounds.y + BUTTON_VERTICAL_PADDING + metrics.getAscent());
         return new Dimension(width, height);
     }
 
     @Override
     public MouseEvent mousePressed(MouseEvent event)
     {
-        if (event.getButton() == MouseEvent.BUTTON1 && pauseButtonBounds != null
-            && pauseButtonBounds.contains(event.getPoint()))
+        Runnable pause = null;
+        synchronized (interactionLock)
         {
-            pauseGuardian.run();
+            InteractionState snapshot = interactionState;
+            if (event.getButton() == MouseEvent.BUTTON1
+                && strictModeEnabled.getAsBoolean()
+                && !strictModePaused.getAsBoolean()
+                && noticeStore.current().isPresent()
+                && snapshot.canvasButtonBounds != null
+                && snapshot.canvasButtonBounds.contains(event.getPoint()))
+            {
+                pause = snapshot.pauseGuardian;
+            }
+        }
+        if (pause != null)
+        {
+            pause.run();
             return null;
         }
         return event;
@@ -149,4 +174,46 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
     @Override public MouseEvent mouseExited(MouseEvent event) { return event; }
     @Override public MouseEvent mouseDragged(MouseEvent event) { return event; }
     @Override public MouseEvent mouseMoved(MouseEvent event) { return event; }
+
+    private void clearInteractionState()
+    {
+        synchronized (interactionLock)
+        {
+            interactionState = InteractionState.hidden(interactionState.pauseGuardian);
+        }
+    }
+
+    private void publishInteractionState(Rectangle localButtonBounds, Rectangle canvasButtonBounds)
+    {
+        synchronized (interactionLock)
+        {
+            interactionState = new InteractionState(localButtonBounds, canvasButtonBounds,
+                interactionState.pauseGuardian);
+        }
+    }
+
+    private static final class InteractionState
+    {
+        private final Rectangle localButtonBounds;
+        private final Rectangle canvasButtonBounds;
+        private final Runnable pauseGuardian;
+
+        private InteractionState(
+            Rectangle localButtonBounds, Rectangle canvasButtonBounds, Runnable pauseGuardian)
+        {
+            this.localButtonBounds = localButtonBounds == null ? null : new Rectangle(localButtonBounds);
+            this.canvasButtonBounds = canvasButtonBounds == null ? null : new Rectangle(canvasButtonBounds);
+            this.pauseGuardian = pauseGuardian;
+        }
+
+        private static InteractionState hidden(Runnable pauseGuardian)
+        {
+            return new InteractionState(null, null, pauseGuardian);
+        }
+
+        private InteractionState withPauseGuardian(Runnable pauseGuardian)
+        {
+            return new InteractionState(localButtonBounds, canvasButtonBounds, pauseGuardian);
+        }
+    }
 }
