@@ -27,29 +27,60 @@ final class TravelGuardianOverlayLifecycle
 
     synchronized void start()
     {
-        if (mouseRegistered) return;
         if (!overlayAdded)
         {
-            addOverlay.run();
             overlayAdded = true;
-        }
-        try
-        {
-            registerMouse.run();
-            mouseRegistered = true;
-        }
-        catch (RuntimeException registrationFailure)
-        {
             try
             {
-                removeOverlay.run();
-                overlayAdded = false;
+                addOverlay.run();
             }
-            catch (RuntimeException rollbackFailure)
+            catch (RuntimeException addFailure)
             {
-                registrationFailure.addSuppressed(rollbackFailure);
+                rollbackOverlay(addFailure);
+                throw addFailure;
             }
-            throw registrationFailure;
+        }
+        if (!mouseRegistered)
+        {
+            mouseRegistered = true;
+            try
+            {
+                registerMouse.run();
+            }
+            catch (RuntimeException registrationFailure)
+            {
+                rollbackMouse(registrationFailure);
+                rollbackOverlay(registrationFailure);
+                throw registrationFailure;
+            }
+        }
+    }
+
+    private void rollbackMouse(RuntimeException startupFailure)
+    {
+        if (!mouseRegistered) return;
+        try
+        {
+            unregisterMouse.run();
+            mouseRegistered = false;
+        }
+        catch (RuntimeException cleanupFailure)
+        {
+            startupFailure.addSuppressed(cleanupFailure);
+        }
+    }
+
+    private void rollbackOverlay(RuntimeException startupFailure)
+    {
+        if (!overlayAdded) return;
+        try
+        {
+            removeOverlay.run();
+            overlayAdded = false;
+        }
+        catch (RuntimeException cleanupFailure)
+        {
+            startupFailure.addSuppressed(cleanupFailure);
         }
     }
 
