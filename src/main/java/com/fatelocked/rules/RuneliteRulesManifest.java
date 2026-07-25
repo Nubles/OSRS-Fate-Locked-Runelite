@@ -21,6 +21,7 @@ public final class RuneliteRulesManifest
     private String gameModeId;
     private String exportedAt;
     private boolean bankLocks;
+    private List<String> knownMobility;
     private Unlocks unlocks;
     private Map<String, ItemRule> itemRules;
     private Map<String, ChunkPermissionSnapshot> chunks;
@@ -37,6 +38,7 @@ public final class RuneliteRulesManifest
         copy.gameModeId = gameModeId;
         copy.exportedAt = exportedAt;
         copy.bankLocks = bankLocks;
+        copy.knownMobility = Unlocks.immutableList(knownMobility);
         copy.unlocks = unlocks == null ? new Unlocks().normalized() : unlocks.normalized();
         Map<String, ItemRule> normalizedItems = new TreeMap<>();
         if (itemRules != null)

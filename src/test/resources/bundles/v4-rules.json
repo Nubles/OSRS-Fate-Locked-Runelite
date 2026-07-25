@@ -28,6 +28,7 @@
     "gameModeId": "vanilla",
     "exportedAt": "2026-07-24T10:00:00.000Z",
     "bankLocks": true,
+    "knownMobility": ["Fairy Rings", "Spirit Trees"],
     "unlocks": {
       "regions": ["Lumbridge"],
       "chunks": [],
@@ -38,7 +39,7 @@
       "merchants": ["General Stores"],
       "bosses": [],
       "minigames": [],
-      "mobility": [],
+      "mobility": ["Fairy Rings"],
       "arcana": [],
       "guilds": [],
       "farming": [],

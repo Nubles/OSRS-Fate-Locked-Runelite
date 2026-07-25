@@ -72,6 +72,31 @@ public class FateRuleEngine
         return unknown(targetName);
     }
 
+    public RuleDecision mobility(String name)
+    {
+        RuleDecision trust = trustDecision();
+        if (trust != null) return trust;
+        if (name == null || !contains(
+            bundle.getRules().getKnownMobility(), name))
+        {
+            return unknown(name);
+        }
+        PermissionStatus status = contains(
+            bundle.getRules().getUnlocks().getMobility(), name)
+            ? PermissionStatus.ALLOWED : PermissionStatus.LOCKED;
+        return new RuleDecision(status, name,
+            status == PermissionStatus.LOCKED
+                ? name + " is not unlocked" : null);
+    }
+
+    public String areaLabel(CanonicalChunk chunk)
+    {
+        if (chunk == null || trustDecision() != null) return null;
+        return bundle.permissionsAt(chunk)
+            .map(ChunkPermissionSnapshot::getName)
+            .orElse(null);
+    }
+
     public RuleDecision equipment(int itemId)
     {
         RuleDecision trust = trustDecision();
@@ -108,6 +133,23 @@ public class FateRuleEngine
             return unknown(null);
         }
         return null;
+    }
+
+    private static boolean contains(List<String> values, String name)
+    {
+        String expected = normalizeName(name);
+        if (expected.isEmpty()) return false;
+        for (String value : values)
+        {
+            if (expected.equals(normalizeName(value))) return true;
+        }
+        return false;
+    }
+
+    private static String normalizeName(String value)
+    {
+        if (value == null) return "";
+        return value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     private static RuleDecision unknown(String label)
