@@ -187,6 +187,27 @@ public class TravelGuardianCoordinatorTest
         assertGenericTravelWordFailsOpen("Enter", rules);
         assertGenericTravelWordFailsOpen("Teleport", rules);
     }
+
+    @Test
+    public void mappedNonActivationActionsStayUnknownAndUnconsumed()
+    {
+        FateRuleEngine rules = rulesAt(
+            new CanonicalChunk(50, 53), PermissionStatus.LOCKED);
+
+        assertMappedNonActivationFailsOpen(
+            "Drop", "Varrock teleport", rules);
+        assertMappedNonActivationFailsOpen(
+            "Examine", "Varrock teleport", rules);
+        assertMappedNonActivationFailsOpen(
+            "Destroy", "Varrock teleport", rules);
+        assertMappedNonActivationFailsOpen(
+            "Check", "Varrock teleport", rules);
+        assertMappedNonActivationFailsOpen(
+            "Configure", "Varrock teleport", rules);
+        assertMappedNonActivationFailsOpen(
+            "Cancel", "Varrock teleport", rules);
+    }
+
     @Test
     public void notReadyDestinationLeavesTravelUnconsumedAndUnrecorded()
     {
@@ -311,6 +332,21 @@ public class TravelGuardianCoordinatorTest
             context(true, false, true, true, rules), rules, availability);
 
         assertFailOpen(click, result);
+        assertEquals(TravelAction.Confidence.UNKNOWN,
+            result.getAction().getConfidence());
+        assertNull(result.getAction().getDestination());
+    }
+    private void assertMappedNonActivationFailsOpen(
+        String option, String target, FateRuleEngine rules)
+    {
+        MenuOptionClicked click = namedTeleportClick(option, target);
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
+
+        assertFailOpen(click, result);
+        assertEquals(TravelAction.Family.UNKNOWN,
+            result.getAction().getFamily());
         assertEquals(TravelAction.Confidence.UNKNOWN,
             result.getAction().getConfidence());
         assertNull(result.getAction().getDestination());

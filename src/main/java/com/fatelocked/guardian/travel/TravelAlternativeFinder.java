@@ -44,8 +44,9 @@ public class TravelAlternativeFinder
         String intendedArea = normalizeArea(
             rules.areaLabel(action.getDestination()));
         TravelAlternative best = null;
-        int bestAreaRank = Integer.MAX_VALUE;
+        int bestRank = Integer.MAX_VALUE;
         long bestDistance = Long.MAX_VALUE;
+        String bestId = null;
 
         for (TravelAlternative candidate : alternatives)
         {
@@ -54,18 +55,25 @@ public class TravelAlternativeFinder
                 continue;
             }
 
-            int areaRank = sameArea(
-                intendedArea, normalizeArea(rules.areaLabel(
-                    candidate.getDestination()))) ? 0 : 1;
-            long distance = distance(
+            String candidateArea = normalizeArea(
+                rules.areaLabel(candidate.getDestination()));
+            long candidateDistance = distance(
                 action.getDestination(), candidate.getDestination());
+            int candidateRank = sameArea(intendedArea, candidateArea)
+                ? 0 : candidateDistance == 1 ? 1 : 2;
+            String candidateId = normalizeStableId(candidate.getId());
             if (best == null
-                || areaRank < bestAreaRank
-                || (areaRank == bestAreaRank && distance < bestDistance))
+                || candidateRank < bestRank
+                || (candidateRank == bestRank
+                    && candidateDistance < bestDistance)
+                || (candidateRank == bestRank
+                    && candidateDistance == bestDistance
+                    && candidateId.compareTo(bestId) < 0))
             {
                 best = candidate;
-                bestAreaRank = areaRank;
-                bestDistance = distance;
+                bestRank = candidateRank;
+                bestDistance = candidateDistance;
+                bestId = candidateId;
             }
         }
         return Optional.ofNullable(best);
@@ -91,6 +99,17 @@ public class TravelAlternativeFinder
             return false;
         }
 
+        String requiredUnlock = candidate.getRequiredUnlock();
+        if (requiredUnlock == null || requiredUnlock.trim().isEmpty())
+        {
+            return false;
+        }
+        RuleDecision mobility = rules.mobility(requiredUnlock);
+        if (mobility == null
+            || mobility.getStatus() != PermissionStatus.ALLOWED)
+        {
+            return false;
+        }
         if (!availability.hasAnyItem(candidate.getRequiredItemIds()))
         {
             return false;
@@ -129,6 +148,11 @@ public class TravelAlternativeFinder
         return normalized.isEmpty() ? null : normalized;
     }
 
+    private static String normalizeStableId(String id)
+    {
+        String normalized = normalizeArea(id);
+        return normalized == null ? "" : normalized;
+    }
     private static long distance(CanonicalChunk left, CanonicalChunk right)
     {
         return Math.abs((long) left.getCx() - right.getCx())

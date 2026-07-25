@@ -40,6 +40,7 @@ public final class TravelAlternativeCatalog
         Set<Integer> itemIds = new LinkedHashSet<>();
         itemIds.add(itemId);
         return new TravelAlternative(
-            id, label, destination, itemIds, null, 0, null);
+            id, label, destination, "Teleport Tablets", itemIds,
+            null, 0, null);
     }
 }

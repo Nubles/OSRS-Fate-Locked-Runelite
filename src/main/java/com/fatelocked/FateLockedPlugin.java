@@ -725,7 +725,24 @@ String m = raw.toLowerCase();
         String current = local == null ? null : local.getName();
         return current != null && normName(bound).equals(normName(current));
     }
-/** Advisory when a bank is explicitly locked by the shared rules. */
+
+    private boolean strictTravelAccountMatches(FateLockedBundle source)
+    {
+        if (source == null || source.getRules() == null)
+        {
+            return false;
+        }
+        String bound = source.getRules().getAccount();
+        if (bound == null || bound.trim().isEmpty())
+        {
+            return false;
+        }
+        Player local = client.getLocalPlayer();
+        String current = local == null ? null : local.getName();
+        return current != null && normName(bound).equals(normName(current));
+    }
+
+    /** Advisory when a bank is explicitly locked by the shared rules. */
     private void warnLockedBankIfNeeded()
     {
         Player local = client.getLocalPlayer();
@@ -1051,7 +1068,7 @@ java.util.Optional<DetectedEvent> detected =
     public void onMenuOptionClicked(MenuOptionClicked event)
     {
         FateLockedBundle current = bundle;
-        boolean accountMatch = currentAccountMatches(current);
+        boolean accountMatch = strictTravelAccountMatches(current);
         FateRuleEngine rules = new FateRuleEngine(current, accountMatch, false);
         GuardContext context = new GuardContext(
             config.strictMode(), strictPause.isPaused(), accountMatch,
@@ -1334,7 +1351,7 @@ MenuEntry entry = event.getMenuEntry();
     }
 
     /** Load a bundle from JSON pasted into the side panel. */
-    private void applyPastedBundle(String json)
+    private boolean applyPastedBundle(String json)
     {
         try
         {
@@ -1344,12 +1361,49 @@ MenuEntry entry = event.getMenuEntry();
             log.info("Fate Locked bundle imported from paste: {} regions", parsed.getRegionChunks().size());
             panel.flashStatus("imported " + parsed.getRegionChunks().size() + " regions", true);
             refreshPanel();
+            return true;
         }
         catch (RuntimeException ex)
         {
             log.warn("Pasted bundle could not be parsed: {}", ex.getMessage());
             panel.flashStatus("import failed — using previous rules", false);
+            return false;
         }
+    }
+
+    /**
+     * Accept a relay bundle on the client thread only after strict v4 parsing
+     * succeeds. The retained bundle, freshness timestamp, and relay version are
+     * one trust snapshot and therefore change together.
+     */
+    private boolean acceptRelayPayload(
+        String payload, String relayVersion, Instant acceptedAt)
+    {
+        final FateLockedBundle parsed;
+        try
+        {
+            parsed = FateLockedBundle.loadFromJson(gson, payload);
+            if (parsed.getVersion() != 4 || parsed.isLegacyRules())
+            {
+                throw new IllegalArgumentException(
+                    "Relay payload must be a valid v4 rules bundle");
+            }
+        }
+        catch (RuntimeException ex)
+        {
+            log.debug("Relay bundle rejected: {}", ex.getMessage());
+            return false;
+        }
+
+        bundle = parsed;
+        lastTrackerSync = acceptedAt;
+        lastRelayVersion = relayVersion;
+        log.info("Fate Locked bundle imported from relay: {} regions",
+            parsed.getRegionChunks().size());
+        panel.flashStatus(
+            "synced " + parsed.getRegionChunks().size() + " regions", true);
+        refreshPanel();
+        return true;
     }
 
     /** Recompute the player's current chunk and push everything to the panel. */
@@ -1619,20 +1673,28 @@ MenuEntry entry = event.getMenuEntry();
                     if (r.isSuccessful())
                     {
                         relayOffline = false;
-                        lastTrackerSync = Instant.now();
                         updatePanelSyncHealth();
                     }
                     if (r.code() == 304 || !r.isSuccessful() || r.body() == null) return;
                     RelayMessage msg = gson.fromJson(r.body().string(), RelayMessage.class);
                     if (msg == null || msg.payload == null) return;
                     String etag = r.header("ETag");
-                    lastRelayVersion = etag != null ? etag : String.valueOf(msg.version);
+                    String relayVersion =
+                        etag != null ? etag : String.valueOf(msg.version);
                     String payload = msg.payload;
-                    clientThread.invoke(() -> applyPastedBundle(payload));
-                    // Heartbeat for the web app's onboarding: a tiny {ts, version}
-                    // ack on /state proves the pairing works end-to-end. Same
-                    // consent gate as this poll (we're inside it), same relay.
-                    postStateAck(trimmedCode, msg.version);
+                    clientThread.invoke(() ->
+                    {
+                        if (!acceptRelayPayload(
+                            payload, relayVersion, Instant.now()))
+                        {
+                            return;
+                        }
+                        updatePanelSyncHealth();
+                        // Heartbeat for the web app's onboarding: a tiny
+                        // {ts, version} ack on /state proves the pairing works
+                        // end-to-end. Same consent gate as this poll.
+                        postStateAck(trimmedCode, msg.version);
+                    });
                 }
                 catch (Exception ex)
                 {

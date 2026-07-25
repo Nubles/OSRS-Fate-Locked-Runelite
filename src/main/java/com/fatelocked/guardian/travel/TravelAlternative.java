@@ -14,6 +14,7 @@ public class TravelAlternative
     String id;
     String label;
     CanonicalChunk destination;
+    String requiredUnlock;
     Set<Integer> requiredItemIds;
     Skill requiredSkill;
     int requiredLevel;
@@ -23,6 +24,7 @@ public class TravelAlternative
         String id,
         String label,
         CanonicalChunk destination,
+        String requiredUnlock,
         Set<Integer> requiredItemIds,
         Skill requiredSkill,
         int requiredLevel,
@@ -31,6 +33,7 @@ public class TravelAlternative
         this.id = id;
         this.label = label;
         this.destination = destination;
+        this.requiredUnlock = requiredUnlock;
         this.requiredItemIds = requiredItemIds == null
             ? Collections.emptySet()
             : Collections.unmodifiableSet(new LinkedHashSet<>(requiredItemIds));

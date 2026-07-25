@@ -147,7 +147,8 @@ public class TravelGuardianPluginShellTest
             mock(TravelGuardianCoordinator.class);
         TravelAlternative alternative = new TravelAlternative(
             "varrock-tablet", "Varrock teleport tablet",
-            new CanonicalChunk(50, 53), Collections.singleton(8007),
+            new CanonicalChunk(50, 53), "Teleport Tablets",
+            Collections.singleton(8007),
             null, 0, null);
         when(coordinator.handle(
             any(), any(), any(), any(), any(), any(), any()))
@@ -178,7 +179,8 @@ public class TravelGuardianPluginShellTest
             mock(TravelGuardianCoordinator.class);
         TravelAlternative alternative = new TravelAlternative(
             "varrock-tablet", "Varrock teleport tablet",
-            new CanonicalChunk(50, 53), Collections.singleton(8007),
+            new CanonicalChunk(50, 53), "Teleport Tablets",
+            Collections.singleton(8007),
             null, 0, null);
         when(coordinator.handle(
             any(), any(), any(), any(), any(), any(), any()))

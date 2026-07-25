@@ -6,6 +6,7 @@ import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
@@ -32,6 +33,13 @@ public class TravelAlternativeFinderTest
 
     private final FateRuleEngine rules = mock(FateRuleEngine.class);
     private final TravelAvailability availability = mock(TravelAvailability.class);
+
+    @Before
+    public void allowTabletMobilityByDefault()
+    {
+        when(rules.mobility("Teleport Tablets"))
+            .thenReturn(decision(PermissionStatus.ALLOWED));
+    }
 
     @Test
     public void prefersCarriedAllowedAlternativeInTheIntendedArea()
@@ -80,10 +88,49 @@ public class TravelAlternativeFinderTest
     }
 
     @Test
+    public void tabletMobilityMustBeExplicitlyAllowed()
+    {
+        TravelAlternative candidate =
+            TravelAlternativeCatalog.alternatives().get(0);
+        for (TravelAlternative tablet :
+            TravelAlternativeCatalog.alternatives())
+        {
+            assertEquals("Teleport Tablets", tablet.getRequiredUnlock());
+        }
+        when(rules.entry(candidate.getDestination()))
+            .thenReturn(allowed("Varrock"));
+        when(availability.hasAnyItem(candidate.getRequiredItemIds()))
+            .thenReturn(true);
+
+        when(rules.mobility("Teleport Tablets")).thenReturn(null);
+        assertFalse(new TravelAlternativeFinder(
+            Collections.singletonList(candidate))
+            .find(exactAction(VARROCK), rules, availability).isPresent());
+
+        for (PermissionStatus status : Arrays.asList(
+            PermissionStatus.UNKNOWN,
+            PermissionStatus.NOT_READY,
+            PermissionStatus.LOCKED))
+        {
+            when(rules.mobility("Teleport Tablets"))
+                .thenReturn(decision(status));
+            assertFalse(new TravelAlternativeFinder(
+                Collections.singletonList(candidate))
+                .find(exactAction(VARROCK), rules, availability).isPresent());
+        }
+
+        when(rules.mobility("Teleport Tablets"))
+            .thenReturn(decision(PermissionStatus.ALLOWED));
+        assertEquals(candidate, new TravelAlternativeFinder(
+            Collections.singletonList(candidate))
+            .find(exactAction(VARROCK), rules, availability).get());
+    }
+
+    @Test
     public void requiresEveryDeclaredLocalRequirement()
     {
         TravelAlternative alternative = new TravelAlternative(
-            "verified", "Verified", VARROCK, setOf(8007),
+            "verified", "Verified", VARROCK, "Teleport Tablets", setOf(8007),
             Skill.MAGIC, 45, 0);
         TravelAlternativeFinder finder = new TravelAlternativeFinder(
             Collections.singletonList(alternative));
@@ -104,22 +151,44 @@ public class TravelAlternativeFinderTest
     }
 
     @Test
-    public void ranksByAreaThenDistanceThenCatalogOrder()
+    public void adjacentRankOutranksOtherBeforeDistance()
     {
         CanonicalChunk destination = new CanonicalChunk(50, 50);
-        CanonicalChunk nearer = new CanonicalChunk(50, 51);
-        CanonicalChunk tied = new CanonicalChunk(51, 50);
-        TravelAlternative firstTie = tablet("z-last-id", "First tie", tied, 8008);
-        TravelAlternative secondTie = tablet("a-first-id", "Second tie", nearer, 8007);
-        when(rules.entry(nearer)).thenReturn(allowed("Nearer"));
-        when(rules.entry(tied)).thenReturn(allowed("Tied"));
+        CanonicalChunk adjacent = new CanonicalChunk(50, 51);
+        TravelAlternative zeroDistanceOther = tablet(
+            "a-zero-distance", "Zero distance other", destination, 8008);
+        TravelAlternative adjacentCandidate = tablet(
+            "z-adjacent", "Adjacent", adjacent, 8007);
+        when(rules.entry(destination)).thenReturn(allowed("Destination"));
+        when(rules.entry(adjacent)).thenReturn(allowed("Adjacent"));
         when(availability.hasAnyItem(any())).thenReturn(true);
 
         Optional<TravelAlternative> result = new TravelAlternativeFinder(
-            Arrays.asList(firstTie, secondTie))
+            Arrays.asList(zeroDistanceOther, adjacentCandidate))
             .find(exactAction(destination), rules, availability);
 
-        assertEquals(firstTie, result.get());
+        assertEquals(adjacentCandidate, result.get());
+    }
+
+    @Test
+    public void normalizedStableIdBreaksEqualRankAndDistanceTies()
+    {
+        CanonicalChunk destination = new CanonicalChunk(50, 50);
+        CanonicalChunk east = new CanonicalChunk(51, 50);
+        CanonicalChunk north = new CanonicalChunk(50, 51);
+        TravelAlternative catalogFirst = tablet(
+            " Z-last-ID ", "Catalog first", east, 8008);
+        TravelAlternative lexicographicFirst = tablet(
+            "a-first-id", "Lexicographic first", north, 8007);
+        when(rules.entry(east)).thenReturn(allowed("East"));
+        when(rules.entry(north)).thenReturn(allowed("North"));
+        when(availability.hasAnyItem(any())).thenReturn(true);
+
+        Optional<TravelAlternative> result = new TravelAlternativeFinder(
+            Arrays.asList(catalogFirst, lexicographicFirst))
+            .find(exactAction(destination), rules, availability);
+
+        assertEquals(lexicographicFirst, result.get());
     }
 
     @Test
@@ -134,7 +203,8 @@ public class TravelAlternativeFinderTest
 
         Set<Integer> mutableIds = new LinkedHashSet<>(setOf(8007));
         TravelAlternative copied = new TravelAlternative(
-            "copy", "Copy", VARROCK, mutableIds, null, 0, null);
+            "copy", "Copy", VARROCK, "Teleport Tablets", mutableIds,
+            null, 0, null);
         mutableIds.clear();
         assertEquals(setOf(8007), copied.getRequiredItemIds());
         assertThrows(UnsupportedOperationException.class,
@@ -148,8 +218,8 @@ public class TravelAlternativeFinderTest
         when(availability.hasAnyItem(any())).thenReturn(true);
         TravelAlternativeFinder finder = new TravelAlternativeFinder(
             Collections.singletonList(new TravelAlternative(
-                "none", "None", VARROCK, Collections.emptySet(),
-                null, 0, null)));
+                "none", "None", VARROCK, "Teleport Tablets",
+                Collections.emptySet(), null, 0, null)));
 
         assertFalse(finder.find(null, rules, availability).isPresent());
         assertFalse(finder.find(unknownAction(), rules, availability).isPresent());
@@ -178,7 +248,8 @@ public class TravelAlternativeFinderTest
         String id, String label, CanonicalChunk destination, int itemId)
     {
         return new TravelAlternative(
-            id, label, destination, setOf(itemId), null, 0, null);
+            id, label, destination, "Teleport Tablets", setOf(itemId),
+            null, 0, null);
     }
 
     private static TravelAction exactAction(CanonicalChunk destination)

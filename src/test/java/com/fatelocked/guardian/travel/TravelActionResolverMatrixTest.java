@@ -42,6 +42,9 @@ public class TravelActionResolverMatrixTest
     {
         return Arrays.asList(new Object[][] {
             exact("lunar-isle", "Teleport", "Lunar Isle", TravelAction.Family.SPELL_OR_ITEM, 33, 61),
+            exact("cast-spell", "Cast", "Varrock teleport", TravelAction.Family.SPELL_OR_ITEM, 50, 53),
+            exact("break-tablet", "Break", "Varrock teleport tablet", TravelAction.Family.SPELL_OR_ITEM, 50, 53),
+            exact("rub-jewellery", "Rub", "Amulet of glory - Edgeville", TravelAction.Family.SPELL_OR_ITEM, 48, 54),
             exact("zanaris", "Travel", "Fairy ring — Zanaris", TravelAction.Family.FAIRY_RING, 37, 69),
             exact("prifddinas", "Travel", "Spirit tree — Prifddinas", TravelAction.Family.SPIRIT_TREE, 51, 95),
             exact("lemanto-andra", "Travel", "Gnome glider — Lemanto Andra", TravelAction.Family.GNOME_GLIDER, 51, 53),
@@ -53,6 +56,12 @@ public class TravelActionResolverMatrixTest
             exact("nightmare-zone", "Minigame teleport", "Nightmare Zone", TravelAction.Family.MINIGAME_TELEPORT, 40, 48),
             exact("hunter-guild", "Travel", "Quetzal — Hunter Guild", TravelAction.Family.QUETZAL, 24, 47),
 
+            unknown("mapped-drop", "Drop", "Varrock teleport"),
+            unknown("mapped-examine", "Examine", "Varrock teleport"),
+            unknown("mapped-destroy", "Destroy", "Varrock teleport"),
+            unknown("mapped-check", "Check", "Fairy ring - Zanaris"),
+            unknown("mapped-configure", "Configure", "Nightmare Zone minigame teleport"),
+            unknown("mapped-cancel", "Cancel", "Nightmare Zone minigame teleport"),
             unknown("lunar-isle-near-miss", "Teleport", "Teleport configuration"),
             unknown("zanaris-near-miss", "Check", "Fairy ring health"),
             unknown("prifddinas-near-miss", "Check", "Spirit tree health"),
