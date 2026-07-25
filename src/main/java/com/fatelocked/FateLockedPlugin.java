@@ -1641,7 +1641,8 @@ MenuEntry entry = event.getMenuEntry();
         {
             if (activeRelayPoll != null) return null;
             RelayPollToken token = new RelayPollToken(
-                relayGeneration, baseUrl, code, lastRelayVersion);
+                relayGeneration, baseUrl, code,
+                canonicalRelayValidator(lastRelayVersion));
             activeRelayPoll = token;
             return token;
         }
@@ -1676,7 +1677,7 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
-    private static boolean isAcceptableRelay200(
+    private static Integer acceptableRelay200Version(
         RelayPollToken token, String responseEtag, int messageVersion)
     {
         Integer responseVersion = parseRelayVersionEtag(responseEtag);
@@ -1684,15 +1685,16 @@ MenuEntry entry = event.getMenuEntry();
             || messageVersion <= 0
             || responseVersion.intValue() != messageVersion)
         {
-            return false;
+            return null;
         }
         if (token.acceptedRelayVersion == null)
         {
-            return true;
+            return responseVersion;
         }
         Integer acceptedVersion = parseRelayVersionEtag(
             token.acceptedRelayVersion);
-        return acceptedVersion != null && responseVersion > acceptedVersion;
+        return acceptedVersion != null && responseVersion > acceptedVersion
+            ? responseVersion : null;
     }
 
     private static Integer parseRelayVersionEtag(String rawEtag)
@@ -1723,10 +1725,16 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
+    private static String canonicalRelayValidator(String value)
+    {
+        Integer version = parseRelayVersionEtag(value);
+        return version == null ? value : String.valueOf(version);
+    }
+
     private boolean acceptedRelayStateUnchanged(RelayPollToken token)
     {
         String expected = token.acceptedRelayVersion;
-        String current = lastRelayVersion;
+        String current = canonicalRelayValidator(lastRelayVersion);
         return expected == null ? current == null : expected.equals(current);
     }
 
@@ -1896,13 +1904,14 @@ MenuEntry entry = event.getMenuEntry();
                             return;
                         }
                         String etag = currentResponse.header("ETag");
-                        if (!isAcceptableRelay200(
-                            token, etag, message.version))
+                        Integer acceptedVersion = acceptableRelay200Version(
+                            token, etag, message.version);
+                        if (acceptedVersion == null)
                         {
                             clearRelayPoll(token);
                             return;
                         }
-                        String relayVersion = etag.trim();
+                        String relayVersion = String.valueOf(acceptedVersion);
                         String payload = message.payload;
                         if (!isRelayPollCurrent(token))
                         {

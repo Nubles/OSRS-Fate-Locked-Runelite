@@ -143,7 +143,7 @@ public class FateLockedPluginRelayTrustTest
 
         assertEquals("Accepted Account",
             harness.plugin.getBundle().getRules().getAccount());
-        assertEquals("\"3\"",
+        assertEquals("3",
             field(harness.plugin, "lastRelayVersion"));
         assertTrue(((Instant) field(harness.plugin, "lastTrackerSync"))
             .isAfter(harness.initialSync));
@@ -236,7 +236,7 @@ public class FateLockedPluginRelayTrustTest
         Harness harness = new Harness();
         harness.seedAcceptedVersion("\"5\"");
         harness.poll();
-        assertEquals("\"5\"",
+        assertEquals("5",
             harness.polls.get(0).request.header("If-None-Match"));
 
         harness.polls.get(0).respond(
@@ -249,13 +249,46 @@ public class FateLockedPluginRelayTrustTest
 
         assertEquals("Version Six",
             harness.plugin.getBundle().getRules().getAccount());
-        assertEquals("W/\"6\"",
+        assertEquals("6",
             field(harness.plugin, "lastRelayVersion"));
         assertTrue(((Instant) field(harness.plugin, "lastTrackerSync"))
             .isAfter(harness.initialSync));
         harness.assertAckVersion(6);
     }
 
+    @Test
+    public void acceptedWeakValidatorRevalidatesCanonicallyThrough304()
+        throws Exception
+    {
+        Harness harness = new Harness();
+        harness.poll();
+        harness.polls.get(0).respond(
+            200, "W/\"6\"", harness.relayBody("Version Six", 6));
+        harness.runClientTasks();
+
+        FateLockedBundle acceptedBundle = harness.plugin.getBundle();
+        assertEquals("Version Six", acceptedBundle.getRules().getAccount());
+        assertEquals("6", field(harness.plugin, "lastRelayVersion"));
+        harness.assertAckVersion(6);
+
+        Instant beforeRefresh = Instant.EPOCH;
+        setField(harness.plugin, "lastTrackerSync", beforeRefresh);
+        harness.poll();
+        PendingCall revalidation = harness.polls.get(1);
+        assertEquals("6", revalidation.request.header("If-None-Match"));
+
+        revalidation.respond(304, "6", null);
+        assertEquals(beforeRefresh,
+            field(harness.plugin, "lastTrackerSync"));
+        assertEquals(1, harness.clientTasks.size());
+        harness.runClientTasks();
+
+        assertSame(acceptedBundle, harness.plugin.getBundle());
+        assertEquals("6", field(harness.plugin, "lastRelayVersion"));
+        assertTrue(((Instant) field(harness.plugin, "lastTrackerSync"))
+            .isAfter(beforeRefresh));
+        assertEquals(1, harness.acks.size());
+    }
     @Test
     public void rejectedResponseClearsOnlyItsOwnActiveToken()
         throws Exception
