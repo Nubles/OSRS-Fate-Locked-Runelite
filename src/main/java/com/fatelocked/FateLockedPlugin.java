@@ -1676,6 +1676,53 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
+    private static boolean isAcceptableRelay200(
+        RelayPollToken token, String responseEtag, int messageVersion)
+    {
+        Integer responseVersion = parseRelayVersionEtag(responseEtag);
+        if (responseVersion == null
+            || messageVersion <= 0
+            || responseVersion.intValue() != messageVersion)
+        {
+            return false;
+        }
+        if (token.acceptedRelayVersion == null)
+        {
+            return true;
+        }
+        Integer acceptedVersion = parseRelayVersionEtag(
+            token.acceptedRelayVersion);
+        return acceptedVersion != null && responseVersion > acceptedVersion;
+    }
+
+    private static Integer parseRelayVersionEtag(String rawEtag)
+    {
+        if (rawEtag == null) return null;
+        String value = rawEtag.trim();
+        if (value.startsWith("W/"))
+        {
+            value = value.substring(2);
+        }
+        if (value.startsWith("\""))
+        {
+            if (value.length() < 2 || !value.endsWith("\"")) return null;
+            value = value.substring(1, value.length() - 1);
+        }
+        else if (value.contains("\""))
+        {
+            return null;
+        }
+        if (!value.matches("[1-9][0-9]*")) return null;
+        try
+        {
+            return Integer.valueOf(value);
+        }
+        catch (NumberFormatException ex)
+        {
+            return null;
+        }
+    }
+
     private boolean acceptedRelayStateUnchanged(RelayPollToken token)
     {
         String expected = token.acceptedRelayVersion;
@@ -1849,8 +1896,13 @@ MenuEntry entry = event.getMenuEntry();
                             return;
                         }
                         String etag = currentResponse.header("ETag");
-                        String relayVersion = etag != null
-                            ? etag : String.valueOf(message.version);
+                        if (!isAcceptableRelay200(
+                            token, etag, message.version))
+                        {
+                            clearRelayPoll(token);
+                            return;
+                        }
+                        String relayVersion = etag.trim();
                         String payload = message.payload;
                         if (!isRelayPollCurrent(token))
                         {

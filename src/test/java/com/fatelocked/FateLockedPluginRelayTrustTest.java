@@ -13,6 +13,7 @@ import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import okio.Buffer;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -63,12 +64,12 @@ public class FateLockedPluginRelayTrustTest
         harness.poll();
         PendingCall current = harness.polls.get(1);
 
-        old.respond(200, "\"old\"", harness.relayBody("Old Account", 1));
+        old.respond(200, "\"1\"", harness.relayBody("Old Account", 1));
         harness.poll();
         assertEquals("The old callback must not clear the newer in-flight poll",
             2, harness.polls.size());
 
-        current.respond(200, "\"new\"", harness.relayBody("New Account", 2));
+        current.respond(200, "\"2\"", harness.relayBody("New Account", 2));
         harness.runClientTasks();
 
         assertEquals("New Account",
@@ -83,7 +84,7 @@ public class FateLockedPluginRelayTrustTest
         Harness harness = new Harness();
         harness.poll();
         harness.polls.get(0).respond(
-            200, "\"new\"", harness.relayBody("New Account", 2));
+            200, "\"2\"", harness.relayBody("New Account", 2));
         assertEquals(1, harness.clientTasks.size());
 
         harness.change("onlineSync", () -> harness.online.set(false));
@@ -100,7 +101,7 @@ public class FateLockedPluginRelayTrustTest
         Harness harness = new Harness();
         harness.poll();
         harness.polls.get(0).respond(
-            200, "\"new\"", harness.relayBody("New Account", 2));
+            200, "\"2\"", harness.relayBody("New Account", 2));
 
         harness.change("syncCode", () -> harness.code.set("other-code"));
         harness.runClientTasks();
@@ -116,7 +117,7 @@ public class FateLockedPluginRelayTrustTest
         Harness harness = new Harness();
         harness.poll();
         harness.polls.get(0).respond(
-            200, "\"new\"", harness.relayBody("New Account", 2));
+            200, "\"2\"", harness.relayBody("New Account", 2));
 
         invoke(harness.plugin, "stopRelayPoll");
         harness.runClientTasks();
@@ -132,7 +133,7 @@ public class FateLockedPluginRelayTrustTest
         Harness harness = new Harness();
         harness.poll();
         harness.polls.get(0).respond(
-            200, "\"accepted\"", harness.relayBody("Accepted Account", 3));
+            200, "\"3\"", harness.relayBody("Accepted Account", 3));
 
         harness.assertInitialSnapshot();
         assertTrue(harness.acks.isEmpty());
@@ -142,11 +143,146 @@ public class FateLockedPluginRelayTrustTest
 
         assertEquals("Accepted Account",
             harness.plugin.getBundle().getRules().getAccount());
-        assertEquals("\"accepted\"",
+        assertEquals("\"3\"",
             field(harness.plugin, "lastRelayVersion"));
         assertTrue(((Instant) field(harness.plugin, "lastTrackerSync"))
             .isAfter(harness.initialSync));
         assertEquals(1, harness.acks.size());
+    }
+
+    @Test
+    public void coherentOlder200CannotRollBackAcceptedVersion()
+        throws Exception
+    {
+        Harness harness = new Harness();
+        harness.seedAcceptedVersion("\"5\"");
+        harness.poll();
+
+        harness.polls.get(0).respond(
+            200, "\"4\"", harness.relayBody("Older Account", 4));
+        harness.runClientTasks();
+
+        harness.assertRetainedSnapshot("\"5\"");
+        assertTrue(harness.clientTasks.isEmpty());
+        assertTrue(harness.acks.isEmpty());
+    }
+
+    @Test
+    public void responseEtagAndBodyVersionMustAgreeInBothDirections()
+        throws Exception
+    {
+        int[][] mismatches = { { 4, 6 }, { 6, 4 } };
+        for (int[] mismatch : mismatches)
+        {
+            Harness harness = new Harness();
+            harness.seedAcceptedVersion("\"5\"");
+            harness.poll();
+
+            harness.polls.get(0).respond(
+                200,
+                "\"" + mismatch[0] + "\"",
+                harness.relayBody("Mismatched Account", mismatch[1]));
+            harness.runClientTasks();
+
+            harness.assertRetainedSnapshot("\"5\"");
+            assertTrue(harness.clientTasks.isEmpty());
+            assertTrue(harness.acks.isEmpty());
+        }
+    }
+
+    @Test
+    public void missingOrUnparseableResponseEtagIsRejected()
+        throws Exception
+    {
+        String[] invalidEtags = { null, "not-a-version", "\"bad\"", "\"06\"" };
+        for (String invalidEtag : invalidEtags)
+        {
+            Harness harness = new Harness();
+            harness.seedAcceptedVersion("\"5\"");
+            harness.poll();
+
+            harness.polls.get(0).respond(
+                200, invalidEtag,
+                harness.relayBody("Unversioned Account", 6));
+            harness.runClientTasks();
+
+            harness.assertRetainedSnapshot("\"5\"");
+            assertTrue(harness.clientTasks.isEmpty());
+            assertTrue(harness.acks.isEmpty());
+        }
+    }
+
+    @Test
+    public void equalVersion200IsRejectedBecauseNormalEqualityIs304()
+        throws Exception
+    {
+        Harness harness = new Harness();
+        harness.seedAcceptedVersion("\"5\"");
+        harness.poll();
+
+        harness.polls.get(0).respond(
+            200, "W/\"5\"", harness.relayBody("Equal Account", 5));
+        harness.runClientTasks();
+
+        harness.assertRetainedSnapshot("\"5\"");
+        assertTrue(harness.clientTasks.isEmpty());
+        assertTrue(harness.acks.isEmpty());
+    }
+
+    @Test
+    public void coherentNewer200CommitsAtomicallyAndAcknowledgesItsVersion()
+        throws Exception
+    {
+        Harness harness = new Harness();
+        harness.seedAcceptedVersion("\"5\"");
+        harness.poll();
+        assertEquals("\"5\"",
+            harness.polls.get(0).request.header("If-None-Match"));
+
+        harness.polls.get(0).respond(
+            200, "W/\"6\"", harness.relayBody("Version Six", 6));
+
+        harness.assertRetainedSnapshot("\"5\"");
+        assertEquals(1, harness.clientTasks.size());
+        assertTrue(harness.acks.isEmpty());
+        harness.runClientTasks();
+
+        assertEquals("Version Six",
+            harness.plugin.getBundle().getRules().getAccount());
+        assertEquals("W/\"6\"",
+            field(harness.plugin, "lastRelayVersion"));
+        assertTrue(((Instant) field(harness.plugin, "lastTrackerSync"))
+            .isAfter(harness.initialSync));
+        harness.assertAckVersion(6);
+    }
+
+    @Test
+    public void rejectedResponseClearsOnlyItsOwnActiveToken()
+        throws Exception
+    {
+        Harness harness = new Harness();
+        harness.seedAcceptedVersion("\"5\"");
+        harness.poll();
+        PendingCall rejected = harness.polls.get(0);
+        rejected.respond(
+            200, "\"4\"", harness.relayBody("Older Account", 4));
+        harness.assertRetainedSnapshot("\"5\"");
+
+        harness.poll();
+        PendingCall newer = harness.polls.get(1);
+        rejected.respond(
+            200, "\"4\"", harness.relayBody("Older Account", 4));
+        harness.poll();
+        assertEquals("A rejected old callback must not clear the newer token",
+            2, harness.polls.size());
+
+        newer.respond(
+            200, "\"6\"", harness.relayBody("Newer Account", 6));
+        harness.runClientTasks();
+
+        assertEquals("Newer Account",
+            harness.plugin.getBundle().getRules().getAccount());
+        harness.assertAckVersion(6);
     }
 
     @Test
@@ -223,7 +359,7 @@ public class FateLockedPluginRelayTrustTest
         Harness harness = new Harness();
         harness.poll();
         harness.polls.get(0).respond(
-            200, "\"malformed\"", "{\"version\":2,\"payload\":\"{bad\"}");
+            200, "\"2\"", "{\"version\":2,\"payload\":\"{bad\"}");
         harness.runClientTasks();
 
         harness.assertInitialSnapshot();
@@ -328,6 +464,30 @@ public class FateLockedPluginRelayTrustTest
             body.put("version", version);
             body.put("payload", payload);
             return gson.toJson(body);
+        }
+
+        private void seedAcceptedVersion(String version) throws Exception
+        {
+            setField(plugin, "lastRelayVersion", version);
+        }
+
+        private void assertRetainedSnapshot(String version) throws Exception
+        {
+            assertSame(initialBundle, plugin.getBundle());
+            assertEquals(initialSync, field(plugin, "lastTrackerSync"));
+            assertEquals(version, field(plugin, "lastRelayVersion"));
+        }
+
+        private void assertAckVersion(int version) throws Exception
+        {
+            assertEquals(1, acks.size());
+            Buffer buffer = new Buffer();
+            acks.get(0).body().writeTo(buffer);
+            Map<?, ?> outer = gson.fromJson(buffer.readUtf8(), Map.class);
+            Map<?, ?> payload = gson.fromJson(
+                (String) outer.get("payload"), Map.class);
+            assertEquals(version,
+                ((Number) payload.get("version")).intValue());
         }
 
         private void assertInitialSnapshot() throws Exception
