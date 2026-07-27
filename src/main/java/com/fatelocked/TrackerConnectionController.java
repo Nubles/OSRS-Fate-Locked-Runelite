@@ -39,6 +39,7 @@ final class TrackerConnectionController
     private RelayPollToken activePoll;
     private String acceptedVersion;
     private Instant lastSync;
+    private String currentIdentityCode;
     private String legacyClearedCode;
     private boolean stopped;
     private volatile TrackerConnectionSnapshot snapshot =
@@ -60,6 +61,7 @@ final class TrackerConnectionController
         this.clientDispatcher = clientDispatcher;
         this.importer = importer;
         this.listener = listener;
+        this.currentIdentityCode = settings.pairingCode();
         listener.accept(snapshot);
     }
 
@@ -73,10 +75,11 @@ final class TrackerConnectionController
             activePoll = null;
             acceptedVersion = null;
             lastSync = null;
+            currentIdentityCode = code;
             stopped = false;
             snapshot = TrackerConnectionSnapshot.waiting();
+            listener.accept(snapshot);
         }
-        listener.accept(snapshot);
         return PairingSupport.trackerPairingUrl(code);
     }
 
@@ -88,19 +91,34 @@ final class TrackerConnectionController
 
     void poll()
     {
-        synchronized (pollLock)
-        {
-            if (stopped) return;
-        }
         String code = settings.pairingCode();
-        if (code.isEmpty())
-        {
-            publish(TrackerConnectionState.DISCONNECTED, null);
-            return;
-        }
         String version;
         synchronized (pollLock)
         {
+            if (stopped) return;
+            boolean identityChanged =
+                !equal(code, currentIdentityCode);
+            if (identityChanged)
+            {
+                generation++;
+                activePoll = null;
+                acceptedVersion = null;
+                lastSync = null;
+                currentIdentityCode = code;
+                snapshot = code.isEmpty()
+                    ? TrackerConnectionSnapshot.disconnected()
+                    : TrackerConnectionSnapshot.waiting();
+                listener.accept(snapshot);
+            }
+            if (code.isEmpty())
+            {
+                if (!identityChanged)
+                {
+                    snapshot = TrackerConnectionSnapshot.disconnected();
+                    listener.accept(snapshot);
+                }
+                return;
+            }
             version = acceptedVersion;
         }
         RelayPollToken token = beginPoll(
@@ -124,11 +142,9 @@ final class TrackerConnectionController
                 @Override
                 public void onFailure(Call call, IOException error)
                 {
-                    if (isPollCurrent(token))
-                    {
-                        publish(TrackerConnectionState.OFFLINE,
-                            "Could not reach tracker");
-                    }
+                    publishIfCurrent(token,
+                        TrackerConnectionState.OFFLINE,
+                        "Could not reach tracker");
                     clearPoll(token);
                 }
 
@@ -141,11 +157,9 @@ final class TrackerConnectionController
         }
         catch (RuntimeException error)
         {
-            if (isPollCurrent(token))
-            {
-                publish(TrackerConnectionState.OFFLINE,
-                    "Could not reach tracker");
-            }
+            publishIfCurrent(token,
+                TrackerConnectionState.OFFLINE,
+                "Could not reach tracker");
             clearPoll(token);
         }
     }
@@ -158,8 +172,8 @@ final class TrackerConnectionController
             generation++;
             activePoll = null;
             snapshot = TrackerConnectionSnapshot.disconnected();
+            listener.accept(snapshot);
         }
-        listener.accept(snapshot);
     }
 
     TrackerConnectionSnapshot snapshot()
@@ -203,14 +217,16 @@ final class TrackerConnectionController
             }
             if (current.code() == 404)
             {
-                publish(TrackerConnectionState.EXPIRED,
+                publishIfCurrent(token,
+                    TrackerConnectionState.EXPIRED,
                     "Pairing request expired");
                 clearPoll(token);
                 return;
             }
             if (!current.isSuccessful() || current.body() == null)
             {
-                publish(TrackerConnectionState.OFFLINE,
+                publishIfCurrent(token,
+                    TrackerConnectionState.OFFLINE,
                     "Tracker is unavailable");
                 clearPoll(token);
                 return;
@@ -236,10 +252,13 @@ final class TrackerConnectionController
                 return;
             }
             String canonical = String.valueOf(responseVersion);
-            publish(TrackerConnectionState.IMPORTING,
-                "Importing tracker data");
-            dispatchImport(
-                token, envelope.payload, canonical, envelope.version);
+            if (publishIfCurrent(token,
+                TrackerConnectionState.IMPORTING,
+                "Importing tracker data"))
+            {
+                dispatchImport(
+                    token, envelope.payload, canonical, envelope.version);
+            }
         }
         catch (Exception error)
         {
@@ -278,8 +297,8 @@ final class TrackerConnectionController
                         lastSync = refreshedAt;
                         snapshot = TrackerConnectionSnapshot.connected(
                             refreshedAt, acceptedVersion);
+                        listener.accept(snapshot);
                     }
-                    listener.accept(snapshot);
                 }
                 finally
                 {
@@ -320,7 +339,8 @@ final class TrackerConnectionController
                     }
                     if (!imported)
                     {
-                        publish(TrackerConnectionState.IMPORT_FAILED,
+                        publishIfCurrent(token,
+                            TrackerConnectionState.IMPORT_FAILED,
                             "Could not import tracker data");
                         return;
                     }
@@ -343,12 +363,12 @@ final class TrackerConnectionController
                         }
                         snapshot = TrackerConnectionSnapshot.connected(
                             acceptedAt, version);
+                        listener.accept(snapshot);
                     }
                     if (clearLegacy)
                     {
                         settings.clearLegacySettings();
                     }
-                    listener.accept(snapshot);
                     postStateAcknowledgement(
                         token, acknowledgementVersion);
                 }
@@ -360,7 +380,8 @@ final class TrackerConnectionController
         }
         catch (RuntimeException error)
         {
-            publish(TrackerConnectionState.IMPORT_FAILED,
+            publishIfCurrent(token,
+                TrackerConnectionState.IMPORT_FAILED,
                 "Could not import tracker data");
             clearPoll(token);
         }
@@ -544,35 +565,57 @@ final class TrackerConnectionController
         }
     }
 
+    private boolean publishIfCurrent(
+        RelayPollToken token,
+        TrackerConnectionState state,
+        String explicitMessage)
+    {
+        synchronized (pollLock)
+        {
+            if (!isPollCurrentLocked(token)
+                || !acceptedStateUnchangedLocked(token))
+            {
+                return false;
+            }
+            snapshot = snapshotForLocked(state, explicitMessage);
+            listener.accept(snapshot);
+            return true;
+        }
+    }
+
     private void publish(
         TrackerConnectionState state, String explicitMessage)
     {
-        TrackerConnectionSnapshot next;
         synchronized (pollLock)
         {
-            if (state == TrackerConnectionState.DISCONNECTED)
-            {
-                next = TrackerConnectionSnapshot.disconnected();
-            }
-            else if (state == TrackerConnectionState.WAITING)
-            {
-                next = TrackerConnectionSnapshot.waiting();
-            }
-            else if (state == TrackerConnectionState.CONNECTED)
-            {
-                next = TrackerConnectionSnapshot.connected(
-                    lastSync, acceptedVersion);
-            }
-            else
-            {
-                next = TrackerConnectionSnapshot.of(
-                    state, lastSync, acceptedVersion,
-                    explicitMessage == null
-                        ? defaultMessage(state) : explicitMessage);
-            }
-            snapshot = next;
+            snapshot = snapshotForLocked(state, explicitMessage);
+            listener.accept(snapshot);
         }
-        listener.accept(next);
+    }
+
+    private TrackerConnectionSnapshot snapshotForLocked(
+        TrackerConnectionState state, String explicitMessage)
+    {
+        if (state == TrackerConnectionState.DISCONNECTED)
+        {
+            return TrackerConnectionSnapshot.disconnected();
+        }
+        else if (state == TrackerConnectionState.WAITING)
+        {
+            return TrackerConnectionSnapshot.waiting();
+        }
+        else if (state == TrackerConnectionState.CONNECTED)
+        {
+            return TrackerConnectionSnapshot.connected(
+                lastSync, acceptedVersion);
+        }
+        else
+        {
+            return TrackerConnectionSnapshot.of(
+                state, lastSync, acceptedVersion,
+                explicitMessage == null
+                    ? defaultMessage(state) : explicitMessage);
+        }
     }
 
     private static String defaultMessage(TrackerConnectionState state)

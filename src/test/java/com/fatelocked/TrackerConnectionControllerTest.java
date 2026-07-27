@@ -26,7 +26,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -49,8 +51,10 @@ public class TrackerConnectionControllerTest
     private final Map<String, String> configuration =
         new ConcurrentHashMap<>();
     private final List<String> unsetKeys = new CopyOnWriteArrayList<>();
+    private final RecordingDispatcher dispatcher =
+        new RecordingDispatcher();
     private final ConcurrentLinkedQueue<Runnable> clientTasks =
-        new ConcurrentLinkedQueue<>();
+        dispatcher.tasks();
     private final RecordingImporter importer = new RecordingImporter();
     private final RecordingListener listener = new RecordingListener();
     private final MutableClock clock = new MutableClock(
@@ -96,7 +100,7 @@ public class TrackerConnectionControllerTest
             .addInterceptor(redirectToServer)
             .build();
         controller = new TrackerConnectionController(
-            http, gson, settings, clock, clientTasks::add,
+            http, gson, settings, clock, dispatcher,
             importer, listener);
     }
 
@@ -140,9 +144,13 @@ public class TrackerConnectionControllerTest
         assertEquals(TrackerConnectionState.IMPORTING,
             listener.last().getState());
         assertNull(controller.snapshot().getAcceptedVersion());
+        assertEquals(0, importer.acceptedPayloads().size());
+        assertEquals(1, dispatcher.dispatchedCount());
+        assertEquals(0, dispatcher.executedCount());
 
         runClientTasks();
         RecordedRequest ack = takeAck();
+        assertEquals(1, dispatcher.executedCount());
 
         assertEquals(TrackerConnectionState.CONNECTED,
             listener.last().getState());
@@ -235,6 +243,77 @@ public class TrackerConnectionControllerTest
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoAck();
+        assertEquals(0, acknowledgementCount);
+    }
+
+    @Test
+    public void configuredIdentityChangeDropsTheOldValidatorAndActivePoll()
+        throws Exception
+    {
+        connect(5, "\"5\"");
+        clock.advanceSeconds(30);
+        String replacementCode =
+            "fedcba9876543210fedcba9876543210";
+        server.enqueue(new MockResponse()
+            .setResponseCode(404)
+            .setHeadersDelay(500, TimeUnit.MILLISECONDS));
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        controller.poll();
+        takeRelay();
+        configuration.put(
+            TrackerConnectionSettings.PAIRING_CODE_KEY, replacementCode);
+        controller.poll();
+        RecordedRequest replacement = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        RecordedRequest acknowledgement = takeAck();
+        Thread.sleep(550);
+
+        assertEquals("/r/" + replacementCode, replacement.getPath());
+        assertNull(replacement.getHeader("If-None-Match"));
+        assertEquals("/r/" + replacementCode + "/state",
+            acknowledgement.getPath());
+        assertEquals(TrackerConnectionState.CONNECTED,
+            controller.snapshot().getState());
+        assertEquals("1", controller.snapshot().getAcceptedVersion());
+        assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(2, importer.acceptedPayloads().size());
+        assertEquals(0, clientTasks.size());
+        assertEquals(2, acknowledgementCount);
+    }
+
+    @Test
+    public void staleOfflinePublicationCannotOutliveANewerWaitingState()
+        throws Exception
+    {
+        listener.blockNext(TrackerConnectionState.OFFLINE);
+        server.enqueue(new MockResponse()
+            .setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+
+        controller.poll();
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        listener.awaitBlocked();
+        Thread pairing = new Thread(controller::beginPairing);
+        pairing.start();
+        try
+        {
+            pairing.join(500);
+        }
+        finally
+        {
+            listener.releaseBlocked();
+        }
+        pairing.join(2_000);
+
+        assertEquals(TrackerConnectionState.WAITING,
+            controller.snapshot().getState());
+        assertEquals(TrackerConnectionState.WAITING,
+            listener.last().getState());
+        assertTrue(settings.isPaired());
+        assertEquals(0, importer.acceptedPayloads().size());
+        assertEquals(0, clientTasks.size());
         assertEquals(0, acknowledgementCount);
     }
 
@@ -333,6 +412,11 @@ public class TrackerConnectionControllerTest
     @Test
     public void responseEtagMustMatchTheBodyVersion() throws Exception
     {
+        connect(5, "\"5\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
+        int imports = importer.acceptedPayloads().size();
+        int acknowledgements = acknowledgementCount;
+
         int[][] mismatches = {{4, 6}, {6, 4}};
         for (int[] mismatch : mismatches)
         {
@@ -343,12 +427,14 @@ public class TrackerConnectionControllerTest
         }
         Thread.sleep(50);
 
-        assertEquals(TrackerConnectionState.DISCONNECTED,
+        assertEquals(TrackerConnectionState.CONNECTED,
             controller.snapshot().getState());
-        assertNull(controller.snapshot().getAcceptedVersion());
-        assertEquals(0, importer.acceptedPayloads().size());
+        assertEquals("5", controller.snapshot().getAcceptedVersion());
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
+        assertEquals(imports, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoAck();
+        assertEquals(acknowledgements, acknowledgementCount);
     }
 
     @Test
@@ -721,16 +807,89 @@ public class TrackerConnectionControllerTest
         }
     }
 
+    private static final class RecordingDispatcher
+        implements Consumer<Runnable>
+    {
+        private final ConcurrentLinkedQueue<Runnable> tasks =
+            new ConcurrentLinkedQueue<>();
+        private final AtomicInteger dispatched = new AtomicInteger();
+        private final AtomicInteger executed = new AtomicInteger();
+
+        @Override
+        public void accept(Runnable task)
+        {
+            dispatched.incrementAndGet();
+            tasks.add(() -> {
+                executed.incrementAndGet();
+                task.run();
+            });
+        }
+
+        ConcurrentLinkedQueue<Runnable> tasks()
+        {
+            return tasks;
+        }
+
+        int dispatchedCount()
+        {
+            return dispatched.get();
+        }
+
+        int executedCount()
+        {
+            return executed.get();
+        }
+    }
+
     private static final class RecordingListener
         implements Consumer<TrackerConnectionSnapshot>
     {
         private final List<TrackerConnectionSnapshot> snapshots =
             new CopyOnWriteArrayList<>();
+        private volatile TrackerConnectionState blockedState;
+        private volatile CountDownLatch blocked;
+        private volatile CountDownLatch release;
 
         @Override
         public void accept(TrackerConnectionSnapshot snapshot)
         {
+            if (snapshot.getState() == blockedState)
+            {
+                blockedState = null;
+                blocked.countDown();
+                try
+                {
+                    if (!release.await(2, TimeUnit.SECONDS))
+                    {
+                        throw new AssertionError(
+                            "listener publication was not released");
+                    }
+                }
+                catch (InterruptedException error)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(error);
+                }
+            }
             snapshots.add(snapshot);
+        }
+
+        void blockNext(TrackerConnectionState state)
+        {
+            blockedState = state;
+            blocked = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+        }
+
+        void awaitBlocked() throws Exception
+        {
+            assertTrue("listener did not block",
+                blocked.await(2, TimeUnit.SECONDS));
+        }
+
+        void releaseBlocked()
+        {
+            release.countDown();
         }
 
         TrackerConnectionSnapshot last()
