@@ -25,6 +25,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class FateLockedConfigBinderTest
@@ -129,12 +130,14 @@ public class FateLockedConfigBinderTest
     @Test
     public void capturedSpaceDoesNotReenterCaptureOrSaveTwice()
     {
-        KeybindCaptureButton button = (KeybindCaptureButton) binder.keybindSetting(
-            "reimportHotkey", "Re-import hotkey", () -> Keybind.NOT_SET);
+        DispatchableKeybindCaptureButton button =
+            new DispatchableKeybindCaptureButton(Keybind.NOT_SET, value ->
+                configManager.setConfiguration(
+                    FateLockedConfig.GROUP, "reimportHotkey", value));
         KeyEvent event = keyPressed(button, KeyEvent.VK_SPACE);
 
         button.doClick();
-        dispatchKeyPressed(button, event);
+        button.processKeyEventForTest(event);
 
         verify(configManager, times(1)).setConfiguration(
             FateLockedConfig.GROUP, "reimportHotkey", new Keybind(event));
@@ -151,6 +154,7 @@ public class FateLockedConfigBinderTest
         focusLost(button);
 
         assertEquals(Keybind.NOT_SET.toString(), button.getText());
+        verifyNoInteractions(configManager);
     }
     @Test
     public void keysContainOnlyControlsCreatedByCaller()
@@ -168,17 +172,6 @@ public class FateLockedConfigBinderTest
     private static void capture(KeybindCaptureButton button, KeyEvent event)
     {
         button.getKeyListeners()[0].keyPressed(event);
-    }
-
-
-
-    private static void dispatchKeyPressed(KeybindCaptureButton button, KeyEvent event)
-    {
-        capture(button, event);
-        if (!event.isConsumed())
-        {
-            button.doClick();
-        }
     }
     private static void focusLost(KeybindCaptureButton button)
     {
@@ -198,5 +191,19 @@ public class FateLockedConfigBinderTest
                 return getKeyCode();
             }
         };
+    }
+    private static final class DispatchableKeybindCaptureButton
+        extends KeybindCaptureButton
+    {
+        private DispatchableKeybindCaptureButton(Keybind keybind,
+            java.util.function.Consumer<Keybind> captureListener)
+        {
+            super(keybind, captureListener);
+        }
+
+        private void processKeyEventForTest(KeyEvent event)
+        {
+            processKeyEvent(event);
+        }
     }
 }

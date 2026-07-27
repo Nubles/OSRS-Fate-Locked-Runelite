@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 import javax.swing.JButton;
 import net.runelite.client.config.Keybind;
 
-final class KeybindCaptureButton extends JButton
+class KeybindCaptureButton extends JButton
 {
     private Consumer<Keybind> captureListener;
     private Keybind keybind;
