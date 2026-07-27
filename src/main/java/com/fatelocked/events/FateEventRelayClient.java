@@ -34,6 +34,28 @@ public class FateEventRelayClient
         void put(String key, String value);
     }
 
+    private static final class ConfigTokenStore implements TokenStore
+    {
+        private final ConfigManager configManager;
+
+        private ConfigTokenStore(ConfigManager configManager)
+        {
+            this.configManager = configManager;
+        }
+
+        @Override
+        public String get(String key)
+        {
+            return configManager.getConfiguration(FateLockedConfig.GROUP, key);
+        }
+
+        @Override
+        public void put(String key, String value)
+        {
+            configManager.setConfiguration(FateLockedConfig.GROUP, key, value);
+        }
+    }
+
     private final OkHttpClient client;
     private final Gson gson;
     private final BooleanSupplier enabled;
@@ -49,20 +71,16 @@ public class FateEventRelayClient
         ConfigManager configManager,
         FateLockedConfig config)
     {
-        this(client, gson, config::onlineSync, new TokenStore()
-        {
-            @Override
-            public String get(String key)
-            {
-                return configManager.getConfiguration(FateLockedConfig.GROUP, key);
-            }
+        this(client, gson, configManager, config::onlineSync);
+    }
 
-            @Override
-            public void put(String key, String value)
-            {
-                configManager.setConfiguration(FateLockedConfig.GROUP, key, value);
-            }
-        });
+    public FateEventRelayClient(
+        OkHttpClient client,
+        Gson gson,
+        ConfigManager configManager,
+        BooleanSupplier enabled)
+    {
+        this(client, gson, enabled, new ConfigTokenStore(configManager));
     }
 
     FateEventRelayClient(

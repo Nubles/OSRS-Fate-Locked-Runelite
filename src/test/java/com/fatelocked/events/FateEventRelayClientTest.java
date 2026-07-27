@@ -1,6 +1,7 @@
 package com.fatelocked.events;
 
 import com.google.gson.Gson;
+import net.runelite.client.config.ConfigManager;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -16,10 +17,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class FateEventRelayClientTest
 {
@@ -162,5 +165,21 @@ public class FateEventRelayClientTest
 
         assertEquals(null, server.takeRequest(200, TimeUnit.MILLISECONDS));
         assertTrue(outbox.contains("evt-1"));
+    }
+
+    @Test
+    public void publicConsentSupplierConstructorControlsEventTraffic() throws Exception
+    {
+        AtomicBoolean paired = new AtomicBoolean(false);
+        ConfigManager configManager = mock(ConfigManager.class);
+        FateEventRelayClient relay = new FateEventRelayClient(
+            new OkHttpClient(), gson, configManager, paired::get);
+
+        relay.flush(server.url("/").toString(), "ABCD", outbox);
+        assertEquals(null, server.takeRequest(200, TimeUnit.MILLISECONDS));
+
+        paired.set(true);
+        relay.flush(server.url("/").toString(), "ABCD", outbox);
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
     }
 }
