@@ -28,8 +28,8 @@ public final class GuardedActionFactory
                 tileChunk(entry, client), null);
         }
 
-        CanonicalChunk teleport = Teleports.destinationChunk(
-            entry.getOption(), entry.getTarget());
+        CanonicalChunk teleport = Teleports.checkedTravelDestinationChunk(
+            entry.getOption(), entry.getTarget(), false);
         if (teleport != null)
         {
             return new GuardedAction(

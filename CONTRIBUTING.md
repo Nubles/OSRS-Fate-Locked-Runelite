@@ -144,13 +144,40 @@ skilling/travel rows retain concise requirement details. The optional overlay
 uses the same view model and caps each category at five rows.
 ## Strict Mode
 
-Strict Mode is off by default. It activates only when you check its config
-checkbox. It cancels only actions the current rules snapshot proves are locked,
-never Unknown actions, and can be paused for 60 seconds from the side panel.
+Travel Guardian must remain inside the existing Strict Mode checkbox, which
+defaults off. Do not add a second travel-enforcement toggle. The shared
+side-panel pause lasts 60 seconds, automatically resumes, and bypasses every
+Strict Mode category, including travel.
 
-Walking is always warning-only. Wrong-account, legacy, missing, invalid, or
-stale rules disable prevention. Every prevented click is explained immediately
-and recorded only in a bounded local troubleshooting log.
+The enforcement invariant is deliberately narrow: consume a click only when
+Strict Mode is enabled, the rules are fresh, the rules belong to the currently
+logged-in account, recognition confidence is `EXACT`, the canonical destination
+is known, and the app-authored decision is proven `LOCKED`. `ALLOWED`,
+`UNKNOWN`, stale, wrong-account, legacy, missing, invalid, future, ambiguous,
+same-chunk, and unresolved inputs must fail open. Unknown is a first-class
+result and must never be promoted to Locked by inference or fallback.
+
+Recognition confidence is `EXACT` only for a named spell, item, or transport
+whose checked mapping resolves a canonical destination, or for an exact
+cross-chunk `Walk here`/boundary-object tile. Missing destinations, null
+context, unrecognised labels, invalid scene tiles, and same-chunk clicks are
+`UNKNOWN`. Adding a family or alias requires a checked canonical mapping and
+tests for both the exact match and nearby ambiguous inputs.
+
+For every proven block, stage the explanation before the final consume
+operation. The transient banner lives for four seconds. Chat uses a bounded
+destination-and-method fingerprint and suppresses repeats for ten seconds.
+Suggestions are display-only: offer one only when its destination is Allowed
+and its item, real skill level, and spellbook requirements are verified from
+local client state. RuneLite must never click, activate, select, path to, or
+otherwise perform the alternative.
+
+Strict Mode audit data stays local and bounded to 100 entries. Keep the schema
+limited to timestamp, action kind, display target, canonical chunk, reason,
+outcome, paused state, and whether an alternative was available. Never add
+account names, inventory contents, chat text or history, relay credentials or
+tokens, route history, raw event evidence, or arbitrary telemetry.
+
 ## Expanded detector safety
 
 The current confirmation-only contracts are `slayer-task-v1` v1,

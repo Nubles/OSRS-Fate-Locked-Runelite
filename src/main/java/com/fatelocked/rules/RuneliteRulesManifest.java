@@ -1,5 +1,8 @@
 package com.fatelocked.rules;
 
+import com.google.gson.JsonElement;
+import com.google.gson.annotations.SerializedName;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -21,6 +24,10 @@ public final class RuneliteRulesManifest
     private String gameModeId;
     private String exportedAt;
     private boolean bankLocks;
+    @Getter(AccessLevel.NONE)
+    @SerializedName("knownMobility")
+    private JsonElement knownMobilityDeclaration;
+    private transient List<String> knownMobility;
     private Unlocks unlocks;
     private Map<String, ItemRule> itemRules;
     private Map<String, ChunkPermissionSnapshot> chunks;
@@ -37,6 +44,9 @@ public final class RuneliteRulesManifest
         copy.gameModeId = gameModeId;
         copy.exportedAt = exportedAt;
         copy.bankLocks = bankLocks;
+        copy.knownMobility = knownMobility == null
+            ? immutableStringList(knownMobilityDeclaration)
+            : Unlocks.immutableList(knownMobility);
         copy.unlocks = unlocks == null ? new Unlocks().normalized() : unlocks.normalized();
         Map<String, ItemRule> normalizedItems = new TreeMap<>();
         if (itemRules != null)
@@ -66,6 +76,25 @@ public final class RuneliteRulesManifest
         }
         copy.chunks = Collections.unmodifiableMap(normalizedChunks);
         return copy;
+    }
+
+    private static List<String> immutableStringList(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonArray())
+        {
+            return Collections.emptyList();
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonElement value : declaration.getAsJsonArray())
+        {
+            if (value == null || !value.isJsonPrimitive()
+                || !value.getAsJsonPrimitive().isString())
+            {
+                return Collections.emptyList();
+            }
+            values.add(value.getAsString());
+        }
+        return Collections.unmodifiableList(values);
     }
 
     public boolean hasRequiredFields()
