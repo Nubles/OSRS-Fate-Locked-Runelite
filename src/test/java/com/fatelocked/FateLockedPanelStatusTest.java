@@ -1,7 +1,13 @@
 package com.fatelocked;
 
+import com.google.gson.Gson;
+import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.event.KeyEvent;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -9,16 +15,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Keybind;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class FateLockedPanelStatusTest
@@ -75,6 +86,217 @@ public class FateLockedPanelStatusTest
         assertFalse(hasTravelGuardianCheckbox(panel));
     }
 
+    @Test
+    public void assignsEverySettingToExactlyOneOwningSection()
+    {
+        FateLockedPanel panel = panel();
+
+        assertSectionSettings(panel, "Current chunk", keys());
+        assertSectionSettings(panel, "Guardian", keys("strictMode"));
+        assertSectionSettings(panel, "Roll inbox", keys());
+        assertSectionSettings(panel, "Run", keys());
+        assertSectionSettings(panel, "Bundle",
+            keys("autoReload", "reimportHotkey"));
+        assertSectionSettings(panel, "Warnings", keys(
+            "chatOnEnter", "warnOnLocked", "warnLockedBank", "flashOnLocked",
+            "warnAccountMismatch", "tagLockedMenus", "tagLockedTeleports",
+            "showHud", "showNearest", "showChunkContentBox", "useNotifier",
+            "warnLockedSlayer", "warnOverTierGear", "showInfoBoxes", "rollNudges"));
+        assertSectionSettings(panel, "Rendering", keys(
+            "drawWorldMap", "drawScene", "drawMinimap",
+            "highlightLockedBorders", "shadeNearbyLocked", "worldMapMarkers",
+            "worldMapTooltip", "worldMapTooltipContent",
+            "unlockedColor", "frontierColor", "lockedColor", "unauthoredColor"));
+    }
+
+    @Test
+    public void strictToggleAppearsAboveItsIntroduction()
+    {
+        FateLockedPanel panel = panel();
+        Container guardian = sectionContent(panel, "Guardian");
+        Component toggle = panel.settingControlForTest("strictMode");
+        Component introduction = labelStartingWith(guardian, "<html>Strict Mode");
+
+        assertTrue(directChildIndex(guardian, toggle)
+            < directChildIndex(guardian, introduction));
+    }
+
+    @Test
+    public void configSuppliersInitializeTheOwnedControls()
+    {
+        Keybind hotkey = new Keybind(keyPressed(KeyEvent.VK_F));
+        Color frontier = new Color(12, 34, 56, 78);
+        when(config.strictMode()).thenReturn(true);
+        when(config.autoReload()).thenReturn(false);
+        when(config.showHud()).thenReturn(false);
+        when(config.drawScene()).thenReturn(false);
+        when(config.reimportHotkey()).thenReturn(hotkey);
+        when(config.frontierColor()).thenReturn(frontier);
+
+        FateLockedPanel panel = panel();
+
+        assertTrue(settingCheckbox(panel, "strictMode").isSelected());
+        assertFalse(settingCheckbox(panel, "autoReload").isSelected());
+        assertFalse(settingCheckbox(panel, "showHud").isSelected());
+        assertFalse(settingCheckbox(panel, "drawScene").isSelected());
+        assertEquals(hotkey.toString(),
+            ((JButton) panel.settingControlForTest("reimportHotkey")).getText());
+        assertEquals(frontier,
+            panel.settingControlForTest("frontierColor").getBackground());
+        assertEquals("Show \"in this chunk\" box",
+            settingCheckbox(panel, "showChunkContentBox").getText());
+        assertEquals("Frontier color (Chunked)",
+            ((JButton) panel.settingControlForTest("frontierColor")).getText());
+    }
+
+    @Test
+    public void representativeBooleansPersistThroughTheirOwningSections()
+        throws Exception
+    {
+        when(config.strictMode()).thenReturn(true);
+        when(config.autoReload()).thenReturn(false);
+        when(config.showHud()).thenReturn(false);
+        when(config.drawScene()).thenReturn(false);
+        FateLockedPanel panel = panel();
+
+        SwingUtilities.invokeAndWait(() -> {
+            settingCheckbox(panel, "strictMode").doClick();
+            settingCheckbox(panel, "autoReload").doClick();
+            settingCheckbox(panel, "showHud").doClick();
+            settingCheckbox(panel, "drawScene").doClick();
+        });
+
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, "strictMode", false);
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, "autoReload", true);
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, "showHud", true);
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, "drawScene", true);
+    }
+
+    @Test
+    public void bundleImportAndReloadCallbacksStayInBundleSection()
+        throws Exception
+    {
+        FateLockedPanel panel = panel();
+        java.util.List<String> imports = new java.util.ArrayList<>();
+        AtomicInteger reloads = new AtomicInteger();
+        panel.setCallbacks(imports::add, reloads::incrementAndGet, () -> { });
+        Container bundle = sectionContent(panel, "Bundle");
+        JTextArea paste = findTextArea(bundle);
+        JButton importButton = buttonWithText(bundle, "Import pasted JSON");
+        JButton reloadButton = buttonWithText(bundle, "Reload from file");
+
+        SwingUtilities.invokeAndWait(() -> {
+            paste.setText("  {\"run\":1}  ");
+            importButton.doClick();
+            reloadButton.doClick();
+        });
+
+        assertEquals(Arrays.asList("{\"run\":1}"), imports);
+        assertEquals(1, reloads.get());
+        assertTrue(isDescendant(bundle, importButton));
+        assertTrue(isDescendant(bundle, reloadButton));
+    }
+
+    @Test
+    public void guardianActionsStayInGuardianAndInvokeTheirCallbacks()
+        throws Exception
+    {
+        FateLockedPanel panel = panel();
+        AtomicInteger pauses = new AtomicInteger();
+        AtomicInteger resumes = new AtomicInteger();
+        AtomicInteger dismissals = new AtomicInteger();
+        panel.setGuardianCallbacks(
+            pauses::incrementAndGet,
+            resumes::incrementAndGet,
+            dismissals::incrementAndGet);
+        Container guardian = sectionContent(panel, "Guardian");
+
+        panel.updateStrictMode(true, false, 0);
+        flushSwing();
+        JButton pause = buttonWithText(
+            guardian, "Pause Strict Mode for 60 seconds");
+        SwingUtilities.invokeAndWait(pause::doClick);
+        panel.updateStrictMode(true, true, 60);
+        flushSwing();
+        JButton resume = buttonWithText(
+            guardian, "Resume Strict Mode \u00b7 60s");
+        SwingUtilities.invokeAndWait(resume::doClick);
+        panel.showStrictModeIntro();
+        flushSwing();
+        JButton dismiss = buttonWithText(guardian, "Got it");
+        SwingUtilities.invokeAndWait(dismiss::doClick);
+
+        assertEquals(1, pauses.get());
+        assertEquals(1, resumes.get());
+        assertEquals(1, dismissals.get());
+        assertTrue(isDescendant(guardian, pause));
+        assertTrue(isDescendant(guardian, dismiss));
+    }
+
+    @Test
+    public void rollInboxLinkAndButtonStayInRollInbox()
+    {
+        FateLockedPanel panel = panel();
+        panel.setRollInboxLink("https://tracker.example/app", "AB &");
+        Container inbox = sectionContent(panel, "Roll inbox");
+
+        assertEquals(
+            "https://tracker.example/app?open=roll-inbox&code=AB+%26",
+            panel.rollInboxUrlForTest());
+        JButton open = buttonWithText(inbox, "Open Roll Inbox");
+        assertTrue(isDescendant(inbox, open));
+        assertEquals(1, open.getActionListeners().length);
+    }
+
+    @Test
+    public void runValuesStillUpdateInsideRunSection() throws Exception
+    {
+        FateLockedPanel panel = panel();
+        panel.update(bundleFixture(), null);
+        flushSwing();
+        Container run = sectionContent(panel, "Run");
+
+        assertEquals("run-1", valueBesideLabel(run, "Run ID"));
+        assertEquals("Nubles", valueBesideLabel(run, "Account"));
+        assertEquals("0 \u00b7 O 0 \u00b7 C 0", valueBesideLabel(run, "Keys"));
+        assertEquals("0", valueBesideLabel(run, "Fate"));
+        assertEquals("\u2014", valueBesideLabel(run, "Goal"));
+    }
+
+    @Test
+    public void sectionHeadersToggleIndependently()
+    {
+        FateLockedPanel panel = panel();
+        CollapsiblePanelSection guardian = panel.sectionForTest("Guardian");
+        CollapsiblePanelSection warnings = panel.sectionForTest("Warnings");
+
+        warnings.headerForTest().doClick();
+
+        assertTrue(warnings.isExpanded());
+        assertTrue(guardian.isExpanded());
+        warnings.headerForTest().doClick();
+        assertFalse(warnings.isExpanded());
+        assertTrue(guardian.isExpanded());
+    }
+
+    @Test
+    public void allSectionsRemainUnderTheNorthAnchoredContentColumn()
+    {
+        FateLockedPanel panel = panel();
+        BorderLayout layout = (BorderLayout) panel.getLayout();
+        Component north = layout.getLayoutComponent(BorderLayout.NORTH);
+
+        assertSame(panel.getComponent(0), north);
+        for (String title : panel.sectionTitlesForTest())
+        {
+            assertTrue(isDescendant(
+                (Container) north, panel.sectionForTest(title)));
+        }
+    }
     @Test
     public void displaysConnectionAccountAndIpDisclosure() throws Exception
     {
@@ -196,6 +418,148 @@ public class FateLockedPanelStatusTest
         SwingUtilities.invokeAndWait(() -> { });
     }
 
+    private static LinkedHashSet<String> keys(String... keys)
+    {
+        return new LinkedHashSet<>(Arrays.asList(keys));
+    }
+
+    private static void assertSectionSettings(
+        FateLockedPanel panel, String title, LinkedHashSet<String> expected)
+    {
+        assertEquals(expected, panel.sectionSettingKeysForTest(title));
+        Container content = sectionContent(panel, title);
+        for (String key : panel.settingKeysForTest())
+        {
+            assertEquals(
+                title + " ownership for " + key,
+                expected.contains(key),
+                isDescendant(content, panel.settingControlForTest(key)));
+        }
+    }
+
+    private static Container sectionContent(
+        FateLockedPanel panel, String title)
+    {
+        return (Container) panel.sectionForTest(title).body().getComponent(0);
+    }
+
+    private static JCheckBox settingCheckbox(
+        FateLockedPanel panel, String key)
+    {
+        return (JCheckBox) panel.settingControlForTest(key);
+    }
+
+    private static int directChildIndex(Container root, Component component)
+    {
+        Component child = component;
+        while (child.getParent() != root)
+        {
+            child = child.getParent();
+        }
+        Component[] children = root.getComponents();
+        for (int i = 0; i < children.length; i++)
+        {
+            if (children[i] == child)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isDescendant(
+        Container ancestor, Component component)
+    {
+        Component current = component;
+        while (current != null)
+        {
+            if (current == ancestor)
+            {
+                return true;
+            }
+            current = current.getParent();
+        }
+        return false;
+    }
+
+    private static JTextArea findTextArea(Container root)
+    {
+        for (Component component : root.getComponents())
+        {
+            if (component instanceof JTextArea)
+            {
+                return (JTextArea) component;
+            }
+            if (component instanceof Container)
+            {
+                try
+                {
+                    return findTextArea((Container) component);
+                }
+                catch (AssertionError ignored)
+                {
+                    // Continue searching sibling containers.
+                }
+            }
+        }
+        throw new AssertionError("No text area found");
+    }
+
+    private static String valueBesideLabel(Container root, String label)
+    {
+        Component[] components = root.getComponents();
+        for (int i = 0; i + 1 < components.length; i++)
+        {
+            if (components[i] instanceof JLabel
+                && label.equals(((JLabel) components[i]).getText())
+                && components[i + 1] instanceof JLabel)
+            {
+                return ((JLabel) components[i + 1]).getText();
+            }
+        }
+        for (Component component : components)
+        {
+            if (component instanceof Container)
+            {
+                try
+                {
+                    return valueBesideLabel((Container) component, label);
+                }
+                catch (AssertionError ignored)
+                {
+                    // Continue searching sibling containers.
+                }
+            }
+        }
+        throw new AssertionError("No value beside label: " + label);
+    }
+
+    private FateLockedBundle bundleFixture() throws Exception
+    {
+        try (InputStream input = getClass().getClassLoader()
+            .getResourceAsStream("bundles/v4-rules.json"))
+        {
+            assertNotNull(input);
+            String json = new String(
+                input.readAllBytes(), StandardCharsets.UTF_8);
+            return FateLockedBundle.loadFromJson(new Gson(), json);
+        }
+    }
+
+    private static KeyEvent keyPressed(int keyCode)
+    {
+        JButton source = new JButton();
+        return new KeyEvent(source, KeyEvent.KEY_PRESSED, 0L, 0, keyCode,
+            KeyEvent.CHAR_UNDEFINED)
+        {
+            @Override
+            public int getExtendedKeyCode()
+            {
+                return getKeyCode();
+            }
+        };
+    }
+
     private static JButton buttonWithText(Container root, String text)
     {
         for (Component component : root.getComponents())
@@ -267,6 +631,7 @@ public class FateLockedPanelStatusTest
         }
         throw new AssertionError("No checkbox with text: " + text);
     }
+
     private static boolean hasTravelGuardianCheckbox(Container root)
     {
         for (Component component : root.getComponents())

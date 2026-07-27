@@ -34,6 +34,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,6 +74,10 @@ class FateLockedPanel extends PluginPanel
     private final JPanel strictIntro = card();
     private final JPanel recentPreventedBody = column();
     private final Map<String, CollapsiblePanelSection> sections =
+        new LinkedHashMap<>();
+    private final Map<String, Set<String>> sectionSettingKeys =
+        new LinkedHashMap<>();
+    private final Map<String, JComponent> settingControls =
         new LinkedHashMap<>();
     private final FateLockedConfigBinder configBinder;
     private final CollapsiblePanelSection bundleSection;
@@ -154,6 +159,8 @@ class FateLockedPanel extends PluginPanel
             new CollapsiblePanelSection(name, expanded);
         section.body().add(content);
         sections.put(name, section);
+        sectionSettingKeys.computeIfAbsent(
+            name, ignored -> new LinkedHashSet<>());
         parent.add(section);
         parent.add(Box.createVerticalStrut(9));
         return section;
@@ -163,9 +170,10 @@ class FateLockedPanel extends PluginPanel
     {
         JPanel body = column();
         buildStrictIntro();
+        addSetting(body, ownSetting("Guardian", "strictMode",
+            configBinder.booleanSetting(
+                "strictMode", "Strict Mode", config::strictMode)));
         body.add(strictIntro);
-        addSetting(body, configBinder.booleanSetting(
-            "strictMode", "Strict Mode", config::strictMode));
         body.add(stats(new String[]{"Guardian status"},
             new JLabel[]{strictModeVal}));
         body.add(Box.createVerticalStrut(5));
@@ -215,61 +223,82 @@ class FateLockedPanel extends PluginPanel
 
     private void buildBundleBody(FateLockedConfig config)
     {
-        addSetting(bundleBody, configBinder.booleanSetting(
-            "autoReload", "Auto-reload on change", config::autoReload));
+        addSetting(bundleBody, ownSetting("Bundle", "autoReload",
+            configBinder.booleanSetting(
+                "autoReload", "Auto-reload on change", config::autoReload)));
         addLabeledSetting(bundleBody, "Re-import hotkey",
-            configBinder.keybindSetting(
-                "reimportHotkey", "Re-import hotkey", config::reimportHotkey));
+            ownSetting("Bundle", "reimportHotkey",
+                configBinder.keybindSetting(
+                    "reimportHotkey", "Re-import hotkey", config::reimportHotkey)));
         buildImportControls();
     }
 
     private JPanel buildWarningsBody(FateLockedConfig config)
     {
         JPanel body = column();
-        addBoolean(body, "chatOnEnter", "Chat on chunk entry", config::chatOnEnter);
-        addBoolean(body, "warnOnLocked", "Warn entering locked chunk", config::warnOnLocked);
-        addBoolean(body, "warnLockedBank", "Warn opening a locked bank", config::warnLockedBank);
-        addBoolean(body, "flashOnLocked", "Screen flash on locked entry", config::flashOnLocked);
-        addBoolean(body, "warnAccountMismatch", "Warn on wrong account", config::warnAccountMismatch);
-        addBoolean(body, "tagLockedMenus", "Tag locked right-click targets", config::tagLockedMenus);
-        addBoolean(body, "tagLockedTeleports", "Tag teleports to locked chunks", config::tagLockedTeleports);
-        addBoolean(body, "showHud", "Show in-game HUD", config::showHud);
-        addBoolean(body, "showNearest", "HUD: nearest bank & shop", config::showNearest);
-        addBoolean(body, "showChunkContentBox", "Show in this chunk box", config::showChunkContentBox);
-        addBoolean(body, "useNotifier", "Send RuneLite notifications", config::useNotifier);
-        addBoolean(body, "warnLockedSlayer", "Warn on locked slayer task", config::warnLockedSlayer);
-        addBoolean(body, "warnOverTierGear", "Warn on over-tier gear", config::warnOverTierGear);
-        addBoolean(body, "showInfoBoxes", "Show key/fate/progress infoboxes", config::showInfoBoxes);
-        addBoolean(body, "rollNudges", "Roll reminders", config::rollNudges);
+        addBoolean("Warnings", body, "chatOnEnter", "Chat on chunk entry", config::chatOnEnter);
+        addBoolean("Warnings", body, "warnOnLocked", "Warn entering locked chunk", config::warnOnLocked);
+        addBoolean("Warnings", body, "warnLockedBank", "Warn opening a locked bank", config::warnLockedBank);
+        addBoolean("Warnings", body, "flashOnLocked", "Screen flash on locked entry", config::flashOnLocked);
+        addBoolean("Warnings", body, "warnAccountMismatch", "Warn on wrong account", config::warnAccountMismatch);
+        addBoolean("Warnings", body, "tagLockedMenus", "Tag locked right-click targets", config::tagLockedMenus);
+        addBoolean("Warnings", body, "tagLockedTeleports", "Tag teleports to locked chunks", config::tagLockedTeleports);
+        addBoolean("Warnings", body, "showHud", "Show in-game HUD", config::showHud);
+        addBoolean("Warnings", body, "showNearest", "HUD: nearest bank & shop", config::showNearest);
+        addBoolean("Warnings", body, "showChunkContentBox", "Show \"in this chunk\" box", config::showChunkContentBox);
+        addBoolean("Warnings", body, "useNotifier", "Send RuneLite notifications", config::useNotifier);
+        addBoolean("Warnings", body, "warnLockedSlayer", "Warn on locked slayer task", config::warnLockedSlayer);
+        addBoolean("Warnings", body, "warnOverTierGear", "Warn on over-tier gear", config::warnOverTierGear);
+        addBoolean("Warnings", body, "showInfoBoxes", "Show key/fate/progress infoboxes", config::showInfoBoxes);
+        addBoolean("Warnings", body, "rollNudges", "Roll reminders", config::rollNudges);
         return body;
     }
 
     private JPanel buildRenderingBody(FateLockedConfig config)
     {
         JPanel body = column();
-        addBoolean(body, "drawWorldMap", "Draw on world map", config::drawWorldMap);
-        addBoolean(body, "drawScene", "Draw around player", config::drawScene);
-        addBoolean(body, "drawMinimap", "Draw on minimap", config::drawMinimap);
-        addBoolean(body, "highlightLockedBorders", "Highlight locked borders", config::highlightLockedBorders);
-        addBoolean(body, "shadeNearbyLocked", "Shade nearby locked chunks", config::shadeNearbyLocked);
-        addBoolean(body, "worldMapMarkers", "Pin locked areas on world map", config::worldMapMarkers);
-        addBoolean(body, "worldMapTooltip", "World map hover tooltip", config::worldMapTooltip);
-        addBoolean(body, "worldMapTooltipContent", "Tooltip: what's in the chunk", config::worldMapTooltipContent);
-        addSetting(body, configBinder.colorSetting(
-            "unlockedColor", "Unlocked color", config::unlockedColor));
-        addSetting(body, configBinder.colorSetting(
-            "frontierColor", "Frontier color", config::frontierColor));
-        addSetting(body, configBinder.colorSetting(
-            "lockedColor", "Locked color", config::lockedColor));
-        addSetting(body, configBinder.colorSetting(
-            "unauthoredColor", "Unauthored color", config::unauthoredColor));
+        addBoolean("Rendering", body, "drawWorldMap", "Draw on world map", config::drawWorldMap);
+        addBoolean("Rendering", body, "drawScene", "Draw around player", config::drawScene);
+        addBoolean("Rendering", body, "drawMinimap", "Draw on minimap", config::drawMinimap);
+        addBoolean("Rendering", body, "highlightLockedBorders", "Highlight locked borders", config::highlightLockedBorders);
+        addBoolean("Rendering", body, "shadeNearbyLocked", "Shade nearby locked chunks", config::shadeNearbyLocked);
+        addBoolean("Rendering", body, "worldMapMarkers", "Pin locked areas on world map", config::worldMapMarkers);
+        addBoolean("Rendering", body, "worldMapTooltip", "World map hover tooltip", config::worldMapTooltip);
+        addBoolean("Rendering", body, "worldMapTooltipContent", "Tooltip: what's in the chunk", config::worldMapTooltipContent);
+        addSetting(body, ownSetting("Rendering", "unlockedColor",
+            configBinder.colorSetting(
+                "unlockedColor", "Unlocked color", config::unlockedColor)));
+        addSetting(body, ownSetting("Rendering", "frontierColor",
+            configBinder.colorSetting(
+                "frontierColor", "Frontier color (Chunked)", config::frontierColor)));
+        addSetting(body, ownSetting("Rendering", "lockedColor",
+            configBinder.colorSetting(
+                "lockedColor", "Locked color", config::lockedColor)));
+        addSetting(body, ownSetting("Rendering", "unauthoredColor",
+            configBinder.colorSetting(
+                "unauthoredColor", "Unauthored color", config::unauthoredColor)));
         return body;
     }
 
-    private void addBoolean(JPanel body, String key, String label,
+    private void addBoolean(String sectionName, JPanel body,
+        String key, String label,
         java.util.function.BooleanSupplier current)
     {
-        addSetting(body, configBinder.booleanSetting(key, label, current));
+        addSetting(body, ownSetting(sectionName, key,
+            configBinder.booleanSetting(key, label, current)));
+    }
+
+    private JComponent ownSetting(
+        String sectionName, String key, JComponent control)
+    {
+        if (settingControls.containsKey(key))
+        {
+            throw new IllegalStateException("Duplicate setting control: " + key);
+        }
+        settingControls.put(key, control);
+        sectionSettingKeys.computeIfAbsent(
+            sectionName, ignored -> new LinkedHashSet<>()).add(key);
+        return control;
     }
 
     private static void addSetting(JPanel body, JComponent control)
@@ -543,6 +572,21 @@ class FateLockedPanel extends PluginPanel
     Set<String> settingKeysForTest()
     {
         return configBinder.keys();
+    }
+    Set<String> sectionSettingKeysForTest(String title)
+    {
+        Set<String> keys = sectionSettingKeys.get(title);
+        return keys == null
+            ? Collections.emptySet()
+            : Collections.unmodifiableSet(new LinkedHashSet<>(keys));
+    }
+    JComponent settingControlForTest(String key)
+    {
+        return settingControls.get(key);
+    }
+    String rollInboxUrlForTest()
+    {
+        return rollInboxUrl;
     }
     boolean hasTextForTest(String text)
     {
