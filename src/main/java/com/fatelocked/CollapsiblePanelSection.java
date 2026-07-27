@@ -37,7 +37,7 @@ final class CollapsiblePanelSection extends JPanel
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBackground(ColorScheme.DARK_GRAY_COLOR);
         body.setAlignmentX(JComponent.LEFT_ALIGNMENT);
-        fullWidth(body);
+        fullWidthAndGrow(body);
 
         add(header);
         add(body);
@@ -73,5 +73,10 @@ final class CollapsiblePanelSection extends JPanel
         component.setAlignmentX(JComponent.LEFT_ALIGNMENT);
         component.setMaximumSize(new Dimension(
             Integer.MAX_VALUE, component.getPreferredSize().height));
+    }
+    private static void fullWidthAndGrow(JComponent component)
+    {
+        component.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     }
 }

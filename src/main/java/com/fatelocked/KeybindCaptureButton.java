@@ -1,5 +1,7 @@
 package com.fatelocked;
 
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
@@ -9,6 +11,7 @@ import net.runelite.client.config.Keybind;
 final class KeybindCaptureButton extends JButton
 {
     private Consumer<Keybind> captureListener;
+    private Keybind keybind;
     private boolean capturing;
 
     KeybindCaptureButton(Keybind keybind, Consumer<Keybind> captureListener)
@@ -16,6 +19,14 @@ final class KeybindCaptureButton extends JButton
         this.captureListener = captureListener;
         setKeybind(keybind);
         addActionListener(event -> beginCapture());
+        addFocusListener(new FocusAdapter()
+        {
+            @Override
+            public void focusLost(FocusEvent event)
+            {
+                cancelCapture();
+            }
+        });
         addKeyListener(new KeyAdapter()
         {
             @Override
@@ -33,7 +44,8 @@ final class KeybindCaptureButton extends JButton
 
     void setKeybind(Keybind keybind)
     {
-        setText((keybind == null ? Keybind.NOT_SET : keybind).toString());
+        this.keybind = keybind == null ? Keybind.NOT_SET : keybind;
+        setText(this.keybind.toString());
     }
 
     private void beginCapture()
@@ -43,6 +55,15 @@ final class KeybindCaptureButton extends JButton
         requestFocusInWindow();
     }
 
+    private void cancelCapture()
+    {
+        if (capturing)
+        {
+            capturing = false;
+            setKeybind(keybind);
+        }
+    }
+
     private void capture(KeyEvent event)
     {
         if (!capturing)
@@ -50,6 +71,7 @@ final class KeybindCaptureButton extends JButton
             return;
         }
 
+        event.consume();
         capturing = false;
         Keybind captured = event.getKeyCode() == KeyEvent.VK_ESCAPE
             ? Keybind.NOT_SET : new Keybind(event);

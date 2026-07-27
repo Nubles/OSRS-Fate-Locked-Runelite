@@ -38,4 +38,17 @@ public class CollapsiblePanelSectionTest
         assertEquals(1, section.body().getComponentCount());
         assertSame(child, section.body().getComponent(0));
     }
+    @Test
+    public void bodyAddedAfterConstructionCanGrowToFitItsChild()
+    {
+        CollapsiblePanelSection section =
+            new CollapsiblePanelSection("Warnings", true);
+        JLabel child = new JLabel("Chat on entry");
+
+        section.body().add(child);
+
+        assertTrue(section.body().getPreferredSize().height > 0);
+        assertTrue(section.body().getMaximumSize().height >=
+            child.getPreferredSize().height);
+    }
 }

@@ -133,7 +133,6 @@ final class FateLockedConfigBinder
         }
         catch (RuntimeException error)
         {
-            refresh(key);
             rollback.run();
             statusSink.accept("couldn't save setting");
         }

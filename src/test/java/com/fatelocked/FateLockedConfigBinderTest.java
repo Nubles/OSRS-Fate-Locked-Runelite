@@ -2,6 +2,7 @@ package com.fatelocked;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +115,8 @@ public class FateLockedConfigBinderTest
         doThrow(new RuntimeException("no disk"))
             .when(configManager).setConfiguration(
                 FateLockedConfig.GROUP, "showHud", false);
+        when(configManager.getConfiguration(
+            FateLockedConfig.GROUP, "showHud", Boolean.class)).thenReturn(false);
 
         control.doClick();
 
@@ -123,6 +126,32 @@ public class FateLockedConfigBinderTest
             FateLockedConfig.GROUP, "showHud", false);
     }
 
+    @Test
+    public void capturedSpaceDoesNotReenterCaptureOrSaveTwice()
+    {
+        KeybindCaptureButton button = (KeybindCaptureButton) binder.keybindSetting(
+            "reimportHotkey", "Re-import hotkey", () -> Keybind.NOT_SET);
+        KeyEvent event = keyPressed(button, KeyEvent.VK_SPACE);
+
+        button.doClick();
+        dispatchKeyPressed(button, event);
+
+        verify(configManager, times(1)).setConfiguration(
+            FateLockedConfig.GROUP, "reimportHotkey", new Keybind(event));
+        assertFalse("Press a key\u2026".equals(button.getText()));
+    }
+
+    @Test
+    public void focusLossCancelsCaptureAndRestoresConfirmedDisplay()
+    {
+        KeybindCaptureButton button = (KeybindCaptureButton) binder.keybindSetting(
+            "reimportHotkey", "Re-import hotkey", () -> Keybind.NOT_SET);
+
+        button.doClick();
+        focusLost(button);
+
+        assertEquals(Keybind.NOT_SET.toString(), button.getText());
+    }
     @Test
     public void keysContainOnlyControlsCreatedByCaller()
     {
@@ -141,6 +170,23 @@ public class FateLockedConfigBinderTest
         button.getKeyListeners()[0].keyPressed(event);
     }
 
+
+
+    private static void dispatchKeyPressed(KeybindCaptureButton button, KeyEvent event)
+    {
+        capture(button, event);
+        if (!event.isConsumed())
+        {
+            button.doClick();
+        }
+    }
+    private static void focusLost(KeybindCaptureButton button)
+    {
+        for (java.awt.event.FocusListener listener : button.getFocusListeners())
+        {
+            listener.focusLost(new FocusEvent(button, FocusEvent.FOCUS_LOST));
+        }
+    }
     private static KeyEvent keyPressed(Component source, int keyCode)
     {
         return new KeyEvent(source, KeyEvent.KEY_PRESSED, 0L, 0, keyCode,
