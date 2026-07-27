@@ -134,13 +134,15 @@ public class FateLockedConfigBinderTest
             new DispatchableKeybindCaptureButton(Keybind.NOT_SET, value ->
                 configManager.setConfiguration(
                     FateLockedConfig.GROUP, "reimportHotkey", value));
-        KeyEvent event = keyPressed(button, KeyEvent.VK_SPACE);
+        KeyEvent pressed = spaceKeyEvent(button, KeyEvent.KEY_PRESSED, 100L);
+        KeyEvent released = spaceKeyEvent(button, KeyEvent.KEY_RELEASED, 101L);
 
         button.doClick();
-        button.processKeyEventForTest(event);
+        button.processKeyEventForTest(pressed);
+        button.processKeyEventForTest(released);
 
         verify(configManager, times(1)).setConfiguration(
-            FateLockedConfig.GROUP, "reimportHotkey", new Keybind(event));
+            FateLockedConfig.GROUP, "reimportHotkey", new Keybind(pressed));
         assertFalse("Press a key\u2026".equals(button.getText()));
     }
 
@@ -179,6 +181,19 @@ public class FateLockedConfigBinderTest
         {
             listener.focusLost(new FocusEvent(button, FocusEvent.FOCUS_LOST));
         }
+    }
+
+    private static KeyEvent spaceKeyEvent(Component source, int eventId, long when)
+    {
+        return new KeyEvent(source, eventId, when, 0, KeyEvent.VK_SPACE, ' ',
+            KeyEvent.KEY_LOCATION_STANDARD)
+        {
+            @Override
+            public int getExtendedKeyCode()
+            {
+                return getKeyCode();
+            }
+        };
     }
     private static KeyEvent keyPressed(Component source, int keyCode)
     {
