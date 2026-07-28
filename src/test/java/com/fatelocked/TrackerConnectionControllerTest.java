@@ -461,6 +461,26 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void responseWithoutEtagUsesEnvelopeVersion() throws Exception
+    {
+        server.enqueue(relayResponse(6, validV4Payload(), null));
+
+        controller.poll();
+        RecordedRequest request = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertNull(request.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED,
+            controller.snapshot().getState());
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(1, importer.acceptedPayloads().size());
+        assertEquals(0, clientTasks.size());
+        assertNoFurtherRequest();
+    }
+
+    @Test
     public void olderEqualAndMalformedVersionsAreRejected() throws Exception
     {
         connect(5, "\"5\"");
@@ -469,7 +489,6 @@ public class TrackerConnectionControllerTest
         MockResponse[] invalid = {
             relayResponse(4, validV4Payload(), "\"4\""),
             relayResponse(5, validV4Payload(), "W/\"5\""),
-            relayResponse(6, validV4Payload(), null),
             relayResponse(6, validV4Payload(), "not-a-version"),
             relayResponse(6, validV4Payload(), "\"bad\""),
             relayResponse(6, validV4Payload(), "\"06\""),
@@ -512,6 +531,34 @@ public class TrackerConnectionControllerTest
             controller.snapshot().getState());
         assertEquals("6", controller.snapshot().getAcceptedVersion());
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(1, importer.acceptedPayloads().size());
+        assertEquals(0, clientTasks.size());
+        assertNoFurtherRequest();
+    }
+
+    @Test
+    public void notModifiedWithoutEtagRefreshesAcceptedFreshness()
+        throws Exception
+    {
+        connect(6, "\"6\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
+        clock.advanceSeconds(30);
+        server.enqueue(new MockResponse().setResponseCode(304));
+
+        controller.poll();
+        RecordedRequest revalidation = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
+        runClientTasks();
+
+        assertEquals("6",
+            revalidation.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED,
+            controller.snapshot().getState());
+        assertEquals("6",
+            controller.snapshot().getAcceptedVersion());
+        assertEquals(clock.instant(),
+            controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();

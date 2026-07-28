@@ -267,7 +267,9 @@ final class TrackerConnectionController
     private void handleNotModified(
         RelayPollToken token, String responseEtag)
     {
-        String responseVersion = canonicalVersion(responseEtag);
+        String responseVersion = responseEtag == null
+            ? token.acceptedVersion
+            : canonicalVersion(responseEtag);
         if (token.acceptedVersion == null
             || !token.acceptedVersion.equals(responseVersion))
         {
@@ -375,9 +377,11 @@ final class TrackerConnectionController
     private Integer acceptableVersion(
         RelayPollToken token, String responseEtag, int bodyVersion)
     {
-        Integer responseVersion = parseVersion(responseEtag);
-        if (responseVersion == null
-            || bodyVersion <= 0
+        Integer responseVersion = responseEtag == null
+            ? Integer.valueOf(bodyVersion)
+            : parseVersion(responseEtag);
+        if (bodyVersion <= 0
+            || responseVersion == null
             || responseVersion != bodyVersion)
         {
             return null;
