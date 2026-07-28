@@ -267,7 +267,16 @@ public class FateLockedPanelStatusTest
 
         assertEquals("run-1", valueBesideLabel(run, "Run ID"));
         assertEquals("Nubles", valueBesideLabel(run, "Account"));
-        assertEquals("0 \u00b7 O 0 \u00b7 C 0", valueBesideLabel(run, "Keys"));
+        assertEquals("0", valueBesideLabel(run, "Keys"));
+        assertEquals("0", valueBesideLabel(run, "Omni Keys"));
+        assertEquals("0", valueBesideLabel(run, "Chaos Keys"));
+        Color keyColor = new Color(245, 158, 11);
+        assertEquals(keyColor,
+            valueLabelBesideLabel(run, "Keys").getForeground());
+        assertEquals(keyColor,
+            valueLabelBesideLabel(run, "Omni Keys").getForeground());
+        assertEquals(keyColor,
+            valueLabelBesideLabel(run, "Chaos Keys").getForeground());
         assertEquals("0", valueBesideLabel(run, "Fate"));
         assertEquals("\u2014", valueBesideLabel(run, "Goal"));
     }
@@ -538,6 +547,37 @@ public class FateLockedPanelStatusTest
                 try
                 {
                     return valueBesideLabel((Container) component, label);
+                }
+                catch (AssertionError ignored)
+                {
+                    // Continue searching sibling containers.
+                }
+            }
+        }
+        throw new AssertionError("No value beside label: " + label);
+
+    }
+    private static JLabel valueLabelBesideLabel(
+        Container root, String label)
+    {
+        Component[] components = root.getComponents();
+        for (int i = 0; i + 1 < components.length; i++)
+        {
+            if (components[i] instanceof JLabel
+                && label.equals(((JLabel) components[i]).getText())
+                && components[i + 1] instanceof JLabel)
+            {
+                return (JLabel) components[i + 1];
+            }
+        }
+        for (Component component : components)
+        {
+            if (component instanceof Container)
+            {
+                try
+                {
+                    return valueLabelBesideLabel(
+                        (Container) component, label);
                 }
                 catch (AssertionError ignored)
                 {

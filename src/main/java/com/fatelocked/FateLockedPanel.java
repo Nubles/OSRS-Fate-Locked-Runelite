@@ -53,6 +53,8 @@ class FateLockedPanel extends PluginPanel
     private final JLabel accountVal = value();
     private final JLabel runIdVal = value();
     private final JLabel keysVal = value();
+    private final JLabel omniKeysVal = value();
+    private final JLabel chaosKeysVal = value();
     private final JLabel fateVal = value();
     private final JLabel buffVal = value();
     private final JLabel goalVal = value();
@@ -228,8 +230,12 @@ class FateLockedPanel extends PluginPanel
     {
         JPanel body = column();
         body.add(stats(
-            new String[]{"Profile", "Account", "Run ID", "Keys", "Fate", "Buff", "Goal"},
-            new JLabel[]{profileVal, accountVal, runIdVal, keysVal, fateVal, buffVal, goalVal}));
+            new String[]{"Profile", "Account", "Run ID",
+                "Keys", "Omni Keys", "Chaos Keys",
+                "Fate", "Buff", "Goal"},
+            new JLabel[]{profileVal, accountVal, runIdVal,
+                keysVal, omniKeysVal, chaosKeysVal,
+                fateVal, buffVal, goalVal}));
         return body;
     }
 
@@ -623,9 +629,12 @@ class FateLockedPanel extends PluginPanel
             if (state != null)
             {
                 if (manifestAccount == null) accountVal.setText(orDash(state.getLinkedAccount()));
-                keysVal.setText(state.getKeys() + " · O " + state.getSpecialKeys()
-                    + " · C " + state.getChaosKeys());
+                keysVal.setText(String.valueOf(state.getKeys()));
+                omniKeysVal.setText(String.valueOf(state.getSpecialKeys()));
+                chaosKeysVal.setText(String.valueOf(state.getChaosKeys()));
                 keysVal.setForeground(AMBER);
+                omniKeysVal.setForeground(AMBER);
+                chaosKeysVal.setForeground(AMBER);
                 fateVal.setText(String.valueOf(state.getFatePoints()));
                 buffVal.setText(orDash(state.getActiveBuff()));
                 goalVal.setText(goals.isEmpty() ? "—" : goals.get(0));
@@ -633,6 +642,8 @@ class FateLockedPanel extends PluginPanel
             else
             {
                 keysVal.setText("—");
+                omniKeysVal.setText("—");
+                chaosKeysVal.setText("—");
                 fateVal.setText("—");
                 buffVal.setText("—");
                 goalVal.setText("—");
