@@ -140,7 +140,10 @@ final class FateLockedConfigBinder
 
     private static void applyColor(JButton control, Color color)
     {
-        control.setBackground(color);
+        Color preview = color == null
+            ? Color.BLACK
+            : new Color(color.getRed(), color.getGreen(), color.getBlue());
+        control.setBackground(preview);
     }
 
     private static Keybind keybindOrNotSet(Keybind keybind)

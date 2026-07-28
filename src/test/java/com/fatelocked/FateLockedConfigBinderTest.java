@@ -75,7 +75,33 @@ public class FateLockedConfigBinderTest
 
         verify(configManager).setConfiguration(
             FateLockedConfig.GROUP, "unlockedColor", chosen);
-        assertSame(chosen, control.getBackground());
+        assertEquals(chosen, control.getBackground());
+    }
+
+    @Test
+    public void translucentColoursUseOpaquePreviewsButPersistOriginalRgba()
+    {
+        Color initial = new Color(16, 185, 129, 90);
+        Color chosen = new Color(239, 68, 68, 120);
+        Color[] chooserInitial = new Color[1];
+        FateLockedConfigBinder colorBinder = new FateLockedConfigBinder(
+            configManager, statuses::add, (parent, title, supplied) -> {
+                chooserInitial[0] = supplied;
+                return chosen;
+            });
+        JButton control = (JButton) colorBinder.colorSetting(
+            "unlockedColor", "Unlocked color", () -> initial);
+
+        assertEquals(
+            new Color(16, 185, 129), control.getBackground());
+        control.doClick();
+
+        assertSame(initial, chooserInitial[0]);
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, "unlockedColor", chosen);
+        assertEquals(
+            new Color(239, 68, 68), control.getBackground());
+        assertEquals(255, control.getBackground().getAlpha());
     }
 
     @Test

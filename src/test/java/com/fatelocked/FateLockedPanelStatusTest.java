@@ -141,7 +141,7 @@ public class FateLockedPanelStatusTest
         assertFalse(settingCheckbox(panel, "drawScene").isSelected());
         assertEquals(hotkey.toString(),
             ((JButton) panel.settingControlForTest("reimportHotkey")).getText());
-        assertEquals(frontier,
+        assertEquals(new Color(12, 34, 56),
             panel.settingControlForTest("frontierColor").getBackground());
         assertEquals("Show \"in this chunk\" box",
             settingCheckbox(panel, "showChunkContentBox").getText());
