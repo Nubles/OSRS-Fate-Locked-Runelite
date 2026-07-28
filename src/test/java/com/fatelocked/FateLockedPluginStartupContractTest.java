@@ -22,6 +22,8 @@ import org.junit.rules.TemporaryFolder;
 import javax.swing.SwingUtilities;
 import java.io.File;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -31,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -60,6 +63,15 @@ public class FateLockedPluginStartupContractTest
             assertNotNull(harness.panel.connectButtonForTest());
             assertNotNull(harness.panel.sectionForTest("Guardian"));
             assertNotNull(harness.panel.guardianPauseButtonForTest());
+            assertFalse(harness.configuration.containsKey("onlineSync"));
+            assertFalse(harness.configuration.containsKey("syncCode"));
+            assertFalse(harness.configuration.containsKey("relayUrl"));
+            assertFalse(harness.configuration.keySet().stream()
+                .anyMatch(key -> key.startsWith("eventToken.")
+                    || key.startsWith("stateToken.")
+                    || key.startsWith("suggestToken.")
+                    || key.startsWith("ackToken.")));
+            assertEquals("true", harness.configuration.get("strictMode"));
 
             SwingUtilities.invokeAndWait(() -> {
                 harness.panel.connectButtonForTest().doClick();
@@ -134,6 +146,16 @@ public class FateLockedPluginStartupContractTest
 
         private Harness(File dataDirectory) throws Exception
         {
+            String legacyCode = "0123456789abcdef0123456789abcdef";
+            configuration.put("onlineSync", "true");
+            configuration.put("syncCode", "OLD-CODE");
+            configuration.put("relayUrl", "https://legacy.invalid");
+            configuration.put("eventToken." + legacyCode, "event");
+            configuration.put("stateToken." + legacyCode, "state");
+            configuration.put("suggestToken." + legacyCode, "suggest");
+            configuration.put("ackToken." + legacyCode, "ack");
+            configuration.put("strictMode", "true");
+
             ConfigManager configManager = statefulConfigManager();
             settings = new TrackerConnectionSettings(configManager);
             FateLockedConfig config = new FateLockedConfig()
@@ -202,6 +224,16 @@ public class FateLockedPluginStartupContractTest
             when(manager.getConfiguration(anyString(), anyString()))
                 .thenAnswer(invocation ->
                     configuration.get(invocation.getArgument(1)));
+            when(manager.getConfigurationKeys(anyString()))
+                .thenAnswer(invocation -> {
+                    String prefix = invocation.getArgument(0);
+                    List<String> keys = new ArrayList<>();
+                    for (String key : configuration.keySet())
+                    {
+                        keys.add(prefix + key);
+                    }
+                    return keys;
+                });
             doAnswer(invocation -> {
                 configuration.put(
                     invocation.getArgument(1), invocation.getArgument(2));

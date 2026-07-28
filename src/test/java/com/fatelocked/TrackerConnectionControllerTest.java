@@ -51,6 +51,7 @@ public class TrackerConnectionControllerTest
     private final Map<String, String> configuration =
         new ConcurrentHashMap<>();
     private final List<String> unsetKeys = new CopyOnWriteArrayList<>();
+    private final List<Request> pluginRequests = new CopyOnWriteArrayList<>();
     private final RecordingDispatcher dispatcher =
         new RecordingDispatcher();
     private final ConcurrentLinkedQueue<Runnable> clientTasks =
@@ -63,7 +64,6 @@ public class TrackerConnectionControllerTest
     private MockWebServer server;
     private TrackerConnectionSettings settings;
     private TrackerConnectionController controller;
-    private int acknowledgementCount;
 
     @Before
     public void setUp() throws Exception
@@ -92,6 +92,7 @@ public class TrackerConnectionControllerTest
         server.start();
         Interceptor redirectToServer = chain -> {
             Request original = chain.request();
+            pluginRequests.add(original);
             return chain.proceed(original.newBuilder()
                 .url(server.url(original.url().encodedPath()))
                 .build());
@@ -126,17 +127,13 @@ public class TrackerConnectionControllerTest
         assertNull(listener.last().getLastSync());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertEquals(0, acknowledgementCount);
     }
 
     @Test
-    public void successfulImportAdvancesVersionAndPostsOneAck()
+    public void successfulImportAdvancesVersionWithOneFixedGet()
         throws Exception
     {
         server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
-        server.enqueue(new MockResponse()
-            .setResponseCode(200)
-            .setBody("{\"token\":\"state-token\"}"));
 
         controller.poll();
         RecordedRequest relay = takeRelay();
@@ -149,7 +146,6 @@ public class TrackerConnectionControllerTest
         assertEquals(0, dispatcher.executedCount());
 
         runClientTasks();
-        RecordedRequest ack = takeAck();
         assertEquals(1, dispatcher.executedCount());
 
         assertEquals(TrackerConnectionState.CONNECTED,
@@ -158,17 +154,18 @@ public class TrackerConnectionControllerTest
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals("/r/" + settings.pairingCode(), relay.getPath());
-        assertEquals("/r/" + settings.pairingCode() + "/state",
-            ack.getPath());
         assertEquals(0, clientTasks.size());
-        assertAckVersion(ack, 6);
-        assertEquals(1, acknowledgementCount);
-        waitFor(() -> "state-token".equals(configuration.get(
-            "stateToken." + settings.pairingCode())));
-        assertEquals(3, unsetKeys.size());
-        assertTrue(unsetKeys.contains("onlineSync"));
-        assertTrue(unsetKeys.contains("syncCode"));
-        assertTrue(unsetKeys.contains("relayUrl"));
+        assertNoFurtherRequest();
+        assertEquals(1, pluginRequests.size());
+        Request request = pluginRequests.get(0);
+        assertEquals("GET", request.method());
+        assertEquals("https", request.url().scheme());
+        assertEquals("fate-relay.fatelocked.workers.dev",
+            request.url().host());
+        assertEquals("/r/" + settings.pairingCode(),
+            request.url().encodedPath());
+        assertNull(request.body());
+        assertEquals(0, unsetKeys.size());
     }
 
     @Test
@@ -189,7 +186,7 @@ public class TrackerConnectionControllerTest
         assertNull(controller.snapshot().getLastSync());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
+        assertNoFurtherRequest();
         assertEquals(0, unsetKeys.size());
     }
 
@@ -213,8 +210,7 @@ public class TrackerConnectionControllerTest
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -242,8 +238,7 @@ public class TrackerConnectionControllerTest
         assertEquals(replacementCode, settings.pairingCode());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(0, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -258,7 +253,6 @@ public class TrackerConnectionControllerTest
             .setResponseCode(404)
             .setHeadersDelay(500, TimeUnit.MILLISECONDS));
         server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
-        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         controller.poll();
         takeRelay();
@@ -268,20 +262,17 @@ public class TrackerConnectionControllerTest
         RecordedRequest replacement = takeRelay();
         waitFor(() -> clientTasks.size() == 1);
         runClientTasks();
-        RecordedRequest acknowledgement = takeAck();
         Thread.sleep(550);
 
         assertEquals("/r/" + replacementCode, replacement.getPath());
         assertNull(replacement.getHeader("If-None-Match"));
-        assertEquals("/r/" + replacementCode + "/state",
-            acknowledgement.getPath());
         assertEquals(TrackerConnectionState.CONNECTED,
             controller.snapshot().getState());
         assertEquals("1", controller.snapshot().getAcceptedVersion());
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
         assertEquals(2, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertEquals(2, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -314,7 +305,6 @@ public class TrackerConnectionControllerTest
         assertTrue(settings.isPaired());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertEquals(0, acknowledgementCount);
     }
 
     @Test
@@ -333,7 +323,6 @@ public class TrackerConnectionControllerTest
             == TrackerConnectionState.EXPIRED);
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertEquals(0, acknowledgementCount);
     }
 
     @Test
@@ -342,9 +331,6 @@ public class TrackerConnectionControllerTest
         server.enqueue(relayResponse(1, validV4Payload(), "\"1\"")
             .setHeadersDelay(500, TimeUnit.MILLISECONDS));
         server.enqueue(relayResponse(2, validV4Payload(), "\"2\""));
-        server.enqueue(new MockResponse()
-            .setResponseCode(200)
-            .setBody("{}"));
 
         controller.poll();
         RecordedRequest oldRelay = takeRelay();
@@ -355,7 +341,6 @@ public class TrackerConnectionControllerTest
         RecordedRequest newRelay = takeRelay();
         waitFor(() -> clientTasks.size() == 1);
         runClientTasks();
-        takeAck();
         Thread.sleep(550);
 
         assertNotEquals(oldCode, newCode);
@@ -366,7 +351,7 @@ public class TrackerConnectionControllerTest
         assertEquals("2", controller.snapshot().getAcceptedVersion());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -386,7 +371,7 @@ public class TrackerConnectionControllerTest
         assertEquals(INITIAL_CODE, settings.pairingCode());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -406,7 +391,7 @@ public class TrackerConnectionControllerTest
         assertNull(controller.snapshot().getAcceptedVersion());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -415,7 +400,6 @@ public class TrackerConnectionControllerTest
     {
         importer.blockNextPayload();
         server.enqueue(relayResponse(2, validV4Payload(), "\"2\""));
-        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         controller.poll();
         takeRelay();
@@ -432,7 +416,6 @@ public class TrackerConnectionControllerTest
         importer.releaseBlocked();
         clientThread.join(2_000);
         assertTrue(!clientThread.isAlive());
-        takeAck();
         assertEquals(TrackerConnectionState.CONNECTED,
             controller.snapshot().getState());
         assertEquals(1, importer.acceptedPayloads().size());
@@ -448,7 +431,7 @@ public class TrackerConnectionControllerTest
         assertTrue(connected >= 0);
         assertTrue(waiting > connected);
         assertEquals(0, clientTasks.size());
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -457,7 +440,6 @@ public class TrackerConnectionControllerTest
         connect(5, "\"5\"");
         Instant acceptedAt = controller.snapshot().getLastSync();
         int imports = importer.acceptedPayloads().size();
-        int acknowledgements = acknowledgementCount;
 
         int[][] mismatches = {{4, 6}, {6, 4}};
         for (int[] mismatch : mismatches)
@@ -475,8 +457,7 @@ public class TrackerConnectionControllerTest
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(imports, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(acknowledgements, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -484,7 +465,6 @@ public class TrackerConnectionControllerTest
     {
         connect(5, "\"5\"");
         int imports = importer.acceptedPayloads().size();
-        int acks = acknowledgementCount;
 
         MockResponse[] invalid = {
             relayResponse(4, validV4Payload(), "\"4\""),
@@ -508,8 +488,7 @@ public class TrackerConnectionControllerTest
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
         assertEquals(imports, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(acks, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -535,8 +514,7 @@ public class TrackerConnectionControllerTest
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -559,8 +537,7 @@ public class TrackerConnectionControllerTest
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -585,8 +562,7 @@ public class TrackerConnectionControllerTest
         assertNull(controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -597,7 +573,6 @@ public class TrackerConnectionControllerTest
             .setHeadersDelay(300, TimeUnit.MILLISECONDS));
         server.enqueue(relayResponse(2, validV4Payload(), "\"2\"")
             .setHeadersDelay(800, TimeUnit.MILLISECONDS));
-        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         controller.poll();
         takeRelay();
@@ -609,14 +584,13 @@ public class TrackerConnectionControllerTest
         assertNull(server.takeRequest(150, TimeUnit.MILLISECONDS));
         waitFor(() -> clientTasks.size() == 1);
         runClientTasks();
-        takeAck();
 
         assertEquals(TrackerConnectionState.CONNECTED,
             controller.snapshot().getState());
         assertEquals("2", controller.snapshot().getAcceptedVersion());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -636,7 +610,7 @@ public class TrackerConnectionControllerTest
         assertNull(controller.snapshot().getAcceptedVersion());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -657,8 +631,7 @@ public class TrackerConnectionControllerTest
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
-        assertEquals(1, acknowledgementCount);
+        assertNoFurtherRequest();
     }
 
     @Test
@@ -683,37 +656,36 @@ public class TrackerConnectionControllerTest
         assertEquals("/r/" + code, retry.getPath());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
-        assertNoAck();
+        assertNoFurtherRequest();
     }
 
     @Test
-    public void legacySettingsAreClearedOncePerSuccessfulPairingIdentity()
+    public void legacySettingsAreClearedWhenPairingIdentityChanges()
         throws Exception
     {
         connect(1, "\"1\"");
         connect(2, "\"2\"");
-        assertEquals(3, unsetKeys.size());
+        assertEquals(0, unsetKeys.size());
 
         controller.beginPairing();
+        assertEquals(3, unsetKeys.size());
+        assertTrue(unsetKeys.contains("onlineSync"));
+        assertTrue(unsetKeys.contains("syncCode"));
+        assertTrue(unsetKeys.contains("relayUrl"));
         connect(1, "\"1\"");
 
-        assertEquals(6, unsetKeys.size());
+        assertEquals(3, unsetKeys.size());
         assertEquals(3, importer.acceptedPayloads().size());
-        assertEquals(3, acknowledgementCount);
         assertEquals(0, clientTasks.size());
     }
 
     private void connect(int version, String etag) throws Exception
     {
         server.enqueue(relayResponse(version, validV4Payload(), etag));
-        server.enqueue(new MockResponse()
-            .setResponseCode(200)
-            .setBody("{}"));
         controller.poll();
         takeRelay();
         waitFor(() -> clientTasks.size() == 1);
         runClientTasks();
-        takeAck();
     }
 
     private RecordedRequest takeRelay() throws Exception
@@ -725,28 +697,7 @@ public class TrackerConnectionControllerTest
         return request;
     }
 
-    private RecordedRequest takeAck() throws Exception
-    {
-        RecordedRequest request =
-            server.takeRequest(2, TimeUnit.SECONDS);
-        assertNotNull(request);
-        assertEquals("POST", request.getMethod());
-        acknowledgementCount++;
-        return request;
-    }
-
-    private void assertAckVersion(
-        RecordedRequest acknowledgement, int expectedVersion)
-    {
-        Map<?, ?> outer = gson.fromJson(
-            acknowledgement.getBody().readUtf8(), Map.class);
-        Map<?, ?> payload = gson.fromJson(
-            (String) outer.get("payload"), Map.class);
-        assertEquals(expectedVersion,
-            ((Number) payload.get("version")).intValue());
-    }
-
-    private void assertNoAck() throws Exception
+    private void assertNoFurtherRequest() throws Exception
     {
         assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
     }
@@ -812,11 +763,13 @@ public class TrackerConnectionControllerTest
     {
         private final int version;
         private final String payload;
+        private final String token;
 
         private RelayEnvelope(int version, String payload)
         {
             this.version = version;
             this.payload = payload;
+            this.token = "legacy-token-that-must-be-ignored";
         }
     }
 

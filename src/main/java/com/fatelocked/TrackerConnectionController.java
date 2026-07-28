@@ -3,17 +3,13 @@ package com.fatelocked;
 import com.google.gson.Gson;
 import okhttp3.Call;
 import okhttp3.Callback;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Consumer;
 
 final class TrackerConnectionController
@@ -22,9 +18,6 @@ final class TrackerConnectionController
     {
         boolean importBundle(String payload);
     }
-
-    private static final MediaType JSON =
-        MediaType.parse("application/json");
 
     private final OkHttpClient http;
     private final Gson gson;
@@ -40,7 +33,6 @@ final class TrackerConnectionController
     private String acceptedVersion;
     private Instant lastSync;
     private String currentIdentityCode;
-    private String legacyClearedCode;
     private boolean stopped;
     private volatile TrackerConnectionSnapshot snapshot =
         TrackerConnectionSnapshot.disconnected();
@@ -71,6 +63,7 @@ final class TrackerConnectionController
         synchronized (pollLock)
         {
             settings.replacePairingCode(code);
+            settings.clearLegacySettings();
             generation++;
             activePoll = null;
             acceptedVersion = null;
@@ -93,6 +86,7 @@ final class TrackerConnectionController
     {
         String code = settings.pairingCode();
         String version;
+        boolean clearLegacy = false;
         synchronized (pollLock)
         {
             if (stopped) return;
@@ -108,6 +102,7 @@ final class TrackerConnectionController
                 snapshot = code.isEmpty()
                     ? TrackerConnectionSnapshot.disconnected()
                     : TrackerConnectionSnapshot.waiting();
+                clearLegacy = !code.isEmpty();
                 listener.accept(snapshot);
             }
             if (code.isEmpty())
@@ -121,15 +116,20 @@ final class TrackerConnectionController
             }
             version = acceptedVersion;
         }
-        RelayPollToken token = beginPoll(
-            TrackerConnectionSettings.RELAY_BASE_URL, code, version);
+        if (clearLegacy)
+        {
+            settings.clearLegacySettings();
+        }
+        RelayPollToken token = beginPoll(code, version);
         if (token == null)
         {
             return;
         }
 
         Request.Builder builder = new Request.Builder()
-            .url(token.baseUrl + "/r/" + token.code);
+            .url(TrackerConnectionSettings.RELAY_BASE_URL
+                + "/r/" + token.code)
+            .get();
         if (token.acceptedVersion != null)
         {
             builder.header("If-None-Match", token.acceptedVersion);
@@ -181,20 +181,18 @@ final class TrackerConnectionController
         return snapshot;
     }
 
-    private RelayPollToken beginPoll(
-        String baseUrl, String code, String version)
+    private RelayPollToken beginPoll(String code, String version)
     {
         synchronized (pollLock)
         {
             if (stopped || activePoll != null
-                || !baseUrl.equals(TrackerConnectionSettings.RELAY_BASE_URL)
                 || !code.equals(settings.pairingCode())
                 || !equal(version, acceptedVersion))
             {
                 return null;
             }
             RelayPollToken token = new RelayPollToken(
-                generation, baseUrl, code, canonicalVersion(version));
+                generation, code, canonicalVersion(version));
             activePoll = token;
             return token;
         }
@@ -257,7 +255,7 @@ final class TrackerConnectionController
                 "Importing tracker data"))
             {
                 dispatchImport(
-                    token, envelope.payload, canonical, envelope.version);
+                    token, envelope.payload, canonical);
             }
         }
         catch (Exception error)
@@ -315,8 +313,7 @@ final class TrackerConnectionController
     private void dispatchImport(
         RelayPollToken token,
         String payload,
-        String version,
-        int acknowledgementVersion)
+        String version)
     {
         try
         {
@@ -346,7 +343,6 @@ final class TrackerConnectionController
                     }
 
                     Instant acceptedAt = clock.instant();
-                    boolean clearLegacy;
                     synchronized (pollLock)
                     {
                         if (!isPollCurrentLocked(token)
@@ -356,21 +352,10 @@ final class TrackerConnectionController
                         }
                         acceptedVersion = version;
                         lastSync = acceptedAt;
-                        clearLegacy = !token.code.equals(legacyClearedCode);
-                        if (clearLegacy)
-                        {
-                            legacyClearedCode = token.code;
-                        }
                         snapshot = TrackerConnectionSnapshot.connected(
                             acceptedAt, version);
                         listener.accept(snapshot);
                     }
-                    if (clearLegacy)
-                    {
-                        settings.clearLegacySettings();
-                    }
-                    postStateAcknowledgement(
-                        token, acknowledgementVersion);
                 }
                 finally
                 {
@@ -385,62 +370,6 @@ final class TrackerConnectionController
                 "Could not import tracker data");
             clearPoll(token);
         }
-    }
-
-    private void postStateAcknowledgement(
-        RelayPollToken token, int version)
-    {
-        if (!isActiveSession(token)) return;
-        Map<String, Object> acknowledgement = new HashMap<>();
-        acknowledgement.put("ts", clock.millis());
-        acknowledgement.put("version", version);
-
-        Map<String, Object> envelope = new HashMap<>();
-        String storedToken = settings.token("stateToken", token.code);
-        if (storedToken != null)
-        {
-            envelope.put("token", storedToken);
-        }
-        envelope.put("payload", gson.toJson(acknowledgement));
-        Request request = new Request.Builder()
-            .url(token.baseUrl + "/r/" + token.code + "/state")
-            .post(RequestBody.create(JSON, gson.toJson(envelope)))
-            .build();
-        if (!isActiveSession(token)) return;
-        http.newCall(request).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException error)
-            {
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                try (Response current = response)
-                {
-                    if (!isSessionCurrent(token)
-                        || !current.isSuccessful()
-                        || current.body() == null)
-                    {
-                        return;
-                    }
-                    TokenResponse tokenResponse = gson.fromJson(
-                        current.body().string(), TokenResponse.class);
-                    if (tokenResponse != null
-                        && tokenResponse.token != null
-                        && isSessionCurrent(token))
-                    {
-                        settings.saveToken(
-                            "stateToken", token.code,
-                            tokenResponse.token);
-                    }
-                }
-                catch (Exception ignored)
-                {
-                }
-            }
-        });
     }
 
     private Integer acceptableVersion(
@@ -514,30 +443,7 @@ final class TrackerConnectionController
             && token != null
             && activePoll == token
             && token.generation == generation
-            && token.baseUrl.equals(
-                TrackerConnectionSettings.RELAY_BASE_URL)
             && token.code.equals(settings.pairingCode());
-    }
-
-    private boolean isActiveSession(RelayPollToken token)
-    {
-        synchronized (pollLock)
-        {
-            return isPollCurrentLocked(token);
-        }
-    }
-
-    private boolean isSessionCurrent(RelayPollToken token)
-    {
-        synchronized (pollLock)
-        {
-            return !stopped
-                && token != null
-                && token.generation == generation
-                && token.baseUrl.equals(
-                    TrackerConnectionSettings.RELAY_BASE_URL)
-                && token.code.equals(settings.pairingCode());
-        }
     }
 
     private boolean acceptedStateUnchanged(RelayPollToken token)
@@ -645,18 +551,15 @@ final class TrackerConnectionController
     private static final class RelayPollToken
     {
         private final long generation;
-        private final String baseUrl;
         private final String code;
         private final String acceptedVersion;
 
         private RelayPollToken(
             long generation,
-            String baseUrl,
             String code,
             String acceptedVersion)
         {
             this.generation = generation;
-            this.baseUrl = baseUrl;
             this.code = code;
             this.acceptedVersion = acceptedVersion;
         }
@@ -666,10 +569,5 @@ final class TrackerConnectionController
     {
         private int version;
         private String payload;
-    }
-
-    private static final class TokenResponse
-    {
-        private String token;
     }
 }

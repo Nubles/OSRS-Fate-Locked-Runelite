@@ -345,6 +345,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void startUp()
     {
+        connectionSettings.clearLegacySettings();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
         try
