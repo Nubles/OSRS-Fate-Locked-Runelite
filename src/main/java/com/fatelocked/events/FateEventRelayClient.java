@@ -69,15 +69,6 @@ public class FateEventRelayClient
         OkHttpClient client,
         Gson gson,
         ConfigManager configManager,
-        FateLockedConfig config)
-    {
-        this(client, gson, configManager, config::onlineSync);
-    }
-
-    public FateEventRelayClient(
-        OkHttpClient client,
-        Gson gson,
-        ConfigManager configManager,
         BooleanSupplier enabled)
     {
         this(client, gson, enabled, new ConfigTokenStore(configManager));

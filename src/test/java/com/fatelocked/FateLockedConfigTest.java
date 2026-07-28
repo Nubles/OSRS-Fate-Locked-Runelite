@@ -4,7 +4,9 @@ import net.runelite.client.config.ConfigItem;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -16,6 +18,17 @@ public class FateLockedConfigTest
     {
         FateLockedConfig config = new FateLockedConfig() {};
         assertFalse(config.strictMode());
+    }
+
+    @Test
+    public void configHasThirtyRetainedItemsAndNoManualSyncItems()
+    {
+        Map<String, ConfigItem> items = configItemsByKey();
+        assertEquals(30, items.size());
+        assertFalse(items.containsKey("onlineSync"));
+        assertFalse(items.containsKey("syncCode"));
+        assertFalse(items.containsKey("relayUrl"));
+        assertEquals("Strict Mode", items.get("strictMode").name());
     }
 
     @Test
@@ -39,5 +52,19 @@ public class FateLockedConfigTest
             }
         }
         assertEquals(1, strictModeItems);
+    }
+
+    private static Map<String, ConfigItem> configItemsByKey()
+    {
+        Map<String, ConfigItem> items = new LinkedHashMap<>();
+        for (Method method : FateLockedConfig.class.getDeclaredMethods())
+        {
+            ConfigItem item = method.getAnnotation(ConfigItem.class);
+            if (item != null)
+            {
+                items.put(item.keyName(), item);
+            }
+        }
+        return items;
     }
 }

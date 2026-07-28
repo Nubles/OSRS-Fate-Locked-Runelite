@@ -168,7 +168,7 @@ public class FateEventRelayClientTest
     }
 
     @Test
-    public void publicConsentSupplierConstructorControlsEventTraffic() throws Exception
+    public void publicPairingSupplierConstructorControlsEventTraffic() throws Exception
     {
         AtomicBoolean paired = new AtomicBoolean(false);
         ConfigManager configManager = mock(ConfigManager.class);

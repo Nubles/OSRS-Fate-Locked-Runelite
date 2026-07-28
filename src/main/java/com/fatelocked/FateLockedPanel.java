@@ -560,6 +560,7 @@ class FateLockedPanel extends PluginPanel
     String connectionTextForTest() { return connectionVal.getText(); }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }
+    JButton guardianPauseButtonForTest() { return strictModeButton; }
     List<String> sectionTitlesForTest()
     {
         return Collections.unmodifiableList(

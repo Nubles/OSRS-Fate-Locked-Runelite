@@ -80,6 +80,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.util.HotkeyListener;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -122,6 +123,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -160,14 +162,12 @@ public class FateLockedPlugin extends Plugin
     @Inject private MouseManager mouseManager;
     @Inject private OkHttpClient okHttpClient;
     @Inject private ConfigManager configManager;
+    @Inject private TrackerConnectionSettings connectionSettings;
 
     private ScheduledFuture<?> relayPollFuture;
-    private volatile String lastRelayVersion;
-    private volatile Instant lastTrackerSync;
-    private volatile boolean relayOffline = true;
-    private final Object relayPollLock = new Object();
-    private long relayGeneration;
-    private RelayPollToken activeRelayPoll;
+    private TrackerConnectionController connectionController;
+    private final RepeatedValueLimiter invalidImportLimiter =
+        new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
     private FateEventOutbox eventOutbox;
     private StrictModeAuditLog strictAuditLog;
     private FateEventRelayClient eventRelayClient;
@@ -360,7 +360,8 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
             eventOutbox = new FateEventOutbox(gson,
                 DATA_DIR.toPath().resolve("event-outbox.json"));
             eventRelayClient = new FateEventRelayClient(
-                okHttpClient, gson, configManager, config);
+                okHttpClient, gson, configManager,
+                connectionSettings::isPaired);
         }
         catch (IOException ex)
         {
@@ -378,6 +379,15 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
             log.warn("Could not open Strict Mode audit log", ex);
             strictAuditLog = null;
         }
+        connectionController = new TrackerConnectionController(
+            okHttpClient,
+            gson,
+            connectionSettings,
+            Clock.systemUTC(),
+            runnable -> clientThread.invoke(runnable),
+            this::acceptRelayPayload,
+            panel::updateConnection);
+
         travelActionResolver = new TravelActionResolver();
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
@@ -418,7 +428,11 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
             () -> overlayManager.remove(travelBlockOverlay));
         travelOverlayLifecycle.start();
 
-        panel.setCallbacks(this::applyPastedBundle, () -> clientThread.invoke(this::reloadBundle));
+        wirePanelActions(
+            panel,
+            json -> applyPastedBundle(json, ImportSource.PASTE),
+            () -> clientThread.invoke(this::reloadBundle),
+            this::beginTrackerPairing);
         panel.setGuardianCallbacks(
             this::pauseStrictModeForSixtySeconds,
             () -> { strictPause.resume(); updateStrictModePanel(); },
@@ -426,14 +440,11 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
                 FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         updateStrictModePanel();
         updateStrictAuditPanel();
-        panel.setRollInboxLink(FateLockedPanel.TRACKER_URL, config.syncCode());
+        panel.setRollInboxLink(
+            FateLockedPanel.TRACKER_URL, connectionSettings.pairingCode());
         updatePanelSyncHealth();
-        navButton = NavigationButton.builder()
-            .tooltip("Fate Locked Ironman")
-            .icon(createIcon())
-            .priority(7)
-            .panel(panel)
-            .build();
+        panel.updateConnection(connectionController.snapshot());
+        navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
 
         reloadBundle();
@@ -446,6 +457,8 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
     @Override
     protected void shutDown()
     {
+        stopWatcher();
+        stopRelayPoll();
         if (travelOverlayLifecycle != null)
         {
             try
@@ -469,8 +482,6 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
             clientToolbar.removeNavigation(navButton);
             navButton = null;
         }
-        stopWatcher();
-        stopRelayPoll();
         keyManager.unregisterKeyListener(reimportHotkey);
         for (WorldMapPoint p : mapMarkers) worldMapPointManager.remove(p);
         mapMarkers.clear();
@@ -483,6 +494,7 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
     public void onConfigChanged(ConfigChanged ev)
     {
         if (!FateLockedConfig.GROUP.equals(ev.getGroup())) return;
+        panel.refreshConfig(ev.getKey());
         String key = ev.getKey();
         if ("autoReload".equals(key))
         {
@@ -517,12 +529,11 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
                 panel.showStrictModeIntro();
             }
         }
-        else if ("onlineSync".equals(key) || "syncCode".equals(key) || "relayUrl".equals(key))
+        else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
-            invalidateRelaySession();
-            lastRelayVersion = null; // re-fetch on the next poll with the new settings
-            relayOffline = !config.onlineSync();
-            panel.setRollInboxLink(FateLockedPanel.TRACKER_URL, config.syncCode());
+            panel.setRollInboxLink(
+                FateLockedPanel.TRACKER_URL,
+                connectionSettings.pairingCode());
             updatePanelSyncHealth();
         }
     }
@@ -712,7 +723,7 @@ String m = raw.toLowerCase();
             source,
             chunk,
             currentAccountMatches(source),
-            config.onlineSync() ? lastTrackerSync : null);
+            trackerPaired() ? trackerLastSync() : null);
     }
     private FateRuleEngine ruleEngine(FateLockedBundle source)
     {
@@ -870,7 +881,7 @@ java.util.Optional<DetectedEvent> detected =
 
     private void record(DetectedEvent detected)
     {
-        if (!config.onlineSync() || detected == null || eventOutbox == null) return;
+        if (!trackerPaired() || detected == null || eventOutbox == null) return;
         FateLockedBundle currentBundle = bundle;
         if (currentBundle == null || currentBundle.getRunId() == null
             || currentBundle.getRunId().trim().isEmpty()) return;
@@ -1174,7 +1185,7 @@ java.util.Optional<DetectedEvent> detected =
     }
     private boolean rulesAreFresh()
     {
-        Instant stamp = config.onlineSync() ? lastTrackerSync : rulesImportedAt;
+        Instant stamp = trackerPaired() ? trackerLastSync() : rulesImportedAt;
         return stamp != null
             && Duration.between(stamp, Instant.now()).toMinutes() < 15;
     }
@@ -1360,37 +1371,67 @@ MenuEntry entry = event.getMenuEntry();
             return;
         }
         final String t = text;
-        clientThread.invoke(() -> applyPastedBundle(t));
+        clientThread.invoke(
+            () -> applyPastedBundle(t, ImportSource.CLIPBOARD));
     }
 
     /** Load a bundle from JSON pasted into the side panel. */
-    private boolean applyPastedBundle(String json)
+    private boolean applyPastedBundle(String json, ImportSource source)
     {
+        String trimmed = json == null ? "" : json.trim();
+        if (trimmed.matches("[0-9a-f]{32}"))
+        {
+            if (invalidImportLimiter.shouldReport(
+                trimmed, System.currentTimeMillis()))
+            {
+                panel.flashStatus(
+                    "pairing code detected \u2014 use Connect tracker", false);
+            }
+            return false;
+        }
+        FateLockedBundle previousBundle = bundle;
+        Instant previousRulesImportedAt = rulesImportedAt;
         try
         {
             FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, json);
             bundle = parsed;
-            rulesImportedAt = Instant.now();
-            log.info("Fate Locked bundle imported from paste: {} regions", parsed.getRegionChunks().size());
-            panel.flashStatus("imported " + parsed.getRegionChunks().size() + " regions", true);
             refreshPanel();
+            panel.flashStatus(
+                "imported " + parsed.getRegionChunks().size() + " regions", true);
+            rulesImportedAt = Instant.now();
+            log.info(
+                "Fate Locked bundle imported from {}: {} regions",
+                source.name().toLowerCase(),
+                parsed.getRegionChunks().size());
             return true;
         }
         catch (RuntimeException ex)
         {
+            bundle = previousBundle;
+            rulesImportedAt = previousRulesImportedAt;
+            if (!invalidImportLimiter.shouldReport(
+                trimmed, System.currentTimeMillis()))
+            {
+                return false;
+            }
             log.warn("Pasted bundle could not be parsed: {}", ex.getMessage());
             panel.flashStatus("import failed — using previous rules", false);
             return false;
         }
     }
 
+    private enum ImportSource
+    {
+        CLIPBOARD,
+        PASTE
+    }
+
     /**
      * Accept a relay bundle on the client thread only after strict v4 parsing
-     * succeeds. The retained bundle, freshness timestamp, and relay version are
-     * one trust snapshot and therefore change together.
+     * succeeds. Connection version, sync time, and acknowledgement remain owned
+     * by TrackerConnectionController and change only after this returns true.
      */
-    private boolean acceptRelayPayload(
-        String payload, String relayVersion, Instant acceptedAt)
+    private boolean acceptRelayPayload(String payload)
     {
         final FateLockedBundle parsed;
         try
@@ -1398,8 +1439,7 @@ MenuEntry entry = event.getMenuEntry();
             parsed = FateLockedBundle.loadFromJson(gson, payload);
             if (parsed.getVersion() != 4 || parsed.isLegacyRules())
             {
-                throw new IllegalArgumentException(
-                    "Relay payload must be a valid v4 rules bundle");
+                return false;
             }
         }
         catch (RuntimeException ex)
@@ -1408,15 +1448,29 @@ MenuEntry entry = event.getMenuEntry();
             return false;
         }
 
-        bundle = parsed;
-        lastTrackerSync = acceptedAt;
-        lastRelayVersion = relayVersion;
-        log.info("Fate Locked bundle imported from relay: {} regions",
-            parsed.getRegionChunks().size());
-        panel.flashStatus(
-            "synced " + parsed.getRegionChunks().size() + " regions", true);
-        refreshPanel();
-        return true;
+        FateLockedBundle previousBundle = bundle;
+        Instant previousRulesImportedAt = rulesImportedAt;
+        try
+        {
+            bundle = parsed;
+            rulesImportedAt = Instant.now();
+            refreshPanel();
+            panel.flashStatus(
+                "synced " + parsed.getRegionChunks().size()
+                    + " regions", true);
+            log.info(
+                "Fate Locked bundle imported from relay: {} regions",
+                parsed.getRegionChunks().size());
+            return true;
+        }
+        catch (RuntimeException ex)
+        {
+            bundle = previousBundle;
+            rulesImportedAt = previousRulesImportedAt;
+            log.debug(
+                "Relay bundle could not be applied: {}", ex.getMessage());
+            return false;
+        }
     }
 
     /** Recompute the player's current chunk and push everything to the panel. */
@@ -1428,6 +1482,12 @@ MenuEntry entry = event.getMenuEntry();
         {
             current = CanonicalChunk.of(local.getWorldLocation());
         }
+        String trackerAccount = bundle.getRules() == null
+            ? bundle.getState() == null
+                ? null
+                : bundle.getState().getLinkedAccount()
+            : bundle.getRules().getAccount();
+        panel.updateTrackerAccount(trackerAccount);
         panel.update(bundle, viewModelFor(bundle, current));
         // A fresh bundle may change unlocked tiers / areas — re-check worn gear,
         // the current slayer task, and the world-map markers.
@@ -1538,6 +1598,39 @@ MenuEntry entry = event.getMenuEntry();
         return img;
     }
 
+    private void beginTrackerPairing()
+    {
+        String url = connectionController.beginPairing();
+        try
+        {
+            LinkBrowser.browse(url);
+        }
+        catch (RuntimeException error)
+        {
+            connectionController.reportBrowserLaunchFailure();
+            panel.flashStatus("couldn't open the web tracker", false);
+        }
+    }
+
+    static void wirePanelActions(
+        FateLockedPanel target,
+        Consumer<String> onImport,
+        Runnable onReload,
+        Runnable onConnect)
+    {
+        target.setCallbacks(onImport, onReload, onConnect);
+    }
+
+    static NavigationButton buildNavigationButton(FateLockedPanel target)
+    {
+        return NavigationButton.builder()
+            .tooltip("Fate Locked Ironman")
+            .icon(createIcon())
+            .priority(7)
+            .panel(target)
+            .build();
+    }
+
     private static BufferedImage createIcon()
     {
         BufferedImage img = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
@@ -1588,176 +1681,61 @@ MenuEntry entry = event.getMenuEntry();
     }
 
     // ── Online relay sync ─────────────────────────────────────────────────────
-    // Optional, opt-in (config.syncCode). Outbound-only: poll the relay for the
-    // run bundle and import on change. Uses the injected OkHttpClient, async, off
+    // Internal-pairing-only, outbound relay connection for the run bundle.
+    // Uses the injected OkHttpClient asynchronously, off
     // the client thread — no inbound server, Hub-compliant.
-
-    private static final class RelayPollToken
-    {
-        private final long generation;
-        private final String baseUrl;
-        private final String code;
-        private final String acceptedRelayVersion;
-
-        private RelayPollToken(
-            long generation, String baseUrl,
-            String code, String acceptedRelayVersion)
-        {
-            this.generation = generation;
-            this.baseUrl = baseUrl;
-            this.code = code;
-            this.acceptedRelayVersion = acceptedRelayVersion;
-        }
-    }
 
     private void startRelayPoll()
     {
         relayPollFuture = executor.scheduleWithFixedDelay(
-            this::pollRelay, 2, 4, TimeUnit.SECONDS);
+            this::pollTrackerConnection, 2, 4, TimeUnit.SECONDS);
     }
 
     private void stopRelayPoll()
     {
-        invalidateRelaySession();
         if (relayPollFuture != null)
         {
             relayPollFuture.cancel(false);
             relayPollFuture = null;
         }
-    }
-
-    private void invalidateRelaySession()
-    {
-        synchronized (relayPollLock)
+        if (connectionController != null)
         {
-            relayGeneration++;
-            activeRelayPoll = null;
+            connectionController.stop();
         }
     }
 
-    private RelayPollToken beginRelayPoll(String baseUrl, String code)
+    private boolean trackerPaired()
     {
-        synchronized (relayPollLock)
-        {
-            if (activeRelayPoll != null) return null;
-            RelayPollToken token = new RelayPollToken(
-                relayGeneration, baseUrl, code,
-                canonicalRelayValidator(lastRelayVersion));
-            activeRelayPoll = token;
-            return token;
-        }
+        return connectionSettings != null && connectionSettings.isPaired();
     }
 
-    private boolean isRelaySessionCurrent(RelayPollToken token)
+    private Instant trackerLastSync()
     {
-        synchronized (relayPollLock)
-        {
-            return token != null
-                && token.generation == relayGeneration
-                && config.onlineSync()
-                && token.baseUrl.equals(
-                    normalizeRelayBase(config.relayUrl()))
-                && token.code.equals(
-                    normalizeRelayCode(config.syncCode()));
-        }
+        return connectionController == null
+            ? null : connectionController.snapshot().getLastSync();
     }
 
-    private boolean isRelayPollCurrent(RelayPollToken token)
+    private void pollTrackerConnection()
     {
-        synchronized (relayPollLock)
-        {
-            return token != null
-                && token.generation == relayGeneration
-                && activeRelayPoll == token
-                && config.onlineSync()
-                && token.baseUrl.equals(
-                    normalizeRelayBase(config.relayUrl()))
-                && token.code.equals(
-                    normalizeRelayCode(config.syncCode()));
-        }
+        TrackerConnectionController controller = connectionController;
+        if (controller == null) return;
+        controller.poll();
+        flushRelayEvents();
     }
 
-    private static Integer acceptableRelay200Version(
-        RelayPollToken token, String responseEtag, int messageVersion)
+    private void flushRelayEvents()
     {
-        Integer responseVersion = parseRelayVersionEtag(responseEtag);
-        if (responseVersion == null
-            || messageVersion <= 0
-            || responseVersion.intValue() != messageVersion)
+        if (!trackerPaired() || eventRelayClient == null
+            || eventOutbox == null)
         {
-            return null;
+            return;
         }
-        if (token.acceptedRelayVersion == null)
-        {
-            return responseVersion;
-        }
-        Integer acceptedVersion = parseRelayVersionEtag(
-            token.acceptedRelayVersion);
-        return acceptedVersion != null && responseVersion > acceptedVersion
-            ? responseVersion : null;
-    }
-
-    private static Integer parseRelayVersionEtag(String rawEtag)
-    {
-        if (rawEtag == null) return null;
-        String value = rawEtag.trim();
-        if (value.startsWith("W/"))
-        {
-            value = value.substring(2);
-        }
-        if (value.startsWith("\""))
-        {
-            if (value.length() < 2 || !value.endsWith("\"")) return null;
-            value = value.substring(1, value.length() - 1);
-        }
-        else if (value.contains("\""))
-        {
-            return null;
-        }
-        if (!value.matches("[1-9][0-9]*")) return null;
-        try
-        {
-            return Integer.valueOf(value);
-        }
-        catch (NumberFormatException ex)
-        {
-            return null;
-        }
-    }
-
-    private static String canonicalRelayValidator(String value)
-    {
-        Integer version = parseRelayVersionEtag(value);
-        return version == null ? value : String.valueOf(version);
-    }
-
-    private boolean acceptedRelayStateUnchanged(RelayPollToken token)
-    {
-        String expected = token.acceptedRelayVersion;
-        String current = canonicalRelayValidator(lastRelayVersion);
-        return expected == null ? current == null : expected.equals(current);
-    }
-
-    private void clearRelayPoll(RelayPollToken token)
-    {
-        synchronized (relayPollLock)
-        {
-            if (activeRelayPoll == token)
-            {
-                activeRelayPoll = null;
-            }
-        }
-    }
-
-    private static String normalizeRelayBase(String value)
-    {
-        return value == null ? ""
-            : value.trim().replaceAll("/+$", "");
-    }
-
-    private static String normalizeRelayCode(String value)
-    {
-        return value == null ? "" : value.trim();
+        String code = connectionSettings.pairingCode();
+        if (code.isEmpty()) return;
+        eventRelayClient.flush(
+            TrackerConnectionSettings.RELAY_BASE_URL, code, eventOutbox);
+        eventRelayClient.pollAcknowledgements(
+            TrackerConnectionSettings.RELAY_BASE_URL, code, eventOutbox);
     }
 
     private void updatePanelSyncHealth()
@@ -1774,198 +1752,15 @@ MenuEntry entry = event.getMenuEntry();
         if (lastLockState == FateLockedBundle.LockState.LOCKED) warnings++;
         if (slayerTaskWarn != null && !slayerTaskWarn.trim().isEmpty()) warnings++;
         if (overTierSummary != null && !overTierSummary.trim().isEmpty()) warnings++;
+        TrackerConnectionSnapshot snapshot = connectionController == null
+            ? TrackerConnectionSnapshot.disconnected()
+            : connectionController.snapshot();
         panel.updateSyncHealth(
-            pending.size(), needsReview, warnings, lastTrackerSync,
-            relayOffline || !config.onlineSync());
+            pending.size(), needsReview, warnings, snapshot);
     }
 
-    private void pollRelay()
-    {
-        // Network consent gate: no relay request is made unless the user has
-        // explicitly enabled online sync (see FateLockedConfig.onlineSync, which
-        // carries the required IP-address warning).
-        if (!config.onlineSync())
-        {
-            invalidateRelaySession();
-            relayOffline = true;
-            updatePanelSyncHealth();
-            return;
-        }
-
-        String code = normalizeRelayCode(config.syncCode());
-        String base = normalizeRelayBase(config.relayUrl());
-        if (code.isEmpty() || base.isEmpty())
-        {
-            invalidateRelaySession();
-            relayOffline = true;
-            updatePanelSyncHealth();
-            return;
-        }
-
-        RelayPollToken token = beginRelayPoll(base, code);
-        if (token == null) return;
-        relayOffline = false;
-        updatePanelSyncHealth();
-        if (eventRelayClient != null && eventOutbox != null)
-        {
-            eventRelayClient.flush(token.baseUrl, token.code, eventOutbox);
-            eventRelayClient.pollAcknowledgements(
-                token.baseUrl, token.code, eventOutbox);
-        }
-
-        final Request request;
-        try
-        {
-            Request.Builder builder = new Request.Builder()
-                .url(token.baseUrl + "/r/" + token.code);
-            if (token.acceptedRelayVersion != null)
-            {
-                builder.header("If-None-Match", token.acceptedRelayVersion);
-            }
-            request = builder.build();
-        }
-        catch (IllegalArgumentException ex)
-        {
-            clearRelayPoll(token);
-            return;
-        }
-
-        try
-        {
-            okHttpClient.newCall(request).enqueue(new Callback()
-            {
-                @Override
-                public void onFailure(Call call, IOException error)
-                {
-                    if (!isRelayPollCurrent(token))
-                    {
-                        clearRelayPoll(token);
-                        return;
-                    }
-                    relayOffline = true;
-                    updatePanelSyncHealth();
-                    clearRelayPoll(token);
-                    log.debug("Relay poll failed: {}", error.getMessage());
-                }
-
-                @Override
-                public void onResponse(Call call, Response response)
-                {
-                    try (Response currentResponse = response)
-                    {
-                        if (!isRelayPollCurrent(token))
-                        {
-                            clearRelayPoll(token);
-                            return;
-                        }
-                        if (currentResponse.isSuccessful())
-                        {
-                            relayOffline = false;
-                            updatePanelSyncHealth();
-                        }
-                        if (currentResponse.code() == 304)
-                        {
-                            if (token.acceptedRelayVersion == null)
-                            {
-                                clearRelayPoll(token);
-                                return;
-                            }
-                            clientThread.invoke(() ->
-                            {
-                                try
-                                {
-                                    if (!isRelayPollCurrent(token)
-                                        || !acceptedRelayStateUnchanged(token))
-                                    {
-                                        return;
-                                    }
-                                    lastTrackerSync = Instant.now();
-                                    updatePanelSyncHealth();
-                                }
-                                finally
-                                {
-                                    clearRelayPoll(token);
-                                }
-                            });
-                            return;
-                        }
-                        if (!currentResponse.isSuccessful()
-                            || currentResponse.body() == null)
-                        {
-                            clearRelayPoll(token);
-                            return;
-                        }
-
-                        RelayMessage message = gson.fromJson(
-                            currentResponse.body().string(), RelayMessage.class);
-                        if (message == null || message.payload == null)
-                        {
-                            clearRelayPoll(token);
-                            return;
-                        }
-                        String etag = currentResponse.header("ETag");
-                        Integer acceptedVersion = acceptableRelay200Version(
-                            token, etag, message.version);
-                        if (acceptedVersion == null)
-                        {
-                            clearRelayPoll(token);
-                            return;
-                        }
-                        String relayVersion = String.valueOf(acceptedVersion);
-                        String payload = message.payload;
-                        if (!isRelayPollCurrent(token))
-                        {
-                            clearRelayPoll(token);
-                            return;
-                        }
-                        clientThread.invoke(() ->
-                        {
-                            try
-                            {
-                                if (!isRelayPollCurrent(token)
-                                    || !acceptedRelayStateUnchanged(token))
-                                {
-                                    return;
-                                }
-                                if (!acceptRelayPayload(
-                                    payload, relayVersion, Instant.now()))
-                                {
-                                    return;
-                                }
-                                updatePanelSyncHealth();
-                                postStateAck(token, message.version);
-                            }
-                            finally
-                            {
-                                clearRelayPoll(token);
-                            }
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        clearRelayPoll(token);
-                        log.debug("Relay payload parse failed: {}", ex.getMessage());
-                    }
-                }
-            });
-        }
-        catch (RuntimeException ex)
-        {
-            clearRelayPoll(token);
-            log.debug("Relay poll could not start: {}", ex.getMessage());
-        }
-    }
-
-    // ── Roll suggestions (plugin → app) ─────────────────────────────────────
-    // Same opt-in relay session as the main sync, a separate sub-resource
-    // (/suggest) the plugin is sole writer to. The app never rolls on the
-    // player's behalf — it just surfaces "this may be worth a roll" with a
-    // link to the right tab, exactly like the in-client chat nudge, but
-    // visible even when the player isn't looking at chat. Read-modify-write
-    // against the KV-backed array; suggestions are infrequent enough (quest/
-    // diary/CA/boss completions) that the rare lost race under concurrent
-    // writes is an acceptable trade for not needing a server-side append op.
-
+    // Roll suggestions (plugin to app). The current internal pairing is the
+    // sole authority for both the relay scope and its persisted write token.
     private static final class SuggestionDto
     {
         String source;
@@ -1986,97 +1781,34 @@ MenuEntry entry = event.getMenuEntry();
      */
     private String loadRelayToken(String prefix, String code)
     {
-        return configManager.getConfiguration(FateLockedConfig.GROUP, prefix + "." + code);
+        return connectionSettings.token(prefix, code);
     }
 
     private void saveRelayToken(String prefix, String code, String token)
     {
-        configManager.setConfiguration(FateLockedConfig.GROUP, prefix + "." + code, token);
+        connectionSettings.saveToken(prefix, code, token);
     }
 
-    /** POST {ts, version} to /r/:code/state after a successful relay import —
-     *  the web app polls this to show "plugin connected" during onboarding.
-     *  Only reachable from pollRelay, i.e. behind the onlineSync consent gate. */
-    private void postStateAck(RelayPollToken relayToken, int version)
+    private boolean pairingIsCurrent(String code)
     {
-        if (!isRelayPollCurrent(relayToken)) return;
-        String code = relayToken.code;
-        String url = relayToken.baseUrl + "/r/" + code + "/state";
-
-        java.util.Map<String, Object> ack = new HashMap<>();
-        ack.put("ts", System.currentTimeMillis());
-        ack.put("version", version);
-        java.util.Map<String, Object> body = new HashMap<>();
-        String token = loadRelayToken("stateToken", code);
-        if (token != null) body.put("token", token);
-        body.put("payload", gson.toJson(ack));
-        okhttp3.RequestBody requestBody = okhttp3.RequestBody.create(
-            okhttp3.MediaType.parse("application/json"), gson.toJson(body));
-        if (!isRelayPollCurrent(relayToken)) return;
-        okHttpClient.newCall(new Request.Builder()
-            .url(url).post(requestBody).build()).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException error)
-            {
-                if (isRelaySessionCurrent(relayToken))
-                {
-                    log.debug("State ack failed: {}", error.getMessage());
-                }
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                try (Response currentResponse = response)
-                {
-                    if (!isRelaySessionCurrent(relayToken)
-                        || !currentResponse.isSuccessful()
-                        || currentResponse.body() == null)
-                    {
-                        return;
-                    }
-                    TokenResponse tokenResponse = gson.fromJson(
-                        currentResponse.body().string(), TokenResponse.class);
-                    if (tokenResponse != null && tokenResponse.token != null
-                        && isRelaySessionCurrent(relayToken))
-                    {
-                        saveRelayToken(
-                            "stateToken", code, tokenResponse.token);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    log.debug(
-                        "State ack response parse failed: {}", ex.getMessage());
-                }
-            }
-        });
+        return trackerPaired()
+            && code != null
+            && code.equals(connectionSettings.pairingCode());
     }
 
     private void pushSuggestion(String source, String label)
     {
-        if (!config.onlineSync()) return; // same consent gate as pollRelay
-        String code = config.syncCode();
-        String base = config.relayUrl();
-        if (code == null || code.trim().isEmpty() || base == null || base.trim().isEmpty()) return;
+        if (!trackerPaired()) return;
+        final String code = connectionSettings.pairingCode();
+        if (code.isEmpty()) return;
 
         SuggestionDto item = new SuggestionDto();
         item.source = source;
         item.label = (label == null || label.trim().isEmpty()) ? source + " complete" : label.trim();
         item.ts = System.currentTimeMillis();
 
-        final String trimmedCode = code.trim();
-        String url;
-        try
-        {
-            url = base.trim().replaceAll("/+$", "") + "/r/" + trimmedCode + "/suggest";
-        }
-        catch (IllegalArgumentException ex)
-        {
-            return; // malformed relay URL — ignore until corrected
-        }
-
+        final String url = TrackerConnectionSettings.RELAY_BASE_URL
+            + "/r/" + code + "/suggest";
         Request getRequest = new Request.Builder().url(url).build();
         okHttpClient.newCall(getRequest).enqueue(new Callback()
         {
@@ -2106,15 +1838,17 @@ MenuEntry entry = event.getMenuEntry();
                 {
                     log.debug("Suggestion payload parse failed: {}", ex.getMessage());
                 }
+                if (!pairingIsCurrent(code)) return;
                 items.add(item);
                 while (items.size() > MAX_SUGGESTIONS) items.remove(0);
-                postSuggestions(url, trimmedCode, items);
+                postSuggestions(url, code, items);
             }
         });
     }
 
     private void postSuggestions(String url, String code, List<SuggestionDto> items)
     {
+        if (!pairingIsCurrent(code)) return;
         java.util.Map<String, Object> body = new HashMap<>();
         String suggestToken = loadRelayToken("suggestToken", code);
         if (suggestToken != null) body.put("token", suggestToken);
@@ -2139,7 +1873,11 @@ MenuEntry entry = event.getMenuEntry();
                     // The /suggest POST response is {version, token} (not RelayMessage's
                     // version+payload shape) — parsed with its own tiny local type.
                     TokenResponse tr = gson.fromJson(r.body().string(), TokenResponse.class);
-                    if (tr != null && tr.token != null) saveRelayToken("suggestToken", code, tr.token);
+                    if (tr != null && tr.token != null
+                        && pairingIsCurrent(code))
+                    {
+                        saveRelayToken("suggestToken", code, tr.token);
+                    }
                 }
                 catch (Exception ex)
                 {

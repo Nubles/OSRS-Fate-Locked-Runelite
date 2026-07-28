@@ -156,7 +156,6 @@ public class FateLockedPluginTravelAccountBindingTest
             FateLockedBundle bundle = FateLockedBundle.loadFromJson(gson, json);
             FateLockedConfig config = mock(FateLockedConfig.class);
             when(config.strictMode()).thenReturn(true);
-            when(config.onlineSync()).thenReturn(true);
 
             Client client = mock(Client.class);
             if (playerPresent)
@@ -193,7 +192,7 @@ public class FateLockedPluginTravelAccountBindingTest
             setField(plugin, "bundle", bundle);
             setField(plugin, "config", config);
             setField(plugin, "client", client);
-            setField(plugin, "lastTrackerSync", Instant.now());
+            setField(plugin, "rulesImportedAt", Instant.now());
             setField(plugin, "travelGuardianShell", shell);
         }
     }
