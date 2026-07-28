@@ -445,8 +445,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
                 FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         updateStrictModePanel();
         updateStrictAuditPanel();
-        panel.setRollInboxLink(
-            FateLockedPanel.TRACKER_URL, connectionSettings.pairingCode());
+        panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
         updatePanelSyncHealth();
         panel.updateConnection(connectionController.snapshot());
         navButton = buildNavigationButton(panel);
@@ -536,9 +535,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         }
         else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
-            panel.setRollInboxLink(
-                FateLockedPanel.TRACKER_URL,
-                connectionSettings.pairingCode());
+            panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
             updatePanelSyncHealth();
         }
     }
@@ -1792,11 +1789,8 @@ MenuEntry entry = event.getMenuEntry();
         if (lastLockState == FateLockedBundle.LockState.LOCKED) warnings++;
         if (slayerTaskWarn != null && !slayerTaskWarn.trim().isEmpty()) warnings++;
         if (overTierSummary != null && !overTierSummary.trim().isEmpty()) warnings++;
-        TrackerConnectionSnapshot snapshot = connectionController == null
-            ? TrackerConnectionSnapshot.disconnected()
-            : connectionController.snapshot();
-        panel.updateSyncHealth(
-            pending.size(), needsReview, warnings, snapshot);
+        panel.updateRollInboxStatus(
+            pending.size(), needsReview, warnings, false);
     }
 
     // Roll suggestions (plugin to app). The current internal pairing is the

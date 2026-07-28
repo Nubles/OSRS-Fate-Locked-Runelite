@@ -27,8 +27,6 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -58,9 +56,10 @@ class FateLockedPanel extends PluginPanel
     private final JLabel fateVal = value();
     private final JLabel buffVal = value();
     private final JLabel goalVal = value();
-    private final JLabel queuedVal = value();
+    private final JLabel localEventsVal = value();
     private final JLabel reviewVal = value();
     private final JLabel warningsVal = value();
+    private final JLabel historyStatusVal = value();
     private final JLabel connectionVal = value();
     private final JLabel trackerAccountVal = value();
     private final JLabel lastSyncVal = value();
@@ -86,7 +85,7 @@ class FateLockedPanel extends PluginPanel
     private Runnable onStrictIntroDismiss = () -> {};
     private boolean strictPaused;
 
-    private String rollInboxUrl = TRACKER_URL + "?open=roll-inbox&code=";
+    private String rollInboxUrl = TRACKER_URL + "?open=roll-inbox";
     private Consumer<String> onImport = json -> {};
     private Runnable onReload = () -> {};
     private Runnable onConnect = () -> {};
@@ -133,7 +132,9 @@ class FateLockedPanel extends PluginPanel
         col.add(Box.createVerticalStrut(4));
 
         JLabel disclosure = new JLabel(
-            "<html>When connected, your IP address is visible to the Fate Locked relay.</html>");
+            "<html>RuneLite retrieves rules from the Fate Locked relay. "
+                + "Your IP address is visible to the relay, but RuneLite "
+                + "does not upload gameplay data.</html>");
         disclosure.setForeground(GRAY);
         disclosure.setAlignmentX(Component.LEFT_ALIGNMENT);
         col.add(disclosure);
@@ -200,13 +201,24 @@ class FateLockedPanel extends PluginPanel
     {
         JPanel body = column();
         body.add(stats(
-            new String[]{"Queued", "Needs review", "Warnings"},
-            new JLabel[]{queuedVal, reviewVal, warningsVal}));
+            new String[]{"Local events", "Needs review", "Warnings"},
+            new JLabel[]{localEventsVal, reviewVal, warningsVal}));
+        body.add(Box.createVerticalStrut(5));
+        JLabel disclosure = new JLabel(
+            "<html>Local only — RuneLite does not upload gameplay data.</html>");
+        disclosure.setForeground(GRAY);
+        disclosure.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(disclosure);
+        historyStatusVal.setText("");
+        historyStatusVal.setForeground(RED);
+        historyStatusVal.setVisible(false);
+        historyStatusVal.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(historyStatusVal);
         body.add(Box.createVerticalStrut(6));
-        JButton inboxBtn = new JButton("Open Roll Inbox");
+        JButton inboxBtn = new JButton("Open web Roll Inbox");
         fullWidth(inboxBtn);
         inboxBtn.setToolTipText(
-            "Open detected events in the tracker; RuneLite never rolls for you");
+            "Open the separate web Roll Inbox; local history is not transferred");
         inboxBtn.addActionListener(event -> LinkBrowser.browse(rollInboxUrl));
         body.add(inboxBtn);
         return body;
@@ -438,25 +450,16 @@ class FateLockedPanel extends PluginPanel
     {
         setCallbacks(onImport, onReload, onConnect);
     }
-    void setRollInboxLink(String trackerUrl, String code)
+    void setRollInboxLink(String trackerUrl)
     {
-        rollInboxUrl = rollInboxUrl(trackerUrl, code);
+        rollInboxUrl = rollInboxUrl(trackerUrl);
     }
 
-    static String rollInboxUrl(String trackerUrl, String code)
+    static String rollInboxUrl(String trackerUrl)
     {
         String base = trackerUrl == null || trackerUrl.trim().isEmpty()
             ? TRACKER_URL : trackerUrl.trim();
-        try
-        {
-            return base + "?open=roll-inbox&code=" + URLEncoder.encode(
-                code == null ? "" : code,
-                StandardCharsets.UTF_8.name());
-        }
-        catch (java.io.UnsupportedEncodingException impossible)
-        {
-            throw new IllegalStateException(impossible);
-        }
+        return base + "?open=roll-inbox";
     }
 
     void updateConnection(TrackerConnectionSnapshot snapshot)
@@ -469,30 +472,19 @@ class FateLockedPanel extends PluginPanel
         runOnEdt(() -> trackerAccountVal.setText(orDash(account)));
     }
 
-    void updateSyncHealth(
-        int pending, int readyHint, int warnings,
-        TrackerConnectionSnapshot connection)
+    void updateRollInboxStatus(
+        int localEvents, int needsReview, int warnings,
+        boolean saveFailed)
     {
         runOnEdt(() -> {
-            queuedVal.setText(String.valueOf(Math.max(0, pending)));
-            reviewVal.setText(String.valueOf(Math.max(0, readyHint)));
+            localEventsVal.setText(String.valueOf(Math.max(0, localEvents)));
+            reviewVal.setText(String.valueOf(Math.max(0, needsReview)));
             warningsVal.setText(warnings <= 0 ? "None" : warnings + " active");
             warningsVal.setForeground(warnings <= 0 ? GREEN : RED);
-            applyConnection(connection);
+            historyStatusVal.setText(
+                saveFailed ? "Local history save failed" : "");
+            historyStatusVal.setVisible(saveFailed);
         });
-    }
-
-    void updateSyncHealth(
-        int pending, int readyHint, int warnings,
-        Instant lastSync, boolean offline)
-    {
-        TrackerConnectionSnapshot snapshot = offline
-            ? TrackerConnectionSnapshot.of(
-                TrackerConnectionState.OFFLINE, lastSync, null, "Offline")
-            : lastSync == null
-                ? TrackerConnectionSnapshot.waiting()
-                : TrackerConnectionSnapshot.connected(lastSync, null);
-        updateSyncHealth(pending, readyHint, warnings, snapshot);
     }
 
     void refreshConfig(String key)
@@ -553,9 +545,12 @@ class FateLockedPanel extends PluginPanel
         }
     }
 
-    String queuedTextForTest() { return queuedVal.getText(); }
+    String localEventsTextForTest() { return localEventsVal.getText(); }
     String reviewTextForTest() { return reviewVal.getText(); }
     String warningTextForTest() { return warningsVal.getText(); }
+    String historyStatusTextForTest() { return historyStatusVal.getText(); }
+    boolean historyStatusVisibleForTest()
+    { return historyStatusVal.isVisible(); }
     String lastSyncTextForTest() { return lastSyncVal.getText(); }
     String connectionTextForTest() { return connectionVal.getText(); }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }

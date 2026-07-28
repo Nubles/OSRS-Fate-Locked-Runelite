@@ -241,15 +241,20 @@ public class FateLockedPanelStatusTest
     public void rollInboxLinkAndButtonStayInRollInbox()
     {
         FateLockedPanel panel = panel();
-        panel.setRollInboxLink("https://tracker.example/app", "AB &");
+        panel.setRollInboxLink("https://tracker.example/app");
         Container inbox = sectionContent(panel, "Roll inbox");
 
         assertEquals(
-            "https://tracker.example/app?open=roll-inbox&code=AB+%26",
+            "https://tracker.example/app?open=roll-inbox",
             panel.rollInboxUrlForTest());
-        JButton open = buttonWithText(inbox, "Open Roll Inbox");
+        JButton open = buttonWithText(inbox, "Open web Roll Inbox");
         assertTrue(isDescendant(inbox, open));
         assertEquals(1, open.getActionListeners().length);
+        assertEquals(
+            "Open the separate web Roll Inbox; local history is not transferred",
+            open.getToolTipText());
+        assertTrue(panel.hasTextForTest(
+            "Local only — RuneLite does not upload gameplay data."));
     }
 
     @Test
@@ -317,7 +322,9 @@ public class FateLockedPanelStatusTest
         flushSwing();
         assertEquals("Nubles", panel.trackerAccountTextForTest());
         assertTrue(panel.hasTextForTest(
-            "your IP address is visible to the Fate Locked relay"));
+            "RuneLite retrieves rules from the Fate Locked relay. "
+                + "Your IP address is visible to the relay, but RuneLite "
+                + "does not upload gameplay data."));
     }
 
     @Test
@@ -335,20 +342,27 @@ public class FateLockedPanelStatusTest
     }
 
     @Test
-    public void syncHealthKeepsCountsAndConnectionCopyTogether()
+    public void localRollInboxStatusDoesNotChangeConnectionState()
         throws Exception
     {
         FateLockedPanel panel = panel();
-        panel.updateSyncHealth(4, 2, 1,
-            TrackerConnectionSnapshot.connected(
-                Instant.parse("2026-07-24T14:05:06Z"), "6"));
+        panel.updateConnection(TrackerConnectionSnapshot.waiting());
+        panel.updateRollInboxStatus(4, 2, 1, true);
         flushSwing();
 
-        assertEquals("4", panel.queuedTextForTest());
+        assertEquals("4", panel.localEventsTextForTest());
         assertEquals("2", panel.reviewTextForTest());
         assertEquals("1 active", panel.warningTextForTest());
-        assertEquals("Connected \u00b7 14:05:06 UTC",
-            panel.connectionTextForTest());
+        assertEquals("Waiting for tracker", panel.connectionTextForTest());
+        assertTrue(panel.historyStatusVisibleForTest());
+        assertEquals("Local history save failed",
+            panel.historyStatusTextForTest());
+
+        panel.updateRollInboxStatus(4, 2, 0, false);
+        flushSwing();
+
+        assertEquals("None", panel.warningTextForTest());
+        assertFalse(panel.historyStatusVisibleForTest());
     }
 
     @Test
@@ -400,12 +414,12 @@ public class FateLockedPanelStatusTest
     }
 
     @Test
-    public void encodesThePairingCodeInTheRollInboxUrl()
+    public void rollInboxUrlContainsNoPairingData()
     {
         assertEquals(
-            "https://tracker.example/app?open=roll-inbox&code=AB+%26%2F%3F",
+            "https://tracker.example/app?open=roll-inbox",
             FateLockedPanel.rollInboxUrl(
-                "https://tracker.example/app", "AB &/?"));
+                "https://tracker.example/app"));
     }
 
     private FateLockedPanel panel()
