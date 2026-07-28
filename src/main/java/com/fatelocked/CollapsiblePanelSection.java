@@ -31,7 +31,6 @@ final class CollapsiblePanelSection extends JPanel
         header.setBorder(new EmptyBorder(0, 0, 4, 0));
         header.setFocusPainted(false);
         header.setHorizontalAlignment(JButton.LEFT);
-        fullWidth(header);
         header.addActionListener(event -> setExpanded(!this.expanded));
 
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
@@ -58,9 +57,15 @@ final class CollapsiblePanelSection extends JPanel
     {
         this.expanded = expanded;
         body.setVisible(expanded);
-        header.setText((expanded ? "▼ " : "▶ ") + title);
+        updateHeader();
         revalidate();
         repaint();
+    }
+
+    private void updateHeader()
+    {
+        header.setText((expanded ? "▼ " : "▶ ") + title);
+        fullWidth(header);
     }
 
     JButton headerForTest()

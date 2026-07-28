@@ -51,4 +51,19 @@ public class CollapsiblePanelSectionTest
         assertTrue(section.body().getMaximumSize().height >=
             child.getPreferredSize().height);
     }
+
+    @Test
+    public void headerHeightFitsItsArrowAndTitleInBothStates()
+    {
+        CollapsiblePanelSection section =
+            new CollapsiblePanelSection("Rendering", false);
+
+        assertTrue(section.headerForTest().getMaximumSize().height
+            >= section.headerForTest().getPreferredSize().height);
+
+        section.setExpanded(true);
+
+        assertTrue(section.headerForTest().getMaximumSize().height
+            >= section.headerForTest().getPreferredSize().height);
+    }
 }
