@@ -101,6 +101,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 import javax.inject.Inject;
+import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Toolkit;
@@ -344,11 +345,12 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void startUp()
     {
-if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
+        File dataDirectory = dataDirectory();
+        if (!dataDirectory.exists()) dataDirectory.mkdirs();
         try
         {
             slayerTaskDetector = new SlayerTaskDetector(gson,
-                DATA_DIR.toPath().resolve("slayer-assignment.json"));
+                dataDirectory.toPath().resolve("slayer-assignment.json"));
         }
         catch (IOException ex)
         {
@@ -358,10 +360,12 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
         try
         {
             eventOutbox = new FateEventOutbox(gson,
-                DATA_DIR.toPath().resolve("event-outbox.json"));
+                dataDirectory.toPath().resolve("event-outbox.json"));
             eventRelayClient = new FateEventRelayClient(
                 okHttpClient, gson, configManager,
-                connectionSettings::isPaired);
+                connectionSettings::isPaired,
+                connectionSettings::pairingCode,
+                runnable -> clientThread.invoke(runnable));
         }
         catch (IOException ex)
         {
@@ -372,7 +376,7 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
         try
         {
             strictAuditLog = new StrictModeAuditLog(gson,
-                DATA_DIR.toPath().resolve("strict-mode-events.json"));
+                dataDirectory.toPath().resolve("strict-mode-events.json"));
         }
         catch (IOException ex)
         {
@@ -1340,7 +1344,7 @@ MenuEntry entry = event.getMenuEntry();
      */
     private Path effectiveBundlePath()
     {
-        File[] files = DATA_DIR.listFiles((d, name) ->
+        File[] files = dataDirectory().listFiles((d, name) ->
             name.startsWith("fate-locked-bundle") && name.toLowerCase().endsWith(".json"));
         if (files == null || files.length == 0) return null;
         File newest = null;
@@ -1349,6 +1353,11 @@ MenuEntry entry = event.getMenuEntry();
             if (newest == null || f.lastModified() > newest.lastModified()) newest = f;
         }
         return newest == null ? null : newest.toPath();
+    }
+
+    File dataDirectory()
+    {
+        return DATA_DIR;
     }
 
     /** Hotkey action: read the clipboard and import it as a bundle (on the client thread). */
@@ -1600,19 +1609,49 @@ MenuEntry entry = event.getMenuEntry();
 
     private void beginTrackerPairing()
     {
-        String url = connectionController.beginPairing();
+        clientThread.invoke(() -> {
+            String url = connectionController.beginPairing();
+            String code = connectionSettings.pairingCode();
+            SwingUtilities.invokeLater(
+                () -> openTrackerPairing(url, code));
+        });
+    }
+
+    private void openTrackerPairing(String url, String code)
+    {
+        if (!samePairing(code, connectionSettings.pairingCode()))
+        {
+            return;
+        }
         try
         {
-            LinkBrowser.browse(url);
+            launchTrackerBrowser(url);
         }
         catch (RuntimeException error)
         {
-            connectionController.reportBrowserLaunchFailure();
-            panel.flashStatus("couldn't open the web tracker", false);
+            clientThread.invoke(() -> {
+                if (!samePairing(code, connectionSettings.pairingCode()))
+                {
+                    return;
+                }
+                connectionController.reportBrowserLaunchFailure();
+                panel.flashStatus(
+                    "couldn't open the web tracker", false);
+            });
         }
     }
 
-    static void wirePanelActions(
+    void launchTrackerBrowser(String url)
+    {
+        LinkBrowser.browse(url);
+    }
+
+    private static boolean samePairing(String expected, String current)
+    {
+        return expected != null && expected.equals(current);
+    }
+
+    private static void wirePanelActions(
         FateLockedPanel target,
         Consumer<String> onImport,
         Runnable onReload,
@@ -1621,7 +1660,7 @@ MenuEntry entry = event.getMenuEntry();
         target.setCallbacks(onImport, onReload, onConnect);
     }
 
-    static NavigationButton buildNavigationButton(FateLockedPanel target)
+    private static NavigationButton buildNavigationButton(FateLockedPanel target)
     {
         return NavigationButton.builder()
             .tooltip("Fate Locked Ironman")

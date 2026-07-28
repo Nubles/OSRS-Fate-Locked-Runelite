@@ -410,6 +410,48 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void queuedPairingCannotOvertakeABlockingClientThreadImport()
+        throws Exception
+    {
+        importer.blockNextPayload();
+        server.enqueue(relayResponse(2, validV4Payload(), "\"2\""));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        Runnable importTask = clientTasks.poll();
+        Thread clientThread = new Thread(importTask);
+        clientThread.start();
+        importer.awaitBlocked();
+
+        dispatcher.accept(controller::beginPairing);
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(1, clientTasks.size());
+
+        importer.releaseBlocked();
+        clientThread.join(2_000);
+        assertTrue(!clientThread.isAlive());
+        takeAck();
+        assertEquals(TrackerConnectionState.CONNECTED,
+            controller.snapshot().getState());
+        assertEquals(1, importer.acceptedPayloads().size());
+
+        runClientTasks();
+
+        assertNotEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(TrackerConnectionState.WAITING,
+            controller.snapshot().getState());
+        List<TrackerConnectionState> states = listener.states();
+        int connected = states.indexOf(TrackerConnectionState.CONNECTED);
+        int waiting = states.lastIndexOf(TrackerConnectionState.WAITING);
+        assertTrue(connected >= 0);
+        assertTrue(waiting > connected);
+        assertEquals(0, clientTasks.size());
+        assertEquals(1, acknowledgementCount);
+    }
+
+    @Test
     public void responseEtagMustMatchTheBodyVersion() throws Exception
     {
         connect(5, "\"5\"");
@@ -783,10 +825,30 @@ public class TrackerConnectionControllerTest
     {
         private final List<String> accepted = new ArrayList<>();
         private boolean rejectNext;
+        private volatile CountDownLatch blocked;
+        private volatile CountDownLatch release;
 
         @Override
         public boolean importBundle(String payload)
         {
+            CountDownLatch currentBlock = blocked;
+            if (currentBlock != null)
+            {
+                currentBlock.countDown();
+                try
+                {
+                    if (!release.await(2, TimeUnit.SECONDS))
+                    {
+                        throw new AssertionError("import was not released");
+                    }
+                }
+                catch (InterruptedException error)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(error);
+                }
+                blocked = null;
+            }
             if (rejectNext)
             {
                 rejectNext = false;
@@ -799,6 +861,23 @@ public class TrackerConnectionControllerTest
         void rejectNextPayload()
         {
             rejectNext = true;
+        }
+
+        void blockNextPayload()
+        {
+            blocked = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+        }
+
+        void awaitBlocked() throws Exception
+        {
+            assertTrue("import did not block",
+                blocked.await(2, TimeUnit.SECONDS));
+        }
+
+        void releaseBlocked()
+        {
+            release.countDown();
         }
 
         List<String> acceptedPayloads()
@@ -872,6 +951,16 @@ public class TrackerConnectionControllerTest
                 }
             }
             snapshots.add(snapshot);
+        }
+
+        List<TrackerConnectionState> states()
+        {
+            List<TrackerConnectionState> states = new ArrayList<>();
+            for (TrackerConnectionSnapshot snapshot : snapshots)
+            {
+                states.add(snapshot.getState());
+            }
+            return states;
         }
 
         void blockNext(TrackerConnectionState state)
