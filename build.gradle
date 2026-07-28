@@ -44,3 +44,70 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+
+tasks.register('verifyPluginHubJar') {
+    dependsOn tasks.named('jar')
+    doLast {
+        File pluginJar = tasks.named('jar').get()
+            .archiveFile.get().asFile
+        def zip = new java.util.zip.ZipFile(pluginJar)
+        try {
+            def entries = zip.entries().toList()
+            def names = entries.collect { it.name }
+            [
+                'net/runelite/', 'okhttp3/', 'com/google/gson/',
+                'com/google/inject/', 'org/slf4j/'
+            ].each { prefix ->
+                if (names.any { it.startsWith(prefix) }) {
+                    throw new GradleException(
+                        "shaded dependency found: ${prefix}")
+                }
+            }
+            String classText = entries
+                .findAll {
+                    !it.directory && it.name.endsWith('.class')
+                }
+                .collect {
+                    new String(
+                        zip.getInputStream(it).bytes,
+                        java.nio.charset.StandardCharsets.ISO_8859_1)
+                }.join('\n')
+            // Route literals are inspected in the sole request-owning class.
+            // Scanning every class would confuse Java package references such
+            // as net/runelite/api/events with an HTTP "/events" route.
+            String routeText = entries
+                .findAll {
+                    !it.directory
+                        && it.name.startsWith(
+                            'com/fatelocked/TrackerConnectionController')
+                        && it.name.endsWith('.class')
+                }
+                .collect {
+                    new String(
+                        zip.getInputStream(it).bytes,
+                        java.nio.charset.StandardCharsets.ISO_8859_1)
+                }.join('\n')
+            [
+                '/events', '/acks', '/suggest', '/state'
+            ].each { forbidden ->
+                if (routeText.contains(forbidden)) {
+                    throw new GradleException(
+                        "forbidden jar route: ${forbidden}")
+                }
+            }
+            [
+                'FateEventRelayClient', 'FateEventOutbox',
+                'RequestBody', 'localhost', '127.0.0.1'
+            ].each { forbidden ->
+                if (classText.contains(forbidden)) {
+                    throw new GradleException(
+                        "forbidden jar symbol: ${forbidden}")
+                }
+            }
+        } finally {
+            zip.close()
+        }
+    }
+}
+
+check.dependsOn tasks.named('verifyPluginHubJar')
