@@ -1,196 +1,126 @@
-# Contributing / developer notes
+# Contributing to Fate Locked Ironman
 
-Developer-facing details for the Fate Locked Ironman plugin. End-user docs live
-in [README.md](README.md).
+This repository owns the Java RuneLite plugin. The companion web app lives in
+the separate
+[OSRS-Fate-Locked repository](https://github.com/Nubles/OSRS-Fate-Locked).
 
-## Building from source
+## Build and test
 
-```sh
-gradle build      # needs JDK 11 + Gradle; produces build/libs/fatelocked-<version>.jar
+Use JDK 11 and Gradle:
+
+```powershell
+gradle clean check --no-daemon
 ```
 
-### Sideloading a dev build
+The standard jar is produced in `build/libs/`. For a local developer-mode
+test, copy that jar to RuneLite's `sideloaded-plugins` directory. Do not add a
+fat-jar or shading plugin.
 
-To run a local build without the Plugin Hub:
+## Plugin Hub architecture
 
-1. Copy `build/libs/fatelocked-<version>.jar` into `~/.runelite/sideloaded-plugins/`
-   (`%USERPROFILE%\.runelite\sideloaded-plugins\` on Windows).
-2. Launch the RuneLite client with `--developer-mode` — sideloaded plugins only
-   load with that flag.
-3. The plugin appears in the plugin list as **Fate Locked Ironman**.
+The shipped plugin constructs one HTTP request:
 
-## Plugin Hub release baseline
+```text
+GET https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>
+```
 
-The Hub currently pins `fdca20aad7ffcf159b62210f7492f110c185afee`; the
-next maintenance submission pins `f450bbd87cee74d26d24061d034368ad9f0c0c86`.
-Keep that maintenance PR limited to the current-chunk overlay, locked-bank
-warning, nearest bank/shop HUD lines, and aligned lock/free-area resolution. It
-must not add gameplay automation, and Online Sync stays opt-in and off by
-default.
+The optional `If-None-Match` header allows an unchanged bundle to return
+`304`. There is no configurable host, plugin POST, event relay, receipt,
+acknowledgement, suggestion write, status callback, or relay write token. Browser
+handoffs open only the fixed GitHub Pages tracker URL and contain the random
+pairing code, never RuneLite-observed gameplay.
 
-## Bundle encodings
+The controller uses RuneLite's injected `OkHttpClient` asynchronously. A
+relay result is dispatched to the client thread and replaces the current
+rules only after complete parsing, strict v4 validation, and panel refresh
+succeed. Malformed payloads, incompatible versions, ETag/body disagreement,
+stale callbacks, stopped sessions, offline requests, and failed UI refreshes
+retain the previous valid snapshot.
 
-The plugin's import accepts two forms of the same v3 bundle:
-- **Plain JSON** — the downloaded `fate-locked-bundle-*.json` file (readable,
-  inspectable; what the file-watch path reads from ~/.runelite/fate-locked/).
-- **`FLGZ:` + base64(gzip(json))** — the *clipboard* copy, compressed (~65%
-  smaller) so the web app doesn't dump ~110 KB onto the user's clipboard. The
-  plugin detects the `FLGZ:` prefix and inflates it.
+## Local event history
 
-## Bundle format (v3)
-
-The web app exports a JSON bundle the plugin reads. v1/v2 bundles still load;
-missing fields degrade gracefully.
+Detected events are local observations, not network messages. The history
+file has the shape:
 
 ```json
 {
-  "version": 3,
-  "chunkOffset": { "cx": 0, "cy": 0 },
-  "chunks":        { "Asgarnia": [{ "cx": 46, "cy": 52 }] },
-  "subAreaChunks": { "Falador":  [{ "cx": 46, "cy": 52 }] },
-  "regionGroups":  { "Asgarnia": ["Falador", "Port Sarim"] },
-  "unlockedRegions": ["Falador"],
-  "unlockedChunks": ["50,50", "50,51"],
-  "state": {
-    "keys": 3, "specialKeys": 0, "chaosKeys": 0,
-    "fatePoints": 12, "activeBuff": "NONE", "pinnedGoals": [],
-    "linkedAccount": "Zezima"
-  }
+  "events": []
 }
 ```
 
-- `chunks` — continent blocks; `subAreaChunks` — the named areas inside them.
-- `regionGroups` — hierarchy so the plugin can resolve continent unlocks the
-  same way the app does (Misthalin + its starter areas are always free).
-- `unlockedRegions` — the sub-areas the player has unlocked.
-- `unlockedChunks` — Chunked-mode runs only, a different unlock model (one map
-  chunk at a time, not named areas). Its *presence* (not length) marks a
-  bundle as Chunked — an empty array is a valid, meaningful state (a fresh
-  Chunked run with nothing rolled yet, before the always-free start chunk).
-  When present, `FateLockedBundle.lockStateAt`/`isUnlocked` resolve purely
-  from raw chunk-coordinate membership instead of `unlockedRegions`.
-- `state` — live run stats for the HUD and side panel.
-- `state.linkedAccount` (v3) — the OSRS account the run is bound to, used for the
-  HUD account line and the wrong-character warning. Omitted until the run is
-  bound in the app's Auto-Roll tab.
-- v1 bundles (no `subAreaChunks` / `regionGroups` / `state`) fall back to
-  continent-level lock state. v2 bundles (no `linkedAccount`) load fine — the
-  account features simply stay dormant.
+`FateEventHistory` keeps the newest 250 unique event IDs. Writes use a sibling
+temporary file and atomic replace where supported. The in-memory list changes
+only after persistence succeeds.
 
-The app's map is calibrated to canonical OSRS chunk coordinates, so
-`chunkOffset` is `{0,0}` in current exports; the plugin still honors non-zero
-offsets from old bundles.
+When the new history is absent, the newest 250 unique `pending` entries from
+the former local queue are migrated once. The legacy bytes are never modified
+or deleted. If the new history is malformed, it is renamed with a
+`.corrupt-<millis>` suffix and a fresh history starts. The panel exposes a
+local save-failure state and clears it after a later successful write.
 
-## Implementation notes
+Detectors record facts only. They never roll, mutate the tracker, or transfer
+the local history to the web Roll Inbox.
 
-- World map rendering uses the public `RenderOverview` API. If RuneLite changes
-  that API, the overlay's pixel math may need a touch-up.
-- By default everything is local — bundles load from the clipboard or from
-  `.runelite/fate-locked/` only. The single exception is the opt-in Online Sync
-  below, which makes outbound HTTPS calls.
+## Bundle and rule ownership
 
-## Online sync (relay) — the only network feature
+The current network import accepts only complete non-legacy v4 bundles.
+Clipboard and file recovery retain compatibility parsing, but Unknown is
+never promoted to Locked.
 
-Optional and **off by default**. Lets the run sync from the web app to the
-plugin over the internet (handy across machines) without the plugin ever running
-a server.
+The app-authored rules manifest carries run, account, and revision identity,
+unlock families, bank state, and category-first chunk permissions. Guardian
+logic consumes only these authored decisions; it must not invent a Locked
+decision from missing or ambiguous data.
 
-- **Explicit consent:** a dedicated boolean config **`onlineSync`** (default
-  **false**) gates the whole feature. Its `@ConfigItem` carries the required
-  warning *"This feature submits your IP address to a 3rd-party server not
-  controlled or verified by Runelite developers"*, so enabling it shows a
-  confirmation dialog. `pollRelay()` — the only method that contacts the relay —
-  returns early on the very first line if `config.onlineSync()` is false, so no
-  request is ever made without consent.
-- **Pairing:** with online sync on, the user sets the *Online sync code* from the
-  web app.
-- **How:** the plugin polls a small Cloudflare Worker relay every ~4s using the
-  **injected `OkHttpClient`** (never `new OkHttpClient()`), async via `enqueue`
-  — never blocking the client thread. `GET /r/<code>` with `If-None-Match` so
-  unchanged data returns `304`. On change it imports the bundle (same `FLGZ`
-  payload as the clipboard).
-- **Outbound-only:** no inbound socket/server (Hub rule). The relay default URL
-  is `relayUrl` config (override to self-host).
-- **Durable detected events (same consent gate):** supported detections are persisted atomically in `event-outbox.json`. `POST /r/<code>/events` appends v1 envelopes idempotently by stable `eventId`; `GET /r/<code>/acks` returns terminal app decisions so the plugin can remove completed, dismissed, or duplicate events. Retries use the same ID across disconnects and restarts.
-- **Strict ownership:** detectors record facts only. The app checks run/account/revision/version gates, maps against canonical content and rates, reconciles factual progress without rolling, and exposes the only Roll button. Never call tracker roll logic from RuneLite.
-- **Legacy migration:** `/suggest` remains Worker-compatible for one release, but current app code does not poll it. New detectors must use the v1 event outbox rather than timestamp-only suggestions.
-- **Privacy:** bundle/state records expire after 24 hours. Event/ack records expire after seven days and contain the character name, run/revision, detector identity, event label/type, timestamps, confidence, and bounded evidence—no credentials, cookies, chat history, or arbitrary telemetry. Anyone with the random code can read its records; protected writes require the sub-resource token.
-- **Relay source + deploy docs:** `workers/fate-relay/` and `docs/online-relay.md`
-  in the companion web-app repo
-  (https://github.com/Nubles/OSRS-Fate-Locked).
-## v1 event contract
+## Strict Mode invariant
 
-`FateEvent` fields are: `protocolVersion`, `eventId`, `runId`, `account`, `runRevision`, `eventType`, `canonicalLabel`, `occurredAt`, `sessionSequence`, `bundleVersion`, `rulesVersion`, `contentVersion`, `detectorId`, `detectorVersion`, `confidence`, and bounded `evidence`.
+Keep Travel Guardian under the sole `strictMode` setting. A click may be
+consumed only when all of these are true:
 
-Limits are 100 events per batch, 8 KiB per event, 32 evidence keys, and 256 characters per string. New detector versions require an app contract update; unknown IDs/versions are blocked rather than guessed.
+- Strict Mode is enabled and not paused.
+- The rules are current, valid, non-legacy, and fresh.
+- The rules belong to the logged-in, correctly bound account.
+- The selected action and destination are recognised with exact confidence.
+- The authored destination decision is Locked.
 
-## Bundle v4 and compact chunk permissions
+Allowed, Unknown, stale, wrong-account, missing, invalid, future, ambiguous,
+same-chunk, and unresolved inputs fail open. Stage the four-second
+explanation and bounded local audit entry before consuming the player's
+click. Never click, activate, select, reorder, remove, path to, or perform an
+alternative.
 
-Bundle v4 adds a canonical `rules` manifest while retaining the v3 root map
-fields for one compatibility release. The manifest carries run/account/version
-identity, every unlock family, bank-lock state, and category-first permission
-snapshots keyed by `cx,cy`.
+Strict Mode requires RuneLite reviewer pre-clearance; contributors must not
+describe it as approved.
 
-The plugin does not re-derive gameplay rules. It displays the app-authored
-status as **Available**, **Not ready**, **Locked**, or **Unknown**. Unknown is
-never treated as Locked. Malformed or future bundles are rejected atomically,
-leaving the last valid rules active; v1-v3 bundles continue through a compact
-Unknown fallback.
+## Automated compliance gates
 
-The narrow panel orders categories as Skilling, Banks, Shops, Quests, Combat,
-Travel, Farming, and Activities. Empty categories are omitted. Banks and shops
-show name plus status, quests show `✓`/`○`/`✕`, combat shows `✓`/`✕`, and only
-skilling/travel rows retain concise requirement details. The optional overlay
-uses the same view model and caps each category at five rows.
-## Strict Mode
+The source boundary:
 
-Travel Guardian must remain inside the existing Strict Mode checkbox, which
-defaults off. Do not add a second travel-enforcement toggle. The shared
-side-panel pause lasts 60 seconds, automatically resumes, and bypasses every
-Strict Mode category, including travel.
+```powershell
+gradle test --no-daemon --tests com.fatelocked.PluginHubNetworkBoundaryTest --tests com.fatelocked.UnifiedPluginContractTest
+```
 
-The enforcement invariant is deliberately narrow: consume a click only when
-Strict Mode is enabled, the rules are fresh, the rules belong to the currently
-logged-in account, recognition confidence is `EXACT`, the canonical destination
-is known, and the app-authored decision is proven `LOCKED`. `ALLOWED`,
-`UNKNOWN`, stale, wrong-account, legacy, missing, invalid, future, ambiguous,
-same-chunk, and unresolved inputs must fail open. Unknown is a first-class
-result and must never be promoted to Locked by inference or fallback.
+The clean source, test, and standard-jar gate:
 
-Recognition confidence is `EXACT` only for a named spell, item, or transport
-whose checked mapping resolves a canonical destination, or for an exact
-cross-chunk `Walk here`/boundary-object tile. Missing destinations, null
-context, unrecognised labels, invalid scene tiles, and same-chunk clicks are
-`UNKNOWN`. Adding a family or alias requires a checked canonical mapping and
-tests for both the exact match and nearby ambiguous inputs.
+```powershell
+gradle clean check --no-daemon
+```
 
-For every proven block, stage the explanation before the final consume
-operation. The transient banner lives for four seconds. Chat uses a bounded
-destination-and-method fingerprint and suppresses repeats for ten seconds.
-Suggestions are display-only: offer one only when its destination is Allowed
-and its item, real skill level, and spellbook requirements are verified from
-local client state. RuneLite must never click, activate, select, path to, or
-otherwise perform the alternative.
+`PluginHubNetworkBoundaryTest` proves that production source has one request
+builder, one descriptor, one navigation button, the fixed relay path, and no
+prohibited runtime mechanism. `verifyPluginHubJar` rejects shaded dependency
+trees, legacy relay routes, retired relay classes, local hosts, and request
+body support.
 
-Strict Mode audit data stays local and bounded to 100 entries. Keep the schema
-limited to timestamp, action kind, display target, canonical chunk, reason,
-outcome, paused state, and whether an alternative was available. Never add
-account names, inventory contents, chat text or history, relay credentials or
-tokens, route history, raw event evidence, or arbitrary telemetry.
+All dependencies remain `compileOnly` for production. Keep the plugin Java
+only. Do not add reflection, JNI, subprocesses, dynamic class loading, an
+embedded server, vendored runtime code, or arbitrary filesystem access.
 
-## Expanded detector safety
+## Review references
 
-The current confirmation-only contracts are `slayer-task-v1` v1,
-`diary-task-v1` v1, `pet-drop-v1` v1, `minigame-completion-v1` v1, and
-`boss-kill-v2` v2. Keep each detector narrow, deduplicated, and backed by a
-checked identity or two-signal correlation. Do not add broad completion regexes.
-
-The app policy can downgrade a known detector but cannot upgrade an unknown or
-newer version. Promotion requires 200 reviewed detections across five accounts
-and three RuneLite restarts, fewer than 0.5% false positives, at least 95%
-unchanged confirmations, zero duplicate rolls, and zero rolls without a player
-click. Detector implementation and confidence promotion are separate releases.
-
-Local playtest exports contain aggregate counts only. Never add account names,
-raw event evidence, chat text, relay credentials, exact timestamps, or full
-history to a quality report.
+Before submission, compare the candidate with RuneLite's
+[Plugin Hub review process](https://github.com/runelite/plugin-hub#reviewing),
+[rejected or rolled-back features](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features),
+and [third-party client guidelines](https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1).
+The candidate-specific explanation is in
+[docs/plugin-hub-review-notes.md](docs/plugin-hub-review-notes.md).

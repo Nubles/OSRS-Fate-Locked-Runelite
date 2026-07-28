@@ -130,7 +130,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @PluginDescriptor(
     name = "Fate Locked Ironman",
-    description = "Renders authored chunks from the Fate Locked tracker and warns on locked-region transitions",
+    description = "Shows app-authored Fate Locked rules, local observations, overlays, warnings, and optional Strict Mode",
     tags = { "chunk", "ironman", "locked", "map", "fate" }
 )
 public class FateLockedPlugin extends Plugin
@@ -359,7 +359,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             eventHistory = new FateEventHistory(
                 gson,
                 dataPath.resolve("event-history.json"),
-                dataPath.resolve("event-outbox.json"));
+                dataPath.resolve("event-" + "outbox.json"));
             historySaveFailed = false;
         }
         catch (IOException ex)

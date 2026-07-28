@@ -1,155 +1,112 @@
 # Fate Locked Ironman
 
-Companion plugin for the [Fate Locked Ironman tracker](https://github.com/Nubles/OSRS-Fate-Locked).
-It draws the chunks you've authored in the web app's region map directly onto
-RuneLite's world map and main game view, shows your live run state in-game, and
-warns you — by chat, sound, screen flash, and right-click tags — before you
-touch content you haven't unlocked yet.
+Fate Locked Ironman is one RuneLite Plugin Hub plugin for the
+[Fate Locked tracker](https://github.com/Nubles/OSRS-Fate-Locked). Its single
+sidebar shows the app-authored rules for the current run, renders chunk
+boundaries and lock state, warns about locked content, and provides the
+optional Strict Mode safety layer.
 
-## Release status
+This branch is a Plugin Hub candidate. It has not been submitted or accepted.
 
-Plugin Hub currently pins `fdca20aad7ffcf159b62210f7492f110c185afee`.
-The next maintenance submission pins
-`f450bbd87cee74d26d24061d034368ad9f0c0c86` and adds the optional
-current-chunk content overlay, individually locked-bank warning, nearest usable
-bank/shop HUD lines, and web-app-aligned lock/free-area resolution. It adds no
-gameplay automation, and Online Sync remains explicit opt-in.
+## Connect the tracker
 
-## What it does
+The normal same-PC setup is:
 
-- **In-game HUD.** Always-visible overlay with your keys (standard · Omni ·
-  Chaos), fate points, active ritual buff, first pinned goal, and the chunk
-  you're standing in with its lock status.
-- **"In this chunk" box (optional).** A draggable overlay listing the
-  current chunk’s monsters, shops, farming patches and points of interest —
-  the same content the web app’s map chunk-info panel shows, in-world. Off
-  by default; enable it in the plugin config.
-- **Sub-area-aware lock state.** A Falador chunk reflects *Falador's* unlock —
-  not all of Asgarnia's. Mirrors the web app's map exactly, including
-  always-free Misthalin.
-- **World map overlay.** Every authored chunk tinted green (unlocked) or red
-  (locked), per chunk, on the full world map — hover any authored chunk to see
-  its area name, lock status, and what's inside it (monsters, shops, farming
-  patches, points of interest). Chunked-mode runs also tint the rollable
-  frontier (locked chunks bordering one you hold) amber. Optional click-to-jump markers pin every area
-  you haven't unlocked yet.
-- **Scene + minimap overlays.** The 64×64 chunk you're in is outlined in the
-  game view and tinted on the minimap with the same color coding.
-- **Locked-border highlight.** The edges of your current chunk that border a
-  locked chunk are traced in red, so you see exactly which way not to go.
-- **Durable Roll Inbox delivery (optional).** With Online sync enabled, supported skill levels, quests, combat tasks, Collection Log entries, clue caskets, bosses, and raids are written to a restart-safe local outbox and delivered with a stable event ID. The web app validates the event and queues it by category.
-- **Player-controlled rolls.** Detection never rolls. RuneLite has no Roll button; the player reviews the event and presses **Roll** in the web app. Ambiguous detections require review and blocked detections cannot expose Roll.
-- **Chat reminders (optional).** Short in-client nudges can still flag relevant completions without changing tracker state.
-- **Over-tier gear warning.** Warns (chat + HUD) when you're wearing an item
-  above your unlocked equipment tier for that slot.
-- **Locked slayer-task warning.** Warns (chat + HUD) when your assigned slayer
-  monster only lives in chunks you haven't unlocked.
-- **Locked-bank warning.** In bank-locked runs (every mode by default in the
-  web app), opening a bank or deposit box you haven't unlocked in the tracker
-  fires a chat warning — banking is a privilege you roll for.
-- **Unlock progress.** A HUD line with how many areas you've unlocked and the
-  percentage of authored chunks opened.
-- **Locked right-click tags.** Menu entries for NPCs, objects, ground items and
-  walks that target a locked chunk get a red **(LOCKED)** tag appended — the
-  warning arrives *before* you click, where feasible.
-- **Locked-entry alarm.** Crossing into locked territory plays an audio cue and
-  pulses a red border around the viewport for ~1.6s.
-- **Account binding.** A run is bound to one OSRS account in the web app
-  (Auto-Roll). The HUD shows that account — green when it matches the logged-in
-  character, red ⚠ when it doesn't — and a one-time chat warning fires per login
-  if you're on the wrong character.
-- **Side panel.** Run stats, current location, an **Allowed / Forbidden / Unknown** area breakdown, and Roll Inbox health: queued detections, items needing review, active warnings, last successful sync, and an **Open Roll Inbox** link.
-- **Chat on chunk entry.** One-liner per chunk boundary: coords, area
-  ("Falador · Asgarnia"), and status.
+1. Install the single **Fate Locked Ironman** plugin from the RuneLite
+   Plugin Hub.
+2. Open its one sidebar and click **Connect tracker**.
+3. In the GitHub Pages tab RuneLite opens, confirm the current tracker
+   profile.
+4. Return to RuneLite and verify that the Fate Locked panel shows
+   **Connected**.
+5. Use clipboard or file import only if the relay is unavailable.
 
-## Getting started
+RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
+relay. It does not upload player or gameplay data. The relay sees the IP
+address used for the HTTPS request.
 
-1. Install **Fate Locked Ironman** from the RuneLite Plugin Hub (in the client:
-   the wrench/configuration panel → **Plugin Hub** → search "Fate Locked").
-2. Open the [web tracker](https://github.com/Nubles/OSRS-Fate-Locked), author
-   your chunks, and export a bundle for the plugin.
-3. Load the bundle into the plugin (see below). The overlays, HUD, and warnings
-   light up immediately.
+## One unified sidebar
 
-### Loading a bundle
+The plugin has one navigation button and seven independently collapsible
+sections:
 
-Click **RL** in the web app — it copies the bundle to your clipboard *and*
-downloads it — then get it into the plugin whichever way suits you:
+1. Current chunk
+2. Guardian
+3. Roll inbox
+4. Run
+5. Bundle
+6. Warnings
+7. Rendering
 
-- **Import from clipboard** *(easiest).* Open the plugin side panel and click
-  **Import from clipboard** (or bind the re-import hotkey). No file at all.
-- **Paste JSON.** Paste the export into the side-panel box and click *Import
-  pasted JSON*.
-- **Online sync** *(optional).* In the web app, enable **Online sync** to get a
-  pairing code; paste it into the plugin's **Online sync code**. Your run then
-  syncs over the internet (no clipboard/files) — handy when the game and the web
-  app are on different machines. Outbound-only; bundles expire after 24 hours and detected-event records after seven days. See
-  [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Drop the file in the data folder.** Move the downloaded
-  `fate-locked-bundle-*.json` into `~/.runelite/fate-locked/` (`%USERPROFILE%\.runelite\fate-locked\`
-  on Windows); the plugin loads the newest one there and hot-reloads on change.
-  (The plugin only reads from this folder — a RuneLite plugin can't read your
-  Downloads or arbitrary paths.)
+Current chunk and Guardian start expanded; the remaining sections start
+collapsed. The existing 30 settings remain available in these sections,
+including the single Strict Mode toggle.
 
-### Roll Inbox ownership and privacy
+## Main features
 
-Online sync is a checkbox and defaults to **off**. When enabled, RuneLite detects and queues; the web app validates and rolls; the relay only stores bounded records. Event delivery includes the character name, run/revision, event label/type, detector version, timestamp, confidence, and small evidence map. It does not include credentials, cookies, chat history, or an inventory dump.
+- World-map, scene, minimap, and current-chunk rendering from app-authored
+  rules.
+- HUD run state, account binding, unlock progress, pinned goals, and active
+  warnings.
+- Locked-region, bank, slayer-task, over-tier gear, and account-mismatch
+  warnings.
+- Menu tagging and a four-second warning banner for recognised locked
+  actions.
+- Strict Mode Travel Guardian with exact-destination blocking, fail-open
+  safeguards, a shared 60-second pause, and a bounded local audit log.
+- Local detection of supported skill, quest, diary, collection, clue,
+  boss, raid, pet, minigame, and Slayer observations.
 
-The plugin retries the same stable event ID across restarts and temporary failures. The app posts `COMPLETED`, `DISMISSED`, or `DUPLICATE`; only then does RuneLite remove that event from its outbox. Event and acknowledgement records expire after seven days.
+## Roll Inbox ownership and privacy
 
-## Configuration
+The Roll Inbox section shows the newest 250 unique observations saved in
+RuneLite's local Fate Locked data directory. Ambiguous observations are
+counted under **Needs review**. Detection never rolls and never changes the
+tracker; the player still reviews the result and presses Roll in the web app.
 
-Every behavior has a toggle in the plugin config: the HUD, screen flash, menu
-tags, chat messages, sound, each overlay (world map / scene / minimap), the
-unlocked/locked/unauthored colors, the wrong-account warning, and auto-reload of
-the bundle file.
+**Local only — RuneLite does not upload gameplay data.**
 
-## Notes
+**Open web Roll Inbox** opens a separate browser view. It does not transfer
+RuneLite's local history to that view.
 
-- Outside Strict Mode, walking remains warning-only. With Strict Mode enabled,
-  Travel Guardian may consume an exact `Walk here` click into an adjacent
-  locked chunk before RuneLite sends it; RuneLite never moves the player or
-  performs the travel.
-- Right-click tagging covers NPC / object / ground-item / walk targets. Widget
-  and spell menu entries have no world tile, so they can't be tagged.
+If the new history file is absent, the plugin can migrate the newest 250
+pending entries from the former local queue. The old file is left unchanged.
+A malformed history file is preserved with a corruption suffix and the
+plugin begins a new local history.
 
----
+## Clipboard and file recovery
 
-Building from source, the bundle format, and other developer notes are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+- **Import from clipboard:** copy a bundle in the tracker, then use the
+  plugin sidebar or its re-import hotkey.
+- **Paste JSON:** paste a complete bundle into the Bundle section.
+- **File:** place `fate-locked-bundle-*.json` in
+  `~/.runelite/fate-locked/` (or
+  `%USERPROFILE%\.runelite\fate-locked\` on Windows). The plugin reads the
+  newest matching file and can watch for changes.
+
+Imports replace the active rules only after complete parsing and validation.
+Malformed, stale, or unsupported relay responses keep the previous valid
+rules.
 
 ## Strict Mode
 
-Travel Guardian is part of the existing Strict Mode checkbox and is off by
-default. It blocks only known locked travel clicks from fresh rules, explains
-the reason in a four-second banner and a chat record, and may suggest a locally
-verified alternative. Unknown or stale travel is never blocked. RuneLite never
-activates the suggestion or moves the player.
+Strict Mode is off by default. It does not remove or reorder menu entries and
+does not perform an action. Travel Guardian can consume only a
+user-selected click when fresh, exact, account-bound app-authored rules prove
+the destination is Locked.
 
-Prevention requires a fresh rules snapshot for the currently logged-in,
-correctly bound account and an exactly recognised destination that the snapshot
-proves is **Locked**. Wrong-account, legacy, missing, invalid, stale, ambiguous,
-or otherwise Unknown travel remains available. Repeated chat for the same
-travel action is suppressed for ten seconds.
+Missing, invalid, legacy, future, stale, wrong-account, ambiguous, same-chunk,
+unrecognised, Allowed, or Unknown decisions fail open. The sidebar pause
+disables every Strict Mode category for 60 seconds and resumes automatically.
 
-The side-panel pause lasts 60 seconds, resumes automatically, and applies to
-every Strict Mode category, including Travel Guardian. Prevented and
-pause-allowed travel is recorded only in the bounded local troubleshooting log;
-it is never relayed as gameplay or activated on the player's behalf.
+This behavior is adjacent to RuneLite's restrictions on conditional menu
+entry changes. The release therefore requests reviewer pre-clearance and does
+not claim that Strict Mode is already approved. See
+[Plugin Hub review notes](docs/plugin-hub-review-notes.md).
 
-### Expanded detectors
+## Building
 
-All expanded detectors queue observations only and start in **Needs review**.
-After review, the player must still press **Roll** in the web app.
-
-| Detector | Signal | Current handling | Limitation |
-|---|---|---|---|
-| Slayer task | Remembered assignment + completion chat | Needs review | Choose the Slayer master/rate; the assignment must have been observed. |
-| Diary task | Diary tier progress transition | Needs review | Choose the completed task from that tier. |
-| Pet drop | New-pet chat + follower identity when available | Needs review | Unknown identities use a generic Pet drop review. |
-| Pest Control | Pest Control widget + exact win chat | Needs review | Both signals must occur within five seconds. |
-| Boss kill v2 | Checked encounter mapping + loot event | Needs review | Group presence is not treated as personal completion proof. |
-
-Unknown detector IDs and newer versions never become Ready automatically. The
-app may downgrade a detector at any time; promotion requires real reviewed
-playtest evidence and a separate policy-only release.
+Developer architecture, compliance commands, and the standard-jar build are
+documented in [CONTRIBUTING.md](CONTRIBUTING.md). The planned same-PC evidence
+is tracked in the
+[manual validation matrix](docs/plugin-hub-manual-matrix.md).
