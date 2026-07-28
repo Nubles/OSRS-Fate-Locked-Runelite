@@ -41,9 +41,12 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class FateLockedPluginStartupContractTest
@@ -72,6 +75,13 @@ public class FateLockedPluginStartupContractTest
                     || key.startsWith("suggestToken.")
                     || key.startsWith("ackToken.")));
             assertEquals("true", harness.configuration.get("strictMode"));
+
+            verify(harness.executor, times(1)).scheduleWithFixedDelay(
+                any(Runnable.class), eq(2L), eq(4L),
+                eq(TimeUnit.SECONDS));
+            verify(harness.executor, times(1)).scheduleWithFixedDelay(
+                any(Runnable.class), anyLong(), anyLong(),
+                eq(TimeUnit.SECONDS));
 
             SwingUtilities.invokeAndWait(() -> {
                 harness.panel.connectButtonForTest().doClick();
@@ -141,6 +151,8 @@ public class FateLockedPluginStartupContractTest
             new ConcurrentHashMap<>();
         private final TrackerConnectionSettings settings;
         private final FateLockedPanel panel;
+        private final ScheduledExecutorService executor =
+            mock(ScheduledExecutorService.class);
         private final TestPlugin plugin;
         private NavigationButton navigation;
 
@@ -182,8 +194,6 @@ public class FateLockedPluginStartupContractTest
                 return null;
             }).when(toolbar).addNavigation(any(NavigationButton.class));
 
-            ScheduledExecutorService executor =
-                mock(ScheduledExecutorService.class);
             ScheduledFuture<?> future = mock(ScheduledFuture.class);
             doReturn(future).when(executor).scheduleWithFixedDelay(
                 any(Runnable.class), anyLong(), anyLong(),

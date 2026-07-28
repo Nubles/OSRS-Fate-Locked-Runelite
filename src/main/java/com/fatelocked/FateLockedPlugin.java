@@ -1,8 +1,7 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
-import com.fatelocked.events.FateEventOutbox;
-import com.fatelocked.events.FateEventRelayClient;
+import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
@@ -94,11 +93,7 @@ import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import net.runelite.api.Point;
 
-import okhttp3.Call;
-import okhttp3.Callback;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
@@ -165,13 +160,13 @@ public class FateLockedPlugin extends Plugin
     @Inject private ConfigManager configManager;
     @Inject private TrackerConnectionSettings connectionSettings;
 
-    private ScheduledFuture<?> relayPollFuture;
+    private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
     private final RepeatedValueLimiter invalidImportLimiter =
         new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
-    private FateEventOutbox eventOutbox;
+    private FateEventHistory eventHistory;
+    private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
-    private FateEventRelayClient eventRelayClient;
     private final FateEventFactory eventFactory = new FateEventFactory();
     private final SkillLevelDetector skillLevelDetector = new SkillLevelDetector();
     private final QuestDetector questDetector = new QuestDetector();
@@ -360,19 +355,18 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         }
         try
         {
-            eventOutbox = new FateEventOutbox(gson,
-                dataDirectory.toPath().resolve("event-outbox.json"));
-            eventRelayClient = new FateEventRelayClient(
-                okHttpClient, gson, configManager,
-                connectionSettings::isPaired,
-                connectionSettings::pairingCode,
-                runnable -> clientThread.invoke(runnable));
+            Path dataPath = dataDirectory.toPath();
+            eventHistory = new FateEventHistory(
+                gson,
+                dataPath.resolve("event-history.json"),
+                dataPath.resolve("event-outbox.json"));
+            historySaveFailed = false;
         }
         catch (IOException ex)
         {
-            log.warn("Could not open Fate event outbox", ex);
-            eventOutbox = null;
-            eventRelayClient = null;
+            log.warn("Could not open local Fate event history", ex);
+            eventHistory = null;
+            historySaveFailed = true;
         }
         try
         {
@@ -446,7 +440,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         updateStrictModePanel();
         updateStrictAuditPanel();
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
-        updatePanelSyncHealth();
+        updatePanelRollInbox();
         panel.updateConnection(connectionController.snapshot());
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
@@ -455,14 +449,14 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         startWatcher();
         refreshInfoBoxes();
         keyManager.registerKeyListener(reimportHotkey);
-        startRelayPoll();
+        startTrackerPoll();
     }
 
     @Override
     protected void shutDown()
     {
         stopWatcher();
-        stopRelayPoll();
+        stopTrackerPoll();
         if (travelOverlayLifecycle != null)
         {
             try
@@ -536,7 +530,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
             panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
-            updatePanelSyncHealth();
+            updatePanelRollInbox();
         }
     }
 
@@ -876,14 +870,13 @@ java.util.Optional<DetectedEvent> detected =
             if (config.rollNudges())
             {
                 nudge("Diary complete: " + name + " — review its tasks in the Roll Inbox.");
-                pushSuggestion("Diary", name);
             }
         }
     }
 
     private void record(DetectedEvent detected)
     {
-        if (!trackerPaired() || detected == null || eventOutbox == null) return;
+        if (detected == null || eventHistory == null) return;
         FateLockedBundle currentBundle = bundle;
         if (currentBundle == null || currentBundle.getRunId() == null
             || currentBundle.getRunId().trim().isEmpty()) return;
@@ -896,12 +889,17 @@ java.util.Optional<DetectedEvent> detected =
             detected.getDetectorId(), detected.getDetectorVersion());
         try
         {
-            eventOutbox.enqueue(event);
-            updatePanelSyncHealth();
+            if (eventHistory.record(event))
+            {
+                historySaveFailed = false;
+            }
+            updatePanelRollInbox();
         }
         catch (IOException ex)
         {
-            log.warn("Could not persist detected Fate event", ex);
+            historySaveFailed = true;
+            log.warn("Could not persist local Fate event history", ex);
+            updatePanelRollInbox();
         }
     }
 
@@ -1717,23 +1715,18 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
-    // ── Online relay sync ─────────────────────────────────────────────────────
-    // Internal-pairing-only, outbound relay connection for the run bundle.
-    // Uses the injected OkHttpClient asynchronously, off
-    // the client thread — no inbound server, Hub-compliant.
-
-    private void startRelayPoll()
+    private void startTrackerPoll()
     {
-        relayPollFuture = executor.scheduleWithFixedDelay(
+        trackerPollFuture = executor.scheduleWithFixedDelay(
             this::pollTrackerConnection, 2, 4, TimeUnit.SECONDS);
     }
 
-    private void stopRelayPoll()
+    private void stopTrackerPoll()
     {
-        if (relayPollFuture != null)
+        if (trackerPollFuture != null)
         {
-            relayPollFuture.cancel(false);
-            relayPollFuture = null;
+            trackerPollFuture.cancel(false);
+            trackerPollFuture = null;
         }
         if (connectionController != null)
         {
@@ -1757,179 +1750,30 @@ MenuEntry entry = event.getMenuEntry();
         TrackerConnectionController controller = connectionController;
         if (controller == null) return;
         controller.poll();
-        flushRelayEvents();
     }
 
-    private void flushRelayEvents()
+    private void updatePanelRollInbox()
     {
-        if (!trackerPaired() || eventRelayClient == null
-            || eventOutbox == null)
-        {
-            return;
-        }
-        String code = connectionSettings.pairingCode();
-        if (code.isEmpty()) return;
-        eventRelayClient.flush(
-            TrackerConnectionSettings.RELAY_BASE_URL, code, eventOutbox);
-        eventRelayClient.pollAcknowledgements(
-            TrackerConnectionSettings.RELAY_BASE_URL, code, eventOutbox);
-    }
-
-    private void updatePanelSyncHealth()
-    {
-        List<FateEvent> pending = eventOutbox == null
+        List<FateEvent> events = eventHistory == null
             ? java.util.Collections.<FateEvent>emptyList()
-            : eventOutbox.pending();
+            : eventHistory.events();
         int needsReview = 0;
-        for (FateEvent event : pending)
+        for (FateEvent event : events)
         {
             if (event.getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
         }
+        panel.updateRollInboxStatus(
+            events.size(), needsReview, activeWarningCount(),
+            historySaveFailed);
+    }
+
+    private int activeWarningCount()
+    {
         int warnings = 0;
         if (lastLockState == FateLockedBundle.LockState.LOCKED) warnings++;
         if (slayerTaskWarn != null && !slayerTaskWarn.trim().isEmpty()) warnings++;
         if (overTierSummary != null && !overTierSummary.trim().isEmpty()) warnings++;
-        panel.updateRollInboxStatus(
-            pending.size(), needsReview, warnings, false);
-    }
-
-    // Roll suggestions (plugin to app). The current internal pairing is the
-    // sole authority for both the relay scope and its persisted write token.
-    private static final class SuggestionDto
-    {
-        String source;
-        String label;
-        long ts;
-    }
-
-    /** Cap on suggestions kept in the relay array — oldest entries are dropped first. */
-    private static final int MAX_SUGGESTIONS = 20;
-
-    /**
-     * Write-tokens for the relay's writable sub-resources (/suggest, /state).
-     * The relay's first-writer-claims model means losing a token after the
-     * first POST locks us out of that sub-resource until its 24h TTL expires —
-     * so they're persisted in plugin config (keyed per sync code, so
-     * re-pairing starts fresh) rather than held in memory where a client
-     * restart would drop them.
-     */
-    private String loadRelayToken(String prefix, String code)
-    {
-        return connectionSettings.token(prefix, code);
-    }
-
-    private void saveRelayToken(String prefix, String code, String token)
-    {
-        connectionSettings.saveToken(prefix, code, token);
-    }
-
-    private boolean pairingIsCurrent(String code)
-    {
-        return trackerPaired()
-            && code != null
-            && code.equals(connectionSettings.pairingCode());
-    }
-
-    private void pushSuggestion(String source, String label)
-    {
-        if (!trackerPaired()) return;
-        final String code = connectionSettings.pairingCode();
-        if (code.isEmpty()) return;
-
-        SuggestionDto item = new SuggestionDto();
-        item.source = source;
-        item.label = (label == null || label.trim().isEmpty()) ? source + " complete" : label.trim();
-        item.ts = System.currentTimeMillis();
-
-        final String url = TrackerConnectionSettings.RELAY_BASE_URL
-            + "/r/" + code + "/suggest";
-        Request getRequest = new Request.Builder().url(url).build();
-        okHttpClient.newCall(getRequest).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                log.debug("Suggestion GET failed: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                List<SuggestionDto> items = new ArrayList<>();
-                try (Response r = response)
-                {
-                    if (r.isSuccessful() && r.body() != null)
-                    {
-                        RelayMessage msg = gson.fromJson(r.body().string(), RelayMessage.class);
-                        if (msg != null && msg.payload != null)
-                        {
-                            SuggestionDto[] existing = gson.fromJson(msg.payload, SuggestionDto[].class);
-                            if (existing != null) items.addAll(java.util.Arrays.asList(existing));
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    log.debug("Suggestion payload parse failed: {}", ex.getMessage());
-                }
-                if (!pairingIsCurrent(code)) return;
-                items.add(item);
-                while (items.size() > MAX_SUGGESTIONS) items.remove(0);
-                postSuggestions(url, code, items);
-            }
-        });
-    }
-
-    private void postSuggestions(String url, String code, List<SuggestionDto> items)
-    {
-        if (!pairingIsCurrent(code)) return;
-        java.util.Map<String, Object> body = new HashMap<>();
-        String suggestToken = loadRelayToken("suggestToken", code);
-        if (suggestToken != null) body.put("token", suggestToken);
-        body.put("payload", gson.toJson(items));
-        okhttp3.RequestBody rb = okhttp3.RequestBody.create(
-            okhttp3.MediaType.parse("application/json"), gson.toJson(body));
-        Request request = new Request.Builder().url(url).post(rb).build();
-        okHttpClient.newCall(request).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                log.debug("Suggestion POST failed: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                try (Response r = response)
-                {
-                    if (!r.isSuccessful() || r.body() == null) return;
-                    // The /suggest POST response is {version, token} (not RelayMessage's
-                    // version+payload shape) — parsed with its own tiny local type.
-                    TokenResponse tr = gson.fromJson(r.body().string(), TokenResponse.class);
-                    if (tr != null && tr.token != null
-                        && pairingIsCurrent(code))
-                    {
-                        saveRelayToken("suggestToken", code, tr.token);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    log.debug("Suggestion POST response parse failed: {}", ex.getMessage());
-                }
-            }
-        });
-    }
-
-    private static final class TokenResponse
-    {
-        String token;
-    }
-
-    private static final class RelayMessage
-    {
-        int version;
-        String payload;
+        return warnings;
     }
 
     /** Last-modified time of the bundle file, or null if it doesn't exist yet. */

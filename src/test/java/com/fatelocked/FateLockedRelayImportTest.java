@@ -2,9 +2,7 @@ package com.fatelocked;
 
 import com.google.gson.Gson;
 import net.runelite.api.Client;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
-import okhttp3.OkHttpClient;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -107,26 +105,6 @@ public class FateLockedRelayImportTest
         assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
         verify(testPlugin.panel, never()).flashStatus(
             org.mockito.ArgumentMatchers.startsWith("synced "), eq(true));
-    }
-
-    @Test
-    public void unpairedSuggestionDoesNotMakeANetworkRequest() throws Exception
-    {
-        TestPlugin testPlugin = newPlugin();
-        ConfigManager configManager = mock(ConfigManager.class);
-        OkHttpClient httpClient = mock(OkHttpClient.class);
-        org.mockito.Mockito.when(httpClient.newCall(any(okhttp3.Request.class)))
-            .thenReturn(mock(okhttp3.Call.class));
-        setField(testPlugin.plugin, "connectionSettings",
-            new TrackerConnectionSettings(configManager));
-        setField(testPlugin.plugin, "okHttpClient", httpClient);
-
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "pushSuggestion", String.class, String.class);
-        method.setAccessible(true);
-        method.invoke(testPlugin.plugin, "Diary", "Ardougne Elite");
-
-        verify(httpClient, never()).newCall(any(okhttp3.Request.class));
     }
 
     private static TestPlugin newPlugin() throws Exception

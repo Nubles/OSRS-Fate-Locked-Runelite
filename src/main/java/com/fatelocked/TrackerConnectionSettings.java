@@ -96,15 +96,4 @@ final class TrackerConnectionSettings
         return false;
     }
 
-    String token(String prefix, String code)
-    {
-        return configManager.getConfiguration(
-            FateLockedConfig.GROUP, prefix + "." + code);
-    }
-
-    void saveToken(String prefix, String code, String token)
-    {
-        configManager.setConfiguration(
-            FateLockedConfig.GROUP, prefix + "." + code, token);
-    }
 }

@@ -192,7 +192,15 @@ public class FateLockedPluginTravelAccountBindingTest
             setField(plugin, "bundle", bundle);
             setField(plugin, "config", config);
             setField(plugin, "client", client);
-            setField(plugin, "rulesImportedAt", Instant.now());
+            TrackerConnectionSettings connectionSettings =
+                mock(TrackerConnectionSettings.class);
+            when(connectionSettings.isPaired()).thenReturn(true);
+            TrackerConnectionController connectionController =
+                mock(TrackerConnectionController.class);
+            when(connectionController.snapshot()).thenReturn(
+                TrackerConnectionSnapshot.connected(Instant.now(), "1"));
+            setField(plugin, "connectionSettings", connectionSettings);
+            setField(plugin, "connectionController", connectionController);
             setField(plugin, "travelGuardianShell", shell);
         }
     }
