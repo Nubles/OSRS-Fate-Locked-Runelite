@@ -1,0 +1,31 @@
+{
+  "version": 4,
+  "runId": "plank-run",
+  "runRevision": 7,
+  "chunks": {},
+  "rules": {
+    "rulesVersion": "1",
+    "contentVersion": 2,
+    "detectorContractVersion": 1,
+    "runId": "plank-run",
+    "runRevision": 7,
+    "gameModeId": "chunked",
+    "exportedAt": "2026-07-29T00:00:00.000Z",
+    "unlocks": {},
+    "chunks": {},
+    "runeProof": [
+      {
+        "goalId": "item:plank",
+        "goalLabel": "Plank",
+        "status": "OBTAINABLE_RNG",
+        "explanation": "A current route is verified and depends on chance.",
+        "routeLabels": ["Plank"],
+        "blockerLabels": [],
+        "unavoidableBlockerLabels": [],
+        "proofHash": "sha256-ddac76792a915e35201a32119de60ec9f4afdba372bfca8765399f669ac194b7",
+        "sourceVersion": "plank-fixture-v1",
+        "runRevision": 7
+      }
+    ]
+  }
+}

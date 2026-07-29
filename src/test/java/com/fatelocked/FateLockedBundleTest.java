@@ -8,6 +8,7 @@ import org.junit.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -67,6 +68,34 @@ public class FateLockedBundleTest
         assertEquals("Lumbridge General Store",
             chunk.getCategories().get("SHOPS").get(0).getName());
         assertTrue(!bundle.isLegacyRules());
+    }
+
+    @Test
+    public void displaysTheExactAppAuthoredPlankSummaryAndMarksAnOldRevisionStale()
+        throws Exception
+    {
+        FateLockedBundle freshBundle = fixture("bundles/v4-runeproof-plank.json");
+        RuneProofSummary summary = freshBundle.getRuneProofSummaries().get(0);
+
+        assertEquals(RuneProofSummary.Status.OBTAINABLE_RNG, summary.getStatus());
+        assertEquals(Collections.singletonList("Plank"), summary.getRouteLabels());
+        assertEquals("FRESH", FateLockedPanel.runeProofBadge(freshBundle, summary));
+
+        String json;
+        try (InputStream in = getClass().getClassLoader()
+            .getResourceAsStream("bundles/v4-runeproof-plank.json"))
+        {
+            assertNotNull(in);
+            json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        FateLockedBundle staleBundle = FateLockedBundle.loadFromJson(new Gson(),
+            json.replaceFirst("\"runRevision\": 7", "\"runRevision\": 8")
+                .replaceFirst("\"runRevision\": 7", "\"runRevision\": 8"));
+        RuneProofSummary stale = staleBundle.getRuneProofSummaries().get(0);
+
+        assertEquals(RuneProofSummary.Status.OBTAINABLE_RNG, stale.getStatus());
+        assertEquals(Collections.singletonList("Plank"), stale.getRouteLabels());
+        assertEquals("STALE", FateLockedPanel.runeProofBadge(staleBundle, stale));
     }
 
     @Test
