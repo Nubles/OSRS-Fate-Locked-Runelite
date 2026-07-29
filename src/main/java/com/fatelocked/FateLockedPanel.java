@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import com.fatelocked.panel.ChunkPanelViewModel;
+import com.fatelocked.rules.RuneProofSummary;
 import com.fatelocked.rules.PermissionStatus;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
@@ -58,6 +59,7 @@ class FateLockedPanel extends PluginPanel
     private final JLabel lastSyncVal = value();
     private final JLabel importVal = value();
     private final JPanel chunkBody = column();
+    private final JPanel runeProofBody = column();
 private final JTextArea pasteArea = new JTextArea(6, 10);
     private final JLabel strictModeVal = value();
     private final JButton strictModeButton = new JButton();
@@ -127,6 +129,9 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
         col.add(stats(
             new String[]{"Profile", "Account", "Run ID", "Keys", "Fate", "Buff", "Goal", "Import"},
             new JLabel[]{profileVal, accountVal, runIdVal, keysVal, fateVal, buffVal, goalVal, importVal}));
+        col.add(Box.createVerticalStrut(12));
+        col.add(collapsibleHeader("RUNEPROOF", runeProofBody, false));
+        col.add(runeProofBody);
         col.add(Box.createVerticalStrut(12));
 
         bundleBody = column();
@@ -353,9 +358,106 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
                 goalVal.setText("—");
             }
             renderChunk(view);
+            renderRuneProof(bundle);
         });
     }
 
+    private void renderRuneProof(FateLockedBundle bundle)
+    {
+        runeProofBody.removeAll();
+        List<RuneProofSummary> summaries = bundle == null
+            ? Collections.emptyList() : bundle.getRuneProofSummaries();
+        if (summaries.isEmpty())
+        {
+            JLabel empty = new JLabel("No certificate summaries in this bundle");
+            empty.setForeground(GRAY);
+            runeProofBody.add(empty);
+        }
+        else
+        {
+            for (RuneProofSummary summary : summaries)
+            {
+                JPanel card = card();
+                JLabel goal = new JLabel(orDash(summary.getGoalLabel()));
+                goal.setForeground(Color.WHITE);
+                goal.setFont(goal.getFont().deriveFont(Font.BOLD, 12f));
+                goal.setToolTipText(summary.getGoalId());
+                card.add(goal);
+                card.add(runeProofLine("Goal: " + orDash(summary.getGoalId()), GRAY));
+                card.add(runeProofLine(runeProofStatus(summary.getStatus()) + " · "
+                    + runeProofBadge(bundle, summary), runeProofColor(summary.getStatus())));
+                if (summary.getExplanation() != null && !summary.getExplanation().trim().isEmpty())
+                {
+                    card.add(runeProofLine(summary.getExplanation(), Color.LIGHT_GRAY));
+                }
+                if (!summary.getRouteLabels().isEmpty())
+                {
+                    card.add(runeProofLine("Preferred routes: "
+                        + String.join(", ", summary.getRouteLabels()), GRAY));
+                }
+                if (!summary.getBlockerLabels().isEmpty()
+                    || !summary.getUnavoidableBlockerLabels().isEmpty())
+                {
+                    card.add(runeProofLine(runeProofBlockers(summary), GRAY));
+                }
+                runeProofBody.add(card);
+                runeProofBody.add(Box.createVerticalStrut(5));
+            }
+        }
+        runeProofBody.revalidate();
+        runeProofBody.repaint();
+    }
+
+    static String runeProofBadge(FateLockedBundle bundle, RuneProofSummary summary)
+    {
+        boolean fresh = bundle != null && bundle.isRuneProofFresh(summary);
+        if (summary != null && summary.isUnverified())
+        {
+            return fresh ? "UNVERIFIED" : "UNVERIFIED · STALE";
+        }
+        return fresh ? "FRESH" : "STALE";
+    }
+
+    static String runeProofBlockers(RuneProofSummary summary)
+    {
+        if (summary.getBlockerLabels().isEmpty())
+        {
+            return "Blockers: " + String.join(", ", summary.getUnavoidableBlockerLabels());
+        }
+        if (summary.getUnavoidableBlockerLabels().isEmpty())
+        {
+            return "Blockers: " + String.join(", ", summary.getBlockerLabels());
+        }
+        return "Blockers: " + String.join(", ", summary.getBlockerLabels())
+            + " · Unavoidable: " + String.join(", ", summary.getUnavoidableBlockerLabels());
+    }
+
+    private static JLabel runeProofLine(String text, Color color)
+    {
+        JLabel line = new JLabel(text);
+        line.setForeground(color);
+        line.setFont(line.getFont().deriveFont(10f));
+        line.setToolTipText(text);
+        return line;
+    }
+
+    private static String runeProofStatus(RuneProofSummary.Status status)
+    {
+        if (status == RuneProofSummary.Status.OBTAINABLE) return "Obtainable";
+        if (status == RuneProofSummary.Status.OBTAINABLE_RNG) return "Obtainable (RNG)";
+        if (status == RuneProofSummary.Status.BLOCKED) return "Blocked";
+        if (status == RuneProofSummary.Status.IMPOSSIBLE) return "Impossible";
+        return "Unknown (not impossible)";
+    }
+
+    private static Color runeProofColor(RuneProofSummary.Status status)
+    {
+        if (status == RuneProofSummary.Status.OBTAINABLE
+            || status == RuneProofSummary.Status.OBTAINABLE_RNG) return GREEN;
+        if (status == RuneProofSummary.Status.BLOCKED) return AMBER;
+        if (status == RuneProofSummary.Status.IMPOSSIBLE) return RED;
+        return GRAY;
+    }
     void renderChunkForTest(ChunkPanelViewModel view)
     {
         renderChunk(view);

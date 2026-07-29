@@ -24,6 +24,7 @@ public final class RuneliteRulesManifest
     private Unlocks unlocks;
     private Map<String, ItemRule> itemRules;
     private Map<String, ChunkPermissionSnapshot> chunks;
+    private List<RuneProofSummary> runeProof;
 
     public RuneliteRulesManifest normalized()
     {
@@ -65,9 +66,30 @@ public final class RuneliteRulesManifest
             }
         }
         copy.chunks = Collections.unmodifiableMap(normalizedChunks);
+        copy.runeProof = normalizedRuneProof(runeProof);
         return copy;
     }
 
+    private static List<RuneProofSummary> normalizedRuneProof(List<RuneProofSummary> summaries)
+    {
+        List<RuneProofSummary> normalized = new ArrayList<>();
+        if (summaries != null)
+        {
+            for (RuneProofSummary summary : summaries)
+            {
+                if (summary != null)
+                {
+                    normalized.add(summary.normalized());
+                }
+            }
+        }
+        normalized.sort((left, right) -> {
+            String leftGoal = left.getGoalId() == null ? "" : left.getGoalId();
+            String rightGoal = right.getGoalId() == null ? "" : right.getGoalId();
+            return leftGoal.compareTo(rightGoal);
+        });
+        return Collections.unmodifiableList(normalized);
+    }
     public boolean hasRequiredFields()
     {
         return rulesVersion != null && !rulesVersion.trim().isEmpty()

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.fatelocked.rules.ChunkPermissionSnapshot;
 import com.fatelocked.rules.RuneliteRulesManifest;
+import com.fatelocked.rules.RuneProofSummary;
 import lombok.Getter;
 import lombok.Value;
 
@@ -76,6 +77,8 @@ public class FateLockedBundle
     private final int detectorContractVersion;
     /** Canonical v4 rules; null for legacy v1-v3 bundles. */
     private final RuneliteRulesManifest rules;
+    /** App-authored proof certificates, retained only for in-game display. */
+    private final List<RuneProofSummary> runeProofSummaries;
 
     /** Continent name → set of canonical chunks owned by that continent. */
     private final Map<String, Set<CanonicalChunk>> regionChunks;
@@ -139,6 +142,7 @@ public class FateLockedBundle
                              Map<CanonicalChunk, String> chunkToSubArea)
     {
         this.rules = raw == null || raw.rules == null ? null : raw.rules.normalized();
+        this.runeProofSummaries = rules == null ? Collections.emptyList() : rules.getRuneProof();
         this.runId = rules == null ? (raw == null ? null : raw.runId) : rules.getRunId();
         this.profileName = raw == null ? null : raw.profileName;
         this.version = raw == null ? 0 : raw.version;
@@ -317,6 +321,13 @@ public class FateLockedBundle
     /** Marker prefix the web app uses for a gzip+base64 clipboard payload. */
     private static final String GZ_PREFIX = "FLGZ:";
 
+    public boolean isRuneProofFresh(RuneProofSummary summary)
+    {
+        return summary != null
+            && summary.getRunRevision() == runRevision
+            && summary.getSourceVersion() != null
+            && !summary.getSourceVersion().trim().isEmpty();
+    }
     public static FateLockedBundle loadFromFile(Gson gson, Path path) throws IOException, JsonSyntaxException
     {
         String json = new String(Files.readAllBytes(path));
