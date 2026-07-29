@@ -78,7 +78,7 @@ public class FateLockedBundleTest
         RuneProofSummary summary = freshBundle.getRuneProofSummaries().get(0);
 
         assertEquals(RuneProofSummary.Status.OBTAINABLE_RNG, summary.getStatus());
-        assertEquals(Collections.singletonList("Plank"), summary.getRouteLabels());
+        assertEquals(Collections.singletonList("Lumberyard goblin"), summary.getRouteLabels());
         assertEquals("FRESH", FateLockedPanel.runeProofBadge(freshBundle, summary));
 
         String json;
@@ -94,28 +94,28 @@ public class FateLockedBundleTest
         RuneProofSummary stale = staleBundle.getRuneProofSummaries().get(0);
 
         assertEquals(RuneProofSummary.Status.OBTAINABLE_RNG, stale.getStatus());
-        assertEquals(Collections.singletonList("Plank"), stale.getRouteLabels());
+        assertEquals(Collections.singletonList("Lumberyard goblin"), stale.getRouteLabels());
         assertEquals("STALE", FateLockedPanel.runeProofBadge(staleBundle, stale));
     }
 
     @Test
     public void runeProofFreshnessRequiresTheExactRunRevisionAndASourceVersion()
     {
+        String validHash =
+            "sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         FateLockedBundle bundle = FateLockedBundle.loadFromJson(new Gson(),
-            bundleWithRuneProof("OBTAINABLE", 41, "source-v1", "sha256-proof"));
+            bundleWithRuneProof("OBTAINABLE", 41, "source-v1", validHash));
         RuneProofSummary fresh = bundle.getRuneProofSummaries().get(0);
         RuneProofSummary stale = FateLockedBundle.loadFromJson(new Gson(),
-            bundleWithRuneProof("OBTAINABLE", 40, "source-v1", "sha256-proof"))
+            bundleWithRuneProof("OBTAINABLE", 40, "source-v1", validHash))
             .getRuneProofSummaries().get(0);
-        RuneProofSummary sourceMissing = FateLockedBundle.loadFromJson(new Gson(),
-            bundleWithRuneProof("OBTAINABLE", 41, " ", "sha256-proof"))
-            .getRuneProofSummaries().get(0);
+        FateLockedBundle sourceMissing = FateLockedBundle.loadFromJson(new Gson(),
+            bundleWithRuneProof("OBTAINABLE", 41, " ", validHash));
 
         assertTrue(bundle.isRuneProofFresh(fresh));
         assertTrue(!bundle.isRuneProofFresh(stale));
-        assertTrue(!bundle.isRuneProofFresh(sourceMissing));
+        assertTrue(sourceMissing.getRuneProofSummaries().isEmpty());
     }
-
     @Test
     public void unsupportedOrMissingRuneProofSchemaSuppressesSummaries()
     {
@@ -146,6 +146,21 @@ public class FateLockedBundleTest
             staleBundle.getRuneProofSummaries().get(0)));
     }
 
+    @Test
+    public void malformedRuneProofCannotRenderFresh()
+    {
+        FateLockedBundle badHash = FateLockedBundle.loadFromJson(new Gson(),
+            bundleWithRuneProof("OBTAINABLE", 41, "source-v1", "bad"));
+        RuneProofSummary summary = badHash.getRuneProofSummaries().get(0);
+        assertEquals("UNVERIFIED", FateLockedPanel.runeProofBadge(badHash, summary));
+
+        String missingRoutes = bundleWithRuneProof(
+            "OBTAINABLE", 41, "source-v1",
+            "sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .replace("\"routeLabels\":[\"Sawmill\"],", "");
+        assertTrue(FateLockedBundle.loadFromJson(new Gson(), missingRoutes)
+            .getRuneProofSummaries().isEmpty());
+    }
     @Test
     public void runeProofPanelIncludesUnavoidableBlockerLabels()
     {

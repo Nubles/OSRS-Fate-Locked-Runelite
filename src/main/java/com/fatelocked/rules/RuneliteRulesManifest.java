@@ -82,7 +82,7 @@ public final class RuneliteRulesManifest
         {
             for (RuneProofSummary summary : summaries)
             {
-                if (summary != null)
+                if (summary != null && summary.hasRequiredV1Fields())
                 {
                     normalized.add(summary.normalized());
                 }

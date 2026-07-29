@@ -413,7 +413,8 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
         boolean fresh = bundle != null && bundle.isRuneProofFresh(summary);
         if (summary != null && summary.isUnverified())
         {
-            return fresh ? "UNVERIFIED" : "UNVERIFIED · STALE";
+            return bundle != null && bundle.isRuneProofCurrent(summary)
+                ? "UNVERIFIED" : "UNVERIFIED · STALE";
         }
         return fresh ? "FRESH" : "STALE";
     }

@@ -20,10 +20,10 @@
         "goalLabel": "Plank",
         "status": "OBTAINABLE_RNG",
         "explanation": "A current route is verified and depends on chance.",
-        "routeLabels": ["Plank"],
+        "routeLabels": ["Lumberyard goblin"],
         "blockerLabels": [],
         "unavoidableBlockerLabels": [],
-        "proofHash": "sha256-ddac76792a915e35201a32119de60ec9f4afdba372bfca8765399f669ac194b7",
+        "proofHash": "sha256-c57febc43f4ddbc9f3c7af0397e3d9ae87b8be239b4efdea4cc519d026f7e68b",
         "sourceVersion": "plank-fixture-v1",
         "runRevision": 7
       }

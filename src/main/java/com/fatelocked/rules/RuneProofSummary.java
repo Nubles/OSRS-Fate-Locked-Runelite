@@ -5,6 +5,7 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Display-only certificate summary exported by the Fate Locked app.
@@ -13,6 +14,9 @@ import java.util.List;
 @Getter
 public final class RuneProofSummary
 {
+    private static final Pattern PROOF_HASH =
+        Pattern.compile("^sha256-[0-9a-f]{64}$");
+
     public enum Status
     {
         OBTAINABLE,
@@ -56,7 +60,25 @@ public final class RuneProofSummary
 
     public boolean isUnverified()
     {
-        return isPositive() && (proofHash == null || proofHash.trim().isEmpty());
+        return isPositive() && (proofHash == null
+            || !PROOF_HASH.matcher(proofHash.trim()).matches());
+    }
+
+    public boolean hasRequiredV1Fields()
+    {
+        return nonBlank(goalId)
+            && nonBlank(goalLabel)
+            && status != null
+            && nonBlank(explanation)
+            && routeLabels != null
+            && blockerLabels != null
+            && unavoidableBlockerLabels != null
+            && validLabels(routeLabels)
+            && validLabels(blockerLabels)
+            && validLabels(unavoidableBlockerLabels)
+            && (!isPositive() || !routeLabels.isEmpty())
+            && nonBlank(sourceVersion)
+            && runRevision >= 0;
     }
 
     private static List<String> immutableSortedLabels(List<String> labels)
@@ -74,5 +96,21 @@ public final class RuneProofSummary
         }
         Collections.sort(copy);
         return Collections.unmodifiableList(copy);
+    }
+    private static boolean validLabels(List<String> labels)
+    {
+        for (String label : labels)
+        {
+            if (!nonBlank(label))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean nonBlank(String value)
+    {
+        return value != null && !value.trim().isEmpty();
     }
 }

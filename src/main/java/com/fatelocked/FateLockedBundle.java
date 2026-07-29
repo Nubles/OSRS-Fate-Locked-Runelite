@@ -323,6 +323,13 @@ public class FateLockedBundle
 
     public boolean isRuneProofFresh(RuneProofSummary summary)
     {
+        return isRuneProofCurrent(summary)
+            && summary.hasRequiredV1Fields()
+            && !summary.isUnverified();
+    }
+
+    public boolean isRuneProofCurrent(RuneProofSummary summary)
+    {
         return summary != null
             && summary.getRunRevision() == runRevision
             && summary.getSourceVersion() != null
