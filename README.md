@@ -59,6 +59,7 @@ gameplay automation, and Online Sync remains explicit opt-in.
   character, red ⚠ when it doesn't — and a one-time chat warning fires per login
   if you're on the wrong character.
 - **Side panel.** Run stats, current location, an **Allowed / Forbidden / Unknown** area breakdown, and Roll Inbox health: queued detections, items needing review, active warnings, last successful sync, and an **Open Roll Inbox** link.
+- **RuneProof summaries.** Displays the app-authored status, preferred route or current blockers, and Fresh, Stale, or Unverified certificate state for selected goals. The plugin never solves goals itself.
 - **Chat on chunk entry.** One-liner per chunk boundary: coords, area
   ("Falador · Asgarnia"), and status.
 
@@ -90,6 +91,39 @@ downloads it — then get it into the plugin whichever way suits you:
   on Windows); the plugin loads the newest one there and hot-reloads on change.
   (The plugin only reads from this folder — a RuneLite plugin can't read your
   Downloads or arbitrary paths.)
+
+### RuneProof display
+
+RuneProof answers whether an item, quest, diary, or activity is possible from
+the Fate Locked run's currently reachable chunks. The web app owns the exact
+chunk and child-location model, acquisition graph, blocker analysis, route
+ranking, proof generation, and export-time proof replay.
+
+RuneLite deliberately receives only compact display summaries:
+
+- **Obtainable** — the preferred route is deterministic.
+- **Obtainable (RNG)** — every valid route includes a non-guaranteed result.
+- **Blocked** — known current routes exist, but their displayed requirements
+  are missing; shared requirements are marked unavoidable.
+- **Impossible** — the app's audited model excludes every legal current route.
+- **Unknown (not impossible)** — incomplete, stale, conflicting, cyclic, or
+  safety-capped evidence prevents a stronger claim.
+
+**Fresh** means the summary's run revision exactly matches the imported
+bundle's run revision and its source version is present. **Stale** means those
+revision bindings no longer match; export the current app run again.
+**Unverified** means a positive summary arrived without its proof hash, and it
+can be both Unverified and Stale.
+
+These labels describe capability, not possession: the plugin does not inspect
+inventory, equipment, bank, storage, or consumable stock for RuneProof.
+Unlocked-but-stranded chunks contribute no routes, and a dungeon or other
+child location counts only through its reachable entrance and current entry
+gates.
+
+The plugin does not replay proofs, contain a second solver, recommend future
+unlocks or Key spending, or automate movement, combat, skilling, or item
+acquisition. Re-run RuneProof in the app whenever the run changes.
 
 ### Roll Inbox ownership and privacy
 
