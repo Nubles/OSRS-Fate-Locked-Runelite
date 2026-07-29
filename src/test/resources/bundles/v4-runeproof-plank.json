@@ -1,0 +1,32 @@
+{
+  "version": 4,
+  "runId": "plank-run",
+  "runRevision": 7,
+  "chunks": {},
+  "rules": {
+    "rulesVersion": "1",
+    "contentVersion": 2,
+    "detectorContractVersion": 1,
+    "runeProofSchemaVersion": 1,
+    "runId": "plank-run",
+    "runRevision": 7,
+    "gameModeId": "chunked",
+    "exportedAt": "2026-07-29T00:00:00.000Z",
+    "unlocks": {},
+    "chunks": {},
+    "runeProof": [
+      {
+        "goalId": "item:plank",
+        "goalLabel": "Plank",
+        "status": "OBTAINABLE_RNG",
+        "explanation": "A current route is verified and depends on chance.",
+        "routeLabels": ["Lumberyard goblin"],
+        "blockerLabels": [],
+        "unavoidableBlockerLabels": [],
+        "proofHash": "sha256-c57febc43f4ddbc9f3c7af0397e3d9ae87b8be239b4efdea4cc519d026f7e68b",
+        "sourceVersion": "plank-fixture-v1",
+        "runRevision": 7
+      }
+    ]
+  }
+}
