@@ -99,6 +99,20 @@ public class FateLockedBundleTest
     }
 
     @Test
+    public void displaysTheExactProductionGraveyardPlankSummary() throws Exception
+    {
+        FateLockedBundle bundle = fixture("bundles/v4-runeproof-production-plank.json");
+        RuneProofSummary summary = bundle.getRuneProofSummaries().get(0);
+
+        assertEquals(RuneProofSummary.Status.OBTAINABLE, summary.getStatus());
+        assertEquals(Collections.singletonList("Graveyard of Shadows plank spawn"),
+            summary.getRouteLabels());
+        assertEquals(
+            "sha256-f2bce146dc6aa3387fd8c71a1f623a860f1dd262a919188371d00800179124f4",
+            summary.getProofHash());
+        assertEquals("FRESH", FateLockedPanel.runeProofBadge(bundle, summary));
+    }
+    @Test
     public void runeProofFreshnessRequiresTheExactRunRevisionAndASourceVersion()
     {
         String validHash =
