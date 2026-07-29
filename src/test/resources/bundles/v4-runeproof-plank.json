@@ -7,6 +7,7 @@
     "rulesVersion": "1",
     "contentVersion": 2,
     "detectorContractVersion": 1,
+    "runeProofSchemaVersion": 1,
     "runId": "plank-run",
     "runRevision": 7,
     "gameModeId": "chunked",

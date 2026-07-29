@@ -24,6 +24,7 @@ public final class RuneliteRulesManifest
     private Unlocks unlocks;
     private Map<String, ItemRule> itemRules;
     private Map<String, ChunkPermissionSnapshot> chunks;
+    private Integer runeProofSchemaVersion;
     private List<RuneProofSummary> runeProof;
 
     public RuneliteRulesManifest normalized()
@@ -66,7 +67,11 @@ public final class RuneliteRulesManifest
             }
         }
         copy.chunks = Collections.unmodifiableMap(normalizedChunks);
-        copy.runeProof = normalizedRuneProof(runeProof);
+        copy.runeProofSchemaVersion = runeProofSchemaVersion;
+        copy.runeProof = runeProofSchemaVersion != null
+            && runeProofSchemaVersion == 1
+            ? normalizedRuneProof(runeProof)
+            : Collections.emptyList();
         return copy;
     }
 

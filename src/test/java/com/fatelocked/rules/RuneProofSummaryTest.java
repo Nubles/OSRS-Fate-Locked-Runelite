@@ -30,7 +30,8 @@ public class RuneProofSummaryTest
     @Test
     public void normalizationSortsSummaryAndLabelListsAndMakesThemImmutable()
     {
-        RuneliteRulesManifest manifest = gson.fromJson("{\"runeProof\":["
+        RuneliteRulesManifest manifest = gson.fromJson(
+            "{\"runeProofSchemaVersion\":1,\"runeProof\":["
             + summaryJson("goal:zeta", "BLOCKED", 7, null, null)
             + "," + summaryJson("goal:alpha", "OBTAINABLE", 7, "sha256-proof", null)
             + "]}", RuneliteRulesManifest.class).normalized();

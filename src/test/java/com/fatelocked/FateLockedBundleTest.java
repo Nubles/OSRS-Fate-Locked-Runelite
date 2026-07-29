@@ -117,6 +117,20 @@ public class FateLockedBundleTest
     }
 
     @Test
+    public void unsupportedOrMissingRuneProofSchemaSuppressesSummaries()
+    {
+        String valid = bundleWithRuneProof(
+            "OBTAINABLE", 41, "source-v1", "sha256-proof");
+        FateLockedBundle future = FateLockedBundle.loadFromJson(new Gson(),
+            valid.replace("\"runeProofSchemaVersion\":1",
+                "\"runeProofSchemaVersion\":2"));
+        FateLockedBundle missing = FateLockedBundle.loadFromJson(new Gson(),
+            valid.replace("\"runeProofSchemaVersion\":1,", ""));
+
+        assertTrue(future.getRuneProofSummaries().isEmpty());
+        assertTrue(missing.getRuneProofSummaries().isEmpty());
+    }
+    @Test
     public void positiveRuneProofWithoutAHashIsUnverified()
     {
         FateLockedBundle bundle = FateLockedBundle.loadFromJson(new Gson(),
@@ -156,6 +170,7 @@ public class FateLockedBundleTest
         String hash = proofHash == null ? "null" : "\"" + proofHash + "\"";
         return "{\"version\":4,\"chunks\":{},\"rules\":{"
             + "\"rulesVersion\":\"1\",\"runId\":\"run-1\",\"runRevision\":41,"
+            + "\"runeProofSchemaVersion\":1,"
             + "\"gameModeId\":\"vanilla\",\"exportedAt\":\"2026-07-29T00:00:00Z\","
             + "\"unlocks\":{},\"chunks\":{},\"runeProof\":[{"
             + "\"goalId\":\"item:oak-plank\",\"goalLabel\":\"Oak plank\","
