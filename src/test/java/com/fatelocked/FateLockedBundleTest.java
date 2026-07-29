@@ -176,6 +176,43 @@ public class FateLockedBundleTest
             .getRuneProofSummaries().isEmpty());
     }
     @Test
+    public void malformedNegativeRuneProofSummariesAreSuppressed()
+    {
+        String validHash =
+            "sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        String blocked = bundleWithRuneProof("BLOCKED", 41, "source-v1", null)
+            .replace("\"routeLabels\":[\"Sawmill\"]", "\"routeLabels\":[]")
+            .replace("\"blockerLabels\":[]", "\"blockerLabels\":[\"Missing shop\"]");
+        assertEquals(1, FateLockedBundle.loadFromJson(new Gson(), blocked)
+            .getRuneProofSummaries().size());
+
+        String blockedWithRoute = blocked.replace(
+            "\"routeLabels\":[]", "\"routeLabels\":[\"Sawmill\"]");
+        String blockedWithoutBlocker = blocked.replace(
+            "\"blockerLabels\":[\"Missing shop\"]", "\"blockerLabels\":[]");
+        String unknownWithBlocker = blocked
+            .replace("\"status\":\"BLOCKED\"", "\"status\":\"UNKNOWN\"");
+        String impossibleWithProof = blocked
+            .replace("\"status\":\"BLOCKED\"", "\"status\":\"IMPOSSIBLE\"")
+            .replace("\"blockerLabels\":[\"Missing shop\"]", "\"blockerLabels\":[]")
+            .replace("\"proofHash\":null", "\"proofHash\":\"" + validHash + "\"");
+        String unavoidableOutsideBlockers = blocked.replace(
+            "\"unavoidableBlockerLabels\":[]",
+            "\"unavoidableBlockerLabels\":[\"Different blocker\"]");
+
+        assertTrue(FateLockedBundle.loadFromJson(new Gson(), blockedWithRoute)
+            .getRuneProofSummaries().isEmpty());
+        assertTrue(FateLockedBundle.loadFromJson(new Gson(), blockedWithoutBlocker)
+            .getRuneProofSummaries().isEmpty());
+        assertTrue(FateLockedBundle.loadFromJson(new Gson(), unknownWithBlocker)
+            .getRuneProofSummaries().isEmpty());
+        assertTrue(FateLockedBundle.loadFromJson(new Gson(), impossibleWithProof)
+            .getRuneProofSummaries().isEmpty());
+        assertTrue(FateLockedBundle.loadFromJson(new Gson(), unavoidableOutsideBlockers)
+            .getRuneProofSummaries().isEmpty());
+    }
+
+    @Test
     public void runeProofPanelIncludesUnavoidableBlockerLabels()
     {
         RuneProofSummary summary = new Gson().fromJson("{\"goalId\":\"item:coins\","

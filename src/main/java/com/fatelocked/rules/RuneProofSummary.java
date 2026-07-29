@@ -77,8 +77,30 @@ public final class RuneProofSummary
             && validLabels(blockerLabels)
             && validLabels(unavoidableBlockerLabels)
             && (!isPositive() || !routeLabels.isEmpty())
+            && statusFieldsValid()
             && nonBlank(sourceVersion)
             && runRevision >= 0;
+    }
+
+    private boolean statusFieldsValid()
+    {
+        if (!blockerLabels.containsAll(unavoidableBlockerLabels))
+        {
+            return false;
+        }
+        if (isPositive())
+        {
+            return true;
+        }
+        if (proofHash != null || !routeLabels.isEmpty())
+        {
+            return false;
+        }
+        if (status == Status.BLOCKED)
+        {
+            return !blockerLabels.isEmpty();
+        }
+        return blockerLabels.isEmpty() && unavoidableBlockerLabels.isEmpty();
     }
 
     private static List<String> immutableSortedLabels(List<String> labels)
