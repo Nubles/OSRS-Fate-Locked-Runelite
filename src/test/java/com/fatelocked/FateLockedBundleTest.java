@@ -108,7 +108,7 @@ public class FateLockedBundleTest
         assertEquals(Collections.singletonList("Graveyard of Shadows plank spawn"),
             summary.getRouteLabels());
         assertEquals(
-            "sha256-f2bce146dc6aa3387fd8c71a1f623a860f1dd262a919188371d00800179124f4",
+            "sha256-4c92d010f99e5e1d3742716c57dc8ad5dba679df0de6b60dac412381624c745e",
             summary.getProofHash());
         assertEquals("FRESH", FateLockedPanel.runeProofBadge(bundle, summary));
     }

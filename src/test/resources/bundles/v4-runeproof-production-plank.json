@@ -23,8 +23,8 @@
         "routeLabels": ["Graveyard of Shadows plank spawn"],
         "blockerLabels": [],
         "unavoidableBlockerLabels": [],
-        "proofHash": "sha256-f2bce146dc6aa3387fd8c71a1f623a860f1dd262a919188371d00800179124f4",
-        "sourceVersion": "sha256-11f41a94ae88378d6298776592ad99e5e5c136a3caf22ae4bb929a2473e08b56",
+        "proofHash": "sha256-4c92d010f99e5e1d3742716c57dc8ad5dba679df0de6b60dac412381624c745e",
+        "sourceVersion": "sha256-2d39e087d9bdcab72f27a0492bf6bc2abf97a33760b17ec84d80f7d8c956b382",
         "runRevision": 7
       }
     ]
