@@ -33,6 +33,8 @@ public class RuneProofSummaryTest
         RuneliteRulesManifest manifest = gson.fromJson(
             "{\"runeProofSchemaVersion\":1,\"runeProof\":["
             + summaryJson("goal:zeta", "BLOCKED", 7, null, null)
+                .replace("\"routeLabels\":[\"Zulu route\",\"Alpha route\"],",
+                    "\"routeLabels\":[],")
             + "," + summaryJson("goal:alpha", "OBTAINABLE", 7, "sha256-proof", null)
             + "]}", RuneliteRulesManifest.class).normalized();
 

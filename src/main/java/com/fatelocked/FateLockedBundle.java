@@ -1,10 +1,14 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.fatelocked.rules.ChunkPermissionSnapshot;
 import com.fatelocked.rules.RuneliteRulesManifest;
 import com.fatelocked.rules.RuneProofSummary;
+import com.fatelocked.rules.RuneProofWireValidator;
 import lombok.Getter;
 import lombok.Value;
 
@@ -370,7 +374,26 @@ public class FateLockedBundle
         String text = json != null && json.trim().startsWith(GZ_PREFIX)
             ? inflate(json.trim().substring(GZ_PREFIX.length())) : json;
 
-        RawBundle raw = gson.fromJson(text, RawBundle.class);
+        JsonElement wire = new JsonParser().parse(text);
+        if (wire.isJsonObject())
+        {
+            JsonObject root = wire.getAsJsonObject();
+            JsonElement rulesElement = root.get("rules");
+            if (rulesElement != null && rulesElement.isJsonObject())
+            {
+                JsonObject rules = rulesElement.getAsJsonObject();
+                JsonElement schema = rules.get("runeProofSchemaVersion");
+                boolean schemaV1 = schema != null && schema.isJsonPrimitive()
+                    && schema.getAsJsonPrimitive().isNumber()
+                    && "1".equals(schema.toString());
+                if (schema != null && (!schemaV1
+                    || !RuneProofWireValidator.isValidV1(rules)))
+                {
+                    rules.remove("runeProof");
+                }
+            }
+        }
+        RawBundle raw = gson.fromJson(wire, RawBundle.class);
         if (raw != null && raw.version > 4)
         {
             throw new IllegalArgumentException("Unsupported future bundle version " + raw.version);

@@ -145,19 +145,15 @@ public class FateLockedBundleTest
         assertTrue(missing.getRuneProofSummaries().isEmpty());
     }
     @Test
-    public void positiveRuneProofWithoutAHashIsUnverified()
+    public void positiveRuneProofWithoutAHashIsSuppressed()
     {
         FateLockedBundle bundle = FateLockedBundle.loadFromJson(new Gson(),
             bundleWithRuneProof("OBTAINABLE_RNG", 41, "source-v1", null));
-        RuneProofSummary summary = bundle.getRuneProofSummaries().get(0);
-
-        assertTrue(summary.isUnverified());
-        assertEquals("UNVERIFIED", FateLockedPanel.runeProofBadge(bundle, summary));
-
         FateLockedBundle staleBundle = FateLockedBundle.loadFromJson(new Gson(),
             bundleWithRuneProof("OBTAINABLE_RNG", 40, "source-v1", null));
-        assertEquals("UNVERIFIED · STALE", FateLockedPanel.runeProofBadge(staleBundle,
-            staleBundle.getRuneProofSummaries().get(0)));
+
+        assertTrue(bundle.getRuneProofSummaries().isEmpty());
+        assertTrue(staleBundle.getRuneProofSummaries().isEmpty());
     }
 
     @Test
@@ -165,8 +161,7 @@ public class FateLockedBundleTest
     {
         FateLockedBundle badHash = FateLockedBundle.loadFromJson(new Gson(),
             bundleWithRuneProof("OBTAINABLE", 41, "source-v1", "bad"));
-        RuneProofSummary summary = badHash.getRuneProofSummaries().get(0);
-        assertEquals("UNVERIFIED", FateLockedPanel.runeProofBadge(badHash, summary));
+        assertTrue(badHash.getRuneProofSummaries().isEmpty());
 
         String missingRoutes = bundleWithRuneProof(
             "OBTAINABLE", 41, "source-v1",
