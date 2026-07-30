@@ -1,8 +1,8 @@
 package com.fatelocked;
 
 import com.fatelocked.panel.ChunkPanelViewModel;
-import com.fatelocked.rules.RuneProofSummary;
 import com.fatelocked.rules.PermissionStatus;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.LinkBrowser;
@@ -12,6 +12,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -26,13 +27,15 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /** Narrow category-first side panel with compact rule rows. */
@@ -50,38 +53,58 @@ class FateLockedPanel extends PluginPanel
     private final JLabel accountVal = value();
     private final JLabel runIdVal = value();
     private final JLabel keysVal = value();
+    private final JLabel omniKeysVal = value();
+    private final JLabel chaosKeysVal = value();
     private final JLabel fateVal = value();
     private final JLabel buffVal = value();
     private final JLabel goalVal = value();
-    private final JLabel queuedVal = value();
+    private final JLabel localEventsVal = value();
     private final JLabel reviewVal = value();
     private final JLabel warningsVal = value();
+    private final JLabel historyStatusVal = value();
+    private final JLabel connectionVal = value();
+    private final JLabel trackerAccountVal = value();
     private final JLabel lastSyncVal = value();
     private final JLabel importVal = value();
     private final JPanel chunkBody = column();
-    private final JPanel runeProofBody = column();
-private final JTextArea pasteArea = new JTextArea(6, 10);
+    private final JPanel bundleBody = column();
+    private final JTextArea pasteArea = new JTextArea(6, 10);
     private final JLabel strictModeVal = value();
     private final JButton strictModeButton = new JButton();
+    private final JButton connectTrackerButton = new JButton("Connect tracker");
     private final JPanel strictIntro = card();
     private final JPanel recentPreventedBody = column();
+    private final Map<String, CollapsiblePanelSection> sections =
+        new LinkedHashMap<>();
+    private final Map<String, Set<String>> sectionSettingKeys =
+        new LinkedHashMap<>();
+    private final Map<String, JComponent> settingControls =
+        new LinkedHashMap<>();
+    private final FateLockedConfigBinder configBinder;
+    private final CollapsiblePanelSection bundleSection;
     private Runnable onStrictPause = () -> {};
     private Runnable onStrictResume = () -> {};
     private Runnable onStrictIntroDismiss = () -> {};
     private boolean strictPaused;
 
-    private String rollInboxUrl = TRACKER_URL + "?open=roll-inbox&code=";
-    private JPanel bundleBody;
-    private JButton bundleHeader;
+    private String rollInboxUrl = TRACKER_URL + "?open=roll-inbox";
     private Consumer<String> onImport = json -> {};
     private Runnable onReload = () -> {};
+    private Runnable onConnect = () -> {};
 
-    @Inject
     FateLockedPanel()
     {
+        this(new FateLockedConfig() { }, null);
+    }
+
+    @Inject
+    FateLockedPanel(FateLockedConfig config, ConfigManager configManager)
+    {
+        configBinder = new FateLockedConfigBinder(
+            configManager, message -> flashStatus(message, false));
+
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(8, 8, 8, 8));
-        setPreferredSize(new Dimension(260, 0));
 
         JPanel col = column();
         col.add(title("FATE LOCKED IRONMAN"));
@@ -91,60 +114,238 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
         fullWidth(trackerBtn);
         trackerBtn.addActionListener(e -> LinkBrowser.browse(TRACKER_URL));
         col.add(trackerBtn);
+        col.add(Box.createVerticalStrut(6));
+
+        fullWidth(connectTrackerButton);
+        connectTrackerButton.addActionListener(event -> onConnect.run());
+        col.add(connectTrackerButton);
+        col.add(Box.createVerticalStrut(5));
+
+        connectionVal.setText("Not connected");
+        connectionVal.setForeground(GRAY);
+        col.add(stats(
+            new String[]{"Connection", "Tracker account", "Last sync"},
+            new JLabel[]{connectionVal, trackerAccountVal, lastSyncVal}));
+        col.add(Box.createVerticalStrut(4));
+
+        importVal.setVisible(false);
+        importVal.setAlignmentX(Component.LEFT_ALIGNMENT);
+        col.add(importVal);
+        col.add(Box.createVerticalStrut(4));
+
+        JLabel disclosure = new JLabel(
+            "<html>RuneLite retrieves rules from the Fate Locked relay. "
+                + "Your IP address is visible to the relay, but RuneLite "
+                + "does not upload gameplay data.</html>");
+        disclosure.setForeground(GRAY);
+        disclosure.setAlignmentX(Component.LEFT_ALIGNMENT);
+        col.add(disclosure);
         col.add(Box.createVerticalStrut(10));
 
-        col.add(section("CURRENT CHUNK"));
         chunkBody.add(emptyChunk());
-        col.add(chunkBody);
-        col.add(Box.createVerticalStrut(12));
+        addSection(col, "Current chunk", true, chunkBody);
+        addSection(col, "Guardian", true, buildGuardianBody(config));
+        addSection(col, "Roll inbox", false, buildRollInboxBody());
+        addSection(col, "Run", false, buildRunBody());
+        buildBundleBody(config);
+        bundleSection = addSection(col, "Bundle", false, bundleBody);
+        addSection(col, "Warnings", false, buildWarningsBody(config));
+        addSection(col, "Rendering", false, buildRenderingBody(config));
 
-        buildStrictIntro();
-        col.add(strictIntro);
-        col.add(section("GUARDIAN"));
-        col.add(stats(new String[]{"Strict Mode"}, new JLabel[]{strictModeVal}));
-        fullWidth(strictModeButton);
-        strictModeButton.addActionListener(event -> {
-            if (strictPaused) onStrictResume.run(); else onStrictPause.run();
-        });
-        col.add(Box.createVerticalStrut(5));
-        col.add(strictModeButton);
-        col.add(Box.createVerticalStrut(7));
-        col.add(collapsibleHeader("RECENT PREVENTED ACTIONS", recentPreventedBody, false));
-        col.add(recentPreventedBody);
-        col.add(Box.createVerticalStrut(12));
-        col.add(section("ROLL INBOX"));
-        col.add(stats(
-            new String[]{"Queued", "Needs review", "Warnings", "Last sync"},
-            new JLabel[]{queuedVal, reviewVal, warningsVal, lastSyncVal}));
-        JButton inboxBtn = new JButton("Open Roll Inbox");
-        fullWidth(inboxBtn);
-        inboxBtn.setToolTipText(
-            "Open detected events in the tracker; RuneLite never rolls for you");
-        inboxBtn.addActionListener(e -> LinkBrowser.browse(rollInboxUrl));
-        col.add(Box.createVerticalStrut(6));
-        col.add(inboxBtn);
-        col.add(Box.createVerticalStrut(12));
-
-        col.add(section("RUN"));
-        col.add(stats(
-            new String[]{"Profile", "Account", "Run ID", "Keys", "Fate", "Buff", "Goal", "Import"},
-            new JLabel[]{profileVal, accountVal, runIdVal, keysVal, fateVal, buffVal, goalVal, importVal}));
-        col.add(Box.createVerticalStrut(12));
-        col.add(collapsibleHeader("RUNEPROOF", runeProofBody, false));
-        col.add(runeProofBody);
-        col.add(Box.createVerticalStrut(12));
-
-        bundleBody = column();
-        bundleHeader = collapsibleHeader("LOAD BUNDLE", bundleBody, true);
-        col.add(bundleHeader);
-        col.add(bundleBody);
-        buildImportControls();
         add(col, BorderLayout.NORTH);
     }
 
+    private CollapsiblePanelSection addSection(
+        JPanel parent, String name, boolean expanded, JPanel content)
+    {
+        CollapsiblePanelSection section =
+            new CollapsiblePanelSection(name, expanded);
+        section.body().add(content);
+        sections.put(name, section);
+        sectionSettingKeys.computeIfAbsent(
+            name, ignored -> new LinkedHashSet<>());
+        parent.add(section);
+        parent.add(Box.createVerticalStrut(9));
+        return section;
+    }
+
+    private JPanel buildGuardianBody(FateLockedConfig config)
+    {
+        JPanel body = column();
+        buildStrictIntro();
+        addSetting(body, ownSetting("Guardian", "strictMode",
+            configBinder.booleanSetting(
+                "strictMode", "Strict Mode", config::strictMode)));
+        body.add(strictIntro);
+        body.add(stats(new String[]{"Guardian status"},
+            new JLabel[]{strictModeVal}));
+        body.add(Box.createVerticalStrut(5));
+        fullWidth(strictModeButton);
+        strictModeButton.addActionListener(event -> {
+            if (strictPaused)
+            {
+                onStrictResume.run();
+            }
+            else
+            {
+                onStrictPause.run();
+            }
+        });
+        body.add(strictModeButton);
+        body.add(Box.createVerticalStrut(7));
+        body.add(collapsibleHeader(
+            "RECENT PREVENTED ACTIONS", recentPreventedBody, false));
+        body.add(recentPreventedBody);
+        return body;
+    }
+
+    private JPanel buildRollInboxBody()
+    {
+        JPanel body = column();
+        body.add(stats(
+            new String[]{"Local events", "Needs review", "Warnings"},
+            new JLabel[]{localEventsVal, reviewVal, warningsVal}));
+        body.add(Box.createVerticalStrut(5));
+        JLabel disclosure = new JLabel(
+            "<html>Local only — RuneLite does not upload gameplay data.</html>");
+        disclosure.setForeground(GRAY);
+        disclosure.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(disclosure);
+        historyStatusVal.setText("");
+        historyStatusVal.setForeground(RED);
+        historyStatusVal.setVisible(false);
+        historyStatusVal.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(historyStatusVal);
+        body.add(Box.createVerticalStrut(6));
+        JButton inboxBtn = new JButton("Open web Roll Inbox");
+        fullWidth(inboxBtn);
+        inboxBtn.setToolTipText(
+            "Open the separate web Roll Inbox; local history is not transferred");
+        inboxBtn.addActionListener(event -> LinkBrowser.browse(rollInboxUrl));
+        body.add(inboxBtn);
+        return body;
+    }
+
+    private JPanel buildRunBody()
+    {
+        JPanel body = column();
+        body.add(stats(
+            new String[]{"Profile", "Account", "Run ID",
+                "Keys", "Omni Keys", "Chaos Keys",
+                "Fate", "Buff", "Goal"},
+            new JLabel[]{profileVal, accountVal, runIdVal,
+                keysVal, omniKeysVal, chaosKeysVal,
+                fateVal, buffVal, goalVal}));
+        return body;
+    }
+
+    private void buildBundleBody(FateLockedConfig config)
+    {
+        addSetting(bundleBody, ownSetting("Bundle", "autoReload",
+            configBinder.booleanSetting(
+                "autoReload", "Auto-reload on change", config::autoReload)));
+        addLabeledSetting(bundleBody, "Re-import hotkey",
+            ownSetting("Bundle", "reimportHotkey",
+                configBinder.keybindSetting(
+                    "reimportHotkey", "Re-import hotkey", config::reimportHotkey)));
+        buildImportControls();
+    }
+
+    private JPanel buildWarningsBody(FateLockedConfig config)
+    {
+        JPanel body = column();
+        addBoolean("Warnings", body, "chatOnEnter", "Chat on chunk entry", config::chatOnEnter);
+        addBoolean("Warnings", body, "warnOnLocked", "Warn entering locked chunk", config::warnOnLocked);
+        addBoolean("Warnings", body, "warnLockedBank", "Warn opening a locked bank", config::warnLockedBank);
+        addBoolean("Warnings", body, "flashOnLocked", "Screen flash on locked entry", config::flashOnLocked);
+        addBoolean("Warnings", body, "warnAccountMismatch", "Warn on wrong account", config::warnAccountMismatch);
+        addBoolean("Warnings", body, "tagLockedMenus", "Tag locked right-click targets", config::tagLockedMenus);
+        addBoolean("Warnings", body, "tagLockedTeleports", "Tag teleports to locked chunks", config::tagLockedTeleports);
+        addBoolean("Warnings", body, "showHud", "Show in-game HUD", config::showHud);
+        addBoolean("Warnings", body, "showNearest", "HUD: nearest bank & shop", config::showNearest);
+        addBoolean("Warnings", body, "showChunkContentBox", "Show \"in this chunk\" box", config::showChunkContentBox);
+        addBoolean("Warnings", body, "useNotifier", "Send RuneLite notifications", config::useNotifier);
+        addBoolean("Warnings", body, "warnLockedSlayer", "Warn on locked slayer task", config::warnLockedSlayer);
+        addBoolean("Warnings", body, "warnOverTierGear", "Warn on over-tier gear", config::warnOverTierGear);
+        addBoolean("Warnings", body, "showInfoBoxes", "Show key/fate/progress infoboxes", config::showInfoBoxes);
+        addBoolean("Warnings", body, "rollNudges", "Roll reminders", config::rollNudges);
+        return body;
+    }
+
+    private JPanel buildRenderingBody(FateLockedConfig config)
+    {
+        JPanel body = column();
+        addBoolean("Rendering", body, "drawWorldMap", "Draw on world map", config::drawWorldMap);
+        addBoolean("Rendering", body, "drawScene", "Draw around player", config::drawScene);
+        addBoolean("Rendering", body, "drawMinimap", "Draw on minimap", config::drawMinimap);
+        addBoolean("Rendering", body, "highlightLockedBorders", "Highlight locked borders", config::highlightLockedBorders);
+        addBoolean("Rendering", body, "shadeNearbyLocked", "Shade nearby locked chunks", config::shadeNearbyLocked);
+        addBoolean("Rendering", body, "worldMapMarkers", "Pin locked areas on world map", config::worldMapMarkers);
+        addBoolean("Rendering", body, "worldMapTooltip", "World map hover tooltip", config::worldMapTooltip);
+        addBoolean("Rendering", body, "worldMapTooltipContent", "Tooltip: what's in the chunk", config::worldMapTooltipContent);
+        addSetting(body, ownSetting("Rendering", "unlockedColor",
+            configBinder.colorSetting(
+                "unlockedColor", "Unlocked color", config::unlockedColor)));
+        addSetting(body, ownSetting("Rendering", "frontierColor",
+            configBinder.colorSetting(
+                "frontierColor", "Frontier color (Chunked)", config::frontierColor)));
+        addSetting(body, ownSetting("Rendering", "lockedColor",
+            configBinder.colorSetting(
+                "lockedColor", "Locked color", config::lockedColor)));
+        addSetting(body, ownSetting("Rendering", "unauthoredColor",
+            configBinder.colorSetting(
+                "unauthoredColor", "Unauthored color", config::unauthoredColor)));
+        return body;
+    }
+
+    private void addBoolean(String sectionName, JPanel body,
+        String key, String label,
+        java.util.function.BooleanSupplier current)
+    {
+        addSetting(body, ownSetting(sectionName, key,
+            configBinder.booleanSetting(key, label, current)));
+    }
+
+    private JComponent ownSetting(
+        String sectionName, String key, JComponent control)
+    {
+        if (settingControls.containsKey(key))
+        {
+            throw new IllegalStateException("Duplicate setting control: " + key);
+        }
+        settingControls.put(key, control);
+        sectionSettingKeys.computeIfAbsent(
+            sectionName, ignored -> new LinkedHashSet<>()).add(key);
+        return control;
+    }
+
+    private static void addSetting(JPanel body, JComponent control)
+    {
+        control.setAlignmentX(Component.LEFT_ALIGNMENT);
+        control.setMaximumSize(new Dimension(
+            Integer.MAX_VALUE, control.getPreferredSize().height));
+        body.add(control);
+        body.add(Box.createVerticalStrut(3));
+    }
+
+    private static void addLabeledSetting(
+        JPanel body, String label, JComponent control)
+    {
+        JPanel row = new JPanel(new BorderLayout(5, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel copy = new JLabel(label);
+        copy.setForeground(Color.LIGHT_GRAY);
+        row.add(copy, BorderLayout.CENTER);
+        row.add(control, BorderLayout.EAST);
+        row.setMaximumSize(new Dimension(
+            Integer.MAX_VALUE, row.getPreferredSize().height));
+        body.add(row);
+        body.add(Box.createVerticalStrut(3));
+    }
     private void buildStrictIntro()
     {
-        JLabel copy = new JLabel("<html>Strict Mode is now on. It prevents only actions proven locked by the current rules. Unknown actions and walking are never blocked. You can pause it for 60 seconds here or turn it off immediately in plugin settings.</html>");
+        JLabel copy = new JLabel("<html>Strict Mode prevents only actions proven locked by fresh rules. Known locked travel clicks can be stopped; uncertain movement is never blocked. Pause it for 60 seconds here or turn it off above.</html>");
         copy.setForeground(Color.LIGHT_GRAY);
         strictIntro.add(copy);
         JButton dismiss = new JButton("Got it");
@@ -243,71 +444,156 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
         bundleBody.add(reloadBtn);
     }
 
-    void setCallbacks(Consumer<String> onImport, Runnable onReload)
+    void setCallbacks(
+        Consumer<String> onImport, Runnable onReload, Runnable onConnect)
     {
         this.onImport = onImport;
         this.onReload = onReload;
+        this.onConnect = onConnect;
     }
 
-    void setRollInboxLink(String trackerUrl, String code)
+    void setCallbacks(Consumer<String> onImport, Runnable onReload)
     {
-        rollInboxUrl = rollInboxUrl(trackerUrl, code);
+        setCallbacks(onImport, onReload, onConnect);
+    }
+    void setRollInboxLink(String trackerUrl)
+    {
+        rollInboxUrl = rollInboxUrl(trackerUrl);
     }
 
-    static String rollInboxUrl(String trackerUrl, String code)
+    static String rollInboxUrl(String trackerUrl)
     {
         String base = trackerUrl == null || trackerUrl.trim().isEmpty()
             ? TRACKER_URL : trackerUrl.trim();
-        try
-        {
-            return base + "?open=roll-inbox&code=" + URLEncoder.encode(
-                code == null ? "" : code,
-                StandardCharsets.UTF_8.name());
-        }
-        catch (java.io.UnsupportedEncodingException impossible)
-        {
-            throw new IllegalStateException(impossible);
-        }
+        return base + "?open=roll-inbox";
     }
 
-    void updateSyncHealth(
-        int pending,
-        int readyHint,
-        int warnings,
-        Instant lastSync,
-        boolean offline)
+    void updateConnection(TrackerConnectionSnapshot snapshot)
     {
-        SwingUtilities.invokeLater(() -> {
-            queuedVal.setText(String.valueOf(Math.max(0, pending)));
-            reviewVal.setText(String.valueOf(Math.max(0, readyHint)));
+        runOnEdt(() -> applyConnection(snapshot));
+    }
+
+    void updateTrackerAccount(String account)
+    {
+        runOnEdt(() -> trackerAccountVal.setText(orDash(account)));
+    }
+
+    void updateRollInboxStatus(
+        int localEvents, int needsReview, int warnings,
+        boolean saveFailed)
+    {
+        runOnEdt(() -> {
+            localEventsVal.setText(String.valueOf(Math.max(0, localEvents)));
+            reviewVal.setText(String.valueOf(Math.max(0, needsReview)));
             warningsVal.setText(warnings <= 0 ? "None" : warnings + " active");
             warningsVal.setForeground(warnings <= 0 ? GREEN : RED);
-            if (offline)
-            {
-                lastSyncVal.setText("Offline");
-                lastSyncVal.setForeground(GRAY);
-            }
-            else if (lastSync == null)
-            {
-                lastSyncVal.setText("Waiting…");
-                lastSyncVal.setForeground(AMBER);
-            }
-            else
-            {
-                lastSyncVal.setText(DateTimeFormatter
-                    .ofPattern("HH:mm:ss 'UTC'")
-                    .withZone(ZoneOffset.UTC)
-                    .format(lastSync));
-                lastSyncVal.setForeground(GREEN);
-            }
+            historyStatusVal.setText(
+                saveFailed ? "Local history save failed" : "");
+            historyStatusVal.setVisible(saveFailed);
         });
     }
 
-    String queuedTextForTest() { return queuedVal.getText(); }
+    void refreshConfig(String key)
+    {
+        runOnEdt(() -> configBinder.refresh(key));
+    }
+    private void applyConnection(TrackerConnectionSnapshot snapshot)
+    {
+        TrackerConnectionSnapshot copy = snapshot == null
+            ? TrackerConnectionSnapshot.disconnected() : snapshot;
+        TrackerConnectionState state = copy.getState();
+        String message = copy.getMessage();
+        String text = message == null || message.trim().isEmpty()
+            ? state.name() : message;
+        Color color = GRAY;
+        if (state == TrackerConnectionState.CONNECTED)
+        {
+            color = GREEN;
+            if (copy.getLastSync() != null)
+            {
+                text += " \u00b7 " + formatUtc(copy.getLastSync());
+            }
+        }
+        else if (state == TrackerConnectionState.PREPARING
+            || state == TrackerConnectionState.WAITING
+            || state == TrackerConnectionState.IMPORTING)
+        {
+            color = AMBER;
+        }
+        else if (state == TrackerConnectionState.EXPIRED
+            || state == TrackerConnectionState.IMPORT_FAILED)
+        {
+            color = RED;
+        }
+        connectionVal.setText(text);
+        connectionVal.setForeground(color);
+        lastSyncVal.setText(copy.getLastSync() == null
+            ? "\u2014" : formatUtc(copy.getLastSync()));
+        lastSyncVal.setForeground(
+            copy.getLastSync() == null ? GRAY : GREEN);
+    }
+
+    private static String formatUtc(Instant instant)
+    {
+        return DateTimeFormatter.ofPattern("HH:mm:ss 'UTC'")
+            .withZone(ZoneOffset.UTC).format(instant);
+    }
+
+    private static void runOnEdt(Runnable update)
+    {
+        if (SwingUtilities.isEventDispatchThread())
+        {
+            update.run();
+        }
+        else
+        {
+            SwingUtilities.invokeLater(update);
+        }
+    }
+
+    String localEventsTextForTest() { return localEventsVal.getText(); }
     String reviewTextForTest() { return reviewVal.getText(); }
     String warningTextForTest() { return warningsVal.getText(); }
+    String historyStatusTextForTest() { return historyStatusVal.getText(); }
+    boolean historyStatusVisibleForTest()
+    { return historyStatusVal.isVisible(); }
     String lastSyncTextForTest() { return lastSyncVal.getText(); }
-
+    String connectionTextForTest() { return connectionVal.getText(); }
+    String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
+    JButton connectButtonForTest() { return connectTrackerButton; }
+    JButton guardianPauseButtonForTest() { return strictModeButton; }
+    List<String> sectionTitlesForTest()
+    {
+        return Collections.unmodifiableList(
+            new java.util.ArrayList<>(sections.keySet()));
+    }
+    CollapsiblePanelSection sectionForTest(String title)
+    {
+        return sections.get(title);
+    }
+    Set<String> settingKeysForTest()
+    {
+        return configBinder.keys();
+    }
+    Set<String> sectionSettingKeysForTest(String title)
+    {
+        Set<String> keys = sectionSettingKeys.get(title);
+        return keys == null
+            ? Collections.emptySet()
+            : Collections.unmodifiableSet(new LinkedHashSet<>(keys));
+    }
+    JComponent settingControlForTest(String key)
+    {
+        return settingControls.get(key);
+    }
+    String rollInboxUrlForTest()
+    {
+        return rollInboxUrl;
+    }
+    boolean hasTextForTest(String text)
+    {
+        return hasText(this, text);
+    }
     private void importFromClipboard()
     {
         try
@@ -343,9 +629,12 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
             if (state != null)
             {
                 if (manifestAccount == null) accountVal.setText(orDash(state.getLinkedAccount()));
-                keysVal.setText(state.getKeys() + " · O " + state.getSpecialKeys()
-                    + " · C " + state.getChaosKeys());
+                keysVal.setText(String.valueOf(state.getKeys()));
+                omniKeysVal.setText(String.valueOf(state.getSpecialKeys()));
+                chaosKeysVal.setText(String.valueOf(state.getChaosKeys()));
                 keysVal.setForeground(AMBER);
+                omniKeysVal.setForeground(AMBER);
+                chaosKeysVal.setForeground(AMBER);
                 fateVal.setText(String.valueOf(state.getFatePoints()));
                 buffVal.setText(orDash(state.getActiveBuff()));
                 goalVal.setText(goals.isEmpty() ? "—" : goals.get(0));
@@ -353,112 +642,16 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
             else
             {
                 keysVal.setText("—");
+                omniKeysVal.setText("—");
+                chaosKeysVal.setText("—");
                 fateVal.setText("—");
                 buffVal.setText("—");
                 goalVal.setText("—");
             }
             renderChunk(view);
-            renderRuneProof(bundle);
         });
     }
 
-    private void renderRuneProof(FateLockedBundle bundle)
-    {
-        runeProofBody.removeAll();
-        List<RuneProofSummary> summaries = bundle == null
-            ? Collections.emptyList() : bundle.getRuneProofSummaries();
-        if (summaries.isEmpty())
-        {
-            JLabel empty = new JLabel("No certificate summaries in this bundle");
-            empty.setForeground(GRAY);
-            runeProofBody.add(empty);
-        }
-        else
-        {
-            for (RuneProofSummary summary : summaries)
-            {
-                JPanel card = card();
-                JLabel goal = new JLabel(orDash(summary.getGoalLabel()));
-                goal.setForeground(Color.WHITE);
-                goal.setFont(goal.getFont().deriveFont(Font.BOLD, 12f));
-                goal.setToolTipText(summary.getGoalId());
-                card.add(goal);
-                card.add(runeProofLine("Goal: " + orDash(summary.getGoalId()), GRAY));
-                card.add(runeProofLine(runeProofStatus(summary.getStatus()) + " · "
-                    + runeProofBadge(bundle, summary), runeProofColor(summary.getStatus())));
-                if (summary.getExplanation() != null && !summary.getExplanation().trim().isEmpty())
-                {
-                    card.add(runeProofLine(summary.getExplanation(), Color.LIGHT_GRAY));
-                }
-                if (!summary.getRouteLabels().isEmpty())
-                {
-                    card.add(runeProofLine("Preferred routes: "
-                        + String.join(", ", summary.getRouteLabels()), GRAY));
-                }
-                if (!summary.getBlockerLabels().isEmpty()
-                    || !summary.getUnavoidableBlockerLabels().isEmpty())
-                {
-                    card.add(runeProofLine(runeProofBlockers(summary), GRAY));
-                }
-                runeProofBody.add(card);
-                runeProofBody.add(Box.createVerticalStrut(5));
-            }
-        }
-        runeProofBody.revalidate();
-        runeProofBody.repaint();
-    }
-
-    static String runeProofBadge(FateLockedBundle bundle, RuneProofSummary summary)
-    {
-        boolean fresh = bundle != null && bundle.isRuneProofFresh(summary);
-        if (summary != null && summary.isUnverified())
-        {
-            return bundle != null && bundle.isRuneProofCurrent(summary)
-                ? "UNVERIFIED" : "UNVERIFIED · STALE";
-        }
-        return fresh ? "FRESH" : "STALE";
-    }
-
-    static String runeProofBlockers(RuneProofSummary summary)
-    {
-        if (summary.getBlockerLabels().isEmpty())
-        {
-            return "Blockers: " + String.join(", ", summary.getUnavoidableBlockerLabels());
-        }
-        if (summary.getUnavoidableBlockerLabels().isEmpty())
-        {
-            return "Blockers: " + String.join(", ", summary.getBlockerLabels());
-        }
-        return "Blockers: " + String.join(", ", summary.getBlockerLabels())
-            + " · Unavoidable: " + String.join(", ", summary.getUnavoidableBlockerLabels());
-    }
-
-    private static JLabel runeProofLine(String text, Color color)
-    {
-        JLabel line = new JLabel(text);
-        line.setForeground(color);
-        line.setFont(line.getFont().deriveFont(10f));
-        line.setToolTipText(text);
-        return line;
-    }
-
-    private static String runeProofStatus(RuneProofSummary.Status status)
-    {
-        if (status == RuneProofSummary.Status.OBTAINABLE) return "Obtainable";
-        if (status == RuneProofSummary.Status.OBTAINABLE_RNG) return "Obtainable (RNG)";
-        if (status == RuneProofSummary.Status.BLOCKED) return "Blocked";
-        if (status == RuneProofSummary.Status.IMPOSSIBLE) return "Impossible";
-        return "Unknown (not impossible)";
-    }
-
-    private static Color runeProofColor(RuneProofSummary.Status status)
-    {
-        if (status == RuneProofSummary.Status.OBTAINABLE
-            || status == RuneProofSummary.Status.OBTAINABLE_RNG) return GREEN;
-        if (status == RuneProofSummary.Status.BLOCKED) return AMBER;
-        if (status == RuneProofSummary.Status.IMPOSSIBLE) return RED;
-        return GRAY;
-    }
     void renderChunkForTest(ChunkPanelViewModel view)
     {
         renderChunk(view);
@@ -581,17 +774,40 @@ private final JTextArea pasteArea = new JTextArea(6, 10);
 
     void flashStatus(String message, boolean ok)
     {
-        SwingUtilities.invokeLater(() -> {
+        runOnEdt(() -> {
             importVal.setText(message);
             importVal.setForeground(ok ? GREEN : RED);
-            if (ok && bundleBody.isVisible())
+            importVal.setVisible(true);
+            if (ok && bundleSection.isExpanded())
             {
-                bundleBody.setVisible(false);
-                bundleHeader.setText(headerText("LOAD BUNDLE", false));
+                bundleSection.setExpanded(false);
             }
         });
     }
 
+    private static boolean hasText(Component component, String text)
+    {
+        if (component instanceof JLabel)
+        {
+            String shown = ((JLabel) component).getText();
+            if (shown != null && shown.contains(text))
+            {
+                return true;
+            }
+        }
+        if (component instanceof java.awt.Container)
+        {
+            for (Component child
+                : ((java.awt.Container) component).getComponents())
+            {
+                if (hasText(child, text))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
     private static Color statusColor(PermissionStatus status)
     {
         if (status == PermissionStatus.ALLOWED) return GREEN;

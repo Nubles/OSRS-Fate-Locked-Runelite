@@ -1,14 +1,9 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.fatelocked.rules.ChunkPermissionSnapshot;
 import com.fatelocked.rules.RuneliteRulesManifest;
-import com.fatelocked.rules.RuneProofSummary;
-import com.fatelocked.rules.RuneProofWireValidator;
 import lombok.Getter;
 import lombok.Value;
 
@@ -81,8 +76,6 @@ public class FateLockedBundle
     private final int detectorContractVersion;
     /** Canonical v4 rules; null for legacy v1-v3 bundles. */
     private final RuneliteRulesManifest rules;
-    /** App-authored proof certificates, retained only for in-game display. */
-    private final List<RuneProofSummary> runeProofSummaries;
 
     /** Continent name → set of canonical chunks owned by that continent. */
     private final Map<String, Set<CanonicalChunk>> regionChunks;
@@ -146,7 +139,6 @@ public class FateLockedBundle
                              Map<CanonicalChunk, String> chunkToSubArea)
     {
         this.rules = raw == null || raw.rules == null ? null : raw.rules.normalized();
-        this.runeProofSummaries = rules == null ? Collections.emptyList() : rules.getRuneProof();
         this.runId = rules == null ? (raw == null ? null : raw.runId) : rules.getRunId();
         this.profileName = raw == null ? null : raw.profileName;
         this.version = raw == null ? 0 : raw.version;
@@ -325,20 +317,6 @@ public class FateLockedBundle
     /** Marker prefix the web app uses for a gzip+base64 clipboard payload. */
     private static final String GZ_PREFIX = "FLGZ:";
 
-    public boolean isRuneProofFresh(RuneProofSummary summary)
-    {
-        return isRuneProofCurrent(summary)
-            && summary.hasRequiredV1Fields()
-            && !summary.isUnverified();
-    }
-
-    public boolean isRuneProofCurrent(RuneProofSummary summary)
-    {
-        return summary != null
-            && summary.getRunRevision() == runRevision
-            && summary.getSourceVersion() != null
-            && !summary.getSourceVersion().trim().isEmpty();
-    }
     public static FateLockedBundle loadFromFile(Gson gson, Path path) throws IOException, JsonSyntaxException
     {
         String json = new String(Files.readAllBytes(path));
@@ -374,26 +352,7 @@ public class FateLockedBundle
         String text = json != null && json.trim().startsWith(GZ_PREFIX)
             ? inflate(json.trim().substring(GZ_PREFIX.length())) : json;
 
-        JsonElement wire = new JsonParser().parse(text);
-        if (wire.isJsonObject())
-        {
-            JsonObject root = wire.getAsJsonObject();
-            JsonElement rulesElement = root.get("rules");
-            if (rulesElement != null && rulesElement.isJsonObject())
-            {
-                JsonObject rules = rulesElement.getAsJsonObject();
-                JsonElement schema = rules.get("runeProofSchemaVersion");
-                boolean schemaV1 = schema != null && schema.isJsonPrimitive()
-                    && schema.getAsJsonPrimitive().isNumber()
-                    && "1".equals(schema.toString());
-                if (schema != null && (!schemaV1
-                    || !RuneProofWireValidator.isValidV1(rules)))
-                {
-                    rules.remove("runeProof");
-                }
-            }
-        }
-        RawBundle raw = gson.fromJson(wire, RawBundle.class);
+        RawBundle raw = gson.fromJson(text, RawBundle.class);
         if (raw != null && raw.version > 4)
         {
             throw new IllegalArgumentException("Unsupported future bundle version " + raw.version);

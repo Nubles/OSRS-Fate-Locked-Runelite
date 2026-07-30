@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +32,29 @@ public final class Teleports
         "spirit tree", "gnome glider", "glider", "charter", "fairy ring", "quetzal",
     };
 
+    private static final String[] TRAVEL_TRANSPORT_ITEMS = {
+        "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
+    };
+
+    // Destination-named menu options are only activations when their target is a
+    // specific known carrier or network. Deliberately excludes generic "teleport".
+    private static final String[] NAMED_DESTINATION_CARRIERS = {
+        "amulet of glory", "amulet of eternal glory", "ring of dueling",
+        "ring of duelling", "games necklace", "combat bracelet", "skills necklace",
+        "ring of wealth", "necklace of passage", "burning amulet", "digsite pendant",
+        "slayer ring", "ectophial", "royal seed pod", "enchanted lyre",
+        "drakan's medallion", "xeric's talisman", "chronicle", "ring of the elements",
+        "spirit tree", "gnome glider", "glider", "charter", "fairy ring", "quetzal",
+        "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport",
+    };
+
     private static final Map<String, int[]> PLACES = new LinkedHashMap<>();
+    private static final Map<String, int[]> CHECKED_TRAVEL_PLACES = new LinkedHashMap<>();
     private static final List<String> KEYS_BY_LEN;
+    private static final List<String> CHECKED_TRAVEL_KEYS_BY_LEN;
 
     private static void p(String key, int cx, int cy) { PLACES.put(key, new int[]{ cx, cy }); }
+    private static void t(String key, int cx, int cy) { CHECKED_TRAVEL_PLACES.put(key, new int[]{ cx, cy }); }
 
     static
     {
@@ -154,9 +174,26 @@ public final class Teleports
         p("lemantolly undri", 39, 46);
         p("ookookolly undri", 43, 43);
 
+        // Checked named destinations for travel-network menus.
+        t("lunar isle", 33, 61);
+        t("zanaris", 37, 69);
+        t("prifddinas", 51, 95);
+        t("lovakengj", 23, 58);
+        t("nardah", 53, 45);
+        t("taverley", 45, 53);
+        t("eagles' peak", 36, 54);
+        t("nightmare zone", 40, 48);
+        t("hunter guild", 24, 47);
+        t("port khazard", 41, 49);
+
         List<String> keys = new ArrayList<>(PLACES.keySet());
         keys.sort((a, b) -> b.length() - a.length()); // longest first for specificity
         KEYS_BY_LEN = keys;
+
+        List<String> checkedTravelKeys = new ArrayList<>(keys);
+        checkedTravelKeys.addAll(CHECKED_TRAVEL_PLACES.keySet());
+        checkedTravelKeys.sort((a, b) -> b.length() - a.length());
+        CHECKED_TRAVEL_KEYS_BY_LEN = checkedTravelKeys;
     }
 
     /**
@@ -165,25 +202,95 @@ public final class Teleports
      */
     public static CanonicalChunk destinationChunk(String option, String target)
     {
-        String text = ((option == null ? "" : option) + " " + (target == null ? "" : target))
-            .toLowerCase()
-            .replaceAll("<[^>]*>", " "); // strip colour/format tags
+        return destinationChunk(option, target, false);
+    }
 
-        boolean looksTele = false;
-        for (String item : TELE_ITEMS)
+    public static CanonicalChunk destinationChunk(String option, String target,
+        boolean includeTravelTransportItems)
+    {
+        String text = normalize(option) + " " + normalize(target);
+        boolean looksTele = contains(text, TELE_ITEMS);
+        if (!looksTele && includeTravelTransportItems)
         {
-            if (text.contains(item)) { looksTele = true; break; }
+            looksTele = contains(text, TRAVEL_TRANSPORT_ITEMS);
         }
-        if (!looksTele) return null;
+        return looksTele
+            ? destinationFromText(text, includeTravelTransportItems) : null;
+    }
 
-        for (String key : KEYS_BY_LEN)
+    /**
+     * Destination for a checked travel activation. This is the authoritative
+     * activation classifier shared by Travel Guardian and the legacy guard.
+     */
+    public static CanonicalChunk checkedTravelDestinationChunk(
+        String option, String target, boolean includeTravelTransportItems)
+    {
+        String cleanOption = normalize(option);
+        String cleanTarget = normalize(target);
+        CanonicalChunk destination = destinationChunk(
+            cleanOption, cleanTarget, includeTravelTransportItems);
+        if (destination == null) return null;
+        if (isActivationOption(cleanOption)) return destination;
+
+        CanonicalChunk namedDestination = destinationFromText(
+            cleanOption, includeTravelTransportItems);
+        return namedDestination != null
+            && namedDestination.equals(destination)
+            && contains(cleanTarget, NAMED_DESTINATION_CARRIERS)
+            ? destination : null;
+    }
+
+    private static CanonicalChunk destinationFromText(
+        String text, boolean includeTravelTransportItems)
+    {
+        List<String> keys = includeTravelTransportItems
+            ? CHECKED_TRAVEL_KEYS_BY_LEN : KEYS_BY_LEN;
+        for (String key : keys)
         {
             if (text.contains(key))
             {
                 int[] c = PLACES.get(key);
+                if (c == null) c = CHECKED_TRAVEL_PLACES.get(key);
                 return new CanonicalChunk(c[0], c[1]);
             }
         }
         return null;
+    }
+
+    private static boolean isActivationOption(String option)
+    {
+        return option.equals("teleport") || option.equals("cast")
+            || option.equals("break") || option.equals("rub")
+            || option.equals("travel") || option.startsWith("travel via ")
+            || option.equals("charter") || option.equals("pay-fare")
+            || option.equals("minigame teleport");
+    }
+
+    private static String normalize(String value)
+    {
+        return (value == null ? "" : value)
+            .toLowerCase()
+            .replaceAll("<[^>]*>", " ")
+            .replaceAll("\\s+", " ")
+            .trim();
+    }
+    private static boolean contains(String text, String[] items)
+    {
+        for (String item : items)
+        {
+            if (text.contains(item)) return true;
+        }
+        return false;
+    }
+
+    public static Map<String, CanonicalChunk> destinations()
+    {
+        Map<String, CanonicalChunk> result = new LinkedHashMap<>();
+        for (Map.Entry<String, int[]> entry : PLACES.entrySet())
+        {
+            result.put(entry.getKey(),
+                new CanonicalChunk(entry.getValue()[0], entry.getValue()[1]));
+        }
+        return Collections.unmodifiableMap(result);
     }
 }

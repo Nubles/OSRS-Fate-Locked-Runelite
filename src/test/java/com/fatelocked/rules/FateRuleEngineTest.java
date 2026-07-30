@@ -3,22 +3,33 @@ package com.fatelocked.rules;
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import org.junit.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 public class FateRuleEngineTest
 {
     private FateLockedBundle fixture(String name) throws Exception
     {
+        return FateLockedBundle.loadFromJson(new Gson(), fixtureText(name));
+    }
+
+    private String fixtureText(String name) throws Exception
+    {
         try (InputStream in = getClass().getClassLoader().getResourceAsStream(name))
         {
-            String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            return FateLockedBundle.loadFromJson(new Gson(), json);
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 
@@ -45,6 +56,83 @@ public class FateRuleEngineTest
         assertEquals(PermissionStatus.UNKNOWN,
             engine.equipment(999999).getStatus());
         assertNull(engine.target(chunk, "OBJECT", "Unmapped").getReason());
+    }
+
+    @Test
+    public void evaluatesOnlyAppAuthoredMobilityNames() throws Exception
+    {
+        FateLockedBundle bundle = fixture("bundles/v4-rules.json");
+        FateRuleEngine engine = new FateRuleEngine(bundle, true, false);
+
+        assertEquals(PermissionStatus.ALLOWED,
+            engine.mobility("Fairy Rings").getStatus());
+        assertEquals(PermissionStatus.ALLOWED,
+            engine.mobility("  fairy   rings ").getStatus());
+        assertEquals(PermissionStatus.LOCKED,
+            engine.mobility("Spirit Trees").getStatus());
+        assertEquals(PermissionStatus.UNKNOWN,
+            new FateRuleEngine(bundle, false, false)
+                .mobility("Fairy Rings").getStatus());
+        assertEquals(PermissionStatus.UNKNOWN,
+            engine.mobility("Unmapped Network").getStatus());
+
+        JsonObject withoutKnownNames = new Gson().fromJson(
+            fixtureText("bundles/v4-rules.json"), JsonObject.class);
+        withoutKnownNames.getAsJsonObject("rules").remove("knownMobility");
+        FateRuleEngine absentDeclaration = new FateRuleEngine(
+            FateLockedBundle.loadFromJson(
+                new Gson(), withoutKnownNames.toString()), true, false);
+        assertEquals(PermissionStatus.UNKNOWN,
+            absentDeclaration.mobility("Spirit Trees").getStatus());
+    }
+
+    @Test
+    public void malformedKnownMobilityShapesBecomeEmptyAndUnknown() throws Exception
+    {
+        JsonArray mixed = new JsonArray();
+        mixed.add("Fairy Rings");
+        mixed.add(7);
+
+        for (JsonElement malformed : Arrays.asList(
+            new JsonObject(),
+            new JsonPrimitive("Fairy Rings"),
+            new JsonPrimitive(7),
+            mixed))
+        {
+            JsonObject root = new Gson().fromJson(
+                fixtureText("bundles/v4-rules.json"), JsonObject.class);
+            root.getAsJsonObject("rules").add("knownMobility", malformed);
+
+            FateLockedBundle bundle = FateLockedBundle.loadFromJson(
+                new Gson(), root.toString());
+            assertEquals(Collections.emptyList(),
+                bundle.getRules().getKnownMobility());
+            try
+            {
+                bundle.getRules().getKnownMobility().add("Spirit Trees");
+                fail("normalized known mobility must be immutable");
+            }
+            catch (UnsupportedOperationException expected)
+            {
+                // Expected: parsed authority cannot be mutated after validation.
+            }
+            assertEquals(PermissionStatus.UNKNOWN,
+                new FateRuleEngine(bundle, true, false)
+                    .mobility("Fairy Rings").getStatus());
+        }
+    }
+
+    @Test
+    public void areaLabelsRequireTrustedAuthoredRules() throws Exception
+    {
+        FateLockedBundle bundle = fixture("bundles/v4-rules.json");
+        CanonicalChunk chunk = new CanonicalChunk(50, 50);
+
+        assertEquals("Lumbridge",
+            new FateRuleEngine(bundle, true, false).areaLabel(chunk));
+        assertNull(new FateRuleEngine(bundle, false, false).areaLabel(chunk));
+        assertNull(new FateRuleEngine(bundle, true, false)
+            .areaLabel(new CanonicalChunk(1, 1)));
     }
 
     @Test

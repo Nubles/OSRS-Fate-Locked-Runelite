@@ -33,43 +33,6 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "onlineSync",
-        name = "Enable online sync",
-        description = "Sync your run from the web app over the internet via a pairing code, instead of clipboard/files. Off by default; no network calls unless enabled.",
-        section = bundleSection,
-        position = 4,
-        warning = "This feature submits your IP address to a 3rd-party server not controlled or verified by Runelite developers"
-    )
-    default boolean onlineSync()
-    {
-        return false;
-    }
-
-    @ConfigItem(
-        keyName = "syncCode",
-        name = "Online sync code",
-        description = "Pairing code from the web app's Online sync (used only when 'Enable online sync' is on).",
-        section = bundleSection,
-        position = 5
-    )
-    default String syncCode()
-    {
-        return "";
-    }
-
-    @ConfigItem(
-        keyName = "relayUrl",
-        name = "Relay URL",
-        description = "Base URL of the online-sync relay. Change only if you host your own.",
-        section = bundleSection,
-        position = 6
-    )
-    default String relayUrl()
-    {
-        return "https://fate-relay.fatelocked.workers.dev";
-    }
-
-    @ConfigItem(
         keyName = "reimportHotkey",
         name = "Re-import hotkey",
         description = "Hotkey to re-import the bundle from your clipboard — press it after clicking RuneLite in the web app to re-sync without opening the panel",

@@ -1,8 +1,7 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
-import com.fatelocked.events.FateEventOutbox;
-import com.fatelocked.events.FateEventRelayClient;
+import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
@@ -20,6 +19,14 @@ import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.StrictModePause;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
+import com.fatelocked.guardian.StrictModeAuditPresenter;
+import com.fatelocked.guardian.travel.RuneLiteTravelAvailability;
+import com.fatelocked.guardian.travel.TravelActionResolver;
+import com.fatelocked.guardian.travel.TravelAlternativeFinder;
+import com.fatelocked.guardian.travel.TravelAvailability;
+import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
+import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
+import com.fatelocked.guardian.travel.TravelRuleEvaluator;
 import com.fatelocked.detectors.BossRaidDetector;
 import com.fatelocked.detectors.CollectionLogDetector;
 import com.fatelocked.detectors.ClueCasketDetector;
@@ -70,7 +77,9 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.RuneLite;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
+import net.runelite.client.input.MouseManager;
 import net.runelite.client.util.HotkeyListener;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -84,13 +93,10 @@ import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import net.runelite.api.Point;
 
-import okhttp3.Call;
-import okhttp3.Callback;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
 import javax.inject.Inject;
+import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Toolkit;
@@ -113,6 +119,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -123,7 +130,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @PluginDescriptor(
     name = "Fate Locked Ironman",
-    description = "Renders authored chunks from the Fate Locked tracker and warns on locked-region transitions",
+    description = "Shows app-authored Fate Locked rules, local observations, overlays, warnings, and optional Strict Mode",
     tags = { "chunk", "ironman", "locked", "map", "fate" }
 )
 public class FateLockedPlugin extends Plugin
@@ -148,16 +155,18 @@ public class FateLockedPlugin extends Plugin
     @Inject private WorldMapPointManager worldMapPointManager;
     @Inject private InfoBoxManager infoBoxManager;
     @Inject private KeyManager keyManager;
+    @Inject private MouseManager mouseManager;
     @Inject private OkHttpClient okHttpClient;
     @Inject private ConfigManager configManager;
+    @Inject private TrackerConnectionSettings connectionSettings;
 
-    private ScheduledFuture<?> relayPollFuture;
-    private volatile String lastRelayVersion;
-    private volatile Instant lastTrackerSync;
-    private volatile boolean relayOffline = true;
-    private FateEventOutbox eventOutbox;
+    private ScheduledFuture<?> trackerPollFuture;
+    private TrackerConnectionController connectionController;
+    private final RepeatedValueLimiter invalidImportLimiter =
+        new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
+    private FateEventHistory eventHistory;
+    private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
-    private FateEventRelayClient eventRelayClient;
     private final FateEventFactory eventFactory = new FateEventFactory();
     private final SkillLevelDetector skillLevelDetector = new SkillLevelDetector();
     private final QuestDetector questDetector = new QuestDetector();
@@ -188,6 +197,15 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         new StrictModeClickHandler(new StrictModeGuard());
     private volatile Instant rulesImportedAt;
     private final StrictModePause strictPause = new StrictModePause(Clock.systemUTC());
+    private TravelActionResolver travelActionResolver;
+    private TravelRuleEvaluator travelRuleEvaluator;
+    private TravelAvailability travelAvailability;
+    private TravelAlternativeFinder travelAlternativeFinder;
+    private TravelBlockNoticeStore travelNoticeStore;
+    private TravelGuardianCoordinator travelGuardianCoordinator;
+    private TravelGuardianPluginShell travelGuardianShell;
+    private FateLockedTravelBlockOverlay travelBlockOverlay;
+    private TravelGuardianOverlayLifecycle travelOverlayLifecycle;
 
     /** How long the locked-entry screen flash lasts. */
     public static final long LOCKED_FLASH_MS = 1600;
@@ -322,11 +340,13 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void startUp()
     {
-if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
+        connectionSettings.clearLegacySettings();
+        File dataDirectory = dataDirectory();
+        if (!dataDirectory.exists()) dataDirectory.mkdirs();
         try
         {
             slayerTaskDetector = new SlayerTaskDetector(gson,
-                DATA_DIR.toPath().resolve("slayer-assignment.json"));
+                dataDirectory.toPath().resolve("slayer-assignment.json"));
         }
         catch (IOException ex)
         {
@@ -335,62 +355,120 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
         }
         try
         {
-            eventOutbox = new FateEventOutbox(gson,
-                DATA_DIR.toPath().resolve("event-outbox.json"));
-            eventRelayClient = new FateEventRelayClient(
-                okHttpClient, gson, configManager, config);
+            Path dataPath = dataDirectory.toPath();
+            eventHistory = new FateEventHistory(
+                gson,
+                dataPath.resolve("event-history.json"),
+                dataPath.resolve("event-" + "outbox.json"));
+            historySaveFailed = false;
         }
         catch (IOException ex)
         {
-            log.warn("Could not open Fate event outbox", ex);
-            eventOutbox = null;
-            eventRelayClient = null;
+            log.warn("Could not open local Fate event history", ex);
+            eventHistory = null;
+            historySaveFailed = true;
         }
         try
         {
             strictAuditLog = new StrictModeAuditLog(gson,
-                DATA_DIR.toPath().resolve("strict-mode-events.json"));
+                dataDirectory.toPath().resolve("strict-mode-events.json"));
         }
         catch (IOException ex)
         {
             log.warn("Could not open Strict Mode audit log", ex);
             strictAuditLog = null;
         }
+        connectionController = new TrackerConnectionController(
+            okHttpClient,
+            gson,
+            connectionSettings,
+            Clock.systemUTC(),
+            runnable -> clientThread.invoke(runnable),
+            this::acceptRelayPayload,
+            panel::updateConnection);
+
+        travelActionResolver = new TravelActionResolver();
+        travelRuleEvaluator = new TravelRuleEvaluator();
+        travelAvailability = new RuneLiteTravelAvailability(client);
+        travelAlternativeFinder = new TravelAlternativeFinder();
+        travelNoticeStore = new TravelBlockNoticeStore(Clock.systemUTC());
+        travelGuardianCoordinator = new TravelGuardianCoordinator(
+            travelActionResolver,
+            travelRuleEvaluator,
+            travelAlternativeFinder,
+            travelNoticeStore,
+            strictClickHandler);
+        travelGuardianShell = new TravelGuardianPluginShell(
+            travelGuardianCoordinator,
+            travelAvailability,
+            this::writeTravelChat,
+            this::writeTravelAudit,
+            this::handleGenericGuard,
+            (stage, error) -> log.debug(
+                "Travel Guardian {} failed: {}", stage, error.getMessage()),
+            Clock.systemUTC());
+        travelBlockOverlay = new FateLockedTravelBlockOverlay(
+            travelNoticeStore,
+            config::strictMode,
+            strictPause::isPaused,
+            this::pauseStrictModeForSixtySeconds);
+
         overlayManager.add(worldMapOverlay);
         overlayManager.add(sceneOverlay);
         overlayManager.add(minimapOverlay);
         overlayManager.add(hudOverlay);
         overlayManager.add(contentOverlay);
         overlayManager.add(flashOverlay);
+        travelBlockOverlay.setPauseGuardian(this::pauseStrictModeForSixtySeconds);
+        travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
+            () -> overlayManager.add(travelBlockOverlay),
+            () -> mouseManager.registerMouseListener(travelBlockOverlay),
+            () -> mouseManager.unregisterMouseListener(travelBlockOverlay),
+            () -> overlayManager.remove(travelBlockOverlay));
+        travelOverlayLifecycle.start();
 
-        panel.setCallbacks(this::applyPastedBundle, () -> clientThread.invoke(this::reloadBundle));
+        wirePanelActions(
+            panel,
+            json -> applyPastedBundle(json, ImportSource.PASTE),
+            () -> clientThread.invoke(this::reloadBundle),
+            this::beginTrackerPairing);
         panel.setGuardianCallbacks(
-            () -> { strictPause.pauseFor(Duration.ofSeconds(60)); updateStrictModePanel(); },
+            this::pauseStrictModeForSixtySeconds,
             () -> { strictPause.resume(); updateStrictModePanel(); },
             () -> configManager.setConfiguration(
                 FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         updateStrictModePanel();
         updateStrictAuditPanel();
-        panel.setRollInboxLink(FateLockedPanel.TRACKER_URL, config.syncCode());
-        updatePanelSyncHealth();
-        navButton = NavigationButton.builder()
-            .tooltip("Fate Locked Ironman")
-            .icon(createIcon())
-            .priority(7)
-            .panel(panel)
-            .build();
+        panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
+        updatePanelRollInbox();
+        panel.updateConnection(connectionController.snapshot());
+        navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
 
         reloadBundle();
         startWatcher();
         refreshInfoBoxes();
         keyManager.registerKeyListener(reimportHotkey);
-        startRelayPoll();
+        startTrackerPoll();
     }
 
     @Override
     protected void shutDown()
     {
+        stopWatcher();
+        stopTrackerPoll();
+        if (travelOverlayLifecycle != null)
+        {
+            try
+            {
+                travelOverlayLifecycle.stop();
+            }
+            catch (RuntimeException ex)
+            {
+                log.debug("Could not fully clean up Travel Guardian overlay: {}",
+                    ex.getMessage());
+            }
+        }
         overlayManager.remove(worldMapOverlay);
         overlayManager.remove(sceneOverlay);
         overlayManager.remove(minimapOverlay);
@@ -402,8 +480,6 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
             clientToolbar.removeNavigation(navButton);
             navButton = null;
         }
-        stopWatcher();
-        stopRelayPoll();
         keyManager.unregisterKeyListener(reimportHotkey);
         for (WorldMapPoint p : mapMarkers) worldMapPointManager.remove(p);
         mapMarkers.clear();
@@ -416,6 +492,7 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
     public void onConfigChanged(ConfigChanged ev)
     {
         if (!FateLockedConfig.GROUP.equals(ev.getGroup())) return;
+        panel.refreshConfig(ev.getKey());
         String key = ev.getKey();
         if ("autoReload".equals(key))
         {
@@ -450,12 +527,10 @@ if (!DATA_DIR.exists()) DATA_DIR.mkdirs();
                 panel.showStrictModeIntro();
             }
         }
-        else if ("onlineSync".equals(key) || "syncCode".equals(key) || "relayUrl".equals(key))
+        else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
-            lastRelayVersion = null; // re-fetch on the next poll with the new settings
-            relayOffline = !config.onlineSync();
-            panel.setRollInboxLink(FateLockedPanel.TRACKER_URL, config.syncCode());
-            updatePanelSyncHealth();
+            panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
+            updatePanelRollInbox();
         }
     }
 
@@ -644,7 +719,7 @@ String m = raw.toLowerCase();
             source,
             chunk,
             currentAccountMatches(source),
-            config.onlineSync() ? lastTrackerSync : null);
+            trackerPaired() ? trackerLastSync() : null);
     }
     private FateRuleEngine ruleEngine(FateLockedBundle source)
     {
@@ -661,7 +736,24 @@ String m = raw.toLowerCase();
         String current = local == null ? null : local.getName();
         return current != null && normName(bound).equals(normName(current));
     }
-/** Advisory when a bank is explicitly locked by the shared rules. */
+
+    private boolean strictTravelAccountMatches(FateLockedBundle source)
+    {
+        if (source == null || source.getRules() == null)
+        {
+            return false;
+        }
+        String bound = source.getRules().getAccount();
+        if (bound == null || bound.trim().isEmpty())
+        {
+            return false;
+        }
+        Player local = client.getLocalPlayer();
+        String current = local == null ? null : local.getName();
+        return current != null && normName(bound).equals(normName(current));
+    }
+
+    /** Advisory when a bank is explicitly locked by the shared rules. */
     private void warnLockedBankIfNeeded()
     {
         Player local = client.getLocalPlayer();
@@ -778,14 +870,13 @@ java.util.Optional<DetectedEvent> detected =
             if (config.rollNudges())
             {
                 nudge("Diary complete: " + name + " — review its tasks in the Roll Inbox.");
-                pushSuggestion("Diary", name);
             }
         }
     }
 
     private void record(DetectedEvent detected)
     {
-        if (!config.onlineSync() || detected == null || eventOutbox == null) return;
+        if (detected == null || eventHistory == null) return;
         FateLockedBundle currentBundle = bundle;
         if (currentBundle == null || currentBundle.getRunId() == null
             || currentBundle.getRunId().trim().isEmpty()) return;
@@ -798,12 +889,17 @@ java.util.Optional<DetectedEvent> detected =
             detected.getDetectorId(), detected.getDetectorVersion());
         try
         {
-            eventOutbox.enqueue(event);
-            updatePanelSyncHealth();
+            if (eventHistory.record(event))
+            {
+                historySaveFailed = false;
+            }
+            updatePanelRollInbox();
         }
         catch (IOException ex)
         {
-            log.warn("Could not persist detected Fate event", ex);
+            historySaveFailed = true;
+            log.warn("Could not persist local Fate event history", ex);
+            updatePanelRollInbox();
         }
     }
 
@@ -986,12 +1082,35 @@ java.util.Optional<DetectedEvent> detected =
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
     {
-        GuardedAction action = guardedActionFactory.from(event.getMenuEntry(), client);
         FateLockedBundle current = bundle;
-        boolean accountMatch = currentAccountMatches(current);
-        GuardContext context = new GuardContext(
-            config.strictMode(), strictPause.isPaused(), accountMatch, rulesAreFresh(),
-            new FateRuleEngine(current, accountMatch, false));
+        boolean freshRules = rulesAreFresh();
+        boolean travelAccountMatch = strictTravelAccountMatches(current);
+        FateRuleEngine travelRules = new FateRuleEngine(
+            current, travelAccountMatch, false);
+        GuardContext travelContext = new GuardContext(
+            config.strictMode(), strictPause.isPaused(), travelAccountMatch,
+            freshRules, travelRules);
+        boolean genericAccountMatch = currentAccountMatches(current);
+        FateRuleEngine genericRules = new FateRuleEngine(
+            current, genericAccountMatch, false);
+        GuardContext genericContext = new GuardContext(
+            config.strictMode(), strictPause.isPaused(), genericAccountMatch,
+            freshRules, genericRules);
+        CanonicalChunk origin = null;
+        Player local = client.getLocalPlayer();
+        if (local != null && local.getWorldLocation() != null)
+        {
+            origin = CanonicalChunk.of(local.getWorldLocation());
+        }
+        travelGuardianShell.handle(
+            event, client, origin, travelContext, travelRules, genericContext);
+    }
+
+    private void handleGenericGuard(
+        MenuOptionClicked event, GuardContext context)
+    {
+        GuardedAction action = guardedActionFactory.from(
+            event.getMenuEntry(), client);
         GuardResult result = strictClickHandler.handle(event, action, context);
         if (result.getOutcome() != GuardResult.Outcome.BLOCK) return;
 
@@ -1003,7 +1122,7 @@ java.util.Optional<DetectedEvent> detected =
         ChatMessageBuilder message = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append(
-                "Prevented: " + target + " — " + reason + ".");
+                "Prevented: " + target + " \u2014 " + reason + ".");
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(message.build())
@@ -1026,18 +1145,39 @@ java.util.Optional<DetectedEvent> detected =
         }
     }
 
+    private void writeTravelChat(String text)
+    {
+        String prefix = "[Fate Guardian] ";
+        String content = text.startsWith(prefix)
+            ? text.substring(prefix.length()) : text;
+        ChatMessageBuilder message = new ChatMessageBuilder()
+            .append(ChatColorType.HIGHLIGHT).append(prefix)
+            .append(ChatColorType.NORMAL).append(content);
+        chatMessageManager.queue(QueuedMessage.builder()
+            .type(ChatMessageType.GAMEMESSAGE)
+            .runeLiteFormattedMessage(message.build())
+            .build());
+    }
+
+    private void writeTravelAudit(StrictModeAuditEntry entry) throws IOException
+    {
+        if (strictAuditLog == null) return;
+        strictAuditLog.append(entry);
+        updateStrictAuditPanel();
+    }
+
     private void updateStrictAuditPanel()
     {
-        List<String> lines = new ArrayList<>();
-        if (strictAuditLog != null)
-        {
-            for (StrictModeAuditEntry entry : strictAuditLog.recent(5))
-            {
-                lines.add(entry.getTarget() + " — " + entry.getReason());
-            }
-        }
-        panel.updateRecentPrevented(lines);
+        panel.updateRecentPrevented(
+            StrictModeAuditPresenter.recentPrevented(
+                strictAuditLog == null ? null : strictAuditLog.recent(5)));
     }
+    void pauseStrictModeForSixtySeconds()
+    {
+        strictPause.pauseFor(Duration.ofSeconds(60));
+        updateStrictModePanel();
+    }
+
     private void updateStrictModePanel()
     {
         panel.updateStrictMode(
@@ -1045,7 +1185,7 @@ java.util.Optional<DetectedEvent> detected =
     }
     private boolean rulesAreFresh()
     {
-        Instant stamp = config.onlineSync() ? lastTrackerSync : rulesImportedAt;
+        Instant stamp = trackerPaired() ? trackerLastSync() : rulesImportedAt;
         return stamp != null
             && Duration.between(stamp, Instant.now()).toMinutes() < 15;
     }
@@ -1200,7 +1340,7 @@ MenuEntry entry = event.getMenuEntry();
      */
     private Path effectiveBundlePath()
     {
-        File[] files = DATA_DIR.listFiles((d, name) ->
+        File[] files = dataDirectory().listFiles((d, name) ->
             name.startsWith("fate-locked-bundle") && name.toLowerCase().endsWith(".json"));
         if (files == null || files.length == 0) return null;
         File newest = null;
@@ -1209,6 +1349,11 @@ MenuEntry entry = event.getMenuEntry();
             if (newest == null || f.lastModified() > newest.lastModified()) newest = f;
         }
         return newest == null ? null : newest.toPath();
+    }
+
+    File dataDirectory()
+    {
+        return DATA_DIR;
     }
 
     /** Hotkey action: read the clipboard and import it as a bundle (on the client thread). */
@@ -1231,25 +1376,105 @@ MenuEntry entry = event.getMenuEntry();
             return;
         }
         final String t = text;
-        clientThread.invoke(() -> applyPastedBundle(t));
+        clientThread.invoke(
+            () -> applyPastedBundle(t, ImportSource.CLIPBOARD));
     }
 
     /** Load a bundle from JSON pasted into the side panel. */
-    private void applyPastedBundle(String json)
+    private boolean applyPastedBundle(String json, ImportSource source)
     {
+        String trimmed = json == null ? "" : json.trim();
+        if (trimmed.matches("[0-9a-f]{32}"))
+        {
+            if (invalidImportLimiter.shouldReport(
+                trimmed, System.currentTimeMillis()))
+            {
+                panel.flashStatus(
+                    "pairing code detected \u2014 use Connect tracker", false);
+            }
+            return false;
+        }
+        FateLockedBundle previousBundle = bundle;
+        Instant previousRulesImportedAt = rulesImportedAt;
         try
         {
             FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, json);
             bundle = parsed;
-            rulesImportedAt = Instant.now();
-            log.info("Fate Locked bundle imported from paste: {} regions", parsed.getRegionChunks().size());
-            panel.flashStatus("imported " + parsed.getRegionChunks().size() + " regions", true);
             refreshPanel();
+            panel.flashStatus(
+                "imported " + parsed.getRegionChunks().size() + " regions", true);
+            rulesImportedAt = Instant.now();
+            log.info(
+                "Fate Locked bundle imported from {}: {} regions",
+                source.name().toLowerCase(),
+                parsed.getRegionChunks().size());
+            return true;
         }
         catch (RuntimeException ex)
         {
+            bundle = previousBundle;
+            rulesImportedAt = previousRulesImportedAt;
+            if (!invalidImportLimiter.shouldReport(
+                trimmed, System.currentTimeMillis()))
+            {
+                return false;
+            }
             log.warn("Pasted bundle could not be parsed: {}", ex.getMessage());
             panel.flashStatus("import failed — using previous rules", false);
+            return false;
+        }
+    }
+
+    private enum ImportSource
+    {
+        CLIPBOARD,
+        PASTE
+    }
+
+    /**
+     * Accept a relay bundle on the client thread only after strict v4 parsing
+     * succeeds. Connection version, sync time, and acknowledgement remain owned
+     * by TrackerConnectionController and change only after this returns true.
+     */
+    private boolean acceptRelayPayload(String payload)
+    {
+        final FateLockedBundle parsed;
+        try
+        {
+            parsed = FateLockedBundle.loadFromJson(gson, payload);
+            if (parsed.getVersion() != 4 || parsed.isLegacyRules())
+            {
+                return false;
+            }
+        }
+        catch (RuntimeException ex)
+        {
+            log.debug("Relay bundle rejected: {}", ex.getMessage());
+            return false;
+        }
+
+        FateLockedBundle previousBundle = bundle;
+        Instant previousRulesImportedAt = rulesImportedAt;
+        try
+        {
+            bundle = parsed;
+            rulesImportedAt = Instant.now();
+            refreshPanel();
+            panel.flashStatus(
+                "synced " + parsed.getRegionChunks().size()
+                    + " regions", true);
+            log.info(
+                "Fate Locked bundle imported from relay: {} regions",
+                parsed.getRegionChunks().size());
+            return true;
+        }
+        catch (RuntimeException ex)
+        {
+            bundle = previousBundle;
+            rulesImportedAt = previousRulesImportedAt;
+            log.debug(
+                "Relay bundle could not be applied: {}", ex.getMessage());
+            return false;
         }
     }
 
@@ -1262,6 +1487,12 @@ MenuEntry entry = event.getMenuEntry();
         {
             current = CanonicalChunk.of(local.getWorldLocation());
         }
+        String trackerAccount = bundle.getRules() == null
+            ? bundle.getState() == null
+                ? null
+                : bundle.getState().getLinkedAccount()
+            : bundle.getRules().getAccount();
+        panel.updateTrackerAccount(trackerAccount);
         panel.update(bundle, viewModelFor(bundle, current));
         // A fresh bundle may change unlocked tiers / areas — re-check worn gear,
         // the current slayer task, and the world-map markers.
@@ -1372,6 +1603,69 @@ MenuEntry entry = event.getMenuEntry();
         return img;
     }
 
+    private void beginTrackerPairing()
+    {
+        clientThread.invoke(() -> {
+            String url = connectionController.beginPairing();
+            String code = connectionSettings.pairingCode();
+            SwingUtilities.invokeLater(
+                () -> openTrackerPairing(url, code));
+        });
+    }
+
+    private void openTrackerPairing(String url, String code)
+    {
+        if (!samePairing(code, connectionSettings.pairingCode()))
+        {
+            return;
+        }
+        try
+        {
+            launchTrackerBrowser(url);
+        }
+        catch (RuntimeException error)
+        {
+            clientThread.invoke(() -> {
+                if (!samePairing(code, connectionSettings.pairingCode()))
+                {
+                    return;
+                }
+                connectionController.reportBrowserLaunchFailure();
+                panel.flashStatus(
+                    "couldn't open the web tracker", false);
+            });
+        }
+    }
+
+    void launchTrackerBrowser(String url)
+    {
+        LinkBrowser.browse(url);
+    }
+
+    private static boolean samePairing(String expected, String current)
+    {
+        return expected != null && expected.equals(current);
+    }
+
+    private static void wirePanelActions(
+        FateLockedPanel target,
+        Consumer<String> onImport,
+        Runnable onReload,
+        Runnable onConnect)
+    {
+        target.setCallbacks(onImport, onReload, onConnect);
+    }
+
+    private static NavigationButton buildNavigationButton(FateLockedPanel target)
+    {
+        return NavigationButton.builder()
+            .tooltip("Fate Locked Ironman")
+            .icon(createIcon())
+            .priority(7)
+            .panel(target)
+            .build();
+    }
+
     private static BufferedImage createIcon()
     {
         BufferedImage img = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
@@ -1421,313 +1715,65 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
-    // ── Online relay sync ─────────────────────────────────────────────────────
-    // Optional, opt-in (config.syncCode). Outbound-only: poll the relay for the
-    // run bundle and import on change. Uses the injected OkHttpClient, async, off
-    // the client thread — no inbound server, Hub-compliant.
-
-    private void startRelayPoll()
+    private void startTrackerPoll()
     {
-        relayPollFuture = executor.scheduleWithFixedDelay(this::pollRelay, 2, 4, TimeUnit.SECONDS);
+        trackerPollFuture = executor.scheduleWithFixedDelay(
+            this::pollTrackerConnection, 2, 4, TimeUnit.SECONDS);
     }
 
-    private void stopRelayPoll()
+    private void stopTrackerPoll()
     {
-        if (relayPollFuture != null)
+        if (trackerPollFuture != null)
         {
-            relayPollFuture.cancel(false);
-            relayPollFuture = null;
+            trackerPollFuture.cancel(false);
+            trackerPollFuture = null;
+        }
+        if (connectionController != null)
+        {
+            connectionController.stop();
         }
     }
 
-    private void updatePanelSyncHealth()
+    private boolean trackerPaired()
     {
-        List<FateEvent> pending = eventOutbox == null
+        return connectionSettings != null && connectionSettings.isPaired();
+    }
+
+    private Instant trackerLastSync()
+    {
+        return connectionController == null
+            ? null : connectionController.snapshot().getLastSync();
+    }
+
+    private void pollTrackerConnection()
+    {
+        TrackerConnectionController controller = connectionController;
+        if (controller == null) return;
+        controller.poll();
+    }
+
+    private void updatePanelRollInbox()
+    {
+        List<FateEvent> events = eventHistory == null
             ? java.util.Collections.<FateEvent>emptyList()
-            : eventOutbox.pending();
+            : eventHistory.events();
         int needsReview = 0;
-        for (FateEvent event : pending)
+        for (FateEvent event : events)
         {
             if (event.getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
         }
+        panel.updateRollInboxStatus(
+            events.size(), needsReview, activeWarningCount(),
+            historySaveFailed);
+    }
+
+    private int activeWarningCount()
+    {
         int warnings = 0;
         if (lastLockState == FateLockedBundle.LockState.LOCKED) warnings++;
         if (slayerTaskWarn != null && !slayerTaskWarn.trim().isEmpty()) warnings++;
         if (overTierSummary != null && !overTierSummary.trim().isEmpty()) warnings++;
-        panel.updateSyncHealth(
-            pending.size(), needsReview, warnings, lastTrackerSync,
-            relayOffline || !config.onlineSync());
-    }
-
-    private void pollRelay()
-    {
-        // Network consent gate: no relay request is made unless the user has
-        // explicitly enabled online sync (see FateLockedConfig.onlineSync, which
-        // carries the required IP-address warning). This is the single place that
-        // contacts the relay.
-        if (!config.onlineSync())
-        {
-            relayOffline = true;
-            updatePanelSyncHealth();
-            return;
-        }
-
-        String code = config.syncCode();
-        String base = config.relayUrl();
-        if (code == null || code.trim().isEmpty() || base == null || base.trim().isEmpty())
-        {
-            relayOffline = true;
-            updatePanelSyncHealth();
-            return;
-        }
-        relayOffline = false;
-        updatePanelSyncHealth();
-        final String trimmedCode = code.trim();
-        if (eventRelayClient != null && eventOutbox != null)
-        {
-            eventRelayClient.flush(base, trimmedCode, eventOutbox);
-            eventRelayClient.pollAcknowledgements(base, trimmedCode, eventOutbox);
-        }
-
-        final Request request;
-        try
-        {
-            Request.Builder rb = new Request.Builder()
-                .url(base.trim().replaceAll("/+$", "") + "/r/" + trimmedCode);
-            if (lastRelayVersion != null) rb.header("If-None-Match", lastRelayVersion);
-            request = rb.build();
-        }
-        catch (IllegalArgumentException ex)
-        {
-            return; // malformed relay URL — ignore until corrected
-        }
-
-        okHttpClient.newCall(request).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                relayOffline = true;
-                updatePanelSyncHealth();
-                log.debug("Relay poll failed: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                try (Response r = response)
-                {
-                    if (r.isSuccessful())
-                    {
-                        relayOffline = false;
-                        lastTrackerSync = Instant.now();
-                        updatePanelSyncHealth();
-                    }
-                    if (r.code() == 304 || !r.isSuccessful() || r.body() == null) return;
-                    RelayMessage msg = gson.fromJson(r.body().string(), RelayMessage.class);
-                    if (msg == null || msg.payload == null) return;
-                    String etag = r.header("ETag");
-                    lastRelayVersion = etag != null ? etag : String.valueOf(msg.version);
-                    String payload = msg.payload;
-                    clientThread.invoke(() -> applyPastedBundle(payload));
-                    // Heartbeat for the web app's onboarding: a tiny {ts, version}
-                    // ack on /state proves the pairing works end-to-end. Same
-                    // consent gate as this poll (we're inside it), same relay.
-                    postStateAck(trimmedCode, msg.version);
-                }
-                catch (Exception ex)
-                {
-                    log.debug("Relay payload parse failed: {}", ex.getMessage());
-                }
-            }
-        });
-    }
-
-    // ── Roll suggestions (plugin → app) ─────────────────────────────────────
-    // Same opt-in relay session as the main sync, a separate sub-resource
-    // (/suggest) the plugin is sole writer to. The app never rolls on the
-    // player's behalf — it just surfaces "this may be worth a roll" with a
-    // link to the right tab, exactly like the in-client chat nudge, but
-    // visible even when the player isn't looking at chat. Read-modify-write
-    // against the KV-backed array; suggestions are infrequent enough (quest/
-    // diary/CA/boss completions) that the rare lost race under concurrent
-    // writes is an acceptable trade for not needing a server-side append op.
-
-    private static final class SuggestionDto
-    {
-        String source;
-        String label;
-        long ts;
-    }
-
-    /** Cap on suggestions kept in the relay array — oldest entries are dropped first. */
-    private static final int MAX_SUGGESTIONS = 20;
-
-    /**
-     * Write-tokens for the relay's writable sub-resources (/suggest, /state).
-     * The relay's first-writer-claims model means losing a token after the
-     * first POST locks us out of that sub-resource until its 24h TTL expires —
-     * so they're persisted in plugin config (keyed per sync code, so
-     * re-pairing starts fresh) rather than held in memory where a client
-     * restart would drop them.
-     */
-    private String loadRelayToken(String prefix, String code)
-    {
-        return configManager.getConfiguration(FateLockedConfig.GROUP, prefix + "." + code);
-    }
-
-    private void saveRelayToken(String prefix, String code, String token)
-    {
-        configManager.setConfiguration(FateLockedConfig.GROUP, prefix + "." + code, token);
-    }
-
-    /** POST {ts, version} to /r/:code/state after a successful relay import —
-     *  the web app polls this to show "plugin connected" during onboarding.
-     *  Only reachable from pollRelay, i.e. behind the onlineSync consent gate. */
-    private void postStateAck(String code, int version)
-    {
-        String base = config.relayUrl();
-        if (base == null || base.trim().isEmpty()) return;
-        String url = base.trim().replaceAll("/+$", "") + "/r/" + code + "/state";
-
-        java.util.Map<String, Object> ack = new HashMap<>();
-        ack.put("ts", System.currentTimeMillis());
-        ack.put("version", version);
-        java.util.Map<String, Object> body = new HashMap<>();
-        String token = loadRelayToken("stateToken", code);
-        if (token != null) body.put("token", token);
-        body.put("payload", gson.toJson(ack));
-        okhttp3.RequestBody rb = okhttp3.RequestBody.create(
-            okhttp3.MediaType.parse("application/json"), gson.toJson(body));
-        okHttpClient.newCall(new Request.Builder().url(url).post(rb).build()).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                log.debug("State ack failed: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                try (Response r = response)
-                {
-                    if (!r.isSuccessful() || r.body() == null) return;
-                    TokenResponse tr = gson.fromJson(r.body().string(), TokenResponse.class);
-                    if (tr != null && tr.token != null) saveRelayToken("stateToken", code, tr.token);
-                }
-                catch (Exception ex)
-                {
-                    log.debug("State ack response parse failed: {}", ex.getMessage());
-                }
-            }
-        });
-    }
-
-    private void pushSuggestion(String source, String label)
-    {
-        if (!config.onlineSync()) return; // same consent gate as pollRelay
-        String code = config.syncCode();
-        String base = config.relayUrl();
-        if (code == null || code.trim().isEmpty() || base == null || base.trim().isEmpty()) return;
-
-        SuggestionDto item = new SuggestionDto();
-        item.source = source;
-        item.label = (label == null || label.trim().isEmpty()) ? source + " complete" : label.trim();
-        item.ts = System.currentTimeMillis();
-
-        final String trimmedCode = code.trim();
-        String url;
-        try
-        {
-            url = base.trim().replaceAll("/+$", "") + "/r/" + trimmedCode + "/suggest";
-        }
-        catch (IllegalArgumentException ex)
-        {
-            return; // malformed relay URL — ignore until corrected
-        }
-
-        Request getRequest = new Request.Builder().url(url).build();
-        okHttpClient.newCall(getRequest).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                log.debug("Suggestion GET failed: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                List<SuggestionDto> items = new ArrayList<>();
-                try (Response r = response)
-                {
-                    if (r.isSuccessful() && r.body() != null)
-                    {
-                        RelayMessage msg = gson.fromJson(r.body().string(), RelayMessage.class);
-                        if (msg != null && msg.payload != null)
-                        {
-                            SuggestionDto[] existing = gson.fromJson(msg.payload, SuggestionDto[].class);
-                            if (existing != null) items.addAll(java.util.Arrays.asList(existing));
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    log.debug("Suggestion payload parse failed: {}", ex.getMessage());
-                }
-                items.add(item);
-                while (items.size() > MAX_SUGGESTIONS) items.remove(0);
-                postSuggestions(url, trimmedCode, items);
-            }
-        });
-    }
-
-    private void postSuggestions(String url, String code, List<SuggestionDto> items)
-    {
-        java.util.Map<String, Object> body = new HashMap<>();
-        String suggestToken = loadRelayToken("suggestToken", code);
-        if (suggestToken != null) body.put("token", suggestToken);
-        body.put("payload", gson.toJson(items));
-        okhttp3.RequestBody rb = okhttp3.RequestBody.create(
-            okhttp3.MediaType.parse("application/json"), gson.toJson(body));
-        Request request = new Request.Builder().url(url).post(rb).build();
-        okHttpClient.newCall(request).enqueue(new Callback()
-        {
-            @Override
-            public void onFailure(Call call, IOException e)
-            {
-                log.debug("Suggestion POST failed: {}", e.getMessage());
-            }
-
-            @Override
-            public void onResponse(Call call, Response response)
-            {
-                try (Response r = response)
-                {
-                    if (!r.isSuccessful() || r.body() == null) return;
-                    // The /suggest POST response is {version, token} (not RelayMessage's
-                    // version+payload shape) — parsed with its own tiny local type.
-                    TokenResponse tr = gson.fromJson(r.body().string(), TokenResponse.class);
-                    if (tr != null && tr.token != null) saveRelayToken("suggestToken", code, tr.token);
-                }
-                catch (Exception ex)
-                {
-                    log.debug("Suggestion POST response parse failed: {}", ex.getMessage());
-                }
-            }
-        });
-    }
-
-    private static final class TokenResponse
-    {
-        String token;
-    }
-
-    private static final class RelayMessage
-    {
-        int version;
-        String payload;
+        return warnings;
     }
 
     /** Last-modified time of the bundle file, or null if it doesn't exist yet. */

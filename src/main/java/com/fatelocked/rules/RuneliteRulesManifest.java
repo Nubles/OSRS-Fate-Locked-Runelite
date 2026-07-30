@@ -1,5 +1,8 @@
 package com.fatelocked.rules;
 
+import com.google.gson.JsonElement;
+import com.google.gson.annotations.SerializedName;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -21,11 +24,13 @@ public final class RuneliteRulesManifest
     private String gameModeId;
     private String exportedAt;
     private boolean bankLocks;
+    @Getter(AccessLevel.NONE)
+    @SerializedName("knownMobility")
+    private JsonElement knownMobilityDeclaration;
+    private transient List<String> knownMobility;
     private Unlocks unlocks;
     private Map<String, ItemRule> itemRules;
     private Map<String, ChunkPermissionSnapshot> chunks;
-    private Integer runeProofSchemaVersion;
-    private List<RuneProofSummary> runeProof;
 
     public RuneliteRulesManifest normalized()
     {
@@ -39,6 +44,9 @@ public final class RuneliteRulesManifest
         copy.gameModeId = gameModeId;
         copy.exportedAt = exportedAt;
         copy.bankLocks = bankLocks;
+        copy.knownMobility = knownMobility == null
+            ? immutableStringList(knownMobilityDeclaration)
+            : Unlocks.immutableList(knownMobility);
         copy.unlocks = unlocks == null ? new Unlocks().normalized() : unlocks.normalized();
         Map<String, ItemRule> normalizedItems = new TreeMap<>();
         if (itemRules != null)
@@ -67,34 +75,28 @@ public final class RuneliteRulesManifest
             }
         }
         copy.chunks = Collections.unmodifiableMap(normalizedChunks);
-        copy.runeProofSchemaVersion = runeProofSchemaVersion;
-        copy.runeProof = runeProofSchemaVersion != null
-            && runeProofSchemaVersion == 1
-            ? normalizedRuneProof(runeProof)
-            : Collections.emptyList();
         return copy;
     }
 
-    private static List<RuneProofSummary> normalizedRuneProof(List<RuneProofSummary> summaries)
+    private static List<String> immutableStringList(JsonElement declaration)
     {
-        List<RuneProofSummary> normalized = new ArrayList<>();
-        if (summaries != null)
+        if (declaration == null || !declaration.isJsonArray())
         {
-            for (RuneProofSummary summary : summaries)
-            {
-                if (summary != null && summary.hasRequiredV1Fields())
-                {
-                    normalized.add(summary.normalized());
-                }
-            }
+            return Collections.emptyList();
         }
-        normalized.sort((left, right) -> {
-            String leftGoal = left.getGoalId() == null ? "" : left.getGoalId();
-            String rightGoal = right.getGoalId() == null ? "" : right.getGoalId();
-            return leftGoal.compareTo(rightGoal);
-        });
-        return Collections.unmodifiableList(normalized);
+        List<String> values = new ArrayList<>();
+        for (JsonElement value : declaration.getAsJsonArray())
+        {
+            if (value == null || !value.isJsonPrimitive()
+                || !value.getAsJsonPrimitive().isString())
+            {
+                return Collections.emptyList();
+            }
+            values.add(value.getAsString());
+        }
+        return Collections.unmodifiableList(values);
     }
+
     public boolean hasRequiredFields()
     {
         return rulesVersion != null && !rulesVersion.trim().isEmpty()

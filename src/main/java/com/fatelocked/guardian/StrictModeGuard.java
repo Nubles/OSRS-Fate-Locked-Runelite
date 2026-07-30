@@ -1,5 +1,7 @@
 package com.fatelocked.guardian;
 
+import com.fatelocked.guardian.travel.TravelAction;
+import com.fatelocked.guardian.travel.TravelDecision;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
 
@@ -27,6 +29,26 @@ public final class StrictModeGuard
             return new GuardResult(GuardResult.Outcome.BLOCK, decision);
         }
         return allow(decision);
+    }
+
+    public GuardResult decideTravel(
+        TravelAction action,
+        TravelDecision decision,
+        GuardContext context)
+    {
+        if (action == null || decision == null || context == null
+            || !context.isEnabled() || context.isPaused()
+            || !context.isAccountMatches() || !context.isFreshRules()
+            || action.getConfidence() != TravelAction.Confidence.EXACT)
+        {
+            return allow();
+        }
+
+        RuleDecision rule = new RuleDecision(
+            decision.getStatus(), decision.getLabel(), decision.getReason());
+        return decision.getStatus() == PermissionStatus.LOCKED
+            ? new GuardResult(GuardResult.Outcome.BLOCK, rule)
+            : allow(rule);
     }
 
     private static RuleDecision decision(

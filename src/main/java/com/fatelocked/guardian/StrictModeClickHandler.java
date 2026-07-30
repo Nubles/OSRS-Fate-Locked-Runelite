@@ -1,5 +1,7 @@
 package com.fatelocked.guardian;
 
+import com.fatelocked.guardian.travel.TravelAction;
+import com.fatelocked.guardian.travel.TravelDecision;
 import net.runelite.api.events.MenuOptionClicked;
 
 public final class StrictModeClickHandler
@@ -17,6 +19,20 @@ public final class StrictModeClickHandler
         GuardContext context)
     {
         GuardResult result = guard.decide(action, context);
+        if (result.getOutcome() == GuardResult.Outcome.BLOCK)
+        {
+            event.consume();
+        }
+        return result;
+    }
+
+    public GuardResult handleTravel(
+        MenuOptionClicked event,
+        TravelAction action,
+        TravelDecision decision,
+        GuardContext context)
+    {
+        GuardResult result = guard.decideTravel(action, decision, context);
         if (result.getOutcome() == GuardResult.Outcome.BLOCK)
         {
             event.consume();
