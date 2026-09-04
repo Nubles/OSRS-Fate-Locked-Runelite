@@ -1717,6 +1717,9 @@ MenuEntry entry = event.getMenuEntry();
 
     private void startTrackerPoll()
     {
+        // The lightweight scheduler tick keeps initial pairing responsive.
+        // TrackerConnectionController gates actual relay requests to a
+        // one-minute healthy cadence and backs off failures/rate limits.
         trackerPollFuture = executor.scheduleWithFixedDelay(
             this::pollTrackerConnection, 2, 4, TimeUnit.SECONDS);
     }
@@ -1749,7 +1752,7 @@ MenuEntry entry = event.getMenuEntry();
     {
         TrackerConnectionController controller = connectionController;
         if (controller == null) return;
-        controller.poll();
+        controller.pollIfDue();
     }
 
     private void updatePanelRollInbox()

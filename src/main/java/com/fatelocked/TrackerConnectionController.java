@@ -14,6 +14,11 @@ import java.util.function.Consumer;
 
 final class TrackerConnectionController
 {
+    static final long CONNECTED_POLL_SECONDS = 60;
+    static final long WAITING_POLL_SECONDS = 5;
+    static final long FAILURE_BACKOFF_SECONDS = 30;
+    static final long MAX_FAILURE_BACKOFF_SECONDS = 15 * 60;
+
     interface RelayBundleImporter
     {
         boolean importBundle(String payload);
@@ -32,6 +37,8 @@ final class TrackerConnectionController
     private RelayPollToken activePoll;
     private String acceptedVersion;
     private Instant lastSync;
+    private Instant nextAutomaticPoll = Instant.EPOCH;
+    private int consecutiveFailures;
     private String currentIdentityCode;
     private boolean stopped;
     private volatile TrackerConnectionSnapshot snapshot =
@@ -68,6 +75,7 @@ final class TrackerConnectionController
             activePoll = null;
             acceptedVersion = null;
             lastSync = null;
+            resetAutomaticPollingLocked();
             currentIdentityCode = code;
             stopped = false;
             snapshot = TrackerConnectionSnapshot.waiting();
@@ -98,6 +106,7 @@ final class TrackerConnectionController
                 activePoll = null;
                 acceptedVersion = null;
                 lastSync = null;
+                resetAutomaticPollingLocked();
                 currentIdentityCode = code;
                 snapshot = code.isEmpty()
                     ? TrackerConnectionSnapshot.disconnected()
@@ -107,6 +116,8 @@ final class TrackerConnectionController
             }
             if (code.isEmpty())
             {
+                nextAutomaticPoll = clock.instant()
+                    .plusSeconds(CONNECTED_POLL_SECONDS);
                 if (!identityChanged)
                 {
                     snapshot = TrackerConnectionSnapshot.disconnected();
@@ -145,6 +156,8 @@ final class TrackerConnectionController
                     publishIfCurrent(token,
                         TrackerConnectionState.OFFLINE,
                         "Could not reach tracker");
+                    scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                        MAX_FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
                 }
 
@@ -160,8 +173,27 @@ final class TrackerConnectionController
             publishIfCurrent(token,
                 TrackerConnectionState.OFFLINE,
                 "Could not reach tracker");
+            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                MAX_FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
+    }
+
+    void pollIfDue()
+    {
+        synchronized (pollLock)
+        {
+            Instant now = clock.instant();
+            if (stopped || now.isBefore(nextAutomaticPoll))
+            {
+                return;
+            }
+            // Reserve the next scheduler tick while this asynchronous request
+            // is in flight. Its response will replace this with the healthy or
+            // failure cadence.
+            nextAutomaticPoll = now.plusSeconds(WAITING_POLL_SECONDS);
+        }
+        poll();
     }
 
     void stop()
@@ -218,14 +250,31 @@ final class TrackerConnectionController
                 publishIfCurrent(token,
                     TrackerConnectionState.EXPIRED,
                     "Pairing request expired");
+                if (token.acceptedVersion == null)
+                {
+                    scheduleFailure(token, WAITING_POLL_SECONDS,
+                        CONNECTED_POLL_SECONDS);
+                }
+                else
+                {
+                    scheduleHealthyPoll(token);
+                }
                 clearPoll(token);
                 return;
             }
             if (!current.isSuccessful() || current.body() == null)
             {
+                boolean rateLimited = current.code() == 429;
                 publishIfCurrent(token,
                     TrackerConnectionState.OFFLINE,
-                    "Tracker is unavailable");
+                    rateLimited
+                        ? "Tracker relay is busy; retrying later"
+                        : "Tracker is unavailable");
+                long retryAfter = rateLimited
+                    ? retryAfterSeconds(current.header("Retry-After")) : 0;
+                scheduleFailure(token,
+                    Math.max(FAILURE_BACKOFF_SECONDS, retryAfter),
+                    MAX_FAILURE_BACKOFF_SECONDS);
                 clearPoll(token);
                 return;
             }
@@ -234,6 +283,8 @@ final class TrackerConnectionController
                 current.body().string(), RelayEnvelope.class);
             if (envelope == null || envelope.payload == null)
             {
+                scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                    MAX_FAILURE_BACKOFF_SECONDS);
                 clearPoll(token);
                 return;
             }
@@ -241,6 +292,8 @@ final class TrackerConnectionController
                 token, current.header("ETag"), envelope.version);
             if (responseVersion == null)
             {
+                scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                    MAX_FAILURE_BACKOFF_SECONDS);
                 clearPoll(token);
                 return;
             }
@@ -260,6 +313,8 @@ final class TrackerConnectionController
         }
         catch (Exception error)
         {
+            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                MAX_FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
     }
@@ -295,6 +350,7 @@ final class TrackerConnectionController
                             return;
                         }
                         lastSync = refreshedAt;
+                        scheduleHealthyPollLocked();
                         snapshot = TrackerConnectionSnapshot.connected(
                             refreshedAt, acceptedVersion);
                         listener.accept(snapshot);
@@ -341,6 +397,8 @@ final class TrackerConnectionController
                         publishIfCurrent(token,
                             TrackerConnectionState.IMPORT_FAILED,
                             "Could not import tracker data");
+                        scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                            MAX_FAILURE_BACKOFF_SECONDS);
                         return;
                     }
 
@@ -354,6 +412,7 @@ final class TrackerConnectionController
                         }
                         acceptedVersion = version;
                         lastSync = acceptedAt;
+                        scheduleHealthyPollLocked();
                         snapshot = TrackerConnectionSnapshot.connected(
                             acceptedAt, version);
                         listener.accept(snapshot);
@@ -370,7 +429,66 @@ final class TrackerConnectionController
             publishIfCurrent(token,
                 TrackerConnectionState.IMPORT_FAILED,
                 "Could not import tracker data");
+            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                MAX_FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
+        }
+    }
+
+    private void resetAutomaticPollingLocked()
+    {
+        consecutiveFailures = 0;
+        nextAutomaticPoll = Instant.EPOCH;
+    }
+
+    private void scheduleHealthyPoll(RelayPollToken token)
+    {
+        synchronized (pollLock)
+        {
+            if (isPollCurrentLocked(token))
+            {
+                scheduleHealthyPollLocked();
+            }
+        }
+    }
+
+    private void scheduleHealthyPollLocked()
+    {
+        consecutiveFailures = 0;
+        nextAutomaticPoll = clock.instant()
+            .plusSeconds(CONNECTED_POLL_SECONDS);
+    }
+
+    private void scheduleFailure(
+        RelayPollToken token, long minimumSeconds, long maximumSeconds)
+    {
+        synchronized (pollLock)
+        {
+            if (!isPollCurrentLocked(token))
+            {
+                return;
+            }
+            int shift = Math.min(consecutiveFailures, 5);
+            long delay = minimumSeconds * (1L << shift);
+            consecutiveFailures++;
+            nextAutomaticPoll = clock.instant().plusSeconds(
+                Math.min(delay, maximumSeconds));
+        }
+    }
+
+    private static long retryAfterSeconds(String raw)
+    {
+        if (raw == null || !raw.trim().matches("[0-9]+"))
+        {
+            return 0;
+        }
+        try
+        {
+            return Long.parseLong(raw.trim());
+        }
+        catch (NumberFormatException error)
+        {
+            return 0;
         }
     }
 
