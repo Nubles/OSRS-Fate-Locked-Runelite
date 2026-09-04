@@ -661,6 +661,48 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void automaticPollingBacksOffRateLimitsThenUsesHealthyCadence()
+        throws Exception
+    {
+        server.enqueue(new MockResponse()
+            .setResponseCode(429)
+            .addHeader("Retry-After", "120"));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> controller.snapshot().getState()
+            == TrackerConnectionState.OFFLINE);
+        assertEquals("Tracker relay is busy; retrying later",
+            controller.snapshot().getMessage());
+
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+        clock.advanceSeconds(119);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+
+        clock.advanceSeconds(1);
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(TrackerConnectionState.CONNECTED,
+            controller.snapshot().getState());
+
+        clock.advanceSeconds(
+            TrackerConnectionController.CONNECTED_POLL_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+        clock.advanceSeconds(1);
+        server.enqueue(new MockResponse()
+            .setResponseCode(304)
+            .addHeader("ETag", "\"1\""));
+        controller.pollIfDue();
+        takeRelay();
+    }
+
+    @Test
     public void notFoundPublishesExpiredWithoutReplacingTheBundle()
         throws Exception
     {
