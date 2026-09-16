@@ -36,6 +36,19 @@ final class TrackerConnectionSettings
         return !pairingCode().isEmpty();
     }
 
+    boolean networkAccessAllowed()
+    {
+        // A pairing code or the retired onlineSync flag does not imply consent.
+        return Boolean.parseBoolean(configManager.getConfiguration(
+            FateLockedConfig.GROUP, FateLockedConfig.NETWORK_ACCESS_KEY));
+    }
+
+    void allowNetworkAccess()
+    {
+        configManager.setConfiguration(
+            FateLockedConfig.GROUP, FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+    }
+
     void replacePairingCode(String code)
     {
         if (code == null || !code.matches(CODE_PATTERN))

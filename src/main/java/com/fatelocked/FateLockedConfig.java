@@ -12,6 +12,9 @@ import java.awt.Color;
 public interface FateLockedConfig extends Config
 {
     String GROUP = "fatelocked";
+    String NETWORK_ACCESS_KEY = "trackerNetworkAccess";
+    String NETWORK_WARNING = "This feature submits your IP address to a 3rd-party server "
+        + "not controlled or verified by RuneLite developers.";
 
     @ConfigSection(
         name = "Bundle",
@@ -19,6 +22,19 @@ public interface FateLockedConfig extends Config
         position = 0
     )
     String bundleSection = "bundleSection";
+
+    @ConfigItem(
+        keyName = NETWORK_ACCESS_KEY,
+        name = "Enable online sync",
+        description = "Allow connections to the Fate Locked relay. Off by default; clipboard and file imports work offline.",
+        section = bundleSection,
+        position = 4,
+        warning = NETWORK_WARNING
+    )
+    default boolean trackerNetworkAccess()
+    {
+        return false;
+    }
 
     @ConfigItem(
         keyName = "autoReload",

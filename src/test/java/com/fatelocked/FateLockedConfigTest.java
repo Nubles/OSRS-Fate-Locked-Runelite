@@ -21,10 +21,13 @@ public class FateLockedConfigTest
     }
 
     @Test
-    public void configHasThirtyRetainedItemsAndNoManualSyncItems()
+    public void configRetainsSettingsAndAddsDefaultOffNetworkConsent()
     {
         Map<String, ConfigItem> items = configItemsByKey();
-        assertEquals(30, items.size());
+        assertEquals(31, items.size());
+        assertFalse(new FateLockedConfig() { }.trackerNetworkAccess());
+        assertEquals(FateLockedConfig.NETWORK_WARNING,
+            items.get(FateLockedConfig.NETWORK_ACCESS_KEY).warning());
         assertFalse(items.containsKey("onlineSync"));
         assertFalse(items.containsKey("syncCode"));
         assertFalse(items.containsKey("relayUrl"));

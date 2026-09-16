@@ -195,6 +195,7 @@ public class FateLockedPluginTravelAccountBindingTest
             TrackerConnectionSettings connectionSettings =
                 mock(TrackerConnectionSettings.class);
             when(connectionSettings.isPaired()).thenReturn(true);
+            when(connectionSettings.networkAccessAllowed()).thenReturn(true);
             TrackerConnectionController connectionController =
                 mock(TrackerConnectionController.class);
             when(connectionController.snapshot()).thenReturn(

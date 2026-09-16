@@ -14,7 +14,8 @@ The normal same-PC setup is:
 
 1. Install the single **Fate Locked Ironman** plugin from the RuneLite
    Plugin Hub.
-2. Open its one sidebar and click **Connect tracker**.
+2. Open its one sidebar and click **Connect tracker**. Read and accept the
+   third-party network warning to enable online sync.
 3. In the GitHub Pages tab RuneLite opens, confirm the current tracker
    profile.
 4. Return to RuneLite and verify that the Fate Locked panel shows
@@ -24,6 +25,12 @@ The normal same-PC setup is:
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
 relay. It does not upload player or gameplay data. The relay sees the IP
 address used for the HTTPS request.
+
+Online sync is off by default, including for existing pairings after this
+update. No relay requests are made until you accept the warning. Canceling
+leaves sync disabled. Disable **Enable online sync** in the Bundle section
+or RuneLite plugin settings at any time to stop syncing. Clipboard and file
+imports remain available offline.
 
 ## One unified sidebar
 
@@ -39,7 +46,7 @@ sections:
 7. Rendering
 
 Current chunk and Guardian start expanded; the remaining sections start
-collapsed. The existing 30 settings remain available in these sections,
+collapsed. The existing 30 settings plus online-sync consent are available in these sections,
 including the single Strict Mode toggle.
 
 ## Main features

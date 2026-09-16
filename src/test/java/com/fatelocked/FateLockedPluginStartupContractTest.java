@@ -89,6 +89,8 @@ public class FateLockedPluginStartupContractTest
             });
 
             assertEquals("", harness.settings.pairingCode());
+            assertEquals(1, harness.consentPrompts.get());
+            assertFalse(harness.settings.networkAccessAllowed());
             assertEquals(1, harness.plugin.pauseCalls.get());
             assertEquals(1, harness.clientTasks.size());
 
@@ -97,9 +99,57 @@ public class FateLockedPluginStartupContractTest
 
             String code = harness.settings.pairingCode();
             assertTrue(code.matches("[0-9a-f]{32}"));
+            assertTrue(harness.settings.networkAccessAllowed());
             assertEquals(1, harness.plugin.browserUrls.size());
             assertEquals(PairingSupport.trackerPairingUrl(code),
                 harness.plugin.browserUrls.peek());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void decliningConnectWarningKeepsPairingAndBrowserUntouched() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("decline-consent"));
+        try
+        {
+            harness.acceptConsent = false;
+            String previousCode = "0123456789abcdef0123456789abcdef";
+            harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, previousCode);
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertEquals(1, harness.consentPrompts.get());
+            assertEquals(previousCode, harness.settings.pairingCode());
+            assertFalse(harness.settings.networkAccessAllowed());
+            assertTrue(harness.plugin.browserUrls.isEmpty());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void revocationBeforeQueuedReconnectDoesNotReenableSync() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("revoke-before-reconnect"));
+        try
+        {
+            harness.settings.allowNetworkAccess();
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertEquals(0, harness.consentPrompts.get());
+            assertFalse(harness.settings.networkAccessAllowed());
+            assertEquals("", harness.settings.pairingCode());
+            assertTrue(harness.plugin.browserUrls.isEmpty());
         }
         finally
         {
@@ -135,6 +185,7 @@ public class FateLockedPluginStartupContractTest
 
             assertNotEquals(firstCode, harness.settings.pairingCode());
             assertEquals(2, harness.plugin.browserUrls.size());
+            assertEquals(1, harness.consentPrompts.get());
         }
         finally
         {
@@ -147,6 +198,8 @@ public class FateLockedPluginStartupContractTest
         private final ConcurrentLinkedQueue<Runnable> clientTasks =
             new ConcurrentLinkedQueue<>();
         private final AtomicInteger navigationAdds = new AtomicInteger();
+        private final AtomicInteger consentPrompts = new AtomicInteger();
+        private boolean acceptConsent = true;
         private final Map<String, String> configuration =
             new ConcurrentHashMap<>();
         private final TrackerConnectionSettings settings;
@@ -178,7 +231,16 @@ public class FateLockedPluginStartupContractTest
                     return false;
                 }
             };
-            panel = new FateLockedPanel(config, configManager);
+            panel = new FateLockedPanel(config, configManager)
+            {
+                @Override
+                boolean confirmNetworkConnection()
+                {
+                    assertTrue(SwingUtilities.isEventDispatchThread());
+                    consentPrompts.incrementAndGet();
+                    return acceptConsent;
+                }
+            };
             plugin = new TestPlugin(dataDirectory);
 
             ClientThread clientThread = mock(ClientThread.class);

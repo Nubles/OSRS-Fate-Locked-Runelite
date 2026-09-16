@@ -43,6 +43,35 @@ public class FateLockedConfigBinderTest
     }
 
     @Test
+    public void decliningWarningDoesNotSaveOrEnableTheSetting()
+    {
+        JCheckBox control = binder.booleanSetting(
+            FateLockedConfig.NETWORK_ACCESS_KEY, "Enable online sync",
+            () -> false, () -> false);
+        control.doClick();
+        assertFalse(control.isSelected());
+        verifyNoInteractions(configManager);
+    }
+
+    @Test
+    public void acceptedWarningEnablesSyncAndDisablingNeedsNoConfirmation()
+    {
+        int[] prompts = {0};
+        JCheckBox control = binder.booleanSetting(
+            FateLockedConfig.NETWORK_ACCESS_KEY, "Enable online sync",
+            () -> false, () -> { prompts[0]++; return true; });
+        control.doClick();
+        assertTrue(control.isSelected());
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, FateLockedConfig.NETWORK_ACCESS_KEY, true);
+        control.doClick();
+        assertFalse(control.isSelected());
+        verify(configManager).setConfiguration(
+            FateLockedConfig.GROUP, FateLockedConfig.NETWORK_ACCESS_KEY, false);
+        assertEquals(1, prompts[0]);
+    }
+
+    @Test
     public void booleanControlPersistsUserChoiceAndRefreshesWithoutWritingAgain()
     {
         JCheckBox control = binder.booleanSetting(
