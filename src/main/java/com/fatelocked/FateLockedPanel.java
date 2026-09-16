@@ -241,6 +241,10 @@ class FateLockedPanel extends PluginPanel
 
     private void buildBundleBody(FateLockedConfig config)
     {
+        addSetting(bundleBody, ownSetting("Bundle", FateLockedConfig.NETWORK_ACCESS_KEY,
+            configBinder.booleanSetting(
+                FateLockedConfig.NETWORK_ACCESS_KEY, "Enable online sync",
+                config::trackerNetworkAccess, this::confirmNetworkConnection)));
         addSetting(bundleBody, ownSetting("Bundle", "autoReload",
             configBinder.booleanSetting(
                 "autoReload", "Auto-reload on change", config::autoReload)));
@@ -249,6 +253,18 @@ class FateLockedPanel extends PluginPanel
                 configBinder.keybindSetting(
                     "reimportHotkey", "Re-import hotkey", config::reimportHotkey)));
         buildImportControls();
+    }
+
+    boolean confirmNetworkConnection()
+    {
+        Object[] options = {"Enable online sync", "Cancel"};
+        return javax.swing.JOptionPane.showOptionDialog(
+            this,
+            "<html><body style='width: 320px'>" + FateLockedConfig.NETWORK_WARNING
+                + "<br><br>RuneLite retrieves rules from the Fate Locked relay. "
+                + "It does not upload gameplay data.<br><br>Allow online sync?</body></html>",
+            "Fate Locked online sync", javax.swing.JOptionPane.YES_NO_OPTION,
+            javax.swing.JOptionPane.WARNING_MESSAGE, null, options, options[1]) == 0;
     }
 
     private JPanel buildWarningsBody(FateLockedConfig config)

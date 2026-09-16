@@ -527,6 +527,13 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
                 panel.showStrictModeIntro();
             }
         }
+        else if (FateLockedConfig.NETWORK_ACCESS_KEY.equals(key))
+        {
+            if (connectionController != null)
+            {
+                connectionController.networkAccessChanged();
+            }
+        }
         else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
             panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
@@ -1605,7 +1612,25 @@ MenuEntry entry = event.getMenuEntry();
 
     private void beginTrackerPairing()
     {
+        boolean needsConsent = !connectionSettings.networkAccessAllowed();
+        if (needsConsent && !panel.confirmNetworkConnection())
+        {
+            return;
+        }
         clientThread.invoke(() -> {
+            if (needsConsent)
+            {
+                try
+                {
+                    connectionSettings.allowNetworkAccess();
+                }
+                catch (RuntimeException error)
+                {
+                    panel.flashStatus("couldn't enable online sync", false);
+                    return;
+                }
+            }
+            if (!connectionSettings.networkAccessAllowed()) return;
             String url = connectionController.beginPairing();
             String code = connectionSettings.pairingCode();
             SwingUtilities.invokeLater(
@@ -1615,7 +1640,8 @@ MenuEntry entry = event.getMenuEntry();
 
     private void openTrackerPairing(String url, String code)
     {
-        if (!samePairing(code, connectionSettings.pairingCode()))
+        if (!connectionSettings.networkAccessAllowed()
+            || !samePairing(code, connectionSettings.pairingCode()))
         {
             return;
         }
@@ -1739,7 +1765,9 @@ MenuEntry entry = event.getMenuEntry();
 
     private boolean trackerPaired()
     {
-        return connectionSettings != null && connectionSettings.isPaired();
+        return connectionSettings != null
+            && connectionSettings.networkAccessAllowed()
+            && connectionSettings.isPaired();
     }
 
     private Instant trackerLastSync()

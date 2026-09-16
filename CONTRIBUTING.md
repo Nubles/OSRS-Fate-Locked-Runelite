@@ -31,7 +31,12 @@ handoffs open only the fixed GitHub Pages tracker URL and contain the random
 pairing code, never RuneLite-observed gameplay.
 
 The controller uses RuneLite's injected `OkHttpClient` asynchronously. A
-relay result is dispatched to the client thread and replaces the current
+separate, default-off `trackerNetworkAccess` setting gates pairing and every
+relay poll. The Connect action and sidebar toggle show the same third-party
+IP-address warning as the native RuneLite config item. Existing pairing codes
+and the retired `onlineSync` setting do not imply consent. Revoking access
+invalidates pending imports and pauses polling without deleting the pairing.
+A relay result is dispatched to the client thread and replaces the current
 rules only after complete parsing, strict v4 validation, and panel refresh
 succeed. Malformed payloads, incompatible versions, ETag/body disagreement,
 stale callbacks, stopped sessions, offline requests, and failed UI refreshes

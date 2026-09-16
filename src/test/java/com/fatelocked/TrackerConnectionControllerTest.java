@@ -70,6 +70,7 @@ public class TrackerConnectionControllerTest
     {
         configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY,
             INITIAL_CODE);
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
         ConfigManager configManager = mock(ConfigManager.class);
         when(configManager.getConfiguration(anyString(), anyString()))
             .thenAnswer(invocation ->
@@ -110,6 +111,69 @@ public class TrackerConnectionControllerTest
     {
         controller.stop();
         server.shutdown();
+    }
+
+    @Test
+    public void savedPairingAndLegacyOptInCannotSendRequestsWithoutNewConsent()
+        throws Exception
+    {
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        configuration.put("onlineSync", "true");
+
+        controller.poll();
+        controller.pollIfDue();
+
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
+        assertTrue(pluginRequests.isEmpty());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(TrackerConnectionState.DISCONNECTED, controller.snapshot().getState());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void pairingCannotBypassConsent()
+    {
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        controller.beginPairing();
+    }
+
+    @Test
+    public void acceptingConsentResumesAnExistingPairing() throws Exception
+    {
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        controller.pollIfDue();
+        settings.allowNetworkAccess();
+        controller.networkAccessChanged();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+
+        controller.pollIfDue();
+        assertEquals("/r/" + INITIAL_CODE, takeRelay().getPath());
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void revokingConsentBlocksRequestsAndDiscardsQueuedImports() throws Exception
+    {
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+        controller.networkAccessChanged();
+        controller.poll();
+        controller.pollIfDue();
+        // Re-enabling must not revive a response from before revocation.
+        settings.allowNetworkAccess();
+        controller.networkAccessChanged();
+        runClientTasks();
+
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
+        assertTrue(importer.acceptedPayloads().isEmpty());
+        assertNull(controller.snapshot().getLastSync());
+        assertNull(controller.snapshot().getAcceptedVersion());
     }
 
     @Test

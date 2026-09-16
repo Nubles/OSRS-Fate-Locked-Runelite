@@ -44,10 +44,21 @@ final class FateLockedConfigBinder
 
     JCheckBox booleanSetting(String key, String label, BooleanSupplier current)
     {
+        return booleanSetting(key, label, current, () -> true);
+    }
+
+    JCheckBox booleanSetting(String key, String label, BooleanSupplier current,
+        BooleanSupplier confirmEnable)
+    {
         final boolean[] confirmed = {current.getAsBoolean()};
         JCheckBox control = new JCheckBox(label, confirmed[0]);
         control.addActionListener(event -> {
             boolean selected = control.isSelected();
+            if (selected && !confirmEnable.getAsBoolean())
+            {
+                control.setSelected(confirmed[0]);
+                return;
+            }
             save(key, selected, () -> confirmed[0] = selected,
                 () -> control.setSelected(confirmed[0]));
         });

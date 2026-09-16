@@ -67,9 +67,9 @@ public class FateLockedPanelStatusTest
     {
         FateLockedPanel panel = panel();
 
-        assertEquals(30, panel.settingKeysForTest().size());
+        assertEquals(31, panel.settingKeysForTest().size());
         assertEquals(new LinkedHashSet<>(Arrays.asList(
-            "autoReload", "reimportHotkey",
+            "trackerNetworkAccess", "autoReload", "reimportHotkey",
             "chatOnEnter", "warnOnLocked", "warnLockedBank", "flashOnLocked",
             "warnAccountMismatch", "tagLockedMenus", "tagLockedTeleports",
             "showHud", "showNearest", "showChunkContentBox", "useNotifier",
@@ -96,7 +96,7 @@ public class FateLockedPanelStatusTest
         assertSectionSettings(panel, "Roll inbox", keys());
         assertSectionSettings(panel, "Run", keys());
         assertSectionSettings(panel, "Bundle",
-            keys("autoReload", "reimportHotkey"));
+            keys("trackerNetworkAccess", "autoReload", "reimportHotkey"));
         assertSectionSettings(panel, "Warnings", keys(
             "chatOnEnter", "warnOnLocked", "warnLockedBank", "flashOnLocked",
             "warnAccountMismatch", "tagLockedMenus", "tagLockedTeleports",

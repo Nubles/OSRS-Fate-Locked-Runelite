@@ -26,6 +26,19 @@ public class TrackerConnectionSettingsTest
     }
 
     @Test
+    public void networkAccessDefaultsOffEvenWithAnExistingPairingOrLegacyOptIn()
+    {
+        when(configManager.getConfiguration(FateLockedConfig.GROUP, "onlineSync"))
+            .thenReturn("true");
+        when(configManager.getConfiguration(
+            FateLockedConfig.GROUP, TrackerConnectionSettings.PAIRING_CODE_KEY))
+            .thenReturn(PAIRING_CODE);
+        TrackerConnectionSettings settings = new TrackerConnectionSettings(configManager);
+        assertTrue(settings.isPaired());
+        assertFalse(settings.networkAccessAllowed());
+    }
+
+    @Test
     public void pairingIdentityUsesANonVisibleInternalKey()
     {
         TrackerConnectionSettings settings = new TrackerConnectionSettings(configManager);

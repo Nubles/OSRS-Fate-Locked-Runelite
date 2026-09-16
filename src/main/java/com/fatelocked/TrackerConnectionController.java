@@ -66,6 +66,10 @@ final class TrackerConnectionController
 
     String beginPairing()
     {
+        if (!settings.networkAccessAllowed())
+        {
+            throw new IllegalStateException("Online sync requires consent");
+        }
         String code = PairingSupport.newCode();
         synchronized (pollLock)
         {
@@ -92,6 +96,11 @@ final class TrackerConnectionController
 
     void poll()
     {
+        if (!settings.networkAccessAllowed())
+        {
+            networkAccessChanged();
+            return;
+        }
         String code = settings.pairingCode();
         String version;
         boolean clearLegacy = false;
@@ -181,6 +190,11 @@ final class TrackerConnectionController
 
     void pollIfDue()
     {
+        if (!settings.networkAccessAllowed())
+        {
+            networkAccessChanged();
+            return;
+        }
         synchronized (pollLock)
         {
             Instant now = clock.instant();
@@ -194,6 +208,20 @@ final class TrackerConnectionController
             nextAutomaticPoll = now.plusSeconds(WAITING_POLL_SECONDS);
         }
         poll();
+    }
+
+    void networkAccessChanged()
+    {
+        synchronized (pollLock)
+        {
+            generation++;
+            activePoll = null;
+            acceptedVersion = null;
+            lastSync = null;
+            resetAutomaticPollingLocked();
+            snapshot = TrackerConnectionSnapshot.disconnected();
+            listener.accept(snapshot);
+        }
     }
 
     void stop()
@@ -217,7 +245,7 @@ final class TrackerConnectionController
     {
         synchronized (pollLock)
         {
-            if (stopped || activePoll != null
+            if (stopped || !settings.networkAccessAllowed() || activePoll != null
                 || !code.equals(settings.pairingCode())
                 || !equal(version, acceptedVersion))
             {
@@ -562,6 +590,7 @@ final class TrackerConnectionController
     private boolean isPollCurrentLocked(RelayPollToken token)
     {
         return !stopped
+            && settings.networkAccessAllowed()
             && token != null
             && activePoll == token
             && token.generation == generation
