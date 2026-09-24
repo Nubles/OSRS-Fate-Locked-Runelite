@@ -38,7 +38,8 @@ import static org.mockito.Mockito.when;
 public class TravelGuardianCoordinatorTest
 {
     private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 51);
-    private static final CanonicalChunk DESTINATION = new CanonicalChunk(51, 51);
+    /** Where "Teleport" on "Falador" lands: the exact-travel example below. */
+    private static final CanonicalChunk DESTINATION = new CanonicalChunk(46, 52);
 
     private final Client client = mock(Client.class);
     private final TravelAvailability availability = mock(TravelAvailability.class);
@@ -55,41 +56,34 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void provenLockedTravelIsConsumedAndExplainedOnce()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
 
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            TravelGuardianResult first = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, false, true, true, rules), rules, availability);
-            TravelGuardianResult repeated = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, false, true, true, rules), rules, availability);
+        TravelGuardianResult first = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
+        TravelGuardianResult repeated = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
 
-            verify(click, times(2)).consume();
-            assertEquals("Travel blocked \u2014 Walk here",
-                noticeStore.current().get().getHeadline());
-            assertTrue(first.isWriteChat());
-            assertFalse(repeated.isWriteChat());
-            assertTrue(first.isWriteBlockedAudit());
-            assertFalse(first.isWritePausedAudit());
-        }
+        verify(click, times(2)).consume();
+        assertEquals("Travel blocked \u2014 Teleport falador",
+            noticeStore.current().get().getHeadline());
+        assertTrue(first.isWriteChat());
+        assertFalse(repeated.isWriteChat());
+        assertTrue(first.isWriteBlockedAudit());
+        assertFalse(first.isWritePausedAudit());
     }
 
     @Test
     public void pausedTravelIsAllowedAndMarkedOnlyForLocalAudit()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
 
-        TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            result = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, true, true, true, rules), rules, availability);
-        }
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, true, true, true, rules), rules, availability);
 
         verify(click, never()).consume();
         assertFalse(noticeStore.current().isPresent());
@@ -101,16 +95,12 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void strictModeOffLeavesTravelUnconsumedAndUnrecorded()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
 
-        TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            result = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(false, false, true, true, rules), rules, availability);
-        }
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(false, false, true, true, rules), rules, availability);
 
         assertFailOpen(click, result);
     }
@@ -118,16 +108,12 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void staleRulesLeaveTravelUnconsumedAndUnrecorded()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
 
-        TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            result = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, false, true, false, rules), rules, availability);
-        }
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, false, rules), rules, availability);
 
         assertFailOpen(click, result);
     }
@@ -135,16 +121,12 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void wrongAccountLeavesTravelUnconsumedAndUnrecorded()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
 
-        TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            result = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, false, false, true, rules), rules, availability);
-        }
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, false, true, rules), rules, availability);
 
         assertFailOpen(click, result);
     }
@@ -211,29 +193,26 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void notReadyDestinationLeavesTravelUnconsumedAndUnrecorded()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.NOT_READY);
 
-        TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            result = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, false, true, true, rules), rules, availability);
-        }
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
 
         assertFailOpen(click, result);
         assertEquals(PermissionStatus.UNKNOWN, result.getDecision().getStatus());
     }
 
     @Test
-    public void sameChunkWalkInsideALockedChunkRemainsUnconsumedAndUnrecorded()
+    public void walkingIsNeverConsumedOrRecorded()
     {
+        // Every chunk is locked, and walking is still left alone.
+        FateRuleEngine rules = lockedEverywhere();
         MenuOptionClicked click = walkClick();
-        FateRuleEngine rules = rulesAt(ORIGIN, PermissionStatus.LOCKED);
 
         TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination(ORIGIN))
+        try (MockedStatic<WorldPoint> points = walkDestination())
         {
             result = coordinator.handle(
                 click, click.getMenuEntry(), client, ORIGIN,
@@ -247,40 +226,42 @@ public class TravelGuardianCoordinatorTest
     }
 
     @Test
-    public void walkWithoutAKnownOriginRemainsUnconsumedAndUnrecorded()
+    public void doorsAndLaddersAreNeverConsumedOrRecorded()
     {
-        MenuOptionClicked click = walkClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        FateRuleEngine rules = lockedEverywhere();
+        MenuEntry entry = mock(MenuEntry.class);
+        when(entry.getOption()).thenReturn("Climb-down");
+        when(entry.getTarget()).thenReturn("Ladder");
+        when(entry.getType()).thenReturn(MenuAction.GAME_OBJECT_FIRST_OPTION);
+        when(entry.getParam0()).thenReturn(10);
+        when(entry.getParam1()).thenReturn(20);
+        MenuOptionClicked click = mock(MenuOptionClicked.class);
+        when(click.getMenuEntry()).thenReturn(entry);
 
         TravelGuardianResult result;
         try (MockedStatic<WorldPoint> points = walkDestination())
         {
             result = coordinator.handle(
-                click, click.getMenuEntry(), client, null,
+                click, click.getMenuEntry(), client, ORIGIN,
                 context(true, false, true, true, rules), rules, availability);
         }
 
         assertFailOpen(click, result);
         assertEquals(TravelAction.Confidence.UNKNOWN,
             result.getAction().getConfidence());
-        assertNull(result.getAction().getDestination());
     }
 
     @Test
     public void alternativeLookupFailureNeverCancelsAProvenBlock()
     {
-        MenuOptionClicked click = walkClick();
+        MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
         when(finder.find(any(), any(), any()))
             .thenThrow(new IllegalStateException("inventory unavailable"));
 
-        TravelGuardianResult result;
-        try (MockedStatic<WorldPoint> points = walkDestination())
-        {
-            result = coordinator.handle(
-                click, click.getMenuEntry(), client, ORIGIN,
-                context(true, false, true, true, rules), rules, availability);
-        }
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
 
         verify(click).consume();
         assertTrue(result.isWriteBlockedAudit());
@@ -310,6 +291,20 @@ public class TravelGuardianCoordinatorTest
         MenuOptionClicked click = mock(MenuOptionClicked.class);
         when(click.getMenuEntry()).thenReturn(entry);
         return click;
+    }
+
+    /** An exact travel click: "Teleport" on "Falador" lands in DESTINATION. */
+    private static MenuOptionClicked travelClick()
+    {
+        return namedTeleportClick("Teleport", "Falador");
+    }
+
+    private static FateRuleEngine lockedEverywhere()
+    {
+        FateRuleEngine rules = mock(FateRuleEngine.class);
+        when(rules.entry(any())).thenReturn(
+            new RuleDecision(PermissionStatus.LOCKED, "Locked destination", null));
+        return rules;
     }
 
     private static MenuOptionClicked namedTeleportClick(

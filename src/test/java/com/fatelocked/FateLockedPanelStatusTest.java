@@ -215,12 +215,12 @@ public class FateLockedPanelStatusTest
             dismissals::incrementAndGet);
         Container guardian = sectionContent(panel, "Guardian");
 
-        panel.updateStrictMode(true, false, 0);
+        panel.updateStrictMode(true, false, 0, null);
         flushSwing();
         JButton pause = buttonWithText(
             guardian, "Pause Strict Mode for 60 seconds");
         SwingUtilities.invokeAndWait(pause::doClick);
-        panel.updateStrictMode(true, true, 60);
+        panel.updateStrictMode(true, true, 60, null);
         flushSwing();
         JButton resume = buttonWithText(
             guardian, "Resume Strict Mode \u00b7 60s");
@@ -407,12 +407,40 @@ public class FateLockedPanelStatusTest
         assertFalse(hud.isSelected());
     }
     @Test
+    public void strictModeStatusSaysWhenItCannotAct() throws Exception
+    {
+        FateLockedPanel panel = panel();
+        Container guardian = sectionContent(panel, "Guardian");
+
+        panel.updateStrictMode(true, false, 0, null);
+        flushSwing();
+        assertEquals("Active", valueBesideLabel(guardian, "Guardian status"));
+
+        panel.updateStrictMode(true, false, 0, "the rules are more than 15 minutes old");
+        flushSwing();
+        JLabel status = valueLabelBesideLabel(guardian, "Guardian status");
+        assertEquals("Inactive", status.getText());
+        assertEquals("Not blocking anything: the rules are more than 15 minutes old.",
+            status.getToolTipText());
+        assertEquals("<html>Not blocking anything: the rules are more than 15 minutes old.</html>",
+            labelStartingWith(guardian, "<html>Not blocking").getText());
+
+        panel.updateStrictMode(true, true, 42, "the rules are more than 15 minutes old");
+        flushSwing();
+        assertEquals("Paused", valueBesideLabel(guardian, "Guardian status"));
+
+        panel.updateStrictMode(false, false, 0, "no tracker rules are loaded");
+        flushSwing();
+        assertEquals("Off", valueBesideLabel(guardian, "Guardian status"));
+    }
+
+    @Test
     public void strictModeKeepsOnePauseControlAndUpdatedIntroduction()
         throws Exception
     {
         FateLockedPanel panel = panel();
 
-        panel.updateStrictMode(true, true, 60);
+        panel.updateStrictMode(true, true, 60, null);
         flushSwing();
 
         assertEquals("Resume Strict Mode \u00b7 60s",

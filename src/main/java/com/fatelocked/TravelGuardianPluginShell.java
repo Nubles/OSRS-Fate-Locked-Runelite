@@ -16,13 +16,14 @@ import java.time.Clock;
 /**
  * Thin plugin boundary for coordinator routing and post-enforcement side
  * effects. It never repeats travel recognition, evaluation, or presentation.
+ * Clicks that are not exactly matched travel are left alone.
  */
 final class TravelGuardianPluginShell
 {
     enum Route
     {
         EXACT_TRAVEL,
-        GENERIC,
+        NOT_TRAVEL,
         FAIL_OPEN
     }
 
@@ -39,12 +40,6 @@ final class TravelGuardianPluginShell
     }
 
     @FunctionalInterface
-    interface GenericHandler
-    {
-        void handle(MenuOptionClicked event, GuardContext context);
-    }
-
-    @FunctionalInterface
     interface DiagnosticSink
     {
         void record(String stage, Exception error);
@@ -54,7 +49,6 @@ final class TravelGuardianPluginShell
     private final TravelAvailability availability;
     private final ChatSink chatSink;
     private final AuditSink auditSink;
-    private final GenericHandler genericHandler;
     private final DiagnosticSink diagnosticSink;
     private final Clock clock;
 
@@ -63,7 +57,6 @@ final class TravelGuardianPluginShell
         TravelAvailability availability,
         ChatSink chatSink,
         AuditSink auditSink,
-        GenericHandler genericHandler,
         DiagnosticSink diagnosticSink,
         Clock clock)
     {
@@ -71,7 +64,6 @@ final class TravelGuardianPluginShell
         this.availability = availability;
         this.chatSink = chatSink;
         this.auditSink = auditSink;
-        this.genericHandler = genericHandler;
         this.diagnosticSink = diagnosticSink;
         this.clock = clock;
     }
@@ -81,8 +73,7 @@ final class TravelGuardianPluginShell
         Client client,
         CanonicalChunk origin,
         GuardContext travelContext,
-        FateRuleEngine travelRules,
-        GuardContext genericContext)
+        FateRuleEngine travelRules)
     {
         TravelGuardianResult result;
         try
@@ -108,8 +99,7 @@ final class TravelGuardianPluginShell
         if (action == null
             || action.getConfidence() != TravelAction.Confidence.EXACT)
         {
-            genericHandler.handle(event, genericContext);
-            return Route.GENERIC;
+            return Route.NOT_TRAVEL;
         }
 
         if (result.isWriteChat())

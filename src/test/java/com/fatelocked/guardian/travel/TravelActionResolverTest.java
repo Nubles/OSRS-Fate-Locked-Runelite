@@ -21,11 +21,18 @@ public class TravelActionResolverTest
     private final CanonicalChunk origin = new CanonicalChunk(50, 50);
 
     @Test
-    public void resolvesNamedTeleportWalkAndCrossChunkObject()
+    public void resolvesNamedTeleportsExactly()
     {
         assertTravel(entry("Teleport", "Falador", MenuAction.UNKNOWN),
             TravelAction.Family.SPELL_OR_ITEM, new CanonicalChunk(46, 52), true);
+    }
 
+    @Test
+    public void walkingIsNeverTravelAndItsParamsAreNeverRead()
+    {
+        // "Walk here" carries viewport pixel coordinates, not a scene tile
+        // (review finding G1). Reading them as a tile blocked clicks in the
+        // top-left of the game view, so walking is never resolved at all.
         MenuEntry walk = entry("Walk here", "", MenuAction.WALK);
         when(walk.getParam0()).thenReturn(10);
         when(walk.getParam1()).thenReturn(20);
@@ -34,10 +41,20 @@ public class TravelActionResolverTest
         {
             points.when(() -> WorldPoint.fromScene(client, 10, 20, 0))
                 .thenReturn(new WorldPoint(3264, 3264, 0));
-            assertTravel(walk, TravelAction.Family.WALK,
-                new CanonicalChunk(51, 51), true);
-        }
 
+            TravelAction resolved = resolver.resolve(walk, client, origin);
+
+            assertEquals(TravelAction.Confidence.UNKNOWN, resolved.getConfidence());
+            assertNull(resolved.getDestination());
+            points.verifyNoInteractions();
+        }
+    }
+
+    @Test
+    public void doorsAndOtherObjectsAreNeverTravel()
+    {
+        // An object's own tile is not where it leads, so a door or ladder in
+        // a locked chunk is left to the menu tags, never blocked.
         MenuEntry door = entry("Open", "Gate", MenuAction.GAME_OBJECT_FIRST_OPTION);
         when(door.getParam0()).thenReturn(10);
         when(door.getParam1()).thenReturn(20);
@@ -45,8 +62,11 @@ public class TravelActionResolverTest
         {
             points.when(() -> WorldPoint.fromScene(client, 10, 20, 0))
                 .thenReturn(new WorldPoint(3264, 3264, 0));
-            assertTravel(door, TravelAction.Family.BOUNDARY_OBJECT,
-                new CanonicalChunk(51, 51), true);
+
+            TravelAction resolved = resolver.resolve(door, client, origin);
+
+            assertEquals(TravelAction.Confidence.UNKNOWN, resolved.getConfidence());
+            assertNull(resolved.getDestination());
         }
     }
 
@@ -65,35 +85,6 @@ public class TravelActionResolverTest
         assertEquals(TravelAction.Confidence.UNKNOWN, unresolvedBoundary.getConfidence());
         assertNull(unresolvedBoundary.getDestination());
     }
-    @Test
-    public void sameChunkAndOriginUnknownWalksStayUnresolved()
-    {
-        MenuEntry sameChunk = entry("Walk here", "", MenuAction.WALK);
-        when(sameChunk.getParam0()).thenReturn(10);
-        when(sameChunk.getParam1()).thenReturn(20);
-        when(client.getPlane()).thenReturn(0);
-        try (MockedStatic<WorldPoint> points = mockStatic(WorldPoint.class))
-        {
-            points.when(() -> WorldPoint.fromScene(client, 10, 20, 0))
-                .thenReturn(new WorldPoint(3201, 3201, 0));
-            assertUnknown(sameChunk);
-        }
-
-        MenuEntry unknownOrigin = entry("Walk here", "", MenuAction.WALK);
-        when(unknownOrigin.getParam0()).thenReturn(11);
-        when(unknownOrigin.getParam1()).thenReturn(21);
-        try (MockedStatic<WorldPoint> points = mockStatic(WorldPoint.class))
-        {
-            points.when(() -> WorldPoint.fromScene(client, 11, 21, 0))
-                .thenReturn(new WorldPoint(3264, 3264, 0));
-            TravelAction unresolved = resolver.resolve(
-                unknownOrigin, client, null);
-            assertEquals(TravelAction.Confidence.UNKNOWN,
-                unresolved.getConfidence());
-            assertNull(unresolved.getDestination());
-        }
-    }
-
     @Test
     public void resolvesKnownTransportKeywordsWithTheirUnlocks()
     {

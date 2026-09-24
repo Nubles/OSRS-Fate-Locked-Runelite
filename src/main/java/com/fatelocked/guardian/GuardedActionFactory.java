@@ -23,9 +23,9 @@ public final class GuardedActionFactory
         if (option.startsWith("examine")) return unknown(option, target);
         if (type == MenuAction.WALK)
         {
-            return new GuardedAction(
-                GuardedAction.Kind.MOVEMENT, option, target,
-                tileChunk(entry, client), null);
+            // "Walk here" carries viewport pixel coordinates, not a scene
+            // tile: it has no knowable destination, so it is never tagged.
+            return unknown(option, target);
         }
 
         CanonicalChunk teleport = Teleports.checkedTravelDestinationChunk(
@@ -97,7 +97,6 @@ public final class GuardedActionFactory
             case GROUND_ITEM_THIRD_OPTION:
             case GROUND_ITEM_FOURTH_OPTION:
             case GROUND_ITEM_FIFTH_OPTION:
-            case WALK:
                 return true;
             default:
                 return false;

@@ -13,13 +13,13 @@ import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.GuardContext;
-import com.fatelocked.guardian.GuardResult;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.StrictModePause;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
 import com.fatelocked.guardian.StrictModeAuditPresenter;
+import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.guardian.travel.RuneLiteTravelAvailability;
 import com.fatelocked.guardian.travel.TravelActionResolver;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
@@ -44,14 +44,12 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.Constants;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
-import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.Varbits;
@@ -411,7 +409,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             travelAvailability,
             this::writeTravelChat,
             this::writeTravelAudit,
-            this::handleGenericGuard,
             (stage, error) -> log.debug(
                 "Travel Guardian {} failed: {}", stage, error.getMessage()),
             Clock.systemUTC());
@@ -1093,73 +1090,27 @@ java.util.Optional<DetectedEvent> detected =
     }
 
     /**
-     * Tag right-click menu entries whose target stands in a locked chunk with a
-     * red (LOCKED) marker — the "are you sure?" before you ever click.
+     * Strict Mode: stop a click only when it is exactly matched travel and
+     * fresh rules bound to this character prove the destination locked. One
+     * trust gate covers the only click the plugin ever consumes; walking,
+     * NPCs, objects, banks and equipment are never blocked.
      */
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
     {
         FateLockedBundle current = bundle;
-        boolean freshRules = rulesAreFresh();
-        boolean travelAccountMatch = strictTravelAccountMatches(current);
-        FateRuleEngine travelRules = new FateRuleEngine(
-            current, travelAccountMatch, false);
-        GuardContext travelContext = new GuardContext(
-            config.strictMode(), strictPause.isPaused(), travelAccountMatch,
-            freshRules, travelRules);
-        boolean genericAccountMatch = currentAccountMatches(current);
-        FateRuleEngine genericRules = new FateRuleEngine(
-            current, genericAccountMatch, false);
-        GuardContext genericContext = new GuardContext(
-            config.strictMode(), strictPause.isPaused(), genericAccountMatch,
-            freshRules, genericRules);
+        boolean accountMatch = strictTravelAccountMatches(current);
+        FateRuleEngine rules = new FateRuleEngine(current, accountMatch, false);
+        GuardContext context = new GuardContext(
+            config.strictMode(), strictPause.isPaused(), accountMatch,
+            rulesAreFresh(), rules);
         CanonicalChunk origin = null;
         Player local = client.getLocalPlayer();
         if (local != null && local.getWorldLocation() != null)
         {
             origin = CanonicalChunk.of(local.getWorldLocation());
         }
-        travelGuardianShell.handle(
-            event, client, origin, travelContext, travelRules, genericContext);
-    }
-
-    private void handleGenericGuard(
-        MenuOptionClicked event, GuardContext context)
-    {
-        GuardedAction action = guardedActionFactory.from(
-            event.getMenuEntry(), client);
-        GuardResult result = strictClickHandler.handle(event, action, context);
-        if (result.getOutcome() != GuardResult.Outcome.BLOCK) return;
-
-        String target = action.getTarget().isEmpty()
-            ? result.getDecision().getLabel() : action.getTarget();
-        String reason = result.getDecision().getReason();
-        reason = reason == null || reason.trim().isEmpty()
-            ? "is locked" : "is " + reason;
-        ChatMessageBuilder message = new ChatMessageBuilder()
-            .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-            .append(ChatColorType.NORMAL).append(
-                "Prevented: " + target + " \u2014 " + reason + ".");
-        chatMessageManager.queue(QueuedMessage.builder()
-            .type(ChatMessageType.GAMEMESSAGE)
-            .runeLiteFormattedMessage(message.build())
-            .build());
-        if (strictAuditLog != null)
-        {
-            try
-            {
-                String chunk = action.getChunk() == null ? null
-                    : action.getChunk().getCx() + "," + action.getChunk().getCy();
-                strictAuditLog.append(new StrictModeAuditEntry(
-                    System.currentTimeMillis(), action.getKind().name(),
-                    action.getTarget(), chunk, reason));
-                updateStrictAuditPanel();
-            }
-            catch (IOException ex)
-            {
-                log.debug("Could not write Strict Mode audit log: {}", ex.getMessage());
-            }
-        }
+        travelGuardianShell.handle(event, client, origin, context, rules);
     }
 
     private void writeTravelChat(String text)
@@ -1198,7 +1149,23 @@ java.util.Optional<DetectedEvent> detected =
     private void updateStrictModePanel()
     {
         panel.updateStrictMode(
-            config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds());
+            config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
+            strictModeReadiness().getReason());
+    }
+
+    /** Whether Strict Mode can act right now, from the same facts as its trust gate. */
+    StrictModeReadiness strictModeReadiness()
+    {
+        FateLockedBundle current = bundle;
+        Player local = client.getLocalPlayer();
+        return StrictModeReadiness.evaluate(
+            config.strictMode(),
+            strictPause.isPaused(),
+            current.getRules() != null && !current.isLegacyRules(),
+            current.getRules() == null ? null : current.getRules().getAccount(),
+            local == null ? null : local.getName(),
+            strictTravelAccountMatches(current),
+            rulesAreFresh());
     }
     /**
      * Whether the active rules are recent enough for Strict Mode to act on.
@@ -1221,6 +1188,10 @@ java.util.Optional<DetectedEvent> detected =
         if (exported == null || exported.isAfter(now.plus(EXPORT_CLOCK_SKEW))) return false;
         return Duration.between(exported, now).compareTo(FRESH_RULES_WINDOW) < 0;
     }
+    /**
+     * Tag right-click menu entries whose target stands in a locked chunk with a
+     * red (LOCKED) marker: the "are you sure?" before you ever click.
+     */
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
     {
@@ -1253,49 +1224,6 @@ MenuEntry entry = event.getMenuEntry();
         if (!base.contains("(LOCKED)"))
         {
             entry.setTarget(base + " <col=ef4444>(LOCKED)</col>");
-        }
-    }
-
-    /**
-     * Resolve the world tile a menu entry points at, where feasible — using the
-     * MenuEntry's typed accessors rather than decoding the raw type int (which
-     * carries a +2000 offset on deprioritized entries and led to both missed
-     * tags and false positives).
-     */
-    private WorldPoint menuTargetWorldPoint(MenuEntry entry)
-    {
-        // NPCs: use the resolved actor, independent of the (possibly offset)
-        // action type, so deprioritized NPC options are still tagged.
-        NPC npc = entry.getNpc();
-        if (npc != null) return npc.getWorldLocation();
-
-        switch (entry.getType())
-        {
-            case GAME_OBJECT_FIRST_OPTION:
-            case GAME_OBJECT_SECOND_OPTION:
-            case GAME_OBJECT_THIRD_OPTION:
-            case GAME_OBJECT_FOURTH_OPTION:
-            case GAME_OBJECT_FIFTH_OPTION:
-            case EXAMINE_OBJECT:
-            case GROUND_ITEM_FIRST_OPTION:
-            case GROUND_ITEM_SECOND_OPTION:
-            case GROUND_ITEM_THIRD_OPTION:
-            case GROUND_ITEM_FOURTH_OPTION:
-            case GROUND_ITEM_FIFTH_OPTION:
-            case EXAMINE_ITEM_GROUND:
-            case WALK:
-            {
-                // For these, param0/param1 are scene coordinates. Validate the
-                // range so a non-tile entry with junk params can't resolve to a
-                // bogus (often "locked") far-off chunk.
-                int sceneX = entry.getParam0();
-                int sceneY = entry.getParam1();
-                if (sceneX < 0 || sceneX >= Constants.SCENE_SIZE
-                    || sceneY < 0 || sceneY >= Constants.SCENE_SIZE) return null;
-                return WorldPoint.fromScene(client, sceneX, sceneY, client.getPlane());
-            }
-            default:
-                return null;
         }
     }
 

@@ -35,12 +35,15 @@ public class GuardedActionFactoryTest
     }
 
     @Test
-    public void recognizesMovementTeleportAndEquipment()
+    public void walkingHasNoDestinationWhileTeleportAndEquipmentAreRecognized()
     {
+        // "Walk here" carries viewport pixel coordinates, not a scene tile,
+        // so it is never given a chunk (and never tagged).
         MenuEntry walk = entry("Walk here", "");
         when(walk.getType()).thenReturn(MenuAction.WALK);
-        when(walk.getParam0()).thenReturn(-1);
-        assertEquals(GuardedAction.Kind.MOVEMENT,
+        when(walk.getParam0()).thenReturn(10);
+        when(walk.getParam1()).thenReturn(20);
+        assertEquals(GuardedAction.Kind.UNKNOWN,
             factory.from(walk, client).getKind());
         assertNull(factory.from(walk, client).getChunk());
 
