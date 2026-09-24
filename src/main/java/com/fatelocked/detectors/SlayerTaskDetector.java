@@ -23,9 +23,34 @@ public final class SlayerTaskDetector
     {
         this.gson = gson;
         this.path = path;
-        state = Files.exists(path)
-            ? gson.fromJson(Files.readString(path), State.class) : new State();
-        if (state == null) state = new State();
+        state = load();
+    }
+
+    /**
+     * Read the saved assignment. A damaged or unreadable file (truncated,
+     * hand-edited, or written by a different version) is moved aside as
+     * {@code .corrupt-<millis>} and the detector starts with no assignment,
+     * the same recovery the event history uses, so it can never stop the
+     * plugin from starting.
+     */
+    private State load() throws IOException
+    {
+        if (!Files.exists(path)) return new State();
+        try
+        {
+            State loaded = gson.fromJson(
+                new String(Files.readAllBytes(path), StandardCharsets.UTF_8),
+                State.class);
+            return loaded == null ? new State() : loaded;
+        }
+        catch (RuntimeException error)
+        {
+            Files.move(path,
+                path.resolveSibling(path.getFileName() + ".corrupt-"
+                    + System.currentTimeMillis()),
+                StandardCopyOption.REPLACE_EXISTING);
+            return new State();
+        }
     }
 
     public synchronized void assignment(

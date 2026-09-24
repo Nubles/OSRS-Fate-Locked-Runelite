@@ -343,12 +343,14 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         connectionSettings.clearLegacySettings();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
+        // Local state is optional: a store that can't be opened leaves its
+        // feature off for this session, and never stops the plugin starting.
         try
         {
             slayerTaskDetector = new SlayerTaskDetector(gson,
                 dataDirectory.toPath().resolve("slayer-assignment.json"));
         }
-        catch (IOException ex)
+        catch (IOException | RuntimeException ex)
         {
             log.warn("Could not open Slayer assignment state", ex);
             slayerTaskDetector = null;
@@ -362,7 +364,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
                 dataPath.resolve("event-" + "outbox.json"));
             historySaveFailed = false;
         }
-        catch (IOException ex)
+        catch (IOException | RuntimeException ex)
         {
             log.warn("Could not open local Fate event history", ex);
             eventHistory = null;
@@ -373,7 +375,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             strictAuditLog = new StrictModeAuditLog(gson,
                 dataDirectory.toPath().resolve("strict-mode-events.json"));
         }
-        catch (IOException ex)
+        catch (IOException | RuntimeException ex)
         {
             log.warn("Could not open Strict Mode audit log", ex);
             strictAuditLog = null;

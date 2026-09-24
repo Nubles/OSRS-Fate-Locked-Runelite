@@ -26,6 +26,33 @@ public class ExpandedDetectorsTest
     }
 
     @Test
+    public void damagedSlayerFileIsMovedAsideInsteadOfFailing() throws Exception
+    {
+        for (String damaged : new String[] {
+            "{\"name\":\"Abyssal demons\",",   // truncated mid-write
+            "{\"startCount\":\"many\"}",        // field type from another version
+            "[]",                                   // not an object at all
+        })
+        {
+            java.nio.file.Path dir = Files.createTempDirectory("slayer-damaged");
+            java.nio.file.Path path = dir.resolve("slayer-assignment.json");
+            Files.write(path, damaged.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            SlayerTaskDetector detector = new SlayerTaskDetector(new Gson(), path);
+
+            assertFalse(damaged, detector.completion("task complete").isPresent());
+            assertFalse(damaged, Files.exists(path));
+            try (java.util.stream.Stream<java.nio.file.Path> kept = Files.list(dir))
+            {
+                assertEquals(damaged, 1, kept.filter(p -> p.getFileName().toString()
+                    .startsWith("slayer-assignment.json.corrupt-")).count());
+            }
+            detector.assignment("Kurask", null, 0, false);
+            assertTrue(damaged, detector.completion("task complete").isPresent());
+        }
+    }
+
+    @Test
     public void diaryEmitsOnlyZeroToOne()
     {
         DiaryTierReviewDetector detector = new DiaryTierReviewDetector();

@@ -111,6 +111,36 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void damagedLocalStateFilesDoNotStopStartup() throws Exception
+    {
+        File dir = folder.newFolder("damaged-state");
+        write(new File(dir, "slayer-assignment.json"), "{\"name\":\"Abyssal demons\",");
+        write(new File(dir, "event-history.json"), "[");
+        write(new File(dir, "strict-mode-events.json"), "{\"entries\":");
+
+        Harness harness = new Harness(dir);
+        try
+        {
+            assertEquals(1, harness.navigationAdds.get());
+            assertNotNull(harness.panel.sectionForTest("Guardian"));
+            assertNotNull(harness.panel.connectButtonForTest());
+            File[] kept = dir.listFiles((parent, name) ->
+                name.startsWith("slayer-assignment.json.corrupt-"));
+            assertEquals(1, kept == null ? 0 : kept.length);
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    private static void write(File file, String text) throws Exception
+    {
+        java.nio.file.Files.write(file.toPath(),
+            text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    @Test
     public void decliningConnectWarningKeepsPairingAndBrowserUntouched() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("decline-consent"));
