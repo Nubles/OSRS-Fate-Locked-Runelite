@@ -9,6 +9,7 @@ import okhttp3.Response;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
 
@@ -18,6 +19,17 @@ final class TrackerConnectionController
     static final long WAITING_POLL_SECONDS = 5;
     static final long FAILURE_BACKOFF_SECONDS = 30;
     static final long MAX_FAILURE_BACKOFF_SECONDS = 15 * 60;
+    /** How long a pairing started here waits for the browser to publish. */
+    static final long PAIRING_CONFIRM_SECONDS = 10 * 60;
+    /** Check every WAITING_POLL_SECONDS this long, then every PAIRING_SLOW_POLL_SECONDS. */
+    static final long PAIRING_FAST_POLL_WINDOW_SECONDS = 2 * 60;
+    static final long PAIRING_SLOW_POLL_SECONDS = 15;
+    /** The relay has nothing yet because the player is still confirming. */
+    static final String CONFIRM_MESSAGE = "Confirm in browser";
+    /** A pairing started here got no profile within PAIRING_CONFIRM_SECONDS. */
+    static final String NO_PROFILE_MESSAGE = "No profile received";
+    /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
+    static final String NO_RECENT_UPDATE_MESSAGE = "No recent update";
 
     interface RelayBundleImporter
     {
@@ -40,6 +52,8 @@ final class TrackerConnectionController
     private Instant nextAutomaticPoll = Instant.EPOCH;
     private int consecutiveFailures;
     private String currentIdentityCode;
+    /** When this session began the current pairing; null once it imports. */
+    private Instant pairingStartedAt;
     private boolean stopped;
     private volatile TrackerConnectionSnapshot snapshot =
         TrackerConnectionSnapshot.disconnected();
@@ -81,8 +95,10 @@ final class TrackerConnectionController
             lastSync = null;
             resetAutomaticPollingLocked();
             currentIdentityCode = code;
+            pairingStartedAt = clock.instant();
             stopped = false;
-            snapshot = TrackerConnectionSnapshot.waiting();
+            snapshot = TrackerConnectionSnapshot.of(
+                TrackerConnectionState.WAITING, null, null, CONFIRM_MESSAGE);
             listener.accept(snapshot);
         }
         return PairingSupport.trackerPairingUrl(code);
@@ -117,6 +133,7 @@ final class TrackerConnectionController
                 lastSync = null;
                 resetAutomaticPollingLocked();
                 currentIdentityCode = code;
+                pairingStartedAt = null;
                 snapshot = code.isEmpty()
                     ? TrackerConnectionSnapshot.disconnected()
                     : TrackerConnectionSnapshot.waiting();
@@ -218,6 +235,7 @@ final class TrackerConnectionController
             activePoll = null;
             acceptedVersion = null;
             lastSync = null;
+            pairingStartedAt = null;
             resetAutomaticPollingLocked();
             snapshot = TrackerConnectionSnapshot.disconnected();
             listener.accept(snapshot);
@@ -262,6 +280,15 @@ final class TrackerConnectionController
         return snapshot;
     }
 
+    /** Whether a relay request is in flight; its handling ends by clearing this. */
+    boolean pollInFlight()
+    {
+        synchronized (pollLock)
+        {
+            return activePoll != null;
+        }
+    }
+
     private RelayPollToken beginPoll(String code, String version)
     {
         synchronized (pollLock)
@@ -296,19 +323,7 @@ final class TrackerConnectionController
             }
             if (current.code() == 404)
             {
-                publishIfCurrent(token,
-                    TrackerConnectionState.EXPIRED,
-                    "Pairing request expired");
-                if (token.acceptedVersion == null)
-                {
-                    scheduleFailure(token, WAITING_POLL_SECONDS,
-                        CONNECTED_POLL_SECONDS);
-                }
-                else
-                {
-                    scheduleHealthyPoll(token);
-                }
-                clearPoll(token);
+                handleNotFound(token);
                 return;
             }
             if (!current.isSuccessful() || current.body() == null)
@@ -461,6 +476,7 @@ final class TrackerConnectionController
                         }
                         acceptedVersion = version;
                         lastSync = acceptedAt;
+                        pairingStartedAt = null;
                         scheduleHealthyPollLocked();
                         snapshot = TrackerConnectionSnapshot.connected(
                             acceptedAt, version);
@@ -481,6 +497,60 @@ final class TrackerConnectionController
             scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
                 MAX_FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
+        }
+    }
+
+    /**
+     * The relay has no profile for this code. While a pairing this session
+     * started is waiting for the browser, that is expected: say "Confirm in
+     * browser" and keep checking, quickly at first. After 10 minutes, say no
+     * profile arrived. Otherwise the relay's copy has lapsed (it keeps one
+     * for 24 hours after the web app last published): the pairing still
+     * works, and opening the web tracker sends the rules again.
+     */
+    private void handleNotFound(RelayPollToken token)
+    {
+        Instant now = clock.instant();
+        Instant startedAt;
+        synchronized (pollLock)
+        {
+            startedAt = pairingStartedAt;
+        }
+        if (token.acceptedVersion == null && startedAt != null)
+        {
+            long waited = Duration.between(startedAt, now).getSeconds();
+            if (waited < PAIRING_CONFIRM_SECONDS)
+            {
+                publishIfCurrent(token,
+                    TrackerConnectionState.WAITING, CONFIRM_MESSAGE);
+                scheduleAfter(token, waited < PAIRING_FAST_POLL_WINDOW_SECONDS
+                    ? WAITING_POLL_SECONDS : PAIRING_SLOW_POLL_SECONDS);
+            }
+            else
+            {
+                publishIfCurrent(token,
+                    TrackerConnectionState.EXPIRED, NO_PROFILE_MESSAGE);
+                scheduleHealthyPoll(token);
+            }
+        }
+        else
+        {
+            publishIfCurrent(token,
+                TrackerConnectionState.WAITING, NO_RECENT_UPDATE_MESSAGE);
+            scheduleHealthyPoll(token);
+        }
+        clearPoll(token);
+    }
+
+    private void scheduleAfter(RelayPollToken token, long seconds)
+    {
+        synchronized (pollLock)
+        {
+            if (isPollCurrentLocked(token))
+            {
+                consecutiveFailures = 0;
+                nextAutomaticPoll = clock.instant().plusSeconds(seconds);
+            }
         }
     }
 
@@ -680,7 +750,10 @@ final class TrackerConnectionController
         }
         else if (state == TrackerConnectionState.WAITING)
         {
-            return TrackerConnectionSnapshot.waiting();
+            return explicitMessage == null
+                ? TrackerConnectionSnapshot.waiting()
+                : TrackerConnectionSnapshot.of(
+                    state, lastSync, acceptedVersion, explicitMessage);
         }
         else if (state == TrackerConnectionState.CONNECTED)
         {
