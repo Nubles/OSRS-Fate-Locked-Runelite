@@ -295,8 +295,8 @@ public class TrackerConnectionControllerTest
         Thread.sleep(350);
         controller.poll();
         RecordedRequest replacement = takeRelay();
-        waitFor(() -> controller.snapshot().getState()
-            == TrackerConnectionState.EXPIRED);
+        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+            .equals(controller.snapshot().getMessage()));
 
         assertEquals("/r/" + replacementCode, replacement.getPath());
         assertEquals(replacementCode, settings.pairingCode());
@@ -383,8 +383,8 @@ public class TrackerConnectionControllerTest
 
         takeRelay();
         assertNull(server.takeRequest(150, TimeUnit.MILLISECONDS));
-        waitFor(() -> controller.snapshot().getState()
-            == TrackerConnectionState.EXPIRED);
+        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+            .equals(controller.snapshot().getMessage()));
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
     }
@@ -767,7 +767,7 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void notFoundPublishesExpiredWithoutReplacingTheBundle()
+    public void notFoundAfterAnImportSaysNoRecentUpdateAndKeepsTheBundle()
         throws Exception
     {
         connect(5, "\"5\"");
@@ -776,8 +776,11 @@ public class TrackerConnectionControllerTest
 
         controller.poll();
         takeRelay();
-        waitFor(() -> controller.snapshot().getState()
-            == TrackerConnectionState.EXPIRED);
+        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+            .equals(controller.snapshot().getMessage()));
+        // The pairing still works: the relay's copy lapsed, which is not red.
+        assertEquals(TrackerConnectionState.WAITING,
+            controller.snapshot().getState());
 
         assertEquals(INITIAL_CODE, settings.pairingCode());
         assertEquals("5", controller.snapshot().getAcceptedVersion());
@@ -804,8 +807,8 @@ public class TrackerConnectionControllerTest
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.poll();
         RecordedRequest retry = takeRelay();
-        waitFor(() -> controller.snapshot().getState()
-            == TrackerConnectionState.EXPIRED);
+        waitFor(() -> TrackerConnectionController.CONFIRM_MESSAGE
+            .equals(controller.snapshot().getMessage()));
         assertEquals("/r/" + code, retry.getPath());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
@@ -865,6 +868,73 @@ public class TrackerConnectionControllerTest
         assertEquals(TrackerConnectionState.DISCONNECTED,
             controller.snapshot().getState());
         assertNoFurtherRequest();
+    }
+
+    @Test
+    public void aNewPairingWaitsForTheBrowserInsteadOfExpiring() throws Exception
+    {
+        controller.beginPairing();
+        assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
+        assertEquals(TrackerConnectionController.CONFIRM_MESSAGE,
+            controller.snapshot().getMessage());
+
+        // The browser has not published yet: the relay answers 404.
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
+        assertEquals(TrackerConnectionController.CONFIRM_MESSAGE,
+            controller.snapshot().getMessage());
+
+        // Checked again after 5 seconds, not after a growing back-off.
+        clock.advanceSeconds(4);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+        clock.advanceSeconds(1);
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void aPairingChecksLessOftenAfterTwoMinutes() throws Exception
+    {
+        controller.beginPairing();
+        clock.advanceSeconds(TrackerConnectionController.PAIRING_FAST_POLL_WINDOW_SECONDS);
+
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        clock.advanceSeconds(TrackerConnectionController.PAIRING_SLOW_POLL_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+        clock.advanceSeconds(1);
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        takeRelay();
+    }
+
+    @Test
+    public void aPairingWithNoProfileAfterTenMinutesSaysSo() throws Exception
+    {
+        controller.beginPairing();
+        clock.advanceSeconds(TrackerConnectionController.PAIRING_CONFIRM_SECONDS);
+
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> TrackerConnectionController.NO_PROFILE_MESSAGE
+            .equals(controller.snapshot().getMessage()));
+
+        assertEquals(TrackerConnectionState.EXPIRED, controller.snapshot().getState());
     }
 
     private void connect(int version, String etag) throws Exception

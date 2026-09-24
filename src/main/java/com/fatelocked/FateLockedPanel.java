@@ -560,10 +560,32 @@ class FateLockedPanel extends PluginPanel
         }
         connectionVal.setText(text);
         connectionVal.setForeground(color);
+        connectionVal.setToolTipText(connectionHelp(message));
         lastSyncVal.setText(copy.getLastSync() == null
             ? "\u2014" : formatUtc(copy.getLastSync()));
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);
+    }
+
+    /** A longer explanation for the short connection states. */
+    private static String connectionHelp(String message)
+    {
+        if (TrackerConnectionController.CONFIRM_MESSAGE.equals(message))
+        {
+            return "Confirm the profile in the browser tab RuneLite opened. "
+                + "RuneLite checks every few seconds.";
+        }
+        if (TrackerConnectionController.NO_PROFILE_MESSAGE.equals(message))
+        {
+            return "No profile arrived within 10 minutes. "
+                + "Press Connect tracker to try again.";
+        }
+        if (TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE.equals(message))
+        {
+            return "The tracker hasn't sent your rules in the last 24 hours. "
+                + "Open the web tracker to send them again.";
+        }
+        return message;
     }
 
     private static String escapeHtml(String text)
