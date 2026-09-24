@@ -110,7 +110,6 @@ import java.time.Instant;
 import java.time.Duration;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -222,9 +221,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     private Path watcherLoadedPath;
     private FileTime watcherLastModified;
 
-    /** Last seen real level per skill, to detect genuine level-ups for roll nudges. */
-    private final Map<Skill, Integer> lastLevels = new EnumMap<>(Skill.class);
-
     /** Achievement-diary completion varbits (1 = that tier done), watched for 0→1. */
     private static final int[] DIARY_VARBITS = {
         Varbits.DIARY_ARDOUGNE_EASY, Varbits.DIARY_ARDOUGNE_MEDIUM, Varbits.DIARY_ARDOUGNE_HARD, Varbits.DIARY_ARDOUGNE_ELITE,
@@ -333,6 +329,14 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     private String slayerWarnedFor;
     /** Last account name we warned about, so we nag at most once per character. */
     private String lastAccountWarned;
+    /**
+     * Whether the next LOGGED_IN starts a new session: set by the login
+     * screen, logging in, hopping and a lost connection, but not by the
+     * loading screens RuneLite also reports as LOGGED_IN.
+     */
+    private boolean awaitingLogin = true;
+    /** Account hash of the current login; -1 until one is seen. */
+    private long loggedInAccountHash = -1;
 
 
     @Provides
@@ -345,6 +349,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     protected void startUp()
     {
         connectionSettings.clearLegacySettings();
+        startSessionTracking();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
         // Local state is optional: a store that can't be opened leaves its
@@ -551,23 +556,67 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Subscribe
     public void onGameStateChanged(GameStateChanged ev)
     {
-        if (ev.getGameState() == GameState.LOGGED_IN)
+        GameState state = ev.getGameState();
+        if (state == GameState.LOGIN_SCREEN)
         {
-            lastChunk = null; // force re-announce on next tick
-            lastAccountWarned = null; // re-check the bound account for this login
-            // The client fires StatChanged for every skill at login; clearing
-            // here lets those re-establish the baseline without firing nudges.
-            lastLevels.clear();
-            skillLevelDetector.clear();
-            diaryState.clear(); // re-baseline diaries this login (don't nudge already-done tiers)
-            diaryBaselined = false;
-            warnedOverTier.clear(); // re-warn over-tier gear once per session
+            // Logged out: the next login warns and announces afresh.
+            awaitingLogin = true;
+            forgetLoginWarnings();
+            return;
+        }
+        if (state == GameState.LOGGING_IN || state == GameState.HOPPING
+            || state == GameState.CONNECTION_LOST)
+        {
+            awaitingLogin = true;
+            return;
+        }
+        if (state != GameState.LOGGED_IN) return;
 
-        }
-        else if (ev.getGameState() == GameState.LOGIN_SCREEN)
-        {
-            lastAccountWarned = null;
-        }
+        // RuneLite also reports LOGGED_IN after every loading screen. Only a
+        // login, a hop, a reconnect or a different account starts a new
+        // session (RuneLite's XP tracker makes the same distinction).
+        // Resetting after each loading screen repeated the account warning
+        // and its sound, re-announced the chunk and dropped level-ups.
+        long accountHash = client.getAccountHash();
+        boolean newAccount = accountHash != loggedInAccountHash;
+        boolean newSession = awaitingLogin || newAccount;
+        awaitingLogin = false;
+        loggedInAccountHash = accountHash;
+        if (newAccount) forgetLoginWarnings();
+        if (newSession) resetBaselines();
+    }
+
+    /**
+     * Start session tracking from a clean slate. A login already under way
+     * (the plugin turned on in game) is adopted, so its next loading screen
+     * is not mistaken for a new login.
+     */
+    private void startSessionTracking()
+    {
+        boolean loggedIn = client.getGameState() == GameState.LOGGED_IN;
+        awaitingLogin = !loggedIn;
+        loggedInAccountHash = loggedIn ? client.getAccountHash() : -1;
+        forgetLoginWarnings();
+        resetBaselines();
+    }
+
+    /** Let the account and gear warnings, and the chunk announcement, show once more. */
+    private void forgetLoginWarnings()
+    {
+        lastChunk = null;
+        lastAccountWarned = null;
+        warnedOverTier.clear();
+    }
+
+    /**
+     * The client sends every skill and varbit again after a login, hop or
+     * reconnect; clearing here lets those set the baseline without nudges.
+     */
+    private void resetBaselines()
+    {
+        skillLevelDetector.clear();
+        diaryState.clear();
+        diaryBaselined = false;
     }
 
     // ── Roll reminders ────────────────────────────────────────────────────────
