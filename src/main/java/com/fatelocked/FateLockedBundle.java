@@ -323,7 +323,15 @@ public class FateLockedBundle
         return loadFromJson(gson, json);
     }
 
-    /** Inflate a base64-encoded gzip payload (the compressed clipboard form) to JSON. */
+    /**
+     * Largest inflated bundle accepted, the same limit as the web app's stream
+     * overlay. A bundle for a fully unlocked account inflates to about 120 KiB,
+     * so only a corrupt or hostile payload (a gzip bomb) comes near it; it is
+     * refused before it can exhaust the client's memory.
+     */
+    static final int MAX_INFLATED_BYTES = 8 * 1024 * 1024;
+
+    /** Inflate a base64-encoded gzip payload (the compressed clipboard and relay form) to JSON. */
     private static String inflate(String base64)
     {
         try
@@ -334,7 +342,15 @@ public class FateLockedBundle
             {
                 byte[] buf = new byte[8192];
                 int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                while ((n = in.read(buf)) > 0)
+                {
+                    if (out.size() > MAX_INFLATED_BYTES - n)
+                    {
+                        throw new JsonSyntaxException("Compressed bundle is larger than "
+                            + (MAX_INFLATED_BYTES / (1024 * 1024)) + " MiB when inflated");
+                    }
+                    out.write(buf, 0, n);
+                }
                 return new String(out.toByteArray(), StandardCharsets.UTF_8);
             }
         }
