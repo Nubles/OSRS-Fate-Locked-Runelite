@@ -202,6 +202,8 @@ public class FateLockedPluginTravelAccountBindingTest
                 TrackerConnectionSnapshot.connected(Instant.now(), "1"));
             setField(plugin, "connectionSettings", connectionSettings);
             setField(plugin, "connectionController", connectionController);
+            // Rules delivered by the relay stay fresh while it confirms them.
+            setField(plugin, "rulesSource", FateLockedPlugin.RulesSource.RELAY);
             setField(plugin, "travelGuardianShell", shell);
         }
     }

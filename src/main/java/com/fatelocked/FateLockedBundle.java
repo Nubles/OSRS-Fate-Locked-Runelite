@@ -314,12 +314,33 @@ public class FateLockedBundle
             Collections.<CanonicalChunk, String>emptyMap());
     }
 
+    /**
+     * When the tracker exported these rules, or null for legacy bundles and
+     * unreadable timestamps. Freshness for file and clipboard imports counts
+     * from here, never from when the plugin happened to load them.
+     */
+    public java.time.Instant exportedAt()
+    {
+        String raw = rules == null ? null : rules.getExportedAt();
+        if (raw == null || raw.trim().isEmpty()) return null;
+        try
+        {
+            return java.time.Instant.parse(raw.trim());
+        }
+        catch (java.time.format.DateTimeParseException ex)
+        {
+            return null;
+        }
+    }
+
     /** Marker prefix the web app uses for a gzip+base64 clipboard payload. */
     private static final String GZ_PREFIX = "FLGZ:";
 
     public static FateLockedBundle loadFromFile(Gson gson, Path path) throws IOException, JsonSyntaxException
     {
-        String json = new String(Files.readAllBytes(path));
+        // The web app writes UTF-8; real bundles contain characters such as
+        // "·" that the platform's default charset would garble on Windows.
+        String json = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         return loadFromJson(gson, json);
     }
 
@@ -378,9 +399,12 @@ public class FateLockedBundle
         {
             throw new IllegalArgumentException("Bundle v4 is missing required rules fields");
         }
-        if (raw == null || raw.chunks == null)
+        if (raw == null || raw.chunks == null || raw.chunks.isEmpty())
         {
-            return empty();
+            // Every real bundle carries the web app's chunk map. Anything else
+            // (empty text, {}, null, a half-written file) is not a bundle and
+            // must never replace the active rules with nothing.
+            throw new JsonSyntaxException("Not a Fate Locked bundle: it has no chunk data");
         }
 
         int offsetCx = raw.chunkOffset != null ? raw.chunkOffset.cx : 0;
