@@ -196,6 +196,12 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
     private volatile Instant rulesImportedAt;
+    /** Where the active rules came from; freshness depends on it (see rulesAreFresh). */
+    private volatile RulesSource rulesSource = RulesSource.NONE;
+    /** Strict Mode acts only on rules confirmed or exported within this window. */
+    static final Duration FRESH_RULES_WINDOW = Duration.ofMinutes(15);
+    /** How far in the future an export time may be before it is not trusted. */
+    static final Duration EXPORT_CLOCK_SKEW = Duration.ofMinutes(5);
     private final StrictModePause strictPause = new StrictModePause(Clock.systemUTC());
     private TravelActionResolver travelActionResolver;
     private TravelRuleEvaluator travelRuleEvaluator;
@@ -432,7 +438,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         wirePanelActions(
             panel,
             json -> applyPastedBundle(json, ImportSource.PASTE),
-            () -> clientThread.invoke(this::reloadBundle),
+            () -> clientThread.invoke(this::reloadBundleOnRequest),
             this::beginTrackerPairing);
         panel.setGuardianCallbacks(
             this::pauseStrictModeForSixtySeconds,
@@ -487,6 +493,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         mapMarkers.clear();
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         bundle = FateLockedBundle.empty();
+        rulesSource = RulesSource.NONE;
         lastChunk = null;
     }
 
@@ -498,7 +505,8 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         String key = ev.getKey();
         if ("autoReload".equals(key))
         {
-            reloadBundle();
+            // Only start or stop the watcher. Reloading here replaced the
+            // tracker's rules with an old file, or with nothing at all.
             stopWatcher();
             startWatcher();
         }
@@ -1192,11 +1200,26 @@ java.util.Optional<DetectedEvent> detected =
         panel.updateStrictMode(
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds());
     }
-    private boolean rulesAreFresh()
+    /**
+     * Whether the active rules are recent enough for Strict Mode to act on.
+     * Tracker rules stay fresh while the relay keeps confirming them. File and
+     * clipboard rules, and tracker rules no longer being checked, count from
+     * when the tracker exported them, so an old file can never block anything.
+     */
+    boolean rulesAreFresh()
     {
-        Instant stamp = trackerPaired() ? trackerLastSync() : rulesImportedAt;
-        return stamp != null
-            && Duration.between(stamp, Instant.now()).toMinutes() < 15;
+        Instant now = Instant.now();
+        RulesSource source = rulesSource;
+        if (source == RulesSource.NONE) return false;
+        if (source == RulesSource.RELAY && trackerPaired())
+        {
+            Instant confirmed = trackerLastSync();
+            return confirmed != null
+                && Duration.between(confirmed, now).compareTo(FRESH_RULES_WINDOW) < 0;
+        }
+        Instant exported = bundle.exportedAt();
+        if (exported == null || exported.isAfter(now.plus(EXPORT_CLOCK_SKEW))) return false;
+        return Duration.between(exported, now).compareTo(FRESH_RULES_WINDOW) < 0;
     }
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
@@ -1322,7 +1345,8 @@ MenuEntry entry = event.getMenuEntry();
 
         if (file == null)
         {
-            bundle = FateLockedBundle.empty();
+            // No file is not "no rules": keep the active tracker or clipboard
+            // rules instead of replacing them with nothing.
             refreshPanel();
             return;
         }
@@ -1331,6 +1355,8 @@ MenuEntry entry = event.getMenuEntry();
             FateLockedBundle parsed = FateLockedBundle.loadFromFile(gson, file);
             bundle = parsed;
             rulesImportedAt = Instant.now();
+            rulesSource = RulesSource.FILE;
+            trackerRulesReplaced();
             log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
                 file, parsed.getRegionChunks().size(), parsed.getUnlockedRegions().size());
         }
@@ -1340,6 +1366,28 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus("import failed — using previous rules", false);
         }
         refreshPanel();
+    }
+
+    /** The sidebar's "Reload from file": say so when there is no file to load. */
+    private void reloadBundleOnRequest()
+    {
+        if (effectiveBundlePath() == null)
+        {
+            panel.flashStatus(
+                "no bundle file in .runelite/fate-locked \u2014 rules unchanged", false);
+            return;
+        }
+        reloadBundle();
+    }
+
+    /** A local import replaced the rules: the tracker's copy wins on its next check. */
+    private void trackerRulesReplaced()
+    {
+        TrackerConnectionController controller = connectionController;
+        if (controller != null)
+        {
+            controller.localRulesReplacedTrackerRules();
+        }
     }
 
     /**
@@ -1395,24 +1443,23 @@ MenuEntry entry = event.getMenuEntry();
         String trimmed = json == null ? "" : json.trim();
         if (trimmed.matches("[0-9a-f]{32}"))
         {
-            if (invalidImportLimiter.shouldReport(
-                trimmed, System.currentTimeMillis()))
-            {
-                panel.flashStatus(
-                    "pairing code detected \u2014 use Connect tracker", false);
-            }
+            panel.flashStatus(
+                "pairing code detected \u2014 use Connect tracker", false);
             return false;
         }
         FateLockedBundle previousBundle = bundle;
         Instant previousRulesImportedAt = rulesImportedAt;
+        RulesSource previousSource = rulesSource;
         try
         {
             FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, json);
             bundle = parsed;
+            rulesImportedAt = Instant.now();
+            rulesSource = RulesSource.IMPORT;
             refreshPanel();
             panel.flashStatus(
                 "imported " + parsed.getRegionChunks().size() + " regions", true);
-            rulesImportedAt = Instant.now();
+            trackerRulesReplaced();
             log.info(
                 "Fate Locked bundle imported from {}: {} regions",
                 source.name().toLowerCase(),
@@ -1423,12 +1470,14 @@ MenuEntry entry = event.getMenuEntry();
         {
             bundle = previousBundle;
             rulesImportedAt = previousRulesImportedAt;
-            if (!invalidImportLimiter.shouldReport(
+            rulesSource = previousSource;
+            // Every attempt shows its result: a success or a tracker sync may
+            // have replaced the last failure message. Only the log is limited.
+            if (invalidImportLimiter.shouldReport(
                 trimmed, System.currentTimeMillis()))
             {
-                return false;
+                log.warn("Pasted bundle could not be parsed: {}", ex.getMessage());
             }
-            log.warn("Pasted bundle could not be parsed: {}", ex.getMessage());
             panel.flashStatus("import failed — using previous rules", false);
             return false;
         }
@@ -1438,6 +1487,18 @@ MenuEntry entry = event.getMenuEntry();
     {
         CLIPBOARD,
         PASTE
+    }
+
+    enum RulesSource
+    {
+        /** Nothing imported this session. */
+        NONE,
+        /** A bundle file from the data folder. */
+        FILE,
+        /** Pasted into the sidebar, or read from the clipboard. */
+        IMPORT,
+        /** Delivered by the tracker relay. */
+        RELAY
     }
 
     /**
@@ -1464,10 +1525,12 @@ MenuEntry entry = event.getMenuEntry();
 
         FateLockedBundle previousBundle = bundle;
         Instant previousRulesImportedAt = rulesImportedAt;
+        RulesSource previousSource = rulesSource;
         try
         {
             bundle = parsed;
             rulesImportedAt = Instant.now();
+            rulesSource = RulesSource.RELAY;
             refreshPanel();
             panel.flashStatus(
                 "synced " + parsed.getRegionChunks().size()
@@ -1481,6 +1544,7 @@ MenuEntry entry = event.getMenuEntry();
         {
             bundle = previousBundle;
             rulesImportedAt = previousRulesImportedAt;
+            rulesSource = previousSource;
             log.debug(
                 "Relay bundle could not be applied: {}", ex.getMessage());
             return false;

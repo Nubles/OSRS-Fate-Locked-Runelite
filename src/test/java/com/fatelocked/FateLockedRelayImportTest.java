@@ -29,7 +29,7 @@ public class FateLockedRelayImportTest
         "0123456789abcdef0123456789abcdef";
 
     @Test
-    public void manualPairingCodeIsDetectedBeforeParsingAndRepeatedWarningIsSuppressed()
+    public void manualPairingCodeIsDetectedBeforeParsingAndEveryAttemptSaysSo()
         throws Exception
     {
         TestPlugin testPlugin = newPlugin();
@@ -44,12 +44,12 @@ public class FateLockedRelayImportTest
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
-        verify(testPlugin.panel, times(1)).flashStatus(
+        verify(testPlugin.panel, times(2)).flashStatus(
             "pairing code detected — use Connect tracker", false);
     }
 
     @Test
-    public void repeatedMalformedImportKeepsPriorSnapshotAndWarnsOnlyOnce()
+    public void repeatedMalformedImportKeepsPriorSnapshotAndEveryAttemptSaysSo()
         throws Exception
     {
         TestPlugin testPlugin = newPlugin();
@@ -63,7 +63,27 @@ public class FateLockedRelayImportTest
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
-        verify(testPlugin.panel, times(1)).flashStatus(
+        verify(testPlugin.panel, times(2)).flashStatus(
+            "import failed — using previous rules", false);
+    }
+
+    @Test
+    public void aFailedImportAfterASuccessIsNotHiddenUnderTheSuccessMessage()
+        throws Exception
+    {
+        TestPlugin testPlugin = newPlugin();
+
+        assertFalse(applyPastedBundle(testPlugin.plugin, "{bad", "PASTE"));
+        assertTrue(applyPastedBundle(
+            testPlugin.plugin, fixture("bundles/v4-rules.json"), "PASTE"));
+        assertFalse(applyPastedBundle(testPlugin.plugin, "{bad", "PASTE"));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(testPlugin.panel);
+        order.verify(testPlugin.panel).flashStatus(
+            "import failed — using previous rules", false);
+        order.verify(testPlugin.panel).flashStatus(
+            org.mockito.ArgumentMatchers.startsWith("imported "), eq(true));
+        order.verify(testPlugin.panel).flashStatus(
             "import failed — using previous rules", false);
     }
 

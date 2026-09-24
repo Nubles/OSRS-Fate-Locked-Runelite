@@ -832,6 +832,41 @@ public class TrackerConnectionControllerTest
         assertEquals(0, clientTasks.size());
     }
 
+    @Test
+    public void aLocalImportMakesTheNextCheckFetchTheTrackerCopyInFull()
+        throws Exception
+    {
+        connect(5, "\"5\"");
+
+        controller.localRulesReplacedTrackerRules();
+
+        // Due at once, sent without the old validator, and the same version
+        // imports again instead of being answered "unchanged".
+        server.enqueue(relayResponse(5, validV4Payload(), "\"5\""));
+        controller.pollIfDue();
+        RecordedRequest refetch = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertNull(refetch.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED,
+            controller.snapshot().getState());
+        assertEquals("5", controller.snapshot().getAcceptedVersion());
+        assertEquals(2, importer.acceptedPayloads().size());
+        assertNoFurtherRequest();
+    }
+
+    @Test
+    public void aLocalImportBeforeAnyTrackerImportChangesNothing()
+        throws Exception
+    {
+        controller.localRulesReplacedTrackerRules();
+
+        assertEquals(TrackerConnectionState.DISCONNECTED,
+            controller.snapshot().getState());
+        assertNoFurtherRequest();
+    }
+
     private void connect(int version, String etag) throws Exception
     {
         server.enqueue(relayResponse(version, validV4Payload(), etag));

@@ -224,6 +224,27 @@ final class TrackerConnectionController
         }
     }
 
+    /**
+     * A file or clipboard import has replaced the rules this controller
+     * accepted. Forget the accepted version, so the next check fetches the
+     * relay copy in full instead of hearing "unchanged", and make that check
+     * due now: while paired, the tracker's rules win over a local import.
+     */
+    void localRulesReplacedTrackerRules()
+    {
+        synchronized (pollLock)
+        {
+            if (acceptedVersion == null)
+            {
+                return;
+            }
+            generation++;
+            activePoll = null;
+            acceptedVersion = null;
+            resetAutomaticPollingLocked();
+        }
+    }
+
     void stop()
     {
         synchronized (pollLock)

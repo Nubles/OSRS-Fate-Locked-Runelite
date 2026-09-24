@@ -120,11 +120,67 @@ public class FateLockedBundleTest
     @Test
     public void acceptsACompressedBundleUpToTheInflatedLimit() throws Exception
     {
-        // Whitespace parses as no bundle, so this checks only the size limit.
-        FateLockedBundle bundle = FateLockedBundle.loadFromJson(new Gson(),
-            compressed(spaces(FateLockedBundle.MAX_INFLATED_BYTES)));
+        // A real bundle padded with trailing whitespace to exactly the limit.
+        byte[] json = fixtureBytes("bundles/v3-standard.json");
+        byte[] padded = Arrays.copyOf(json, FateLockedBundle.MAX_INFLATED_BYTES);
+        Arrays.fill(padded, json.length, padded.length, (byte) ' ');
 
-        assertNotNull(bundle);
+        FateLockedBundle bundle = FateLockedBundle.loadFromJson(new Gson(), compressed(padded));
+
+        assertEquals(FateLockedBundle.LockState.UNLOCKED,
+            bundle.lockStateAt(new CanonicalChunk(46, 52)));
+    }
+
+    @Test
+    public void refusesTextThatIsNotABundle()
+    {
+        // Each of these used to parse as an empty bundle and wipe the rules.
+        for (String notABundle : new String[] {
+            null, "", "   ", "null", "{}", "{\"version\":3}", "{\"version\":3,\"chunks\":{}}",
+            "{\"profile\":\"x\"}" })
+        {
+            try
+            {
+                FateLockedBundle.loadFromJson(new Gson(), notABundle);
+                fail("expected " + notABundle + " to be refused");
+            }
+            catch (JsonSyntaxException expected)
+            {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("no chunk data"));
+            }
+        }
+    }
+
+    @Test
+    public void readsBundleFilesAsUtf8() throws Exception
+    {
+        String json = new String(fixtureBytes("bundles/v3-standard.json"), StandardCharsets.UTF_8)
+            .replaceFirst("\\{", "{\"profileName\":\"Mid·Run\",");
+        java.nio.file.Path file = java.nio.file.Files.createTempFile("fate-locked-bundle", ".json");
+        try
+        {
+            java.nio.file.Files.write(file, json.getBytes(StandardCharsets.UTF_8));
+            assertEquals("Mid·Run",
+                FateLockedBundle.loadFromFile(new Gson(), file).getProfileName());
+        }
+        finally
+        {
+            java.nio.file.Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
+    public void exposesWhenTheTrackerExportedTheRules() throws Exception
+    {
+        assertEquals(java.time.Instant.parse("2026-07-24T10:00:00Z"),
+            fixture("bundles/v4-rules.json").exportedAt());
+        assertEquals(null, fixture("bundles/v3-standard.json").exportedAt());
+
+        com.google.gson.JsonObject root = new Gson().fromJson(
+            new String(fixtureBytes("bundles/v4-rules.json"), StandardCharsets.UTF_8),
+            com.google.gson.JsonObject.class);
+        root.getAsJsonObject("rules").addProperty("exportedAt", "yesterday");
+        assertEquals(null, FateLockedBundle.loadFromJson(new Gson(), root.toString()).exportedAt());
     }
 
     @Test
