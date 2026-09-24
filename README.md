@@ -59,8 +59,9 @@ including the single Strict Mode toggle.
   warnings.
 - Menu tagging and a four-second warning banner for recognised locked
   actions.
-- Strict Mode Travel Guardian with exact-destination blocking, fail-open
-  safeguards, a shared 60-second pause, and a bounded local audit log.
+- Strict Mode, which blocks only exactly matched travel into locked areas,
+  with fail-open safeguards, a status that says when it cannot act, a
+  60-second pause, and a bounded local audit log.
 - Local detection of supported skill, quest, diary, collection, clue,
   boss, raid, pet, minigame, and Slayer observations.
 
@@ -97,19 +98,28 @@ rules.
 
 ## Strict Mode
 
-Strict Mode is off by default. It does not remove or reorder menu entries and
-does not perform an action. Travel Guardian can consume only a
-user-selected click when fresh, exact, account-bound app-authored rules prove
-the destination is Locked.
+Strict Mode is off by default. It never removes, reorders or creates menu
+entries and never performs an action. It consumes a click in one case only:
+the click is travel the plugin matches exactly to one destination (a teleport
+spell or tablet, a teleport item's destination option, or a named transport
+destination), and fresh rules bound to the logged-in character show that
+destination Locked.
 
-Missing, invalid, legacy, future, stale, wrong-account, ambiguous, same-chunk,
-unrecognised, Allowed, or Unknown decisions fail open. The sidebar pause
-disables every Strict Mode category for 60 seconds and resumes automatically.
+Walking, NPCs, objects (including doors, stairs and ladders), banks and
+equipment are never blocked. The red (LOCKED) menu tags, the locked-bank
+warning and the over-tier gear warning cover them. Fairy-ring codes, spirit
+trees, gliders, charters and other destinations picked in an interface,
+jewellery "Rub" dialogs and house portals are not recognised, so they are
+never blocked either.
+
+Missing, invalid, legacy, future, stale, unbound, wrong-character, ambiguous,
+unrecognised, Allowed, or Unknown decisions fail open. The sidebar shows
+whether Strict Mode is Active, Paused, Off, or Inactive and why. The pause
+turns it off for 60 seconds and resumes automatically.
 
 This behavior is adjacent to RuneLite's restrictions on conditional menu
-entry changes. The release therefore requests reviewer pre-clearance and does
-not claim that Strict Mode is already approved. See
-[Plugin Hub review notes](docs/plugin-hub-review-notes.md).
+entry changes, so it is limited to exactly matched travel and does not claim
+reviewer approval. See [Plugin Hub review notes](docs/plugin-hub-review-notes.md).
 
 ## Building
 

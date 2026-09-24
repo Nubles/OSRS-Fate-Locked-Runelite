@@ -4,10 +4,8 @@ import com.fatelocked.CanonicalChunk;
 import com.fatelocked.Teleports;
 import java.util.Locale;
 import net.runelite.api.Client;
-import net.runelite.api.Constants;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.util.Text;
 
 public final class TravelActionResolver
@@ -18,15 +16,11 @@ public final class TravelActionResolver
 
         String option = clean(entry.getOption());
         String target = clean(entry.getTarget());
-        MenuAction action = entry.getType();
-        if (action == MenuAction.WALK)
+        if (entry.getType() == MenuAction.WALK)
         {
-            CanonicalChunk destination = tileChunk(entry, client);
-            return origin == null || destination == null
-                || origin.equals(destination)
-                ? unknown(option, target, origin)
-                : exact(TravelAction.Family.WALK, "walk", option, target,
-                    origin, destination, null);
+            // "Walk here" carries viewport pixel coordinates, not a scene
+            // tile, and walking is never blocked, so it is never travel.
+            return unknown(option, target, origin);
         }
 
         CanonicalChunk destination = Teleports.checkedTravelDestinationChunk(
@@ -38,15 +32,8 @@ public final class TravelActionResolver
                 origin, destination, transport.requiredUnlock);
         }
 
-        if (isBoundaryObject(action) && isBoundaryOption(option))
-        {
-            CanonicalChunk tile = tileChunk(entry, client);
-            if (tile != null && origin != null && !origin.equals(tile))
-            {
-                return exact(TravelAction.Family.BOUNDARY_OBJECT,
-                    "boundary-object", option, target, origin, tile, null);
-            }
-        }
+        // Doors, stairs, ladders and other objects are not travel either: an
+        // object's own tile is not where it leads. Menu tags cover them.
         return unknown(option, target, origin);
     }
 
@@ -111,41 +98,6 @@ public final class TravelActionResolver
             null,
             null,
             TravelAction.Confidence.UNKNOWN);
-    }
-
-    private static CanonicalChunk tileChunk(MenuEntry entry, Client client)
-    {
-        if (client == null) return null;
-        int x = entry.getParam0();
-        int y = entry.getParam1();
-        if (x < 0 || x >= Constants.SCENE_SIZE || y < 0 || y >= Constants.SCENE_SIZE)
-            return null;
-        WorldPoint point = WorldPoint.fromScene(client, x, y, client.getPlane());
-        return point == null ? null : CanonicalChunk.of(point);
-    }
-
-    private static boolean isBoundaryObject(MenuAction action)
-    {
-        if (action == null) return false;
-        switch (action)
-        {
-            case GAME_OBJECT_FIRST_OPTION:
-            case GAME_OBJECT_SECOND_OPTION:
-            case GAME_OBJECT_THIRD_OPTION:
-            case GAME_OBJECT_FOURTH_OPTION:
-            case GAME_OBJECT_FIFTH_OPTION:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private static boolean isBoundaryOption(String option)
-    {
-        return option.equals("open") || option.equals("enter") || option.equals("climb")
-            || option.equals("climb-up") || option.equals("climb-down")
-            || option.equals("board") || option.equals("travel") || option.equals("pay-fare")
-            || option.equals("squeeze-through") || option.equals("cross");
     }
 
     private static String clean(String value)

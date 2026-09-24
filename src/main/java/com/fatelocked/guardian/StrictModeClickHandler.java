@@ -4,6 +4,11 @@ import com.fatelocked.guardian.travel.TravelAction;
 import com.fatelocked.guardian.travel.TravelDecision;
 import net.runelite.api.events.MenuOptionClicked;
 
+/**
+ * The only place the plugin consumes a click, and only for exactly matched
+ * travel that fresh, account-bound rules prove locked. PluginHubClickBoundaryTest
+ * pins that no other code consumes or rewrites menu clicks.
+ */
 public final class StrictModeClickHandler
 {
     private final StrictModeGuard guard;
@@ -11,19 +16,6 @@ public final class StrictModeClickHandler
     public StrictModeClickHandler(StrictModeGuard guard)
     {
         this.guard = guard;
-    }
-
-    public GuardResult handle(
-        MenuOptionClicked event,
-        GuardedAction action,
-        GuardContext context)
-    {
-        GuardResult result = guard.decide(action, context);
-        if (result.getOutcome() == GuardResult.Outcome.BLOCK)
-        {
-            event.consume();
-        }
-        return result;
     }
 
     public GuardResult handleTravel(

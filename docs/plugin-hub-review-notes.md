@@ -34,27 +34,39 @@ does not include the pairing code and does not transfer that history.
 
 ## Strict Mode pre-clearance request
 
-Strict Mode does not remove or reorder menu entries and never performs an
-action. It can consume a user-selected click only when fresh, exact,
-account-bound app-authored rules prove the action Locked. Because that is
-behaviorally adjacent to conditional menu-entry restrictions, we request
-reviewer pre-clearance and do not claim that this behavior is already
-approved.
+Strict Mode is off by default. It does not remove, reorder or create menu
+entries and never performs an action. It consumes a user-selected click only
+for travel it matches exactly to one destination (a teleport spell or tablet,
+a teleport item's destination option, or a named transport destination) when
+fresh rules bound to the logged-in character prove that destination Locked.
+It never consumes walking, NPC, object (including doors, stairs and ladders),
+bank or equipment clicks; those get only the passive (LOCKED) menu tag and
+chat warnings. Because blocking travel is behaviorally adjacent to
+conditional menu-entry restrictions, we request reviewer pre-clearance and do
+not claim that this behavior is already approved.
 
-Travel Guardian fails open when:
+Builds up to and including `52f45f5` also consumed NPC, object, bank and
+Wear/Wield clicks through an older generic guard, and read "Walk here" menu
+parameters as a tile. Both are removed.
 
-- Strict Mode is disabled or its shared 60-second pause is active;
+Strict Mode fails open when:
+
+- Strict Mode is disabled or its 60-second pause is active;
 - the bundle is missing, invalid, legacy, future, or stale;
-- the logged-in account is absent, unbound, or does not match the rules;
-- the menu action, route, tile, or destination is unrecognised or ambiguous;
+- the rules have no bound account, or it does not match the logged-in
+  character;
+- the click is walking, or an NPC, object, bank or equipment option;
+- the destination is unrecognised, ambiguous, or has several possible
+  destinations;
 - recognition confidence is not exact;
-- the destination is unresolved or remains in the current chunk;
 - the authored decision is Allowed or Unknown; or
 - evaluation throws or required client state is unavailable.
 
-The pause resumes automatically and applies to all Strict Mode categories.
-Blocked clicks produce only a local explanation and bounded local audit
-record. Suggested alternatives are display-only and are never activated.
+The sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
+why. The pause resumes automatically. Blocked clicks produce only a local
+explanation and bounded local audit record. Suggested alternatives are
+display-only and are never activated. `PluginHubClickBoundaryTest` pins the
+single place a click can be consumed.
 
 ## Reviewability
 

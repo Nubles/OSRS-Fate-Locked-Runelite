@@ -1,6 +1,5 @@
 package com.fatelocked;
 
-import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.travel.TravelActionResolver;
@@ -62,7 +61,7 @@ public class FateLockedPluginTravelAccountBindingTest
     }
 
     @Test
-    public void unboundRulesWithAbsentPlayerRetainGenericEquipmentEnforcement()
+    public void equippingIsNeverBlockedEvenOnAnUnboundProfileWithNobodyLoggedIn()
         throws Exception
     {
         Harness harness = new Harness(lockedBundle().replace(
@@ -77,7 +76,9 @@ public class FateLockedPluginTravelAccountBindingTest
 
         harness.plugin.onMenuOptionClicked(click);
 
-        verify(click).consume();
+        // Strict Mode blocks travel only; the old generic guard blocked this
+        // on any character, even with nobody logged in (review finding G2).
+        verify(click, never()).consume();
     }
     @Test
     public void normalizedMatchingAccountCanEnforceAndLookUpAlternatives()
@@ -176,16 +177,11 @@ public class FateLockedPluginTravelAccountBindingTest
                     finder,
                     noticeStore,
                     new StrictModeClickHandler(new StrictModeGuard()));
-            GuardedActionFactory genericFactory = new GuardedActionFactory();
-            StrictModeClickHandler genericClickHandler =
-                new StrictModeClickHandler(new StrictModeGuard());
             TravelGuardianPluginShell shell = new TravelGuardianPluginShell(
                 coordinator,
                 availability,
                 message -> { },
                 entry -> { },
-                (event, context) -> genericClickHandler.handle(
-                    event, genericFactory.from(event.getMenuEntry(), client), context),
                 (stage, error) -> { },
                 Clock.systemUTC());
 

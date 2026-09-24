@@ -6,7 +6,7 @@ import lombok.Value;
 @Value
 public class GuardResult
 {
-    public enum Outcome { ALLOW, BLOCK, WARN_ONLY }
+    public enum Outcome { ALLOW, BLOCK }
 
     Outcome outcome;
     RuleDecision decision;

@@ -70,6 +70,7 @@ class FateLockedPanel extends PluginPanel
     private final JPanel bundleBody = column();
     private final JTextArea pasteArea = new JTextArea(6, 10);
     private final JLabel strictModeVal = value();
+    private final JLabel strictModeReason = new JLabel();
     private final JButton strictModeButton = new JButton();
     private final JButton connectTrackerButton = new JButton("Connect tracker");
     private final JPanel strictIntro = card();
@@ -179,6 +180,10 @@ class FateLockedPanel extends PluginPanel
         body.add(strictIntro);
         body.add(stats(new String[]{"Guardian status"},
             new JLabel[]{strictModeVal}));
+        strictModeReason.setForeground(AMBER);
+        strictModeReason.setAlignmentX(Component.LEFT_ALIGNMENT);
+        strictModeReason.setVisible(false);
+        body.add(strictModeReason);
         body.add(Box.createVerticalStrut(5));
         fullWidth(strictModeButton);
         strictModeButton.addActionListener(event -> {
@@ -361,7 +366,7 @@ class FateLockedPanel extends PluginPanel
     }
     private void buildStrictIntro()
     {
-        JLabel copy = new JLabel("<html>Strict Mode prevents only actions proven locked by fresh rules. Known locked travel clicks can be stopped; uncertain movement is never blocked. Pause it for 60 seconds here or turn it off above.</html>");
+        JLabel copy = new JLabel("<html>Strict Mode stops only travel it can match exactly, such as teleport spells, jewellery and transport, when fresh rules for this character show the destination is locked. Walking, NPCs, objects, banks and equipment are never blocked; the (LOCKED) tags and warnings cover those. Pause it for 60 seconds here or turn it off above.</html>");
         copy.setForeground(Color.LIGHT_GRAY);
         strictIntro.add(copy);
         JButton dismiss = new JButton("Got it");
@@ -411,12 +416,24 @@ class FateLockedPanel extends PluginPanel
             recentPreventedBody.revalidate();
         });
     }
-    void updateStrictMode(boolean enabled, boolean paused, long seconds)
+    /**
+     * Show what Strict Mode can actually do. {@code inactiveReason} is null
+     * when it can act; otherwise the sidebar says it is inactive and why,
+     * instead of a green "On" while every click is let through.
+     */
+    void updateStrictMode(boolean enabled, boolean paused, long seconds, String inactiveReason)
     {
         SwingUtilities.invokeLater(() -> {
             strictPaused = paused;
-            strictModeVal.setText(enabled ? paused ? "Paused" : "On" : "Off");
-            strictModeVal.setForeground(enabled ? paused ? AMBER : GREEN : GRAY);
+            boolean inactive = enabled && !paused && inactiveReason != null;
+            strictModeVal.setText(!enabled ? "Off" : paused ? "Paused"
+                : inactive ? "Inactive" : "Active");
+            strictModeVal.setForeground(!enabled ? GRAY : paused || inactive ? AMBER : GREEN);
+            String explained = inactive
+                ? "Not blocking anything: " + escapeHtml(inactiveReason) + "." : null;
+            strictModeVal.setToolTipText(explained);
+            strictModeReason.setText(explained == null ? "" : "<html>" + explained + "</html>");
+            strictModeReason.setVisible(inactive);
             strictModeButton.setVisible(enabled);
             strictModeButton.setText(paused
                 ? "Resume Strict Mode · " + seconds + "s"
@@ -547,6 +564,11 @@ class FateLockedPanel extends PluginPanel
             ? "\u2014" : formatUtc(copy.getLastSync()));
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);
+    }
+
+    private static String escapeHtml(String text)
+    {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     private static String formatUtc(Instant instant)

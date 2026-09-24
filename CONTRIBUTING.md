@@ -80,20 +80,25 @@ decision from missing or ambiguous data.
 
 ## Strict Mode invariant
 
-Keep Travel Guardian under the sole `strictMode` setting. A click may be
-consumed only when all of these are true:
+Keep Strict Mode under the sole `strictMode` setting. The plugin consumes a
+game click in exactly one place, `StrictModeClickHandler.handleTravel`, and
+only when all of these are true:
 
 - Strict Mode is enabled and not paused.
-- The rules are current, valid, non-legacy, and fresh.
-- The rules belong to the logged-in, correctly bound account.
-- The selected action and destination are recognised with exact confidence.
+- The rules are current, valid, non-legacy, and fresh: relay rules the
+  tracker confirmed in the last 15 minutes, or file and clipboard rules
+  exported in the last 15 minutes.
+- The rules name a bound account, and it matches the logged-in character.
+- The click is travel recognised with exact confidence to one destination.
 - The authored destination decision is Locked.
 
-Allowed, Unknown, stale, wrong-account, missing, invalid, future, ambiguous,
-same-chunk, and unresolved inputs fail open. Stage the four-second
-explanation and bounded local audit entry before consuming the player's
-click. Never click, activate, select, reorder, remove, path to, or perform an
-alternative.
+Walking, NPC, object, bank and equipment clicks are never consumed.
+`PluginHubClickBoundaryTest` pins the single consume site and that no menu
+entry is removed, reordered or created. Allowed, Unknown, stale, unbound,
+wrong-character, missing, invalid, future, ambiguous, and unresolved inputs
+fail open. Stage the four-second explanation and bounded local audit entry
+before consuming the player's click. Never click, activate, select, reorder,
+remove, path to, or perform an alternative.
 
 Strict Mode requires RuneLite reviewer pre-clearance; contributors must not
 describe it as approved.
