@@ -520,6 +520,15 @@ public class FateLockedBundle
         return out;
     }
 
+    /**
+     * True for the empty bundle the plugin holds until rules are loaded:
+     * nothing is mapped, so there is nothing to draw, announce or warn about.
+     */
+    public boolean isEmpty()
+    {
+        return regionChunks.isEmpty();
+    }
+
     /** "Falador · Asgarnia", "Asgarnia", or null when unauthored. */
     public String labelAt(CanonicalChunk chunk)
     {

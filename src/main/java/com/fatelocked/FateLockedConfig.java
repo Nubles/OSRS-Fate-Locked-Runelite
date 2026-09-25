@@ -70,7 +70,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "chatOnEnter",
         name = "Chat on chunk entry",
-        description = "Post a chat message each time you enter a new chunk",
+        description = "Post a chat message each time you enter a chunk on the tracker's map (never for unmapped chunks such as dungeons)",
         section = warningsSection
     )
     default boolean chatOnEnter()
@@ -81,7 +81,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "warnOnLocked",
         name = "Warn entering locked chunk",
-        description = "Loud red warning when you step into a region you haven't unlocked",
+        description = "Warning sound when you step into a region you haven't unlocked, plus a notification if \"Send RuneLite notifications\" is on. Once per entry, whatever the chat setting",
         section = warningsSection
     )
     default boolean warnOnLocked()

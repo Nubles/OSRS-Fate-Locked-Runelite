@@ -50,6 +50,7 @@ public class FateLockedContentOverlay extends OverlayPanel
         if (point == null) return null;
 
         FateLockedBundle bundle = plugin.getBundle();
+        if (bundle.isEmpty()) return null; // no rules yet: nothing to list
         CanonicalChunk chunk = CanonicalChunk.of(point);
         ChunkPanelViewModel view = plugin.viewModelFor(bundle, chunk);
         if (view == null) return null;
