@@ -107,6 +107,7 @@ import java.time.Instant;
 import java.time.Duration;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -183,14 +184,16 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         }
     };
 
-    @Getter private volatile FateLockedBundle bundle = FateLockedBundle.empty();
+    /**
+     * The rules in force and where they came from, which decides their
+     * freshness (see rulesAreFresh). Replaced only by switchRules.
+     */
+    private volatile ActiveRules active = ActiveRules.NONE;
     private final ChunkPanelViewModelFactory chunkPanelFactory =
         new ChunkPanelViewModelFactory();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
-    /** Where the active rules came from; freshness depends on it (see rulesAreFresh). */
-    private volatile RulesSource rulesSource = RulesSource.NONE;
     /** Strict Mode acts only on rules confirmed or exported within this window. */
     static final Duration FRESH_RULES_WINDOW = Duration.ofMinutes(15);
     /** How far in the future an export time may be before it is not trusted. */
@@ -327,6 +330,12 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     FateLockedConfig provideConfig(ConfigManager configManager)
     {
         return configManager.getConfig(FateLockedConfig.class);
+    }
+
+    /** The rules in force; the overlays and the HUD read them from here. */
+    public FateLockedBundle getBundle()
+    {
+        return active.getBundle();
     }
 
     @Override
@@ -484,8 +493,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         keyManager.unregisterKeyListener(reimportHotkey);
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
-        bundle = FateLockedBundle.empty();
-        rulesSource = RulesSource.NONE;
+        active = ActiveRules.NONE;
         lastChunk = null;
     }
 
@@ -709,34 +717,41 @@ String m = raw.toLowerCase();
     /** Re-check whether the current slayer task's monster is in an unlocked chunk. */
     private void recomputeSlayer()
     {
-        if (!config.warnLockedSlayer() || slayerTask == null || slayerTask.isEmpty())
+        String locked = lockedSlayerTask(getBundle());
+        slayerTaskWarn = locked;
+        warnLockedSlayerTask(locked);
+    }
+
+    /** The current slayer task if these rules put its monster only in locked chunks, else null. */
+    private String lockedSlayerTask(FateLockedBundle rules)
+    {
+        String task = slayerTask;
+        if (!config.warnLockedSlayer() || task == null || task.isEmpty())
         {
-            slayerTaskWarn = null;
+            return null;
+        }
+        // Reachable or unknown: no warning.
+        return rules.monsterReach(task) == FateLockedBundle.Reach.LOCKED ? task : null;
+    }
+
+    /** Say once per assignment that the task is in a locked area. */
+    private void warnLockedSlayerTask(String locked)
+    {
+        if (locked == null || locked.equalsIgnoreCase(slayerWarnedFor))
+        {
             return;
         }
-        FateLockedBundle.Reach reach = bundle.monsterReach(slayerTask);
-        if (reach == FateLockedBundle.Reach.LOCKED)
-        {
-            slayerTaskWarn = slayerTask;
-            if (!slayerTask.equalsIgnoreCase(slayerWarnedFor))
-            {
-                slayerWarnedFor = slayerTask;
-                ChatMessageBuilder msg = new ChatMessageBuilder()
-                    .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-                    .append(ChatColorType.NORMAL).append("Your slayer task (")
-                    .append(ChatColorType.HIGHLIGHT).append(slayerTask)
-                    .append(ChatColorType.NORMAL).append(") is in a locked area.");
-                chatMessageManager.queue(QueuedMessage.builder()
-                    .type(ChatMessageType.GAMEMESSAGE)
-                    .runeLiteFormattedMessage(msg.build())
-                    .build());
-                notifyIfEnabled("Slayer task (" + slayerTask + ") is in a locked area");
-            }
-        }
-        else
-        {
-            slayerTaskWarn = null; // reachable or unknown — no warning
-        }
+        slayerWarnedFor = locked;
+        ChatMessageBuilder msg = new ChatMessageBuilder()
+            .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
+            .append(ChatColorType.NORMAL).append("Your slayer task (")
+            .append(ChatColorType.HIGHLIGHT).append(locked)
+            .append(ChatColorType.NORMAL).append(") is in a locked area.");
+        chatMessageManager.queue(QueuedMessage.builder()
+            .type(ChatMessageType.GAMEMESSAGE)
+            .runeLiteFormattedMessage(msg.build())
+            .build());
+        notifyIfEnabled("Slayer task (" + locked + ") is in a locked area");
     }
 
     @Subscribe
@@ -745,7 +760,7 @@ String m = raw.toLowerCase();
         if (ev.getGroupId() == 408) minigameCompletionDetector.onPestControlWidget(System.currentTimeMillis());
         // Locked-bank warning is independent of the roll-nudge toggle.
         if ((ev.getGroupId() == BANK_GROUP_ID || ev.getGroupId() == DEPOSIT_BOX_GROUP_ID)
-            && config.warnLockedBank() && bundle.banksLocked())
+            && config.warnLockedBank() && getBundle().banksLocked())
         {
             warnLockedBankIfNeeded();
         }
@@ -817,16 +832,17 @@ String m = raw.toLowerCase();
         WorldPoint wp = local == null ? null : local.getWorldLocation();
         if (wp == null) return;
         CanonicalChunk chunk = CanonicalChunk.of(wp);
+        FateLockedBundle rules = getBundle();
         String where;
-        if (bundle.isLegacyRules())
+        if (rules.isLegacyRules())
         {
-            if (bundle.isBankUnlocked(chunk)) return;
-            String label = bundle.labelAt(chunk);
+            if (rules.isBankUnlocked(chunk)) return;
+            String label = rules.labelAt(chunk);
             where = label == null ? "This bank" : label + " bank";
         }
         else
         {
-            RuleDecision decision = ruleEngine(bundle).target(chunk, "BANK", "");
+            RuleDecision decision = ruleEngine(rules).target(chunk, "BANK", "");
             if (decision.getStatus() != PermissionStatus.LOCKED) return;
             where = decision.getLabel();
         }
@@ -934,7 +950,7 @@ java.util.Optional<DetectedEvent> detected =
     private void record(DetectedEvent detected)
     {
         if (detected == null || eventHistory == null) return;
-        FateLockedBundle currentBundle = bundle;
+        FateLockedBundle currentBundle = getBundle();
         if (currentBundle == null || currentBundle.getRunId() == null
             || currentBundle.getRunId().trim().isEmpty()) return;
         Player local = client.getLocalPlayer();
@@ -1001,29 +1017,25 @@ java.util.Optional<DetectedEvent> detected =
 
     private void recomputeOverTierGear()
     {
-        if (!config.warnOverTierGear())
-        {
-            overTierSummary = null;
-            return;
-        }
-        FateLockedBundle b = bundle;
-        Map<String, Integer> tiers = b.getItemTiers();
-        FateLockedBundle.RunState st = b.getState();
+        List<OverTierItem> over = overTierGear(getBundle());
+        overTierSummary = overTierSummary(over);
+        warnOverTierGear(over);
+    }
+
+    /** Worn items these rules put above their slot's unlocked tier. */
+    private List<OverTierItem> overTierGear(FateLockedBundle rules)
+    {
+        if (!config.warnOverTierGear()) return Collections.emptyList();
+        Map<String, Integer> tiers = rules.getItemTiers();
+        FateLockedBundle.RunState st = rules.getState();
         Map<String, Integer> equip = st == null ? null : st.getEquipment();
-        if (tiers.isEmpty() || equip == null)
-        {
-            overTierSummary = null; // bundle predates the tier data — feature dormant
-            return;
-        }
+        // A bundle without tier data leaves the feature dormant.
+        if (tiers.isEmpty() || equip == null) return Collections.emptyList();
 
         ItemContainer eq = client.getItemContainer(InventoryID.WORN);
-        if (eq == null)
-        {
-            overTierSummary = null;
-            return;
-        }
+        if (eq == null) return Collections.emptyList();
 
-        List<String> over = new ArrayList<>();
+        List<OverTierItem> over = new ArrayList<>();
         for (Map.Entry<EquipmentInventorySlot, String> e : SLOT_NAMES.entrySet())
         {
             Item item = eq.getItem(e.getKey().getSlotIdx());
@@ -1032,23 +1044,54 @@ java.util.Optional<DetectedEvent> detected =
             if (tier == null) continue; // unknown item — don't flag
             int unlocked = equip.getOrDefault(e.getValue(), 0);
             if (tier <= unlocked) continue;
-
-            over.add(e.getValue());
-            if (warnedOverTier.add(item.getId()))
-            {
-                String name = itemManager.getItemComposition(item.getId()).getName();
-                ChatMessageBuilder msg = new ChatMessageBuilder()
-                    .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-                    .append(ChatColorType.NORMAL).append(name)
-                    .append(" is T" + tier + " but your " + e.getValue() + " is only unlocked to T" + unlocked + ".");
-                chatMessageManager.queue(QueuedMessage.builder()
-                    .type(ChatMessageType.GAMEMESSAGE)
-                    .runeLiteFormattedMessage(msg.build())
-                    .build());
-                notifyIfEnabled(name + " is above your unlocked " + e.getValue() + " tier");
-            }
+            over.add(new OverTierItem(item.getId(), e.getValue(), tier, unlocked));
         }
-        overTierSummary = over.isEmpty() ? null : String.join(", ", over);
+        return over;
+    }
+
+    /** The HUD's list of over-tier slots, or null when there are none. */
+    private static String overTierSummary(List<OverTierItem> over)
+    {
+        if (over.isEmpty()) return null;
+        List<String> slots = new ArrayList<>();
+        for (OverTierItem item : over) slots.add(item.slot);
+        return String.join(", ", slots);
+    }
+
+    /** Say once per session that each over-tier item is above its tier. */
+    private void warnOverTierGear(List<OverTierItem> over)
+    {
+        for (OverTierItem item : over)
+        {
+            if (!warnedOverTier.add(item.itemId)) continue;
+            String name = itemManager.getItemComposition(item.itemId).getName();
+            ChatMessageBuilder msg = new ChatMessageBuilder()
+                .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
+                .append(ChatColorType.NORMAL).append(name)
+                .append(" is T" + item.tier + " but your " + item.slot + " is only unlocked to T" + item.unlocked + ".");
+            chatMessageManager.queue(QueuedMessage.builder()
+                .type(ChatMessageType.GAMEMESSAGE)
+                .runeLiteFormattedMessage(msg.build())
+                .build());
+            notifyIfEnabled(name + " is above your unlocked " + item.slot + " tier");
+        }
+    }
+
+    /** One worn item above its slot's unlocked tier. */
+    private static final class OverTierItem
+    {
+        final int itemId;
+        final String slot;
+        final int tier;
+        final int unlocked;
+
+        OverTierItem(int itemId, String slot, int tier, int unlocked)
+        {
+            this.itemId = itemId;
+            this.slot = slot;
+            this.tier = tier;
+            this.unlocked = unlocked;
+        }
     }
 
     /** Normalise an OSRS name for comparison via RuneLite's Text.sanitize (handles
@@ -1065,7 +1108,7 @@ java.util.Optional<DetectedEvent> detected =
     private void checkBoundAccount()
     {
         if (!config.warnAccountMismatch()) return;
-        FateLockedBundle.RunState st = bundle.getState();
+        FateLockedBundle.RunState st = getBundle().getState();
         String bound = st == null ? null : st.getLinkedAccount();
         if (bound == null || bound.trim().isEmpty()) return;
 
@@ -1107,7 +1150,7 @@ java.util.Optional<DetectedEvent> detected =
         if (wp == null) return;
 
         CanonicalChunk current = CanonicalChunk.of(wp);
-        FateLockedBundle b = bundle;
+        FateLockedBundle b = getBundle();
         FateLockedBundle.LockState lock = b.lockStateAt(current);
         String label = b.labelAt(current);
         boolean unlocked = lock == FateLockedBundle.LockState.UNLOCKED;
@@ -1151,7 +1194,7 @@ java.util.Optional<DetectedEvent> detected =
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
     {
-        FateLockedBundle current = bundle;
+        FateLockedBundle current = getBundle();
         boolean accountMatch = strictTravelAccountMatches(current);
         FateRuleEngine rules = new FateRuleEngine(current, accountMatch, false);
         GuardContext context = new GuardContext(
@@ -1209,7 +1252,7 @@ java.util.Optional<DetectedEvent> detected =
     /** Whether Strict Mode can act right now, from the same facts as its trust gate. */
     StrictModeReadiness strictModeReadiness()
     {
-        FateLockedBundle current = bundle;
+        FateLockedBundle current = getBundle();
         Player local = client.getLocalPlayer();
         return StrictModeReadiness.evaluate(
             config.strictMode(),
@@ -1229,7 +1272,8 @@ java.util.Optional<DetectedEvent> detected =
     boolean rulesAreFresh()
     {
         Instant now = Instant.now();
-        RulesSource source = rulesSource;
+        ActiveRules current = active;
+        RulesSource source = current.getSource();
         if (source == RulesSource.NONE) return false;
         if (source == RulesSource.RELAY && trackerPaired())
         {
@@ -1237,7 +1281,7 @@ java.util.Optional<DetectedEvent> detected =
             return confirmed != null
                 && Duration.between(confirmed, now).compareTo(FRESH_RULES_WINDOW) < 0;
         }
-        Instant exported = bundle.exportedAt();
+        Instant exported = current.getBundle().exportedAt();
         if (exported == null || exported.isAfter(now.plus(EXPORT_CLOCK_SKEW))) return false;
         return Duration.between(exported, now).compareTo(FRESH_RULES_WINDOW) < 0;
     }
@@ -1249,7 +1293,7 @@ java.util.Optional<DetectedEvent> detected =
     public void onMenuEntryAdded(MenuEntryAdded event)
     {
         if (!config.tagLockedMenus() && !config.tagLockedTeleports()) return;
-        FateLockedBundle b = bundle;
+        FateLockedBundle b = getBundle();
         if (b.getRegionChunks().isEmpty()) return;
 
 MenuEntry entry = event.getMenuEntry();
@@ -1350,27 +1394,26 @@ MenuEntry entry = event.getMenuEntry();
                 return;
             }
             Path loaded = file;
-            onClient.run(() -> {
-                useBackupFile(parsed, loaded);
-                refreshPanel();
-                if (explicit)
-                {
-                    panel.flashStatus(
-                        "loaded backup file: " + parsed.getRegionChunks().size() + " regions",
-                        true);
-                }
-            });
+            onClient.run(() -> useBackupFile(parsed, loaded, explicit));
         }));
     }
 
     /** Switch to rules read from a backup file; the tracker's copy wins on its next check. */
-    private void useBackupFile(FateLockedBundle parsed, Path file)
+    private void useBackupFile(FateLockedBundle parsed, Path file, boolean explicit)
     {
-        bundle = parsed;
-        rulesSource = RulesSource.FILE;
+        if (!switchRules(parsed, RulesSource.FILE))
+        {
+            panel.flashStatus("couldn't read the backup file — rules unchanged", false);
+            return;
+        }
         trackerRulesReplaced();
         log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
             file, parsed.getRegionChunks().size(), parsed.getUnlockedRegions().size());
+        if (explicit)
+        {
+            panel.flashStatus(
+                "loaded backup file: " + parsed.getRegionChunks().size() + " regions", true);
+        }
     }
 
     /** A local import replaced the rules: the tracker's copy wins on its next check. */
@@ -1457,26 +1500,13 @@ MenuEntry entry = event.getMenuEntry();
                 "pairing code detected \u2014 use Connect tracker", false);
             return false;
         }
-        FateLockedBundle previousBundle = bundle;
-        RulesSource previousSource = rulesSource;
+        FateLockedBundle parsed;
         try
         {
-            FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, json);
-            bundle = parsed;
-            rulesSource = RulesSource.IMPORT;
-            refreshPanel();
-            panel.flashStatus(
-                "imported " + parsed.getRegionChunks().size() + " regions", true);
-            trackerRulesReplaced();
-            log.info(
-                "Fate Locked bundle imported from the clipboard: {} regions",
-                parsed.getRegionChunks().size());
-            return true;
+            parsed = FateLockedBundle.loadFromJson(gson, json);
         }
         catch (RuntimeException ex)
         {
-            bundle = previousBundle;
-            rulesSource = previousSource;
             // Every attempt shows its result: a success or a tracker sync may
             // have replaced the last failure message. Only the log is limited.
             if (invalidImportLimiter.shouldReport(
@@ -1487,6 +1517,18 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus("import failed — using previous rules", false);
             return false;
         }
+        if (!switchRules(parsed, RulesSource.IMPORT))
+        {
+            panel.flashStatus("import failed — using previous rules", false);
+            return false;
+        }
+        panel.flashStatus(
+            "imported " + parsed.getRegionChunks().size() + " regions", true);
+        trackerRulesReplaced();
+        log.info(
+            "Fate Locked bundle imported from the clipboard: {} regions",
+            parsed.getRegionChunks().size());
+        return true;
     }
 
     enum RulesSource
@@ -1523,33 +1565,56 @@ MenuEntry entry = event.getMenuEntry();
             return false;
         }
 
-        FateLockedBundle previousBundle = bundle;
-        RulesSource previousSource = rulesSource;
+        if (!switchRules(parsed, RulesSource.RELAY))
+        {
+            return false;
+        }
+        panel.flashStatus(
+            "synced " + parsed.getRegionChunks().size()
+                + " regions", true);
+        log.info(
+            "Fate Locked bundle imported from relay: {} regions",
+            parsed.getRegionChunks().size());
+        return true;
+    }
+
+    /**
+     * Switch to new rules. Everything they change is worked out from the
+     * candidate first, then the rules and their source are swapped at once,
+     * then each change is shown on its own. A failure while working them out
+     * leaves everything as it was; a failure while showing one change is
+     * logged, and neither undoes the switch nor stops the others.
+     */
+    private boolean switchRules(FateLockedBundle candidate, RulesSource source)
+    {
+        RulesEffects effects;
         try
         {
-            bundle = parsed;
-            rulesSource = RulesSource.RELAY;
-            refreshPanel();
-            panel.flashStatus(
-                "synced " + parsed.getRegionChunks().size()
-                    + " regions", true);
-            log.info(
-                "Fate Locked bundle imported from relay: {} regions",
-                parsed.getRegionChunks().size());
-            return true;
+            effects = effectsOf(candidate);
         }
         catch (RuntimeException ex)
         {
-            bundle = previousBundle;
-            rulesSource = previousSource;
-            log.debug(
-                "Relay bundle could not be applied: {}", ex.getMessage());
+            log.warn("New rules could not be applied: {}", ex.getMessage());
             return false;
         }
+        active = new ActiveRules(candidate, source);
+        show(candidate, effects);
+        return true;
     }
 
-    /** Recompute the player's current chunk and push everything to the panel. */
+    /** Recompute the player's current chunk and show everything the active rules mean. */
     private void refreshPanel()
+    {
+        FateLockedBundle current = getBundle();
+        show(current, effectsOf(current));
+    }
+
+    /**
+     * What a rule set means for the sidebar, the HUD, the map and the
+     * warnings. Reads the game, so it runs on the client thread, but changes
+     * nothing.
+     */
+    private RulesEffects effectsOf(FateLockedBundle rules)
     {
         CanonicalChunk current = null;
         Player local = client.getLocalPlayer();
@@ -1557,31 +1622,92 @@ MenuEntry entry = event.getMenuEntry();
         {
             current = CanonicalChunk.of(local.getWorldLocation());
         }
-        String trackerAccount = bundle.getRules() == null
-            ? bundle.getState() == null
-                ? null
-                : bundle.getState().getLinkedAccount()
-            : bundle.getRules().getAccount();
-        panel.updateTrackerAccount(trackerAccount);
-        panel.update(bundle, viewModelFor(bundle, current));
-        // A fresh bundle may change unlocked tiers / areas — re-check worn gear,
-        // the current slayer task, and the world-map markers.
-        recomputeOverTierGear();
-        recomputeSlayer();
-        refreshWorldMapMarkers();
+        return new RulesEffects(
+            viewModelFor(rules, current),
+            overTierGear(rules),
+            lockedSlayerTask(rules),
+            lockedAreaPins(rules));
+    }
+
+    /** Show what the rules mean: the HUD fields, then each other change on its own. */
+    private void show(FateLockedBundle rules, RulesEffects effects)
+    {
+        overTierSummary = overTierSummary(effects.overTierGear);
+        slayerTaskWarn = effects.lockedSlayerTask;
+        showIsolated("sidebar", () -> {
+            panel.updateTrackerAccount(trackerAccount(rules));
+            panel.update(rules, effects.view);
+        });
+        showIsolated("world map pins", () -> placeLockedAreaPins(effects.pins));
+        showIsolated("gear warning", () -> warnOverTierGear(effects.overTierGear));
+        showIsolated("Slayer warning", () -> warnLockedSlayerTask(effects.lockedSlayerTask));
+    }
+
+    private void showIsolated(String what, Runnable change)
+    {
+        try
+        {
+            change.run();
+        }
+        catch (RuntimeException ex)
+        {
+            log.warn("Could not update the {}: {}", what, ex.getMessage());
+        }
+    }
+
+    /** The account the tracker profile is bound to, from the rules or the older run state. */
+    private static String trackerAccount(FateLockedBundle rules)
+    {
+        if (rules.getRules() != null) return rules.getRules().getAccount();
+        return rules.getState() == null ? null : rules.getState().getLinkedAccount();
+    }
+
+    /** Everything a rule set means, worked out before anything changes. */
+    private static final class RulesEffects
+    {
+        final ChunkPanelViewModel view;
+        final List<OverTierItem> overTierGear;
+        final String lockedSlayerTask;
+        final List<WorldMapPoint> pins;
+
+        RulesEffects(
+            ChunkPanelViewModel view,
+            List<OverTierItem> overTierGear,
+            String lockedSlayerTask,
+            List<WorldMapPoint> pins)
+        {
+            this.view = view;
+            this.overTierGear = overTierGear;
+            this.lockedSlayerTask = lockedSlayerTask;
+            this.pins = pins;
+        }
     }
 
     /** Place a click-to-jump marker on each authored area you haven't unlocked yet. */
     private void refreshWorldMapMarkers()
     {
-        worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
-        if (!config.worldMapMarkers()) return;
+        placeLockedAreaPins(lockedAreaPins(getBundle()));
+    }
 
-        FateLockedBundle b = bundle;
-        for (Map.Entry<String, Set<CanonicalChunk>> e : b.getSubAreaChunks().entrySet())
+    private void placeLockedAreaPins(List<WorldMapPoint> pins)
+    {
+        worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
+        for (WorldMapPoint pin : pins)
+        {
+            worldMapPointManager.add(pin);
+        }
+    }
+
+    /** A pin for each authored area these rules leave locked, if pins are on. */
+    private List<WorldMapPoint> lockedAreaPins(FateLockedBundle rules)
+    {
+        if (!config.worldMapMarkers()) return Collections.emptyList();
+
+        List<WorldMapPoint> pins = new ArrayList<>();
+        for (Map.Entry<String, Set<CanonicalChunk>> e : rules.getSubAreaChunks().entrySet())
         {
             String area = e.getKey();
-            if (b.isUnlocked(area)) continue; // only pin what's still locked
+            if (rules.isUnlocked(area)) continue; // only pin what's still locked
 
             Set<CanonicalChunk> chunks = e.getValue();
             if (chunks.isEmpty()) continue;
@@ -1598,8 +1724,9 @@ MenuEntry entry = event.getMenuEntry();
             point.setJumpOnClick(true);
             point.setSnapToEdge(false);
             point.setImagePoint(new Point(lockedPinImage().getWidth() / 2, lockedPinImage().getHeight() / 2));
-            worldMapPointManager.add(point);
+            pins.add(point);
         }
+        return pins;
     }
 
     /** A world-map pin this plugin placed, so it can remove exactly its own. */
@@ -1640,27 +1767,27 @@ MenuEntry entry = event.getMenuEntry();
 
         infoBoxManager.addInfoBox(new FateLockedInfoBox(itemManager.getImage(KEYS_ICON_ITEM), this,
             new Color(245, 158, 11),
-            () -> { FateLockedBundle.RunState s = bundle.getState(); return s == null ? "—" : String.valueOf(s.getKeys()); },
+            () -> { FateLockedBundle.RunState s = getBundle().getState(); return s == null ? "—" : String.valueOf(s.getKeys()); },
             () -> {
-                FateLockedBundle.RunState s = bundle.getState();
+                FateLockedBundle.RunState s = getBundle().getState();
                 return s == null ? "Fate Locked keys"
                     : "Keys: " + s.getKeys() + " · Omni " + s.getSpecialKeys() + " · Chaos " + s.getChaosKeys();
             }));
 
         infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(168, 85, 247)), this,
             new Color(196, 145, 255),
-            () -> { FateLockedBundle.RunState s = bundle.getState(); return s == null ? "—" : String.valueOf(s.getFatePoints()); },
+            () -> { FateLockedBundle.RunState s = getBundle().getState(); return s == null ? "—" : String.valueOf(s.getFatePoints()); },
             () -> "Fate points"));
 
         infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(52, 211, 153)), this,
             new Color(52, 211, 153),
             () -> {
-                FateLockedBundle b = bundle;
+                FateLockedBundle b = getBundle();
                 if (b.getTotalChunks() <= 0) return "—";
                 return Math.round(100.0 * b.getUnlockedChunks() / b.getTotalChunks()) + "%";
             },
             () -> {
-                FateLockedBundle b = bundle;
+                FateLockedBundle b = getBundle();
                 return "Unlock progress: " + b.getUnlockedAreas() + "/" + b.getTotalAreas()
                     + " areas · " + b.getUnlockedChunks() + "/" + b.getTotalChunks() + " chunks";
             }));

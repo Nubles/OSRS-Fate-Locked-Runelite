@@ -279,15 +279,14 @@ public class FateLockedRulesSourceTest
         void setRules(FateLockedBundle bundle, FateLockedPlugin.RulesSource source)
             throws Exception
         {
-            set("bundle", bundle);
-            set("rulesSource", source);
+            set("active", new ActiveRules(bundle, source));
         }
 
         FateLockedPlugin.RulesSource source() throws Exception
         {
-            Field field = FateLockedPlugin.class.getDeclaredField("rulesSource");
+            Field field = FateLockedPlugin.class.getDeclaredField("active");
             field.setAccessible(true);
-            return (FateLockedPlugin.RulesSource) field.get(plugin);
+            return ((ActiveRules) field.get(plugin)).getSource();
         }
 
         void paired(boolean paired)

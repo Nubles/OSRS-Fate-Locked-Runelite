@@ -168,8 +168,9 @@ public class FateLockedPluginLocalHistoryTest
             mock(WorldMapPointManager.class));
         setField(plugin, "connectionSettings", connectionSettings);
         setField(plugin, "eventHistory", history);
-        setField(plugin, "bundle", FateLockedBundle.loadFromJson(
-            gson, fixture("bundles/v4-rules.json")));
+        setField(plugin, "active", new ActiveRules(
+            FateLockedBundle.loadFromJson(gson, fixture("bundles/v4-rules.json")),
+            FateLockedPlugin.RulesSource.NONE));
 
         return new Harness(
             plugin, panel, client, connectionSettings, history,

@@ -69,7 +69,7 @@ public class FateLockedChunkEntryTest
     {
         FateLockedBundle none = FateLockedBundle.empty();
         assertTrue(none.isEmpty());
-        set("bundle", none);
+        set("active", new ActiveRules(none, FateLockedPlugin.RulesSource.NONE));
 
         walk(LUMBRIDGE, FALADOR, UNMAPPED);
 
@@ -151,7 +151,7 @@ public class FateLockedChunkEntryTest
         assertEquals(FateLockedBundle.LockState.LOCKED, rules.lockStateAt(FALADOR));
         assertEquals(FateLockedBundle.LockState.LOCKED, rules.lockStateAt(FALADOR_EAST));
         assertEquals(FateLockedBundle.LockState.UNAUTHORED, rules.lockStateAt(UNMAPPED));
-        set("bundle", rules);
+        set("active", new ActiveRules(rules, FateLockedPlugin.RulesSource.NONE));
     }
 
     /** Stand in each chunk for one game tick. */
