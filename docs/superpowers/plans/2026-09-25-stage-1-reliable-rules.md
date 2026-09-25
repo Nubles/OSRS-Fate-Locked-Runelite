@@ -71,10 +71,10 @@ against `874b9d1` (Stage 0 merged).
   tagged with a hash of the pairing code (never the code).
 - **The detection gate follows the design:** rules loaded, bound account
   matching the character, a normal world. An unbound tracker profile gets
-  no roll reminders. (Owner question 1.)
+  no roll reminders. (Owner confirmed, 25 September.)
 - **Retiring the level-250 boss rule keeps only the exact boss detector.**
   Bosses outside it lose their nudge until Stage 4 rebuilds boss
-  detection on NPC ids. (Owner question 2.)
+  detection on NPC ids. (Owner confirmed, 25 September.)
 - **Contract files are copied, never fetched at test time.** One script
   copies the golden bundles and the relay fixture from a web commit and
   records the commit and SHA-256 of each file; a CI step re-checks the copy
@@ -254,16 +254,15 @@ go-ahead.
   the owner, the web release, the relay deploy and the Plugin Hub pull
   request.
 
-## Owner questions
+## Owner decisions and pending steps
 
-1. **Roll reminders for an unbound tracker profile.** The design gates
-   detection on a bound account, so an unbound profile gets no reminders.
-   Keep that, or allow reminders (but not recording) when unbound?
-2. **Boss reminders.** Retiring the level-250 rule leaves reminders only
-   for the bosses the exact detector knows until Stage 4. Acceptable, or
-   widen the exact list to the tracker's boss table now?
-3. **Relay deploy.** Phase C's relay changes need `wrangler login` and
-   your go-ahead to deploy.
+1. **Roll reminders for an unbound tracker profile:** none, as the design
+   says (confirmed 25 September).
+2. **Boss reminders:** only the exact boss detector's bosses until Stage 4
+   (confirmed 25 September).
+3. **Relay deploy (pending):** Phase C's relay changes, and the undeployed
+   changes from web PR #45, need the owner's `wrangler login` and
+   go-ahead.
 
 ## Test and file map (new files)
 
