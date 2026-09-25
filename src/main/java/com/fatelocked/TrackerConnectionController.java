@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 final class TrackerConnectionController
@@ -31,9 +32,18 @@ final class TrackerConnectionController
     /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
     static final String NO_RECENT_UPDATE_MESSAGE = "No recent update";
 
-    interface RelayBundleImporter
+    /**
+     * Turns a relay payload into active rules in two steps. prepare runs on
+     * the thread that read the reply, so a large bundle is parsed off the
+     * game thread; commit runs on the client thread.
+     */
+    interface RelayBundleImporter<T>
     {
-        boolean importBundle(String payload);
+        /** Parse and check the payload; null rejects it. */
+        T prepare(String payload);
+
+        /** Switch to the prepared rules; false rejects them. */
+        boolean commit(T prepared);
     }
 
     private final OkHttpClient http;
@@ -41,7 +51,7 @@ final class TrackerConnectionController
     private final TrackerConnectionSettings settings;
     private final Clock clock;
     private final Consumer<Runnable> clientDispatcher;
-    private final RelayBundleImporter importer;
+    private final RelayBundleImporter<?> importer;
     private final Consumer<TrackerConnectionSnapshot> listener;
     private final Object pollLock = new Object();
 
@@ -64,7 +74,7 @@ final class TrackerConnectionController
         TrackerConnectionSettings settings,
         Clock clock,
         Consumer<Runnable> clientDispatcher,
-        RelayBundleImporter importer,
+        RelayBundleImporter<?> importer,
         Consumer<TrackerConnectionSnapshot> listener)
     {
         this.http = http;
@@ -376,8 +386,7 @@ final class TrackerConnectionController
                 TrackerConnectionState.IMPORTING,
                 "Importing tracker data"))
             {
-                dispatchImport(
-                    token, envelope.payload, canonical);
+                prepareImport(importer, token, envelope.payload, canonical);
             }
         }
         catch (Exception error)
@@ -437,9 +446,39 @@ final class TrackerConnectionController
         }
     }
 
-    private void dispatchImport(
+    /** Parse the payload here, on the reply's thread, and commit it on the client thread. */
+    private <T> void prepareImport(
+        RelayBundleImporter<T> importer,
         RelayPollToken token,
         String payload,
+        String version)
+    {
+        T prepared;
+        try
+        {
+            prepared = importer.prepare(payload);
+        }
+        catch (RuntimeException error)
+        {
+            prepared = null;
+        }
+        if (prepared == null)
+        {
+            publishIfCurrent(token,
+                TrackerConnectionState.IMPORT_FAILED,
+                "Could not import tracker data");
+            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                MAX_FAILURE_BACKOFF_SECONDS);
+            clearPoll(token);
+            return;
+        }
+        T rules = prepared;
+        dispatchImport(token, () -> importer.commit(rules), version);
+    }
+
+    private void dispatchImport(
+        RelayPollToken token,
+        BooleanSupplier commit,
         String version)
     {
         try
@@ -455,7 +494,7 @@ final class TrackerConnectionController
                     boolean imported;
                     try
                     {
-                        imported = importer.importBundle(payload);
+                        imported = commit.getAsBoolean();
                     }
                     catch (RuntimeException error)
                     {

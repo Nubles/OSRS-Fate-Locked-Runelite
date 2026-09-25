@@ -391,7 +391,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             connectionSettings,
             Clock.systemUTC(),
             started::run,
-            this::acceptRelayPayload,
+            relayImporter,
             panel::updateConnection);
 
         travelActionResolver = new TravelActionResolver();
@@ -1451,7 +1451,8 @@ MenuEntry entry = event.getMenuEntry();
 
     /**
      * The hotkey and the sidebar's "Import from clipboard": read the
-     * clipboard and import it as a bundle (on the client thread).
+     * clipboard here, parse it on RuneLite's executor, and switch to it on
+     * the client thread.
      */
     private void reimportFromClipboard()
     {
@@ -1470,7 +1471,7 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus("clipboard empty", false);
             return;
         }
-        importOnClientThread(text);
+        importClipboardText(text);
     }
 
     /** The clipboard's text, trimmed; empty when it holds no text. */
@@ -1481,46 +1482,50 @@ MenuEntry entry = event.getMenuEntry();
     }
 
     /**
-     * Imports read game state such as worn equipment, which RuneLite allows
-     * only on the client thread. The gate runs each import once, so a failed
-     * import never asks to run again.
+     * A full bundle takes a noticeable time to parse, so that happens off
+     * the game thread. The switch reads game state such as worn equipment,
+     * which RuneLite allows only on the client thread, so it waits for the
+     * gate, which runs each import once.
      */
-    private void importOnClientThread(String json)
-    {
-        gate.run(() -> applyClipboardBundle(json));
-    }
-
-    /** Load a bundle from JSON read from the clipboard. */
-    private boolean applyClipboardBundle(String json)
+    private void importClipboardText(String json)
     {
         String trimmed = json == null ? "" : json.trim();
         if (trimmed.matches("[0-9a-f]{32}"))
         {
             panel.flashStatus(
-                "pairing code detected \u2014 use Connect tracker", false);
-            return false;
+                "pairing code detected — use Connect tracker", false);
+            return;
         }
-        FateLockedBundle parsed;
-        try
-        {
-            parsed = FateLockedBundle.loadFromJson(gson, json);
-        }
-        catch (RuntimeException ex)
-        {
-            // Every attempt shows its result: a success or a tracker sync may
-            // have replaced the last failure message. Only the log is limited.
-            if (invalidImportLimiter.shouldReport(
-                trimmed, System.currentTimeMillis()))
+        ClientThreadGate onClient = gate;
+        executor.execute(onClient.guard(() -> {
+            FateLockedBundle parsed;
+            try
             {
-                log.warn("Clipboard bundle could not be parsed: {}", ex.getMessage());
+                parsed = FateLockedBundle.loadFromJson(gson, json);
             }
-            panel.flashStatus("import failed — using previous rules", false);
-            return false;
-        }
+            catch (RuntimeException ex)
+            {
+                // Every attempt shows its result: a success or a tracker sync may
+                // have replaced the last failure message. Only the log is limited.
+                if (invalidImportLimiter.shouldReport(
+                    trimmed, System.currentTimeMillis()))
+                {
+                    log.warn("Clipboard bundle could not be parsed: {}", ex.getMessage());
+                }
+                panel.flashStatus("import failed — using previous rules", false);
+                return;
+            }
+            onClient.run(() -> useClipboardRules(parsed));
+        }));
+    }
+
+    /** On the client thread: switch to rules read from the clipboard. */
+    private void useClipboardRules(FateLockedBundle parsed)
+    {
         if (!switchRules(parsed, RulesSource.IMPORT))
         {
             panel.flashStatus("import failed — using previous rules", false);
-            return false;
+            return;
         }
         panel.flashStatus(
             "imported " + parsed.getRegionChunks().size() + " regions", true);
@@ -1528,7 +1533,6 @@ MenuEntry entry = event.getMenuEntry();
         log.info(
             "Fate Locked bundle imported from the clipboard: {} regions",
             parsed.getRegionChunks().size());
-        return true;
     }
 
     enum RulesSource
@@ -1544,27 +1548,47 @@ MenuEntry entry = event.getMenuEntry();
     }
 
     /**
-     * Accept a relay bundle on the client thread only after strict v4 parsing
-     * succeeds. Connection version, sync time, and acknowledgement remain owned
-     * by TrackerConnectionController and change only after this returns true.
+     * The relay's rules arrive in two steps. Connection version, sync time
+     * and acknowledgement stay with TrackerConnectionController, which
+     * changes them only after the second step returns true.
      */
-    private boolean acceptRelayPayload(String payload)
+    private final TrackerConnectionController.RelayBundleImporter<FateLockedBundle> relayImporter =
+        new TrackerConnectionController.RelayBundleImporter<FateLockedBundle>()
+        {
+            @Override
+            public FateLockedBundle prepare(String payload)
+            {
+                return parseRelayPayload(payload);
+            }
+
+            @Override
+            public boolean commit(FateLockedBundle rules)
+            {
+                return acceptRelayRules(rules);
+            }
+        };
+
+    /**
+     * On the thread that read the relay's reply, never the game thread: parse
+     * the payload, accepting only strict v4 rules. Null rejects it.
+     */
+    private FateLockedBundle parseRelayPayload(String payload)
     {
-        final FateLockedBundle parsed;
         try
         {
-            parsed = FateLockedBundle.loadFromJson(gson, payload);
-            if (parsed.getVersion() != 4 || parsed.isLegacyRules())
-            {
-                return false;
-            }
+            FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, payload);
+            return parsed.getVersion() == 4 && !parsed.isLegacyRules() ? parsed : null;
         }
         catch (RuntimeException ex)
         {
             log.debug("Relay bundle rejected: {}", ex.getMessage());
-            return false;
+            return null;
         }
+    }
 
+    /** On the client thread: switch to rules the relay sent. */
+    private boolean acceptRelayRules(FateLockedBundle parsed)
+    {
         if (!switchRules(parsed, RulesSource.RELAY))
         {
             return false;

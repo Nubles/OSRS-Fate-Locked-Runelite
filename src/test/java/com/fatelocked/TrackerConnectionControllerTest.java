@@ -250,6 +250,46 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void thePayloadIsParsedBeforeTheClientThreadIsAsked()
+        throws Exception
+    {
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+
+        // The reply's own thread prepared it; the client thread only commits.
+        List<String> preparedOn = importer.preparedOnThreads();
+        assertEquals(1, preparedOn.size());
+        assertNotEquals(Thread.currentThread().getName(), preparedOn.get(0));
+        assertEquals(0, importer.acceptedPayloads().size());
+
+        runClientTasks();
+        assertEquals(1, importer.acceptedPayloads().size());
+        assertEquals(1, importer.preparedOnThreads().size());
+    }
+
+    @Test
+    public void aPayloadThatCannotBeParsedFailsWithoutTheClientThread()
+        throws Exception
+    {
+        importer.failToPrepareNextPayload();
+        server.enqueue(relayResponse(7, "{bad", "\"7\""));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> listener.last().getState()
+            == TrackerConnectionState.IMPORT_FAILED);
+
+        assertEquals(0, dispatcher.dispatchedCount());
+        assertEquals(0, clientTasks.size());
+        assertNull(controller.snapshot().getAcceptedVersion());
+        assertEquals(0, importer.acceptedPayloads().size());
+        waitFor(() -> !controller.pollInFlight());
+    }
+
+    @Test
     public void failedImportKeepsThePreviousVersionAndPostsNoAck()
         throws Exception
     {
@@ -1049,15 +1089,32 @@ public class TrackerConnectionControllerTest
     }
 
     private static final class RecordingImporter
-        implements TrackerConnectionController.RelayBundleImporter
+        implements TrackerConnectionController.RelayBundleImporter<String>
     {
         private final List<String> accepted = new ArrayList<>();
+        private final List<String> preparedOn = new ArrayList<>();
         private boolean rejectNext;
+        private volatile boolean unreadableNext;
         private volatile CountDownLatch blocked;
         private volatile CountDownLatch release;
 
         @Override
-        public boolean importBundle(String payload)
+        public String prepare(String payload)
+        {
+            synchronized (preparedOn)
+            {
+                preparedOn.add(Thread.currentThread().getName());
+            }
+            if (unreadableNext)
+            {
+                unreadableNext = false;
+                return null;
+            }
+            return payload;
+        }
+
+        @Override
+        public boolean commit(String payload)
         {
             CountDownLatch currentBlock = blocked;
             if (currentBlock != null)
@@ -1089,6 +1146,19 @@ public class TrackerConnectionControllerTest
         void rejectNextPayload()
         {
             rejectNext = true;
+        }
+
+        void failToPrepareNextPayload()
+        {
+            unreadableNext = true;
+        }
+
+        List<String> preparedOnThreads()
+        {
+            synchronized (preparedOn)
+            {
+                return new ArrayList<>(preparedOn);
+            }
         }
 
         void blockNextPayload()

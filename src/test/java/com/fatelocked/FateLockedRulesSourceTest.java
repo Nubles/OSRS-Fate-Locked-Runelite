@@ -3,7 +3,6 @@ package com.fatelocked;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.runelite.api.Client;
-import net.runelite.client.callback.ClientThread;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Rule;
@@ -24,8 +23,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -145,7 +142,7 @@ public class FateLockedRulesSourceTest
     {
         Harness h = new Harness(folder.newFolder("clipboard"));
 
-        assertTrue(h.importFromClipboard(v4Json(Instant.now())));
+        PluginTestSupport.importFromClipboard(h.plugin, v4Json(Instant.now()));
 
         assertEquals(FateLockedPlugin.RulesSource.IMPORT, h.source());
         verify(h.controller).localRulesReplacedTrackerRules();
@@ -239,8 +236,7 @@ public class FateLockedRulesSourceTest
             mock(TrackerConnectionController.class);
         private final TrackerConnectionSettings settings =
             mock(TrackerConnectionSettings.class);
-        private final ScheduledExecutorService executor =
-            mock(ScheduledExecutorService.class);
+        private final ScheduledExecutorService executor;
 
         private Harness(File dataDirectory) throws Exception
         {
@@ -252,21 +248,9 @@ public class FateLockedRulesSourceTest
                     return dataDirectory;
                 }
             };
-            // Background and client-thread work run at once here; the
-            // startup contract test checks which thread does what.
-            doAnswer(invocation -> {
-                ((Runnable) invocation.getArgument(0)).run();
-                return null;
-            }).when(executor).execute(any(Runnable.class));
-            ClientThread clientThread = mock(ClientThread.class);
-            doAnswer(invocation -> {
-                ((Runnable) invocation.getArgument(0)).run();
-                return null;
-            }).when(clientThread).invoke(any(Runnable.class));
-            set("gate", new ClientThreadGate(clientThread, new PluginSession()));
+            PluginTestSupport.runQueuedWorkInline(plugin);
+            executor = (ScheduledExecutorService) PluginTestSupport.get(plugin, "executor");
             set("client", mock(Client.class));
-            set("clientThread", clientThread);
-            set("executor", executor);
             set("config", mock(FateLockedConfig.class));
             set("panel", panel);
             set("gson", new Gson());
@@ -314,14 +298,6 @@ public class FateLockedRulesSourceTest
                 "loadBackupFile", boolean.class);
             declared.setAccessible(true);
             declared.invoke(plugin, false);
-        }
-
-        boolean importFromClipboard(String json) throws Exception
-        {
-            Method method = FateLockedPlugin.class.getDeclaredMethod(
-                "applyClipboardBundle", String.class);
-            method.setAccessible(true);
-            return (Boolean) method.invoke(plugin, json);
         }
 
         private void set(String name, Object value) throws Exception

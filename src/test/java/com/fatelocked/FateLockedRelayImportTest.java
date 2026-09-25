@@ -9,10 +9,10 @@ import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Test;
 
 import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 
+import static com.fatelocked.PluginTestSupport.importFromClipboard;
+import static com.fatelocked.PluginTestSupport.importFromRelay;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -39,8 +39,8 @@ public class FateLockedRelayImportTest
         FateLockedBundle previous = testPlugin.plugin.getBundle();
         setSource(testPlugin.plugin, FateLockedPlugin.RulesSource.RELAY);
 
-        assertFalse(applyClipboardBundle(testPlugin.plugin, PAIRING_CODE));
-        assertFalse(applyClipboardBundle(testPlugin.plugin, PAIRING_CODE));
+        importFromClipboard(testPlugin.plugin, PAIRING_CODE);
+        importFromClipboard(testPlugin.plugin, PAIRING_CODE);
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
@@ -56,8 +56,8 @@ public class FateLockedRelayImportTest
         FateLockedBundle previous = testPlugin.plugin.getBundle();
         setSource(testPlugin.plugin, FateLockedPlugin.RulesSource.RELAY);
 
-        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
-        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
+        importFromClipboard(testPlugin.plugin, "{bad");
+        importFromClipboard(testPlugin.plugin, "{bad");
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
@@ -71,9 +71,9 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
 
-        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
-        assertTrue(applyClipboardBundle(testPlugin.plugin, fixture("bundles/v4-rules.json")));
-        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
+        importFromClipboard(testPlugin.plugin, "{bad");
+        importFromClipboard(testPlugin.plugin, fixture("bundles/v4-rules.json"));
+        importFromClipboard(testPlugin.plugin, "{bad");
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(testPlugin.panel);
         order.verify(testPlugin.panel).flashStatus(
@@ -91,12 +91,12 @@ public class FateLockedRelayImportTest
         FateLockedBundle previous = testPlugin.plugin.getBundle();
         setSource(testPlugin.plugin, FateLockedPlugin.RulesSource.FILE);
 
-        assertFalse(acceptRelayPayload(
+        assertFalse(importFromRelay(
             testPlugin.plugin, fixture("bundles/v3-standard.json")));
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.FILE, source(testPlugin.plugin));
 
-        assertTrue(acceptRelayPayload(
+        assertTrue(importFromRelay(
             testPlugin.plugin, fixture("bundles/v4-rules.json")));
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
         verify(testPlugin.panel, times(1))
@@ -119,7 +119,7 @@ public class FateLockedRelayImportTest
         FateLockedBundle previous = testPlugin.plugin.getBundle();
         setSource(testPlugin.plugin, FateLockedPlugin.RulesSource.FILE);
 
-        assertFalse(acceptRelayPayload(testPlugin.plugin, withALockedArea()));
+        assertFalse(importFromRelay(testPlugin.plugin, withALockedArea()));
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.FILE, source(testPlugin.plugin));
@@ -139,7 +139,7 @@ public class FateLockedRelayImportTest
             .when(testPlugin.panel)
             .update(any(FateLockedBundle.class), any());
 
-        assertTrue(acceptRelayPayload(testPlugin.plugin, withALockedArea()));
+        assertTrue(importFromRelay(testPlugin.plugin, withALockedArea()));
 
         // The rules are in force, and the other changes still show.
         assertFalse(testPlugin.plugin.getBundle().getRegionChunks().isEmpty());
@@ -178,6 +178,7 @@ public class FateLockedRelayImportTest
         setField(plugin, "panel", panel);
         setField(plugin, "gson", new Gson());
         setField(plugin, "worldMapPointManager", pins);
+        PluginTestSupport.runQueuedWorkInline(plugin);
         return new TestPlugin(plugin, panel, config, pins);
     }
 
@@ -193,37 +194,15 @@ public class FateLockedRelayImportTest
         return ((ActiveRules) field(plugin, "active")).getSource();
     }
 
-    private static boolean applyClipboardBundle(
-        FateLockedPlugin plugin, String value) throws Exception
-    {
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "applyClipboardBundle", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value);
-    }
-
-    private static boolean acceptRelayPayload(
-        FateLockedPlugin plugin, String value) throws Exception
-    {
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "acceptRelayPayload", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value);
-    }
-
     private static Object field(FateLockedPlugin target, String name) throws Exception
     {
-        Field field = FateLockedPlugin.class.getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
+        return PluginTestSupport.get(target, name);
     }
 
     private static void setField(
         FateLockedPlugin target, String name, Object value) throws Exception
     {
-        Field field = FateLockedPlugin.class.getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
+        PluginTestSupport.set(target, name, value);
     }
 
     private static String fixture(String name) throws Exception

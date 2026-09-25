@@ -179,7 +179,7 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
-    public void clipboardRulesAreImportedOnTheClientThread() throws Exception
+    public void clipboardRulesAreParsedOffTheGameThreadAndAppliedOnIt() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("clipboard-on-client-thread"));
         try
@@ -188,9 +188,14 @@ public class FateLockedPluginStartupContractTest
             SwingUtilities.invokeAndWait(() ->
                 harness.panel.buttonForTest("Import from clipboard").doClick());
 
-            // The Swing thread only hands the text over: an import reads
-            // game state such as worn equipment, which RuneLite allows only
-            // on the client thread.
+            // The Swing thread only hands the text over. A full bundle takes
+            // a while to parse, so that happens in the background; the
+            // switch reads game state such as worn equipment, which RuneLite
+            // allows only on the client thread.
+            assertEquals(1, harness.backgroundTasks.size());
+            assertTrue(harness.clientTasks.isEmpty());
+
+            harness.runBackgroundTasks();
             assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
             assertEquals(1, harness.clientTasks.size());
 
@@ -260,8 +265,8 @@ public class FateLockedPluginStartupContractTest
             harness.panel.buttonForTest("Load newest backup file").doClick();
             harness.panel.connectButtonForTest().doClick();
         });
-        assertEquals(2, harness.clientTasks.size());
-        assertEquals(1, harness.backgroundTasks.size());
+        assertEquals(1, harness.clientTasks.size());
+        assertEquals(2, harness.backgroundTasks.size());
 
         harness.plugin.shutDown();
         harness.runBackgroundTasks();
@@ -287,14 +292,15 @@ public class FateLockedPluginStartupContractTest
             harness.plugin.clipboard = "not a bundle";
             SwingUtilities.invokeAndWait(() ->
                 harness.panel.buttonForTest("Import from clipboard").doClick());
-            assertEquals(2, harness.clientTasks.size());
+            assertEquals(2, harness.backgroundTasks.size());
 
-            harness.runClientTick();
+            harness.runBackgroundTasks();
             harness.flushEdt();
 
-            // RuneLite runs a task that returns false again on every client
-            // tick, so a failed import must not ask to run again.
+            // Text that doesn't parse never reaches the client thread, and
+            // nothing asks to run again.
             assertTrue(harness.clientTasks.isEmpty());
+            assertTrue(harness.backgroundTasks.isEmpty());
             assertTrue(harness.panel.hasTextForTest("import failed"));
             assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
         }

@@ -7,7 +7,6 @@ import com.fatelocked.events.FateEventType;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
-import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Rule;
@@ -22,15 +21,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,12 +70,12 @@ public class FateLockedPluginLocalHistoryTest
         String rules = fixture("bundles/v4-rules.json");
 
         Harness relay = harness("relay-source");
-        assertTrue(invokeRelayImport(relay.plugin, rules));
+        assertTrue(PluginTestSupport.importFromRelay(relay.plugin, rules));
         invokeRecord(relay.plugin, detected("Dragon Slayer"));
         assertEquals(1, relay.history.events().size());
 
         Harness clipboard = harness("clipboard-source");
-        assertTrue(invokeClipboardImport(clipboard.plugin, rules));
+        PluginTestSupport.importFromClipboard(clipboard.plugin, rules);
         invokeRecord(clipboard.plugin, detected("Dragon Slayer"));
         assertEquals(1, clipboard.history.events().size());
 
@@ -145,21 +141,7 @@ public class FateLockedPluginLocalHistoryTest
         FateEventHistory history =
             new FateEventHistory(gson, historyPath, legacyPath);
 
-        // Background and client-thread work run at once in this harness.
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArgument(0)).run();
-            return null;
-        }).when(executor).execute(any(Runnable.class));
-        ClientThread clientThread = mock(ClientThread.class);
-        doAnswer(invocation -> {
-            ((Runnable) invocation.getArgument(0)).run();
-            return null;
-        }).when(clientThread).invoke(any(Runnable.class));
-
-        setField(plugin, "executor", executor);
-        setField(plugin, "gate",
-            new ClientThreadGate(clientThread, new PluginSession()));
+        PluginTestSupport.runQueuedWorkInline(plugin);
         setField(plugin, "client", client);
         setField(plugin, "config", mock(FateLockedConfig.class));
         setField(plugin, "panel", panel);
@@ -198,23 +180,7 @@ public class FateLockedPluginLocalHistoryTest
         method.invoke(plugin, event);
     }
 
-    private static boolean invokeRelayImport(
-        FateLockedPlugin plugin, String value) throws Exception
-    {
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "acceptRelayPayload", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value);
-    }
 
-    private static boolean invokeClipboardImport(
-        FateLockedPlugin plugin, String value) throws Exception
-    {
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "applyClipboardBundle", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value);
-    }
 
     private static void invokeNoArg(
         FateLockedPlugin plugin, String methodName) throws Exception
