@@ -621,6 +621,8 @@ class FateLockedPanel extends PluginPanel
     String connectionTextForTest() { return connectionVal.getText(); }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }
+    JTextArea pasteAreaForTest() { return pasteArea; }
+    JButton buttonForTest(String text) { return findButton(this, text); }
     JButton guardianPauseButtonForTest() { return strictModeButton; }
     List<String> sectionTitlesForTest()
     {
@@ -843,6 +845,28 @@ class FateLockedPanel extends PluginPanel
                 bundleSection.setExpanded(false);
             }
         });
+    }
+
+    private static JButton findButton(Component component, String text)
+    {
+        if (component instanceof JButton
+            && text.equals(((JButton) component).getText()))
+        {
+            return (JButton) component;
+        }
+        if (component instanceof java.awt.Container)
+        {
+            for (Component child
+                : ((java.awt.Container) component).getComponents())
+            {
+                JButton found = findButton(child, text);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static boolean hasText(Component component, String text)

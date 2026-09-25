@@ -441,7 +441,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
 
         wirePanelActions(
             panel,
-            json -> applyPastedBundle(json, ImportSource.PASTE),
+            json -> importOnClientThread(json, ImportSource.PASTE),
             () -> clientThread.invoke(this::reloadBundleOnRequest),
             this::beginTrackerPairing);
         panel.setGuardianCallbacks(
@@ -1399,8 +1399,7 @@ MenuEntry entry = event.getMenuEntry();
         String text;
         try
         {
-            Object data = Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
-            text = data == null ? "" : data.toString().trim();
+            text = clipboardText();
         }
         catch (Exception ex)
         {
@@ -1412,9 +1411,25 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus("clipboard empty", false);
             return;
         }
-        final String t = text;
-        clientThread.invoke(
-            () -> applyPastedBundle(t, ImportSource.CLIPBOARD));
+        importOnClientThread(text, ImportSource.CLIPBOARD);
+    }
+
+    /** The clipboard's text, trimmed; empty when it holds no text. */
+    String clipboardText() throws Exception
+    {
+        Object data = Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
+        return data == null ? "" : data.toString().trim();
+    }
+
+    /**
+     * Imports read game state such as worn equipment, which RuneLite allows
+     * only on the client thread. The cast keeps this ClientThread.invoke(
+     * Runnable): the BooleanSupplier overload re-runs a task that returns
+     * false on every client tick, so a failed import would never stop.
+     */
+    private void importOnClientThread(String json, ImportSource source)
+    {
+        clientThread.invoke((Runnable) () -> applyPastedBundle(json, source));
     }
 
     /** Load a bundle from JSON pasted into the side panel. */

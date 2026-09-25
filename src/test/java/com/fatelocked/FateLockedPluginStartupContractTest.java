@@ -14,6 +14,7 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
+import net.runelite.client.util.HotkeyListener;
 import okhttp3.OkHttpClient;
 import org.junit.Rule;
 import org.junit.Test;
@@ -21,10 +22,13 @@ import org.junit.rules.TemporaryFolder;
 
 import javax.swing.SwingUtilities;
 import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -134,10 +138,78 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
+    @Test
+    public void pastedRulesAreImportedOnTheClientThread() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("paste-on-client-thread"));
+        try
+        {
+            String json = fixture("bundles/v4-rules.json");
+            SwingUtilities.invokeAndWait(() -> {
+                harness.panel.pasteAreaForTest().setText(json);
+                harness.panel.buttonForTest("Import pasted JSON").doClick();
+            });
+
+            // The Swing thread only hands the text over: an import reads
+            // game state such as worn equipment, which RuneLite allows only
+            // on the client thread.
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertEquals(1, harness.clientTasks.size());
+
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertTrue(harness.panel.hasTextForTest("imported "));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void aFailedImportRunsOnceAndSaysSo() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("failed-import-once"));
+        try
+        {
+            harness.plugin.clipboard = "{}";
+            harness.pressReimportHotkey();
+            SwingUtilities.invokeAndWait(() -> {
+                harness.panel.pasteAreaForTest().setText("not a bundle");
+                harness.panel.buttonForTest("Import pasted JSON").doClick();
+            });
+            assertEquals(2, harness.clientTasks.size());
+
+            harness.runClientTick();
+            harness.flushEdt();
+
+            // RuneLite runs a task that returns false again on every client
+            // tick, so a failed import must not ask to run again.
+            assertTrue(harness.clientTasks.isEmpty());
+            assertTrue(harness.panel.hasTextForTest("import failed"));
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
     private static void write(File file, String text) throws Exception
     {
         java.nio.file.Files.write(file.toPath(),
             text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String fixture(String name) throws Exception
+    {
+        try (InputStream in = FateLockedPluginStartupContractTest.class
+            .getClassLoader().getResourceAsStream(name))
+        {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     @Test
@@ -225,7 +297,7 @@ public class FateLockedPluginStartupContractTest
 
     private static final class Harness
     {
-        private final ConcurrentLinkedQueue<Runnable> clientTasks =
+        private final ConcurrentLinkedQueue<BooleanSupplier> clientTasks =
             new ConcurrentLinkedQueue<>();
         private final AtomicInteger navigationAdds = new AtomicInteger();
         private final AtomicInteger consentPrompts = new AtomicInteger();
@@ -273,11 +345,21 @@ public class FateLockedPluginStartupContractTest
             };
             plugin = new TestPlugin(dataDirectory);
 
+            // Like RuneLite's ClientThread: a Runnable runs once, and a
+            // BooleanSupplier that returns false runs again next tick.
             ClientThread clientThread = mock(ClientThread.class);
+            doAnswer(invocation -> {
+                Runnable task = invocation.getArgument(0);
+                clientTasks.add(() -> {
+                    task.run();
+                    return true;
+                });
+                return null;
+            }).when(clientThread).invoke(any(Runnable.class));
             doAnswer(invocation -> {
                 clientTasks.add(invocation.getArgument(0));
                 return null;
-            }).when(clientThread).invoke(any(Runnable.class));
+            }).when(clientThread).invoke(any(BooleanSupplier.class));
 
             ClientToolbar toolbar = mock(ClientToolbar.class);
             doAnswer(invocation -> {
@@ -356,13 +438,38 @@ public class FateLockedPluginStartupContractTest
             declared.set(plugin, value);
         }
 
-        private void runClientTasks()
+        /** One client tick: run each queued task once, keeping any that ask to run again. */
+        private void runClientTick()
         {
-            Runnable task;
+            List<BooleanSupplier> due = new ArrayList<>();
+            BooleanSupplier task;
             while ((task = clientTasks.poll()) != null)
             {
-                task.run();
+                due.add(task);
             }
+            for (BooleanSupplier queued : due)
+            {
+                if (!queued.getAsBoolean())
+                {
+                    clientTasks.add(queued);
+                }
+            }
+        }
+
+        private void runClientTasks()
+        {
+            for (int tick = 0; !clientTasks.isEmpty(); tick++)
+            {
+                assertTrue("a client task keeps asking to run again", tick < 50);
+                runClientTick();
+            }
+        }
+
+        private void pressReimportHotkey() throws Exception
+        {
+            Field declared = FateLockedPlugin.class.getDeclaredField("reimportHotkey");
+            declared.setAccessible(true);
+            ((HotkeyListener) declared.get(plugin)).hotkeyPressed();
         }
 
         private void flushEdt() throws Exception
@@ -378,6 +485,7 @@ public class FateLockedPluginStartupContractTest
             new ConcurrentLinkedQueue<>();
         private final AtomicInteger pauseCalls = new AtomicInteger();
         private boolean failBrowser;
+        private String clipboard = "";
 
         private TestPlugin(File dataDirectory)
         {
@@ -398,6 +506,12 @@ public class FateLockedPluginStartupContractTest
             {
                 throw new RuntimeException("browser unavailable");
             }
+        }
+
+        @Override
+        String clipboardText()
+        {
+            return clipboard;
         }
 
         @Override
