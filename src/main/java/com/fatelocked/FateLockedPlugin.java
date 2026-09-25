@@ -461,7 +461,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             () -> configManager.setConfiguration(
                 FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
-        panel.updateConnection(connectionController.snapshot());
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
 

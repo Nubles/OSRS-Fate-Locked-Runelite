@@ -338,6 +338,34 @@ public class FateLockedPanelStatusTest
     }
 
     @Test
+    public void connectionUpdatesApplyInTheOrderTheyWereMade() throws Exception
+    {
+        FateLockedPanel panel = panel();
+
+        SwingUtilities.invokeAndWait(() -> {
+            // A reply's thread queues "Connected" while the Swing thread is
+            // busy...
+            Thread reply = new Thread(() -> panel.updateConnection(
+                TrackerConnectionSnapshot.connected(Instant.parse("2026-07-27T14:05:06Z"), "6")));
+            reply.start();
+            try
+            {
+                reply.join();
+            }
+            catch (InterruptedException error)
+            {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(error);
+            }
+            // ...and then the Swing thread itself makes a newer update.
+            panel.updateConnection(TrackerConnectionSnapshot.disconnected());
+        });
+        flushSwing();
+
+        assertEquals("Not connected", panel.connectionTextForTest());
+    }
+
+    @Test
     public void connectTrackerButtonInvokesItsCallbackExactlyOnce()
         throws Exception
     {

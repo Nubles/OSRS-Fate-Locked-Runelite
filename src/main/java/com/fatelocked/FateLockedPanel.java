@@ -471,19 +471,19 @@ class FateLockedPanel extends PluginPanel
 
     void updateConnection(TrackerConnectionSnapshot snapshot)
     {
-        runOnEdt(() -> applyConnection(snapshot));
+        queueOnEdt(() -> applyConnection(snapshot));
     }
 
     void updateTrackerAccount(String account)
     {
-        runOnEdt(() -> trackerAccountVal.setText(orDash(account)));
+        queueOnEdt(() -> trackerAccountVal.setText(orDash(account)));
     }
 
     void updateRollInboxStatus(
         int localEvents, int needsReview, int warnings,
         boolean saveFailed)
     {
-        runOnEdt(() -> {
+        queueOnEdt(() -> {
             localEventsVal.setText(String.valueOf(Math.max(0, localEvents)));
             reviewVal.setText(String.valueOf(Math.max(0, needsReview)));
             warningsVal.setText(warnings <= 0 ? "None" : warnings + " active");
@@ -496,7 +496,7 @@ class FateLockedPanel extends PluginPanel
 
     void refreshConfig(String key)
     {
-        runOnEdt(() -> configBinder.refresh(key));
+        queueOnEdt(() -> configBinder.refresh(key));
     }
     private void applyConnection(TrackerConnectionSnapshot snapshot)
     {
@@ -566,16 +566,16 @@ class FateLockedPanel extends PluginPanel
             .withZone(ZoneOffset.UTC).format(instant);
     }
 
-    private static void runOnEdt(Runnable update)
+    /**
+     * Queue a sidebar update on the Swing thread, even from the Swing thread
+     * itself, so updates from every thread apply in the order they were
+     * made. Running it at once there let it overtake older updates still
+     * queued from other threads: a "Not connected" could be followed by a
+     * stale "Connected".
+     */
+    private static void queueOnEdt(Runnable update)
     {
-        if (SwingUtilities.isEventDispatchThread())
-        {
-            update.run();
-        }
-        else
-        {
-            SwingUtilities.invokeLater(update);
-        }
+        SwingUtilities.invokeLater(update);
     }
 
     String localEventsTextForTest() { return localEventsVal.getText(); }
@@ -778,7 +778,7 @@ class FateLockedPanel extends PluginPanel
 
     void flashStatus(String message, boolean ok)
     {
-        runOnEdt(() -> {
+        queueOnEdt(() -> {
             importVal.setText(message);
             importVal.setForeground(ok ? GREEN : RED);
             importVal.setVisible(true);

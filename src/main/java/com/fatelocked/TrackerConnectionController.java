@@ -608,7 +608,11 @@ final class TrackerConnectionController
         }
     }
 
-    /** Show a snapshot, under pollLock, unless it says exactly what the last one did. */
+    /**
+     * Show a snapshot, under pollLock, unless it says exactly what the last
+     * one did. Being under the lock, the listener hears the snapshots in the
+     * order they were made, whichever threads made them.
+     */
     private void showLocked(TrackerConnectionSnapshot next)
     {
         if (next.equals(snapshot))
