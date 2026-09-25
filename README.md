@@ -6,7 +6,10 @@ sidebar shows the app-authored rules for the current run, renders chunk
 boundaries and lock state, warns about locked content, and provides the
 optional Strict Mode safety layer.
 
-This branch is a Plugin Hub candidate. It has not been submitted or accepted.
+The plugin is on the RuneLite Plugin Hub. The Hub builds the commit pinned in
+its [entry](https://github.com/runelite/plugin-hub/blob/master/plugins/fate-locked-ironman),
+not `main`, so changes here reach players only when that pin is updated (see
+[Releasing to the Plugin Hub](CONTRIBUTING.md#releasing-to-the-plugin-hub)).
 
 ## Connect the tracker
 
