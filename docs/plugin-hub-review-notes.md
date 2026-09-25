@@ -1,8 +1,9 @@
 # Plugin Hub review notes
 
-The plugin is on the Plugin Hub, which builds commit `52f45f5` (16 September
-2026). These notes describe `main` for reviewers of the next update and do
-not claim approval of any change made since that commit.
+The plugin is on the Plugin Hub, which builds commit `874b9d1` (the Stage 0
+safety release, 25 September 2026, runelite/plugin-hub#17110). These notes
+describe `main` for reviewers of the next update and do not claim approval of
+any change made since that commit.
 
 Official references checked while preparing this candidate:
 
