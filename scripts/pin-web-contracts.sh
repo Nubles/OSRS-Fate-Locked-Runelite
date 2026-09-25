@@ -12,6 +12,8 @@ set -euo pipefail
 
 repository=Nubles/OSRS-Fate-Locked
 source_dir=contracts/golden-bundles
+# The relay's replies to the plugin's request, with the outcome of each.
+relay_fixture=contracts/relay/relay-get.json
 root=$(cd "$(dirname "$0")/.." && pwd)
 dest="$root/src/test/resources/contracts"
 pinned="$dest/PINNED"
@@ -45,6 +47,8 @@ fetch_contracts() {
     download "$commit" "$source_dir/$name" "$out/golden-bundles/$name"
     echo "$sum  $out/golden-bundles/$name" | sha256sum --check --quiet -
   done <<< "$names"
+  mkdir -p "$out/relay"
+  download "$commit" "$relay_fixture" "$out/relay/relay-get.json"
 }
 
 if [ "${1:-}" = "--check" ]; then
@@ -52,7 +56,8 @@ if [ "${1:-}" = "--check" ]; then
   scratch=$(mktemp -d)
   trap 'rm -rf "$scratch"' EXIT
   fetch_contracts "$commit" "$scratch"
-  if diff -r "$scratch/golden-bundles" "$dest/golden-bundles" > /dev/null; then
+  if diff -r "$scratch/golden-bundles" "$dest/golden-bundles" > /dev/null \
+    && diff -r "$scratch/relay" "$dest/relay" > /dev/null; then
     echo "contracts match $repository@$commit"
   else
     echo "src/test/resources/contracts differs from $repository@$commit;" \
@@ -67,7 +72,7 @@ if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
   echo "give the full 40-character web commit hash" >&2
   exit 1
 fi
-rm -rf "$dest/golden-bundles"
+rm -rf "$dest/golden-bundles" "$dest/relay"
 fetch_contracts "$commit" "$dest"
 printf 'repository=%s\ncommit=%s\n' "$repository" "$commit" > "$pinned"
-echo "copied $source_dir from $repository@$commit"
+echo "copied $source_dir and $relay_fixture from $repository@$commit"
