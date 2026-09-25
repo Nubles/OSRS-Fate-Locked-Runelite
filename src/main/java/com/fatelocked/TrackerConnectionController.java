@@ -296,7 +296,7 @@ final class TrackerConnectionController
             {
                 return;
             }
-            acceptedVersion = canonicalVersion(version.trim());
+            acceptedVersion = RelayContract.canonicalVersion(version.trim());
         }
     }
 
@@ -337,7 +337,7 @@ final class TrackerConnectionController
                 return null;
             }
             RelayPollToken token = new RelayPollToken(
-                generation, code, canonicalVersion(version));
+                generation, code, RelayContract.canonicalVersion(version));
             activePoll = token;
             return token;
         }
@@ -353,62 +353,58 @@ final class TrackerConnectionController
                 clearPoll(token);
                 return;
             }
-            if (current.code() == 304)
+            int status = current.code();
+            String body = status >= 200 && status < 300 && current.body() != null
+                ? current.body().string() : null;
+            RelayContract.Reply reply = RelayContract.classify(gson,
+                token.acceptedVersion, status, current.header("ETag"),
+                current.header("Retry-After"), body);
+            switch (reply.outcome)
             {
-                handleNotModified(token, current.header("ETag"));
-                return;
-            }
-            if (current.code() == 404)
-            {
-                handleNotFound(token);
-                return;
-            }
-            if (!current.isSuccessful() || current.body() == null)
-            {
-                boolean rateLimited = current.code() == 429;
-                publishIfCurrent(token,
-                    TrackerConnectionState.OFFLINE,
-                    rateLimited
-                        ? "Tracker relay is busy; retrying later"
-                        : "Tracker is unavailable");
-                long retryAfter = rateLimited
-                    ? retryAfterSeconds(current.header("Retry-After")) : 0;
-                scheduleFailure(token,
-                    Math.max(FAILURE_BACKOFF_SECONDS, retryAfter),
-                    MAX_FAILURE_BACKOFF_SECONDS);
-                clearPoll(token);
-                return;
-            }
-
-            RelayEnvelope envelope = gson.fromJson(
-                current.body().string(), RelayEnvelope.class);
-            if (envelope == null || envelope.payload == null)
-            {
-                scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                    MAX_FAILURE_BACKOFF_SECONDS);
-                clearPoll(token);
-                return;
-            }
-            Integer responseVersion = acceptableVersion(
-                token, current.header("ETag"), envelope.version);
-            if (responseVersion == null)
-            {
-                scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                    MAX_FAILURE_BACKOFF_SECONDS);
-                clearPoll(token);
-                return;
-            }
-            if (!isPollCurrent(token))
-            {
-                clearPoll(token);
-                return;
-            }
-            String canonical = String.valueOf(responseVersion);
-            if (publishIfCurrent(token,
-                TrackerConnectionState.IMPORTING,
-                "Importing tracker data"))
-            {
-                prepareImport(importer, token, envelope.payload, canonical);
+                case UNCHANGED:
+                    confirmUnchanged(token);
+                    return;
+                case UNCONFIRMED:
+                    clearPoll(token);
+                    return;
+                case MISSING:
+                    handleNotFound(token);
+                    return;
+                case BUSY:
+                    publishIfCurrent(token, TrackerConnectionState.OFFLINE,
+                        "Tracker relay is busy; retrying later");
+                    scheduleFailure(token,
+                        Math.max(FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds),
+                        MAX_FAILURE_BACKOFF_SECONDS);
+                    clearPoll(token);
+                    return;
+                case UNAVAILABLE:
+                    publishIfCurrent(token, TrackerConnectionState.OFFLINE,
+                        "Tracker is unavailable");
+                    scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                        MAX_FAILURE_BACKOFF_SECONDS);
+                    clearPoll(token);
+                    return;
+                case RULES:
+                    if (!isPollCurrent(token))
+                    {
+                        clearPoll(token);
+                        return;
+                    }
+                    if (publishIfCurrent(token,
+                        TrackerConnectionState.IMPORTING,
+                        "Importing tracker data"))
+                    {
+                        prepareImport(importer, token, reply.payload,
+                            String.valueOf(reply.version));
+                    }
+                    return;
+                case STALE:
+                case UNREADABLE:
+                default:
+                    scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
+                        MAX_FAILURE_BACKOFF_SECONDS);
+                    clearPoll(token);
             }
         }
         catch (Exception error)
@@ -419,18 +415,9 @@ final class TrackerConnectionController
         }
     }
 
-    private void handleNotModified(
-        RelayPollToken token, String responseEtag)
+    /** The relay says the rules the plugin holds are still current. */
+    private void confirmUnchanged(RelayPollToken token)
     {
-        String responseVersion = responseEtag == null
-            ? token.acceptedVersion
-            : canonicalVersion(responseEtag);
-        if (token.acceptedVersion == null
-            || !token.acceptedVersion.equals(responseVersion))
-        {
-            clearPoll(token);
-            return;
-        }
         try
         {
             clientDispatcher.accept(() -> {
@@ -661,80 +648,6 @@ final class TrackerConnectionController
         }
     }
 
-    private static long retryAfterSeconds(String raw)
-    {
-        if (raw == null || !raw.trim().matches("[0-9]+"))
-        {
-            return 0;
-        }
-        try
-        {
-            return Long.parseLong(raw.trim());
-        }
-        catch (NumberFormatException error)
-        {
-            return 0;
-        }
-    }
-
-    private Integer acceptableVersion(
-        RelayPollToken token, String responseEtag, int bodyVersion)
-    {
-        Integer responseVersion = responseEtag == null
-            ? Integer.valueOf(bodyVersion)
-            : parseVersion(responseEtag);
-        if (bodyVersion <= 0
-            || responseVersion == null
-            || responseVersion != bodyVersion)
-        {
-            return null;
-        }
-        if (token.acceptedVersion == null)
-        {
-            return responseVersion;
-        }
-        Integer previous = parseVersion(token.acceptedVersion);
-        return previous != null && responseVersion > previous
-            ? responseVersion : null;
-    }
-
-    private static Integer parseVersion(String raw)
-    {
-        if (raw == null) return null;
-        String value = raw.trim();
-        if (value.startsWith("W/"))
-        {
-            value = value.substring(2);
-        }
-        if (value.startsWith("\""))
-        {
-            if (value.length() < 2 || !value.endsWith("\""))
-            {
-                return null;
-            }
-            value = value.substring(1, value.length() - 1);
-        }
-        else if (value.contains("\""))
-        {
-            return null;
-        }
-        if (!value.matches("[1-9][0-9]*")) return null;
-        try
-        {
-            return Integer.valueOf(value);
-        }
-        catch (NumberFormatException error)
-        {
-            return null;
-        }
-    }
-
-    private static String canonicalVersion(String raw)
-    {
-        Integer parsed = parseVersion(raw);
-        return parsed == null ? raw : String.valueOf(parsed);
-    }
-
     private boolean isPollCurrent(RelayPollToken token)
     {
         synchronized (pollLock)
@@ -765,7 +678,7 @@ final class TrackerConnectionController
     private boolean acceptedStateUnchangedLocked(RelayPollToken token)
     {
         return equal(token.acceptedVersion,
-            canonicalVersion(acceptedVersion));
+            RelayContract.canonicalVersion(acceptedVersion));
     }
 
     private void clearPoll(RelayPollToken token)
@@ -874,11 +787,5 @@ final class TrackerConnectionController
             this.code = code;
             this.acceptedVersion = acceptedVersion;
         }
-    }
-
-    private static final class RelayEnvelope
-    {
-        private int version;
-        private String payload;
     }
 }
