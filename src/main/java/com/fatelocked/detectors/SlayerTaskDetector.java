@@ -87,12 +87,6 @@ public final class SlayerTaskDetector
             .build());
     }
 
-    public synchronized void cancel() throws IOException
-    {
-        state = new State();
-        persist();
-    }
-
     private void persist() throws IOException
     {
         if (path.getParent() != null) Files.createDirectories(path.getParent());

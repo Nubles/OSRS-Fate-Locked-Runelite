@@ -84,7 +84,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
-import net.runelite.client.ui.overlay.infobox.InfoBox;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.util.Text;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
@@ -117,7 +116,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ScheduledExecutorService;
@@ -192,7 +190,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
-    private volatile Instant rulesImportedAt;
     /** Where the active rules came from; freshness depends on it (see rulesAreFresh). */
     private volatile RulesSource rulesSource = RulesSource.NONE;
     /** Strict Mode acts only on rules confirmed or exported within this window. */
@@ -266,15 +263,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     private static final int DEPOSIT_BOX_GROUP_ID = 192;
     /** Crystal key — a gold-key item icon for the Keys infobox. */
     private static final int KEYS_ICON_ITEM = 989;
-    /**
-     * Minimum NPC combat level for a LootReceived kill to nudge a Boss-table
-     * roll. LootReceived fires for every NPC kill with personal loot (even a
-     * chicken), so this filters down to genuine bosses — most slayer-tier
-     * monsters and superiors sit well under 200, while true bosses (KBD 240,
-     * Vorkath 732, Zulrah 725, GWD generals 250-350, …) clear it comfortably.
-     * Approximate by design, same spirit as the plugin's other broad nudges.
-     */
-    private static final int BOSS_LOOT_COMBAT_LEVEL = 200;
     /** Plugin-specific data dir under .runelite/ — all file I/O is confined here. */
     private static final File DATA_DIR = new File(RuneLite.RUNELITE_DIR, "fate-locked");
 
@@ -873,8 +861,8 @@ String m = raw.toLowerCase();
      * Precise boss/raid kill detection — fires on the actual loot drop rather
      * than inferring a kill from chunk content, so it's reliable even for
      * bosses the chunk dataset doesn't cover. EVENT-type loot (CoX/ToB/ToA
-     * reward chests) always nudges; NPC-type loot only nudges above
-     * BOSS_LOOT_COMBAT_LEVEL so ordinary slayer kills don't spam chat.
+     * reward chests) always nudges; for NPC loot the boss detectors decide
+     * which kills count.
      */
     @Subscribe
     public void onLootReceived(LootReceived ev)
@@ -1334,7 +1322,6 @@ MenuEntry entry = event.getMenuEntry();
         {
             FateLockedBundle parsed = FateLockedBundle.loadFromFile(gson, file);
             bundle = parsed;
-            rulesImportedAt = Instant.now();
             rulesSource = RulesSource.FILE;
             trackerRulesReplaced();
             log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
@@ -1443,13 +1430,11 @@ MenuEntry entry = event.getMenuEntry();
             return false;
         }
         FateLockedBundle previousBundle = bundle;
-        Instant previousRulesImportedAt = rulesImportedAt;
         RulesSource previousSource = rulesSource;
         try
         {
             FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, json);
             bundle = parsed;
-            rulesImportedAt = Instant.now();
             rulesSource = RulesSource.IMPORT;
             refreshPanel();
             panel.flashStatus(
@@ -1464,7 +1449,6 @@ MenuEntry entry = event.getMenuEntry();
         catch (RuntimeException ex)
         {
             bundle = previousBundle;
-            rulesImportedAt = previousRulesImportedAt;
             rulesSource = previousSource;
             // Every attempt shows its result: a success or a tracker sync may
             // have replaced the last failure message. Only the log is limited.
@@ -1519,12 +1503,10 @@ MenuEntry entry = event.getMenuEntry();
         }
 
         FateLockedBundle previousBundle = bundle;
-        Instant previousRulesImportedAt = rulesImportedAt;
         RulesSource previousSource = rulesSource;
         try
         {
             bundle = parsed;
-            rulesImportedAt = Instant.now();
             rulesSource = RulesSource.RELAY;
             refreshPanel();
             panel.flashStatus(
@@ -1538,7 +1520,6 @@ MenuEntry entry = event.getMenuEntry();
         catch (RuntimeException ex)
         {
             bundle = previousBundle;
-            rulesImportedAt = previousRulesImportedAt;
             rulesSource = previousSource;
             log.debug(
                 "Relay bundle could not be applied: {}", ex.getMessage());

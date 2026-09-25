@@ -485,10 +485,6 @@ class FateLockedPanel extends PluginPanel
         this.onConnect = onConnect;
     }
 
-    void setCallbacks(Consumer<String> onImport, Runnable onReload)
-    {
-        setCallbacks(onImport, onReload, onConnect);
-    }
     void setRollInboxLink(String trackerUrl)
     {
         rollInboxUrl = rollInboxUrl(trackerUrl);

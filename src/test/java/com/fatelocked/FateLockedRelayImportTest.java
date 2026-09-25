@@ -9,7 +9,6 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -34,8 +33,7 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
         FateLockedBundle previous = testPlugin.plugin.getBundle();
-        Instant importedAt = Instant.parse("2026-07-27T12:34:56Z");
-        setField(testPlugin.plugin, "rulesImportedAt", importedAt);
+        setField(testPlugin.plugin, "rulesSource", FateLockedPlugin.RulesSource.RELAY);
 
         assertFalse(applyPastedBundle(
             testPlugin.plugin, PAIRING_CODE, "PASTE"));
@@ -43,7 +41,7 @@ public class FateLockedRelayImportTest
             testPlugin.plugin, PAIRING_CODE, "CLIPBOARD"));
 
         assertSame(previous, testPlugin.plugin.getBundle());
-        assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
+        assertSame(FateLockedPlugin.RulesSource.RELAY, field(testPlugin.plugin, "rulesSource"));
         verify(testPlugin.panel, times(2)).flashStatus(
             "pairing code detected — use Connect tracker", false);
     }
@@ -54,15 +52,14 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
         FateLockedBundle previous = testPlugin.plugin.getBundle();
-        Instant importedAt = Instant.parse("2026-07-27T12:34:56Z");
-        setField(testPlugin.plugin, "rulesImportedAt", importedAt);
+        setField(testPlugin.plugin, "rulesSource", FateLockedPlugin.RulesSource.RELAY);
 
         assertFalse(applyPastedBundle(testPlugin.plugin, "{bad", "PASTE"));
         assertFalse(applyPastedBundle(
             testPlugin.plugin, "{bad", "CLIPBOARD"));
 
         assertSame(previous, testPlugin.plugin.getBundle());
-        assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
+        assertSame(FateLockedPlugin.RulesSource.RELAY, field(testPlugin.plugin, "rulesSource"));
         verify(testPlugin.panel, times(2)).flashStatus(
             "import failed — using previous rules", false);
     }
@@ -92,17 +89,16 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
         FateLockedBundle previous = testPlugin.plugin.getBundle();
-        Instant importedAt = Instant.parse("2026-07-27T12:34:56Z");
-        setField(testPlugin.plugin, "rulesImportedAt", importedAt);
+        setField(testPlugin.plugin, "rulesSource", FateLockedPlugin.RulesSource.FILE);
 
         assertFalse(acceptRelayPayload(
             testPlugin.plugin, fixture("bundles/v3-standard.json")));
         assertSame(previous, testPlugin.plugin.getBundle());
-        assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
+        assertSame(FateLockedPlugin.RulesSource.FILE, field(testPlugin.plugin, "rulesSource"));
 
         assertTrue(acceptRelayPayload(
             testPlugin.plugin, fixture("bundles/v4-rules.json")));
-        assertNotNull(field(testPlugin.plugin, "rulesImportedAt"));
+        assertSame(FateLockedPlugin.RulesSource.RELAY, field(testPlugin.plugin, "rulesSource"));
         verify(testPlugin.panel, times(1))
             .update(any(FateLockedBundle.class), any());
     }
@@ -112,8 +108,7 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
         FateLockedBundle previous = testPlugin.plugin.getBundle();
-        Instant importedAt = Instant.parse("2026-07-27T12:34:56Z");
-        setField(testPlugin.plugin, "rulesImportedAt", importedAt);
+        setField(testPlugin.plugin, "rulesSource", FateLockedPlugin.RulesSource.FILE);
         doThrow(new IllegalStateException("panel failed"))
             .when(testPlugin.panel)
             .update(any(FateLockedBundle.class), any());
@@ -122,7 +117,7 @@ public class FateLockedRelayImportTest
             testPlugin.plugin, fixture("bundles/v4-rules.json")));
 
         assertSame(previous, testPlugin.plugin.getBundle());
-        assertSame(importedAt, field(testPlugin.plugin, "rulesImportedAt"));
+        assertSame(FateLockedPlugin.RulesSource.FILE, field(testPlugin.plugin, "rulesSource"));
         verify(testPlugin.panel, never()).flashStatus(
             org.mockito.ArgumentMatchers.startsWith("synced "), eq(true));
     }
