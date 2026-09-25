@@ -16,6 +16,39 @@ The standard jar is produced in `build/libs/`. For a local developer-mode
 test, copy that jar to RuneLite's `sideloaded-plugins` directory. Do not add a
 fat-jar or shading plugin.
 
+## Run it in a real client
+
+```powershell
+gradle runClient --no-daemon
+```
+
+starts RuneLite in developer mode with the plugin loaded from source through
+`FateLockedPluginDevLauncher` (under `src/test`). From an IDE, run that
+class's `main` with the VM option `-ea`.
+
+The unit tests run against mocks. Before every Plugin Hub update, run the
+[in-game release checklist](docs/in-game-release-checklist.md) on the commit
+you are releasing and paste the result into the release pull request.
+
+## Releasing to the Plugin Hub
+
+The Hub builds the commit pinned in
+[`plugins/fate-locked-ironman`](https://github.com/runelite/plugin-hub/blob/master/plugins/fate-locked-ironman)
+in `runelite/plugin-hub`, not `main`. To release:
+
+1. Merge to `main` with CI green, then run the in-game checklist on that
+   commit.
+2. Open a pull request on `runelite/plugin-hub` that sets `commit=` in that
+   file to the full hash of the commit. If its `repository=` still names
+   `RS3-Fate-Locked-Runelite` (which works only through GitHub's rename
+   redirect), change it to
+   `https://github.com/Nubles/OSRS-Fate-Locked-Runelite.git` in the same
+   pull request.
+3. Say what players will notice, and point reviewers to
+   [the review notes](docs/plugin-hub-review-notes.md) for anything that
+   changes what the plugin can block.
+4. Once it merges, update the commit named at the top of the review notes.
+
 ## Plugin Hub architecture
 
 The shipped plugin constructs one HTTP request:

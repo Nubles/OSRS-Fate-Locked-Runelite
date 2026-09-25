@@ -1,7 +1,8 @@
 # Plugin Hub review notes
 
-This document describes the candidate for reviewers. It does not claim
-Plugin Hub acceptance.
+The plugin is on the Plugin Hub, which builds commit `52f45f5` (16 September
+2026). These notes describe `main` for reviewers of the next update and do
+not claim approval of any change made since that commit.
 
 Official references checked while preparing this candidate:
 

@@ -45,6 +45,18 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+// Manual in-game checks (docs/in-game-release-checklist.md): starts RuneLite
+// in developer mode with this plugin loaded from source. Never part of the
+// Hub build or of `check`.
+tasks.register('runClient', JavaExec) {
+    group = 'verification'
+    description = 'Runs RuneLite with Fate Locked loaded from source.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.fatelocked.FateLockedPluginDevLauncher'
+    jvmArgs '-ea'
+    args '--developer-mode'
+}
+
 tasks.register('verifyPluginHubJar') {
     dependsOn tasks.named('jar')
     doLast {
