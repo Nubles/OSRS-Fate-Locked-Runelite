@@ -629,14 +629,13 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void olderEqualAndMalformedVersionsAreNeverImported() throws Exception
+    public void olderAndMalformedVersionsAreNeverImported() throws Exception
     {
         connect(5, "\"5\"");
         int imports = importer.acceptedPayloads().size();
 
         MockResponse[] invalid = {
             relayResponse(4, validV4Payload(), "\"4\""),
-            relayResponse(5, validV4Payload(), "W/\"5\""),
             relayResponse(6, validV4Payload(), "not-a-version"),
             relayResponse(6, validV4Payload(), "\"bad\""),
             relayResponse(6, validV4Payload(), "\"06\""),
@@ -654,6 +653,34 @@ public class TrackerConnectionControllerTest
         assertEquals(imports, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
+    }
+
+    @Test
+    public void theHeldVersionSentInFullCountsAsACheck() throws Exception
+    {
+        connect(5, "\"5\"");
+        int prepared = importer.preparedOnThreads().size();
+
+        // Something in front of the relay drops If-None-Match and sends the
+        // rules the plugin holds in full.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(relayResponse(5, validV4Payload(), "W/\"5\""));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(prepared, importer.preparedOnThreads().size());
+        // Checked again after the usual minute, not after a back-off.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+        clock.advanceSeconds(1);
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.pollIfDue();
+        takeRelay();
     }
 
     @Test
@@ -1090,11 +1117,34 @@ public class TrackerConnectionControllerTest
             controller.snapshot().getState());
 
         assertEquals(INITIAL_CODE, settings.pairingCode());
-        assertEquals("5", controller.snapshot().getAcceptedVersion());
+        // The rules stay; only their version is forgotten.
+        assertNull(controller.snapshot().getAcceptedVersion());
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
+    }
+
+    @Test
+    public void afterANotFoundTheNextVersionIsImportedEvenIfOlder() throws Exception
+    {
+        connect(5, "\"5\"");
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        // Say the relay's storage was restored from an older copy.
+        server.enqueue(relayResponse(4, validV4Payload(), "\"4\""));
+        controller.poll();
+        RecordedRequest next = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertNull(next.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals("4", controller.snapshot().getAcceptedVersion());
+        assertEquals(2, importer.acceptedPayloads().size());
     }
 
     @Test

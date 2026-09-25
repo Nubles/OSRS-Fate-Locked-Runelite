@@ -16,11 +16,11 @@ final class RelayContract
     {
         /** Newer rules, to parse and import. */
         RULES,
-        /** The rules the plugin holds are still current. */
+        /** The rules the plugin holds are still current: a 304, or their version sent in full. */
         UNCHANGED,
         /** A 304 for a version the plugin does not hold; nothing changes. */
         UNCONFIRMED,
-        /** Rules the plugin already holds, or older ones; not imported. */
+        /** Older rules than the plugin holds, or rules it cannot compare with them; not imported. */
         STALE,
         /** Still the version the plugin could not import; not downloaded or tried again. */
         STILL_REJECTED,
@@ -135,7 +135,13 @@ final class RelayContract
             return Reply.of(Outcome.STILL_REJECTED);
         }
         Integer previous = held == null ? null : parseVersion(held);
-        if (held != null && (previous == null || version <= previous))
+        if (version.equals(previous))
+        {
+            // Something in front of the relay dropped If-None-Match: the
+            // rules the plugin holds, confirmed all the same.
+            return Reply.of(Outcome.UNCHANGED);
+        }
+        if (held != null && (previous == null || version < previous))
         {
             return Reply.of(Outcome.STALE);
         }

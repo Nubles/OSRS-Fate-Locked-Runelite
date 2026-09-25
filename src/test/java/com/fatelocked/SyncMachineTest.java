@@ -84,7 +84,7 @@ public class SyncMachineTest
     }
 
     @Test
-    public void aProfileThatLapsedSaysNoRecentUpdate()
+    public void aProfileThatLapsedSaysNoRecentUpdateAndForgetsItsVersion()
     {
         machine.accepted("41", START);
 
@@ -92,6 +92,10 @@ public class SyncMachineTest
 
         assertEquals(TrackerConnectionState.WAITING, lapsed.getState());
         assertEquals(SyncMachine.NO_RECENT_UPDATE_MESSAGE, lapsed.getMessage());
+        // The next check asks for whatever the relay has, with no validator.
+        assertNull(machine.acceptedVersion());
+        assertNull(machine.validator());
+        assertEquals(START, lapsed.getLastSync());
     }
 
     @Test

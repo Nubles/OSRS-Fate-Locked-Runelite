@@ -206,13 +206,17 @@ final class SyncMachine
      * browser" and keep checking, quickly at first. After 10 minutes, say no
      * profile arrived. Otherwise the relay's copy has lapsed (it keeps one
      * for 24 hours after the web app last published): the pairing still
-     * works, and opening the web tracker sends the rules again.
+     * works, and opening the web tracker sends the rules again. The rules
+     * stay active, but their version is forgotten, so the next check sends
+     * no validator and imports whatever version the relay has next, even
+     * an older one after a restore.
      *
      * @param heldVersion whether the request asked about a version the plugin held
      */
     TrackerConnectionSnapshot notFound(boolean heldVersion, Instant now)
     {
-        // Whatever could not be imported has gone with the profile.
+        // Whatever the plugin held, or could not import, has gone with the profile.
+        acceptedVersion = null;
         rejectedVersion = null;
         if (!heldVersion && pairingStartedAt != null)
         {

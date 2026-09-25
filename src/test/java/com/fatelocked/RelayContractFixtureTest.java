@@ -34,8 +34,6 @@ public class RelayContractFixtureTest
      * each as today, and the task that fixes it.
      */
     private static final Map<String, Divergence> KNOWN = Map.of(
-        "the rules the plugin holds, sent in full",
-        new Divergence(RelayContract.Outcome.STALE, "review finding S4: Stage 1 task C5"),
         "the owner marked the code gone",
         new Divergence(RelayContract.Outcome.MISSING, "review finding S11: Stage 1 task C15"));
 
