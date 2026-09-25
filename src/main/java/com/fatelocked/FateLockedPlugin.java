@@ -216,6 +216,8 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
 
     private CanonicalChunk lastChunk;
     private FateLockedBundle.LockState lastLockState;
+    /** Warnings count the sidebar shows, so each change is sent to it once. */
+    private int shownWarningCount = -1;
     private NavigationButton navButton;
     private ScheduledFuture<?> watcherFuture;
     private Path watcherLoadedPath;
@@ -932,7 +934,7 @@ java.util.Optional<DetectedEvent> detected =
             diaryTierReviewDetector.onVarbit(name, prev, v).ifPresent(this::record);
             if (config.rollNudges())
             {
-                nudge("Diary complete: " + name + " — review its tasks in the Roll Inbox.");
+                nudge("Diary complete: " + name + " — may be worth a roll; log it in the tracker.");
             }
         }
     }
@@ -1123,19 +1125,29 @@ java.util.Optional<DetectedEvent> detected =
         if (changed)
         {
             panel.update(b, viewModelFor(b, current));
-            if (config.chatOnEnter())
+            // Chunks the tracker hasn't mapped (every chunk before rules are
+            // loaded; dungeons and instances) are never announced.
+            if (config.chatOnEnter() && lock != FateLockedBundle.LockState.UNAUTHORED)
             {
                 announceEntry(current, label, unlocked);
             }
-            // Visual flash only on the transition INTO locked territory.
+            // Flash, sound and notification once on the way INTO locked
+            // territory, not at every chunk inside it, whatever the chat
+            // setting.
             if (lock == FateLockedBundle.LockState.LOCKED
                 && lastLockState != FateLockedBundle.LockState.LOCKED)
             {
                 lockedFlashUntil = System.currentTimeMillis() + LOCKED_FLASH_MS;
+                if (config.warnOnLocked())
+                {
+                    client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
+                    notifyIfEnabled("Entered LOCKED chunk: " + label);
+                }
             }
             lastChunk = current;
             lastLockState = lock;
         }
+        refreshWarningCount();
     }
 
     /**
@@ -1276,6 +1288,7 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
+    /** Chat line for entering a mapped chunk; {@code region} is never null. */
     private void announceEntry(CanonicalChunk chunk, String region, boolean unlocked)
     {
         ChatMessageBuilder msg = new ChatMessageBuilder()
@@ -1283,11 +1296,7 @@ MenuEntry entry = event.getMenuEntry();
             .append(ChatColorType.NORMAL).append("Chunk ")
             .append("(" + chunk.getCx() + ", " + chunk.getCy() + ")");
 
-        if (region == null)
-        {
-            msg.append(ChatColorType.NORMAL).append(" — unauthored");
-        }
-        else if (unlocked)
+        if (unlocked)
         {
             msg.append(ChatColorType.NORMAL).append(" · ")
                .append(ChatColorType.HIGHLIGHT).append(region)
@@ -1304,12 +1313,6 @@ MenuEntry entry = event.getMenuEntry();
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(msg.build())
             .build());
-
-        if (!unlocked && region != null && config.warnOnLocked())
-        {
-            client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
-            notifyIfEnabled("Entered LOCKED chunk: " + region);
-        }
     }
 
     private void reloadBundle()
@@ -1836,9 +1839,16 @@ MenuEntry entry = event.getMenuEntry();
         {
             if (event.getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
         }
+        shownWarningCount = activeWarningCount();
         panel.updateRollInboxStatus(
-            events.size(), needsReview, activeWarningCount(),
+            events.size(), needsReview, shownWarningCount,
             historySaveFailed);
+    }
+
+    /** Keep the sidebar's Warnings count current as you move, change gear and get tasks. */
+    private void refreshWarningCount()
+    {
+        if (activeWarningCount() != shownWarningCount) updatePanelRollInbox();
     }
 
     private int activeWarningCount()

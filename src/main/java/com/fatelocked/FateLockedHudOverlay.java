@@ -55,6 +55,7 @@ public class FateLockedHudOverlay extends OverlayPanel
         }
 
         FateLockedBundle bundle = plugin.getBundle();
+        if (bundle.isEmpty()) return null; // no rules yet: nothing to show
         FateLockedBundle.RunState state = bundle.getState();
 
         // Fixed width so long area names ("Draynor Village · Misthalin") sit on

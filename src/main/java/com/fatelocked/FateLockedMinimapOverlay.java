@@ -66,6 +66,7 @@ public class FateLockedMinimapOverlay extends Overlay
         if (wp == null) return null;
 
         FateLockedBundle bundle = plugin.getBundle();
+        if (bundle.isEmpty()) return null; // no rules yet: nothing to tint
         CanonicalChunk chunk = CanonicalChunk.of(wp);
         // Sub-area-aware: a Falador chunk reflects Falador's lock state, not
         // all of Asgarnia's.

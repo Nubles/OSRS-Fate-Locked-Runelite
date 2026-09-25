@@ -49,6 +49,7 @@ public class FateLockedSceneOverlay extends Overlay
         if (wp == null) return null;
 
         FateLockedBundle bundle = plugin.getBundle();
+        if (bundle.isEmpty()) return null; // no rules yet: nothing to tint
         CanonicalChunk chunk = CanonicalChunk.of(wp);
         int plane = wp.getPlane();
 
