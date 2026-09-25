@@ -152,6 +152,8 @@ public class FateLockedPlugin extends Plugin
     @Inject private ConfigManager configManager;
     @Inject private TrackerConnectionSettings connectionSettings;
 
+    /** This start's session: queued work runs only while the session that queued it lasts. */
+    private volatile PluginSession session = PluginSession.ended();
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
     private final RepeatedValueLimiter invalidImportLimiter =
@@ -332,6 +334,8 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void startUp()
     {
+        PluginSession started = new PluginSession();
+        session = started;
         connectionSettings.clearLegacySettings();
         startSessionTracking();
         File dataDirectory = dataDirectory();
@@ -378,7 +382,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             gson,
             connectionSettings,
             Clock.systemUTC(),
-            runnable -> clientThread.invoke(runnable),
+            runnable -> clientThread.invoke(started.guard(runnable)),
             this::acceptRelayPayload,
             panel::updateConnection);
 
@@ -448,6 +452,8 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void shutDown()
     {
+        // First, so nothing this start queued can bring rules back later.
+        session.end();
         stopTrackerPoll();
         if (travelOverlayLifecycle != null)
         {
@@ -734,7 +740,7 @@ String m = raw.toLowerCase();
 
         if (ev.getGroupId() == QUEST_COMPLETED_GROUP_ID)
         {
-            clientThread.invokeLater(() ->
+            clientThread.invokeLater(session.guard(() ->
             {
                 DetectedEvent detected = questDetector.detect(extractQuestName());
                 record(detected);
@@ -745,7 +751,7 @@ String m = raw.toLowerCase();
                         : "Quest complete: " + detected.getCanonicalLabel()
                             + " — may be worth a roll.");
                 }
-            });
+            }));
         }
     }
 
@@ -1318,7 +1324,8 @@ MenuEntry entry = event.getMenuEntry();
      */
     private void loadNewestBackupFile()
     {
-        executor.execute(() -> {
+        PluginSession started = session;
+        executor.execute(started.guard(() -> {
             Path file = null;
             FateLockedBundle parsed;
             try
@@ -1340,14 +1347,14 @@ MenuEntry entry = event.getMenuEntry();
                 return;
             }
             Path loaded = file;
-            clientThread.invoke((Runnable) () -> {
+            clientThread.invoke(started.guard(() -> {
                 useBackupFile(parsed, loaded);
                 refreshPanel();
                 panel.flashStatus(
                     "loaded backup file: " + parsed.getRegionChunks().size() + " regions",
                     true);
-            });
-        });
+            }));
+        }));
     }
 
     /** Switch to rules read from a backup file; the tracker's copy wins on its next check. */
@@ -1426,13 +1433,14 @@ MenuEntry entry = event.getMenuEntry();
 
     /**
      * Imports read game state such as worn equipment, which RuneLite allows
-     * only on the client thread. The cast keeps this ClientThread.invoke(
-     * Runnable): the BooleanSupplier overload re-runs a task that returns
-     * false on every client tick, so a failed import would never stop.
+     * only on the client thread. The guard is a Runnable, which keeps this
+     * ClientThread.invoke(Runnable): the BooleanSupplier overload re-runs a
+     * task that returns false on every client tick, so a failed import
+     * would never stop.
      */
     private void importOnClientThread(String json)
     {
-        clientThread.invoke((Runnable) () -> applyClipboardBundle(json));
+        clientThread.invoke(session.guard(() -> applyClipboardBundle(json)));
     }
 
     /** Load a bundle from JSON read from the clipboard. */
@@ -1668,7 +1676,8 @@ MenuEntry entry = event.getMenuEntry();
         {
             return;
         }
-        clientThread.invoke(() -> {
+        PluginSession started = session;
+        clientThread.invoke(started.guard(() -> {
             if (needsConsent)
             {
                 try
@@ -1684,12 +1693,12 @@ MenuEntry entry = event.getMenuEntry();
             if (!connectionSettings.networkAccessAllowed()) return;
             String url = connectionController.beginPairing();
             String code = connectionSettings.pairingCode();
-            SwingUtilities.invokeLater(
-                () -> openTrackerPairing(url, code));
-        });
+            SwingUtilities.invokeLater(started.guard(
+                () -> openTrackerPairing(started, url, code)));
+        }));
     }
 
-    private void openTrackerPairing(String url, String code)
+    private void openTrackerPairing(PluginSession started, String url, String code)
     {
         if (!connectionSettings.networkAccessAllowed()
             || !samePairing(code, connectionSettings.pairingCode()))
@@ -1702,7 +1711,7 @@ MenuEntry entry = event.getMenuEntry();
         }
         catch (RuntimeException error)
         {
-            clientThread.invoke(() -> {
+            clientThread.invoke(started.guard(() -> {
                 if (!samePairing(code, connectionSettings.pairingCode()))
                 {
                     return;
@@ -1710,7 +1719,7 @@ MenuEntry entry = event.getMenuEntry();
                 connectionController.reportBrowserLaunchFailure();
                 panel.flashStatus(
                     "couldn't open the web tracker", false);
-            });
+            }));
         }
     }
 
@@ -1768,7 +1777,7 @@ MenuEntry entry = event.getMenuEntry();
         // TrackerConnectionController gates actual relay requests to a
         // one-minute healthy cadence and backs off failures/rate limits.
         trackerPollFuture = executor.scheduleWithFixedDelay(
-            this::pollTrackerConnection, 2, 4, TimeUnit.SECONDS);
+            session.guard(this::pollTrackerConnection), 2, 4, TimeUnit.SECONDS);
     }
 
     private void stopTrackerPoll()

@@ -205,6 +205,38 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void workQueuedBeforeShutdownDoesNothingAfterIt() throws Exception
+    {
+        File dir = folder.newFolder("queued-before-shutdown");
+        Harness harness = new Harness(dir);
+        write(new File(dir, "fate-locked-bundle-export.json"),
+            fixture("bundles/v4-rules.json"));
+        harness.plugin.clipboard = fixture("bundles/v4-rules.json");
+
+        // The player presses the re-import hotkey, loads the backup file and
+        // clicks Connect, then turns the plugin off before any of it runs.
+        harness.pressReimportHotkey();
+        SwingUtilities.invokeAndWait(() -> {
+            harness.panel.buttonForTest("Load newest backup file").doClick();
+            harness.panel.connectButtonForTest().doClick();
+        });
+        assertEquals(2, harness.clientTasks.size());
+        assertEquals(1, harness.backgroundTasks.size());
+
+        harness.plugin.shutDown();
+        harness.runBackgroundTasks();
+        harness.runClientTasks();
+        harness.flushEdt();
+
+        // No rules come back while the plugin is off, and Connect neither
+        // records consent nor opens the browser.
+        assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+        assertFalse(harness.settings.networkAccessAllowed());
+        assertEquals("", harness.settings.pairingCode());
+        assertTrue(harness.plugin.browserUrls.isEmpty());
+    }
+
+    @Test
     public void aFailedImportRunsOnceAndSaysSo() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("failed-import-once"));

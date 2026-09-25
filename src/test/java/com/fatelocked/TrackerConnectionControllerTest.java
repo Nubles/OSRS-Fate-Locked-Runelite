@@ -36,6 +36,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -134,6 +135,22 @@ public class TrackerConnectionControllerTest
     {
         configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
         controller.beginPairing();
+    }
+
+    @Test
+    public void aStoppedControllerRefusesToPair() throws Exception
+    {
+        controller.stop();
+
+        // A Connect queued before the plugin was turned off runs after it.
+        assertThrows(IllegalStateException.class, controller::beginPairing);
+        controller.pollIfDue();
+
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(TrackerConnectionState.DISCONNECTED,
+            controller.snapshot().getState());
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
+        assertTrue(pluginRequests.isEmpty());
     }
 
     @Test

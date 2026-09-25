@@ -87,6 +87,12 @@ final class TrackerConnectionController
         String code = PairingSupport.newCode();
         synchronized (pollLock)
         {
+            // A stopped controller belongs to a plugin that was turned off;
+            // a Connect queued before that must not bring it back.
+            if (stopped)
+            {
+                throw new IllegalStateException("The tracker connection has stopped");
+            }
             settings.replacePairingCode(code);
             settings.clearLegacySettings();
             generation++;
@@ -96,7 +102,6 @@ final class TrackerConnectionController
             resetAutomaticPollingLocked();
             currentIdentityCode = code;
             pairingStartedAt = clock.instant();
-            stopped = false;
             snapshot = TrackerConnectionSnapshot.of(
                 TrackerConnectionState.WAITING, null, null, CONFIRM_MESSAGE);
             listener.accept(snapshot);

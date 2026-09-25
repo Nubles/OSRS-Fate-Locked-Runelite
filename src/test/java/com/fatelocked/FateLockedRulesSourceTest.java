@@ -260,6 +260,7 @@ public class FateLockedRulesSourceTest
                 ((Runnable) invocation.getArgument(0)).run();
                 return null;
             }).when(clientThread).invoke(any(Runnable.class));
+            set("session", new PluginSession());
             set("client", mock(Client.class));
             set("clientThread", clientThread);
             set("executor", executor);
