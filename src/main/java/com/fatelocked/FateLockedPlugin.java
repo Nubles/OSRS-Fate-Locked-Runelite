@@ -152,8 +152,8 @@ public class FateLockedPlugin extends Plugin
     @Inject private ConfigManager configManager;
     @Inject private TrackerConnectionSettings connectionSettings;
 
-    /** This start's session: queued work runs only while the session that queued it lasts. */
-    private volatile PluginSession session = PluginSession.ended();
+    /** This start's way onto the client thread; closed while the plugin is off. */
+    private volatile ClientThreadGate gate = ClientThreadGate.closed();
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
     private final RepeatedValueLimiter invalidImportLimiter =
@@ -279,8 +279,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         SLOT_NAMES.put(EquipmentInventorySlot.RING, "Ring");
     }
 
-    /** Active world-map markers for locked areas (so we can remove them on refresh). */
-    private final List<WorldMapPoint> mapMarkers = new ArrayList<>();
     private BufferedImage lockedPinImage;
 
     /** Worn-gear slots currently above your unlocked tier, for the HUD (null = none). */
@@ -334,10 +332,11 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void startUp()
     {
-        PluginSession started = new PluginSession();
-        session = started;
+        // startUp runs on the Swing thread: everything that reads the game or
+        // changes plugin state waits for the client thread, through the gate.
+        ClientThreadGate started = new ClientThreadGate(clientThread, new PluginSession());
+        gate = started;
         connectionSettings.clearLegacySettings();
-        startSessionTracking();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
         // Local state is optional: a store that can't be opened leaves its
@@ -382,7 +381,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             gson,
             connectionSettings,
             Clock.systemUTC(),
-            runnable -> clientThread.invoke(started.guard(runnable)),
+            started::run,
             this::acceptRelayPayload,
             panel::updateConnection);
 
@@ -405,11 +404,12 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             (stage, error) -> log.debug(
                 "Travel Guardian {} failed: {}", stage, error.getMessage()),
             Clock.systemUTC());
+        Runnable pauseStrictMode = () -> started.run(this::pauseStrictModeForSixtySeconds);
         travelBlockOverlay = new FateLockedTravelBlockOverlay(
             travelNoticeStore,
             config::strictMode,
             strictPause::isPaused,
-            this::pauseStrictModeForSixtySeconds);
+            pauseStrictMode);
 
         overlayManager.add(worldMapOverlay);
         overlayManager.add(sceneOverlay);
@@ -417,7 +417,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         overlayManager.add(hudOverlay);
         overlayManager.add(contentOverlay);
         overlayManager.add(flashOverlay);
-        travelBlockOverlay.setPauseGuardian(this::pauseStrictModeForSixtySeconds);
+        travelBlockOverlay.setPauseGuardian(pauseStrictMode);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
             () -> overlayManager.add(travelBlockOverlay),
             () -> mouseManager.registerMouseListener(travelBlockOverlay),
@@ -431,20 +431,23 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             this::loadNewestBackupFile,
             this::beginTrackerPairing);
         panel.setGuardianCallbacks(
-            this::pauseStrictModeForSixtySeconds,
-            () -> { strictPause.resume(); updateStrictModePanel(); },
+            pauseStrictMode,
+            () -> started.run(() -> { strictPause.resume(); updateStrictModePanel(); }),
             () -> configManager.setConfiguration(
                 FateLockedConfig.GROUP, "strictModeIntroSeen", true));
-        updateStrictModePanel();
-        updateStrictAuditPanel();
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
-        updatePanelRollInbox();
         panel.updateConnection(connectionController.snapshot());
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
 
-        loadBackupFileAtStartup();
-        refreshInfoBoxes();
+        started.run(() -> {
+            startSessionTracking();
+            updateStrictModePanel();
+            updateStrictAuditPanel();
+            updatePanelRollInbox();
+            refreshInfoBoxes();
+        });
+        loadBackupFile(false);
         keyManager.registerKeyListener(reimportHotkey);
         startTrackerPoll();
     }
@@ -453,7 +456,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     protected void shutDown()
     {
         // First, so nothing this start queued can bring rules back later.
-        session.end();
+        gate.close();
         stopTrackerPoll();
         if (travelOverlayLifecycle != null)
         {
@@ -479,20 +482,29 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             navButton = null;
         }
         keyManager.unregisterKeyListener(reimportHotkey);
-        for (WorldMapPoint p : mapMarkers) worldMapPointManager.remove(p);
-        mapMarkers.clear();
+        worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         bundle = FateLockedBundle.empty();
         rulesSource = RulesSource.NONE;
         lastChunk = null;
     }
 
+    /**
+     * RuneLite posts ConfigChanged on the thread that changed the setting:
+     * the Swing thread for the sidebar and the config panel. The sidebar
+     * control updates there; everything else waits for the client thread.
+     */
     @Subscribe
     public void onConfigChanged(ConfigChanged ev)
     {
         if (!FateLockedConfig.GROUP.equals(ev.getGroup())) return;
         panel.refreshConfig(ev.getKey());
         String key = ev.getKey();
+        gate.run(() -> applyConfigChange(key));
+    }
+
+    private void applyConfigChange(String key)
+    {
         if ("warnOverTierGear".equals(key))
         {
             recomputeOverTierGear();
@@ -740,7 +752,8 @@ String m = raw.toLowerCase();
 
         if (ev.getGroupId() == QUEST_COMPLETED_GROUP_ID)
         {
-            clientThread.invokeLater(session.guard(() ->
+            // The scroll's text arrives after the widget loads.
+            gate.runNextTick(() ->
             {
                 DetectedEvent detected = questDetector.detect(extractQuestName());
                 record(detected);
@@ -751,7 +764,7 @@ String m = raw.toLowerCase();
                         : "Quest complete: " + detected.getCanonicalLabel()
                             + " — may be worth a roll.");
                 }
-            }));
+            });
         }
     }
 
@@ -1294,38 +1307,23 @@ MenuEntry entry = event.getMenuEntry();
             .build());
     }
 
-    /** At startup, use the newest backup file if there is one. */
-    private void loadBackupFileAtStartup()
+    /** The sidebar's "Load newest backup file". */
+    private void loadNewestBackupFile()
     {
-        Path file = effectiveBundlePath();
-        if (file == null)
-        {
-            // No file is not "no rules": keep the active tracker or clipboard
-            // rules instead of replacing them with nothing.
-            refreshPanel();
-            return;
-        }
-        try
-        {
-            useBackupFile(FateLockedBundle.loadFromFile(gson, file), file);
-        }
-        catch (IOException | RuntimeException ex)
-        {
-            log.warn("Failed to load bundle at {}: {}", file, ex.getMessage());
-            panel.flashStatus("import failed — using previous rules", false);
-        }
-        refreshPanel();
+        loadBackupFile(true);
     }
 
     /**
-     * The sidebar's "Load newest backup file": find and read the file once,
-     * off the game thread, then switch to it on the client thread. Nothing
-     * watches the folder, so a file that appears later changes nothing.
+     * Find and read the newest backup file once, off the game thread, then
+     * switch to it on the client thread. At startup ({@code explicit} is
+     * false) a missing file says nothing, since no file is not "no rules".
+     * Nothing watches the folder, so a file that appears later changes
+     * nothing.
      */
-    private void loadNewestBackupFile()
+    private void loadBackupFile(boolean explicit)
     {
-        PluginSession started = session;
-        executor.execute(started.guard(() -> {
+        ClientThreadGate onClient = gate;
+        executor.execute(onClient.guard(() -> {
             Path file = null;
             FateLockedBundle parsed;
             try
@@ -1333,8 +1331,12 @@ MenuEntry entry = event.getMenuEntry();
                 file = effectiveBundlePath();
                 if (file == null)
                 {
-                    panel.flashStatus(
-                        "no backup file in .runelite/fate-locked \u2014 rules unchanged", false);
+                    if (explicit)
+                    {
+                        panel.flashStatus(
+                            "no backup file in .runelite/fate-locked — rules unchanged", false);
+                    }
+                    onClient.run(this::refreshPanel);
                     return;
                 }
                 parsed = FateLockedBundle.loadFromFile(gson, file);
@@ -1343,17 +1345,21 @@ MenuEntry entry = event.getMenuEntry();
             {
                 log.warn("Failed to load backup file {}: {}", file, ex.getMessage());
                 panel.flashStatus(
-                    "couldn't read the backup file \u2014 rules unchanged", false);
+                    "couldn't read the backup file — rules unchanged", false);
+                onClient.run(this::refreshPanel);
                 return;
             }
             Path loaded = file;
-            clientThread.invoke(started.guard(() -> {
+            onClient.run(() -> {
                 useBackupFile(parsed, loaded);
                 refreshPanel();
-                panel.flashStatus(
-                    "loaded backup file: " + parsed.getRegionChunks().size() + " regions",
-                    true);
-            }));
+                if (explicit)
+                {
+                    panel.flashStatus(
+                        "loaded backup file: " + parsed.getRegionChunks().size() + " regions",
+                        true);
+                }
+            });
         }));
     }
 
@@ -1433,14 +1439,12 @@ MenuEntry entry = event.getMenuEntry();
 
     /**
      * Imports read game state such as worn equipment, which RuneLite allows
-     * only on the client thread. The guard is a Runnable, which keeps this
-     * ClientThread.invoke(Runnable): the BooleanSupplier overload re-runs a
-     * task that returns false on every client tick, so a failed import
-     * would never stop.
+     * only on the client thread. The gate runs each import once, so a failed
+     * import never asks to run again.
      */
     private void importOnClientThread(String json)
     {
-        clientThread.invoke(session.guard(() -> applyClipboardBundle(json)));
+        gate.run(() -> applyClipboardBundle(json));
     }
 
     /** Load a bundle from JSON read from the clipboard. */
@@ -1570,8 +1574,7 @@ MenuEntry entry = event.getMenuEntry();
     /** Place a click-to-jump marker on each authored area you haven't unlocked yet. */
     private void refreshWorldMapMarkers()
     {
-        for (WorldMapPoint p : mapMarkers) worldMapPointManager.remove(p);
-        mapMarkers.clear();
+        worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         if (!config.worldMapMarkers()) return;
 
         FateLockedBundle b = bundle;
@@ -1588,7 +1591,7 @@ MenuEntry entry = event.getMenuEntry();
             int cy = (int) (sy / chunks.size());
             WorldPoint wp = new WorldPoint((cx << 6) + 32, (cy << 6) + 32, 0);
 
-            WorldMapPoint point = new WorldMapPoint(wp, lockedPinImage());
+            WorldMapPoint point = new LockedAreaPoint(wp, lockedPinImage());
             point.setName(area);
             point.setTooltip(area + " — LOCKED");
             point.setTarget(wp);
@@ -1596,7 +1599,15 @@ MenuEntry entry = event.getMenuEntry();
             point.setSnapToEdge(false);
             point.setImagePoint(new Point(lockedPinImage().getWidth() / 2, lockedPinImage().getHeight() / 2));
             worldMapPointManager.add(point);
-            mapMarkers.add(point);
+        }
+    }
+
+    /** A world-map pin this plugin placed, so it can remove exactly its own. */
+    static final class LockedAreaPoint extends WorldMapPoint
+    {
+        LockedAreaPoint(WorldPoint point, BufferedImage image)
+        {
+            super(point, image);
         }
     }
 
@@ -1676,8 +1687,8 @@ MenuEntry entry = event.getMenuEntry();
         {
             return;
         }
-        PluginSession started = session;
-        clientThread.invoke(started.guard(() -> {
+        ClientThreadGate onClient = gate;
+        onClient.run(() -> {
             if (needsConsent)
             {
                 try
@@ -1693,12 +1704,12 @@ MenuEntry entry = event.getMenuEntry();
             if (!connectionSettings.networkAccessAllowed()) return;
             String url = connectionController.beginPairing();
             String code = connectionSettings.pairingCode();
-            SwingUtilities.invokeLater(started.guard(
-                () -> openTrackerPairing(started, url, code)));
-        }));
+            SwingUtilities.invokeLater(onClient.guard(
+                () -> openTrackerPairing(onClient, url, code)));
+        });
     }
 
-    private void openTrackerPairing(PluginSession started, String url, String code)
+    private void openTrackerPairing(ClientThreadGate onClient, String url, String code)
     {
         if (!connectionSettings.networkAccessAllowed()
             || !samePairing(code, connectionSettings.pairingCode()))
@@ -1711,7 +1722,7 @@ MenuEntry entry = event.getMenuEntry();
         }
         catch (RuntimeException error)
         {
-            clientThread.invoke(started.guard(() -> {
+            onClient.run(() -> {
                 if (!samePairing(code, connectionSettings.pairingCode()))
                 {
                     return;
@@ -1719,7 +1730,7 @@ MenuEntry entry = event.getMenuEntry();
                 connectionController.reportBrowserLaunchFailure();
                 panel.flashStatus(
                     "couldn't open the web tracker", false);
-            }));
+            });
         }
     }
 
@@ -1777,7 +1788,7 @@ MenuEntry entry = event.getMenuEntry();
         // TrackerConnectionController gates actual relay requests to a
         // one-minute healthy cadence and backs off failures/rate limits.
         trackerPollFuture = executor.scheduleWithFixedDelay(
-            session.guard(this::pollTrackerConnection), 2, 4, TimeUnit.SECONDS);
+            gate.guard(this::pollTrackerConnection), 2, 4, TimeUnit.SECONDS);
     }
 
     private void stopTrackerPoll()

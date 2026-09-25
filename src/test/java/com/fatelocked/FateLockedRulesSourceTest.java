@@ -48,11 +48,14 @@ public class FateLockedRulesSourceTest
         FateLockedBundle tracker = v4Bundle(Instant.now());
         h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
 
-        h.invoke("loadBackupFileAtStartup");
+        h.loadBackupFileAtStartup();
 
         assertSame(tracker, h.plugin.getBundle());
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
         verify(h.controller, never()).localRulesReplacedTrackerRules();
+        verify(h.panel, never()).flashStatus(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyBoolean());
     }
 
     @Test
@@ -260,7 +263,7 @@ public class FateLockedRulesSourceTest
                 ((Runnable) invocation.getArgument(0)).run();
                 return null;
             }).when(clientThread).invoke(any(Runnable.class));
-            set("session", new PluginSession());
+            set("gate", new ClientThreadGate(clientThread, new PluginSession()));
             set("client", mock(Client.class));
             set("clientThread", clientThread);
             set("executor", executor);
@@ -304,6 +307,14 @@ public class FateLockedRulesSourceTest
             Method declared = FateLockedPlugin.class.getDeclaredMethod(method);
             declared.setAccessible(true);
             declared.invoke(plugin);
+        }
+
+        void loadBackupFileAtStartup() throws Exception
+        {
+            Method declared = FateLockedPlugin.class.getDeclaredMethod(
+                "loadBackupFile", boolean.class);
+            declared.setAccessible(true);
+            declared.invoke(plugin, false);
         }
 
         boolean importFromClipboard(String json) throws Exception

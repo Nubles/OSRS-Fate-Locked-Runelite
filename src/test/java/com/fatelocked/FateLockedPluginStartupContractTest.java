@@ -1,7 +1,12 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import net.runelite.api.Client;
+import net.runelite.api.EquipmentInventorySlot;
+import net.runelite.api.Item;
+import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemContainer;
 import net.runelite.client.Notifier;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
@@ -34,6 +39,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -43,6 +49,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -92,21 +99,54 @@ public class FateLockedPluginStartupContractTest
                 harness.panel.guardianPauseButtonForTest().doClick();
             });
 
+            // Both clicks hand their work to the client thread.
             assertEquals("", harness.settings.pairingCode());
             assertEquals(1, harness.consentPrompts.get());
             assertFalse(harness.settings.networkAccessAllowed());
-            assertEquals(1, harness.plugin.pauseCalls.get());
-            assertEquals(1, harness.clientTasks.size());
+            assertEquals(0, harness.plugin.pauseCalls.get());
+            assertEquals(2, harness.clientTasks.size());
 
             harness.runClientTasks();
             harness.flushEdt();
 
+            assertEquals(1, harness.plugin.pauseCalls.get());
             String code = harness.settings.pairingCode();
             assertTrue(code.matches("[0-9a-f]{32}"));
             assertTrue(harness.settings.networkAccessAllowed());
             assertEquals(1, harness.plugin.browserUrls.size());
             assertEquals(PairingSupport.trackerPairingUrl(code),
                 harness.plugin.browserUrls.peek());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void startupReadsTheGameOnlyOnTheClientThread() throws Exception
+    {
+        File dir = folder.newFolder("startup-on-client-thread");
+        // A backup file whose gear tiers put the worn weapon above its
+        // tier, so switching to it reads worn equipment and item names.
+        write(new File(dir, "fate-locked-bundle-export.json"), overTierWeaponBundle());
+        Harness harness = new Harness(dir, false);
+        try
+        {
+            // startUp runs on the Swing thread: it queues the work and reads
+            // nothing from the game.
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertEquals(0, harness.gameReads.get());
+
+            harness.runBackgroundTasks();
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertEquals("Weapon", harness.plugin.getOverTierSummary());
+            assertTrue(harness.gameReads.get() > 0);
+            assertTrue(harness.offThreadGameReads.toString(),
+                harness.offThreadGameReads.isEmpty());
         }
         finally
         {
@@ -279,6 +319,20 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
+    /** The v4 rules, with the harness's worn weapon one tier above the unlocked Weapon tier. */
+    private static String overTierWeaponBundle() throws Exception
+    {
+        JsonObject root = new Gson().fromJson(
+            fixture("bundles/v4-rules.json"), JsonObject.class);
+        JsonObject tiers = new JsonObject();
+        tiers.addProperty(String.valueOf(Harness.WORN_WEAPON), 6);
+        root.add("itemTiers", tiers);
+        JsonObject equipment = new JsonObject();
+        equipment.addProperty("Weapon", 5);
+        root.getAsJsonObject("state").add("equipment", equipment);
+        return root.toString();
+    }
+
     @Test
     public void decliningConnectWarningKeepsPairingAndBrowserUntouched() throws Exception
     {
@@ -380,8 +434,21 @@ public class FateLockedPluginStartupContractTest
             mock(ScheduledExecutorService.class);
         private final TestPlugin plugin;
         private NavigationButton navigation;
+        /** The item the harness's player wears as a weapon. */
+        static final int WORN_WEAPON = 4151;
+        /** Whether a client tick is running, the only time RuneLite allows game reads. */
+        private final AtomicBoolean inClientTick = new AtomicBoolean();
+        private final AtomicInteger gameReads = new AtomicInteger();
+        private final ConcurrentLinkedQueue<String> offThreadGameReads =
+            new ConcurrentLinkedQueue<>();
 
+        /** A started plugin after its first client tick. */
         private Harness(File dataDirectory) throws Exception
+        {
+            this(dataDirectory, true);
+        }
+
+        private Harness(File dataDirectory, boolean firstTick) throws Exception
         {
             String legacyCode = "0123456789abcdef0123456789abcdef";
             configuration.put("onlineSync", "true");
@@ -423,6 +490,35 @@ public class FateLockedPluginStartupContractTest
                 clientTasks.add(invocation.getArgument(0));
                 return null;
             }).when(clientThread).invoke(any(BooleanSupplier.class));
+            doAnswer(invocation -> {
+                Runnable task = invocation.getArgument(0);
+                clientTasks.add(() -> {
+                    task.run();
+                    return true;
+                });
+                return null;
+            }).when(clientThread).invokeLater(any(Runnable.class));
+
+            // Game reads the injected client allows only on the client thread.
+            Client client = mock(Client.class);
+            ItemContainer worn = mock(ItemContainer.class);
+            when(worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx()))
+                .thenReturn(new Item(WORN_WEAPON, 1));
+            when(client.getItemContainer(anyInt())).thenAnswer(invocation -> {
+                noteGameRead("getItemContainer");
+                return worn;
+            });
+            when(client.getLocalPlayer()).thenAnswer(invocation -> {
+                noteGameRead("getLocalPlayer");
+                return null;
+            });
+            ItemManager itemManager = mock(ItemManager.class);
+            ItemComposition weapon = mock(ItemComposition.class);
+            when(weapon.getName()).thenReturn("Abyssal whip");
+            when(itemManager.getItemComposition(anyInt())).thenAnswer(invocation -> {
+                noteGameRead("getItemComposition");
+                return weapon;
+            });
 
             ClientToolbar toolbar = mock(ClientToolbar.class);
             doAnswer(invocation -> {
@@ -440,7 +536,7 @@ public class FateLockedPluginStartupContractTest
                 return null;
             }).when(executor).execute(any(Runnable.class));
 
-            set("client", mock(Client.class));
+            set("client", client);
             set("clientThread", clientThread);
             set("config", config);
             set("overlayManager", mock(OverlayManager.class));
@@ -455,7 +551,7 @@ public class FateLockedPluginStartupContractTest
             set("panel", panel);
             set("gson", new Gson());
             set("executor", executor);
-            set("itemManager", mock(ItemManager.class));
+            set("itemManager", itemManager);
             set("notifier", mock(Notifier.class));
             set("worldMapPointManager", mock(WorldMapPointManager.class));
             set("infoBoxManager", mock(InfoBoxManager.class));
@@ -467,6 +563,21 @@ public class FateLockedPluginStartupContractTest
 
             plugin.startUp();
             flushEdt();
+            if (firstTick)
+            {
+                runBackgroundTasks();
+                runClientTasks();
+                flushEdt();
+            }
+        }
+
+        private void noteGameRead(String read)
+        {
+            gameReads.incrementAndGet();
+            if (!inClientTick.get())
+            {
+                offThreadGameReads.add(read + " on " + Thread.currentThread().getName());
+            }
         }
 
         private ConfigManager statefulConfigManager()
@@ -514,12 +625,20 @@ public class FateLockedPluginStartupContractTest
             {
                 due.add(task);
             }
-            for (BooleanSupplier queued : due)
+            inClientTick.set(true);
+            try
             {
-                if (!queued.getAsBoolean())
+                for (BooleanSupplier queued : due)
                 {
-                    clientTasks.add(queued);
+                    if (!queued.getAsBoolean())
+                    {
+                        clientTasks.add(queued);
+                    }
                 }
+            }
+            finally
+            {
+                inClientTick.set(false);
             }
         }
 

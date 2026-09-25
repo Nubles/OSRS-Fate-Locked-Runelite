@@ -7,6 +7,7 @@ import com.fatelocked.events.FateEventType;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Rule;
@@ -21,12 +22,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -83,7 +87,7 @@ public class FateLockedPluginLocalHistoryTest
         Files.write(
             file.dataDirectory.resolve("fate-locked-bundle-test.json"),
             rules.getBytes(StandardCharsets.UTF_8));
-        invokeNoArg(file.plugin, "loadBackupFileAtStartup");
+        invokeNoArg(file.plugin, "loadNewestBackupFile");
         invokeRecord(file.plugin, detected("Dragon Slayer"));
         assertEquals(1, file.history.events().size());
 
@@ -141,6 +145,21 @@ public class FateLockedPluginLocalHistoryTest
         FateEventHistory history =
             new FateEventHistory(gson, historyPath, legacyPath);
 
+        // Background and client-thread work run at once in this harness.
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        ClientThread clientThread = mock(ClientThread.class);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(0)).run();
+            return null;
+        }).when(clientThread).invoke(any(Runnable.class));
+
+        setField(plugin, "executor", executor);
+        setField(plugin, "gate",
+            new ClientThreadGate(clientThread, new PluginSession()));
         setField(plugin, "client", client);
         setField(plugin, "config", mock(FateLockedConfig.class));
         setField(plugin, "panel", panel);
