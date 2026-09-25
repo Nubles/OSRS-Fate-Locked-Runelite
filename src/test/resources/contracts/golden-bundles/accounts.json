@@ -1,0 +1,45 @@
+{
+ "schema": 1,
+ "pairs": [
+  {
+   "bound": "Iron Example",
+   "player": "Iron Example",
+   "match": true
+  },
+  {
+   "bound": "Iron Example",
+   "player": "iron example",
+   "match": true
+  },
+  {
+   "bound": "Iron Example",
+   "player": " Iron Example ",
+   "match": true
+  },
+  {
+   "bound": "Iron Example",
+   "player": "Iron Example",
+   "match": true
+  },
+  {
+   "bound": "Iron Example",
+   "player": "Iron  Example",
+   "match": true
+  },
+  {
+   "bound": "Iron Example",
+   "player": "Iron_Example",
+   "match": false
+  },
+  {
+   "bound": "Iron Example",
+   "player": "Iron-Example",
+   "match": false
+  },
+  {
+   "bound": "Iron Example",
+   "player": "Zezima",
+   "match": false
+  }
+ ]
+}
