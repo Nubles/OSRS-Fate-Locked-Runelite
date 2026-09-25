@@ -1,3 +1,6 @@
 # Contract files copied from the web app are checked by SHA-256, so their
 # bytes must never change on checkout (for example LF to CRLF on Windows).
 src/test/resources/contracts/** -text
+
+# Shell scripts must keep LF endings to run, including on Windows checkouts.
+*.sh text eol=lf
