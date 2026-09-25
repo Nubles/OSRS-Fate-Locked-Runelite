@@ -43,6 +43,9 @@ jobs:
       PACKAGER_SHA256: 627c97f0ae8b86d59dc3e9c666ab75a7c88ed58ec6320967eabc172b36c3dcd5
       REPO: ${{ github.event.pull_request.head.repo.clone_url || format('https://github.com/{0}.git', github.repository) }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Build only: the packager skips its upload setup, which needs the
+      # Hub's credentials, when this is set.
+      PACKAGE_IS_PR: 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 11
