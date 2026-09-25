@@ -113,6 +113,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -155,6 +156,9 @@ public class FateLockedPlugin extends Plugin
 
     /** This start's way onto the client thread; closed while the plugin is off. */
     private volatile ClientThreadGate gate = ClientThreadGate.closed();
+    /** Every local file write runs here, in order, off the game thread. */
+    private final SerialFileWriter fileWriter =
+        new SerialFileWriter(task -> executor.execute(task));
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
     private final RepeatedValueLimiter invalidImportLimiter =
@@ -659,8 +663,22 @@ String m = raw.toLowerCase();
         if (slayerTaskDetector != null
             && (m.contains("completed your task") || m.contains("return to a slayer master")))
         {
-            try { slayerTaskDetector.completion(Text.removeTags(raw)).ifPresent(this::record); }
-            catch (IOException ex) { log.debug("Could not update Slayer state", ex); }
+            SlayerTaskDetector detector = slayerTaskDetector;
+            String signature = Text.removeTags(raw);
+            ClientThreadGate onClient = gate;
+            fileWriter.submit(() -> {
+                Optional<DetectedEvent> completed;
+                try
+                {
+                    completed = detector.completion(signature);
+                }
+                catch (IOException ex)
+                {
+                    log.debug("Could not update Slayer state", ex);
+                    return;
+                }
+                completed.ifPresent(event -> onClient.run(() -> record(event)));
+            });
         }
 
         // Combat achievements stay on chat (their varbits are progress counts with
@@ -703,8 +721,18 @@ String m = raw.toLowerCase();
                 slayerTask = mat.group(1).trim();
                 if (slayerTaskDetector != null)
                 {
-                    try { slayerTaskDetector.assignment(slayerTask, null, 0, false); }
-                    catch (IOException ex) { log.debug("Could not save Slayer assignment", ex); }
+                    SlayerTaskDetector detector = slayerTaskDetector;
+                    String task = slayerTask;
+                    fileWriter.submit(() -> {
+                        try
+                        {
+                            detector.assignment(task, null, 0, false);
+                        }
+                        catch (IOException ex)
+                        {
+                            log.debug("Could not save Slayer assignment", ex);
+                        }
+                    });
                 }
                 if (config.warnLockedSlayer())
                 {
@@ -960,20 +988,33 @@ java.util.Optional<DetectedEvent> detected =
             detected.getType(), detected.getCanonicalLabel(), detected.getConfidence(),
             detected.getEvidence(), currentBundle, account,
             detected.getDetectorId(), detected.getDetectorVersion());
-        try
-        {
-            if (eventHistory.record(event))
+        FateEventHistory history = eventHistory;
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(() -> {
+            // Null: the write failed; false: a duplicate, nothing written.
+            Boolean recorded;
+            try
             {
-                historySaveFailed = false;
+                recorded = history.record(event);
             }
-            updatePanelRollInbox();
-        }
-        catch (IOException ex)
-        {
-            historySaveFailed = true;
-            log.warn("Could not persist local Fate event history", ex);
-            updatePanelRollInbox();
-        }
+            catch (IOException ex)
+            {
+                log.warn("Could not persist local Fate event history", ex);
+                recorded = null;
+            }
+            Boolean result = recorded;
+            onClient.run(() -> {
+                if (result == null)
+                {
+                    historySaveFailed = true;
+                }
+                else if (result)
+                {
+                    historySaveFailed = false;
+                }
+                updatePanelRollInbox();
+            });
+        });
     }
 
     /** Friendly skill name, e.g. "Woodcutting" from the WOODCUTTING enum. */
@@ -1223,11 +1264,23 @@ java.util.Optional<DetectedEvent> detected =
             .build());
     }
 
-    private void writeTravelAudit(StrictModeAuditEntry entry) throws IOException
+    /** Called inside the click handler, so the file write waits for the writer. */
+    private void writeTravelAudit(StrictModeAuditEntry entry)
     {
-        if (strictAuditLog == null) return;
-        strictAuditLog.append(entry);
-        updateStrictAuditPanel();
+        StrictModeAuditLog auditLog = strictAuditLog;
+        if (auditLog == null) return;
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(() -> {
+            try
+            {
+                auditLog.append(entry);
+            }
+            catch (IOException ex)
+            {
+                log.debug("Could not save the Strict Mode audit log: {}", ex.getMessage());
+            }
+            onClient.run(this::updateStrictAuditPanel);
+        });
     }
 
     private void updateStrictAuditPanel()
