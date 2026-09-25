@@ -1114,7 +1114,7 @@ public class TrackerConnectionControllerTest
         }
 
         @Override
-        public boolean commit(String payload)
+        public boolean commit(String payload, String version)
         {
             CountDownLatch currentBlock = blocked;
             if (currentBlock != null)

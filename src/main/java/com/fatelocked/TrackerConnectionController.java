@@ -42,8 +42,8 @@ final class TrackerConnectionController
         /** Parse and check the payload; null rejects it. */
         T prepare(String payload);
 
-        /** Switch to the prepared rules; false rejects them. */
-        boolean commit(T prepared);
+        /** Switch to the prepared rules, which the relay calls version; false rejects them. */
+        boolean commit(T prepared, String version);
     }
 
     private final OkHttpClient http;
@@ -473,7 +473,7 @@ final class TrackerConnectionController
             return;
         }
         T rules = prepared;
-        dispatchImport(token, () -> importer.commit(rules), version);
+        dispatchImport(token, () -> importer.commit(rules, version), version);
     }
 
     private void dispatchImport(

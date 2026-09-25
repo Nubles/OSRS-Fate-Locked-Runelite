@@ -15,12 +15,15 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -35,6 +38,8 @@ import static org.mockito.Mockito.when;
  */
 public class FateLockedRulesSourceTest
 {
+    private static final String CODE = "0123456789abcdef0123456789abcdef";
+
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
@@ -149,6 +154,55 @@ public class FateLockedRulesSourceTest
     }
 
     @Test
+    public void trackerRulesAreSavedWithTheirVersionAndPairing() throws Exception
+    {
+        File dir = folder.newFolder("save-relay");
+        Harness h = new Harness(dir);
+        when(h.settings.pairingCode()).thenReturn(CODE);
+
+        assertTrue(PluginTestSupport.importFromRelay(h.plugin, v4Json(Instant.now()), "41"));
+
+        SavedRules saved = h.savedRules();
+        assertEquals(FateLockedPlugin.RulesSource.RELAY, saved.getSource());
+        assertEquals("41", saved.getRelayVersion());
+        assertEquals(PairingSupport.tag(CODE), saved.getPairingTag());
+        assertEquals("run-1",
+            FateLockedBundle.loadFromJson(new Gson(), saved.getPayload()).getRunId());
+    }
+
+    @Test
+    public void importedRulesAreSavedWithoutAPairing() throws Exception
+    {
+        File dir = folder.newFolder("save-imports");
+        Harness h = new Harness(dir);
+        when(h.settings.pairingCode()).thenReturn(CODE);
+
+        PluginTestSupport.importFromClipboard(h.plugin, v4Json(Instant.now()));
+        SavedRules clipboard = h.savedRules();
+        assertEquals(FateLockedPlugin.RulesSource.IMPORT, clipboard.getSource());
+        assertNull(clipboard.getRelayVersion());
+        assertNull(clipboard.getPairingTag());
+
+        Files.write(new File(dir, "fate-locked-bundle-2026.json").toPath(),
+            fixture("bundles/v4-rules.json").getBytes(StandardCharsets.UTF_8));
+        h.invoke("loadNewestBackupFile");
+        assertEquals(FateLockedPlugin.RulesSource.FILE, h.savedRules().getSource());
+    }
+
+    @Test
+    public void rulesThatAreRejectedAreNotSaved() throws Exception
+    {
+        File dir = folder.newFolder("save-rejected");
+        Harness h = new Harness(dir);
+
+        PluginTestSupport.importFromClipboard(h.plugin, "{bad");
+        assertFalse(PluginTestSupport.importFromRelay(
+            h.plugin, fixture("bundles/v3-standard.json")));
+
+        assertFalse(new File(dir, SavedRulesStore.FILE_NAME).exists());
+    }
+
+    @Test
     public void nothingImportedIsNeverFresh() throws Exception
     {
         Harness h = new Harness(folder.newFolder("nothing"));
@@ -237,6 +291,7 @@ public class FateLockedRulesSourceTest
         private final TrackerConnectionSettings settings =
             mock(TrackerConnectionSettings.class);
         private final ScheduledExecutorService executor;
+        private final Path savedRulesPath;
 
         private Harness(File dataDirectory) throws Exception
         {
@@ -250,6 +305,8 @@ public class FateLockedRulesSourceTest
             };
             PluginTestSupport.runQueuedWorkInline(plugin);
             executor = (ScheduledExecutorService) PluginTestSupport.get(plugin, "executor");
+            savedRulesPath = dataDirectory.toPath().resolve(SavedRulesStore.FILE_NAME);
+            set("savedRules", new SavedRulesStore(new Gson(), savedRulesPath));
             set("client", mock(Client.class));
             set("config", mock(FateLockedConfig.class));
             set("panel", panel);
@@ -258,6 +315,14 @@ public class FateLockedRulesSourceTest
             set("connectionController", controller);
             set("connectionSettings", settings);
             when(controller.snapshot()).thenReturn(TrackerConnectionSnapshot.disconnected());
+        }
+
+        /** What the next start would find. */
+        SavedRules savedRules()
+        {
+            SavedRules saved = new SavedRulesStore(new Gson(), savedRulesPath).load();
+            assertNotNull("no saved rules", saved);
+            return saved;
         }
 
         void setRules(FateLockedBundle bundle, FateLockedPlugin.RulesSource source)

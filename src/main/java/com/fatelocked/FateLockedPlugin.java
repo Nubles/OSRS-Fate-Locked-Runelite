@@ -102,6 +102,8 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.Duration;
@@ -159,6 +161,8 @@ public class FateLockedPlugin extends Plugin
     /** Every local file write runs here, in order, off the game thread. */
     private final SerialFileWriter fileWriter =
         new SerialFileWriter(task -> executor.execute(task));
+    /** The last accepted rules, kept for the next start; opened by startUp. */
+    private SavedRulesStore savedRules;
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
     private final RepeatedValueLimiter invalidImportLimiter =
@@ -389,6 +393,8 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             log.warn("Could not open Strict Mode audit log", ex);
             strictAuditLog = null;
         }
+        savedRules = new SavedRulesStore(gson,
+            dataDirectory.toPath().resolve(SavedRulesStore.FILE_NAME));
         connectionController = new TrackerConnectionController(
             okHttpClient,
             gson,
@@ -1422,6 +1428,7 @@ MenuEntry entry = event.getMenuEntry();
         ClientThreadGate onClient = gate;
         executor.execute(onClient.guard(() -> {
             Path file = null;
+            String text;
             FateLockedBundle parsed;
             try
             {
@@ -1436,7 +1443,10 @@ MenuEntry entry = event.getMenuEntry();
                     onClient.run(this::refreshPanel);
                     return;
                 }
-                parsed = FateLockedBundle.loadFromFile(gson, file);
+                // The web app writes UTF-8, which the platform's default
+                // charset would garble on Windows.
+                text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                parsed = FateLockedBundle.loadFromJson(gson, text);
             }
             catch (IOException | RuntimeException ex)
             {
@@ -1447,18 +1457,19 @@ MenuEntry entry = event.getMenuEntry();
                 return;
             }
             Path loaded = file;
-            onClient.run(() -> useBackupFile(parsed, loaded, explicit));
+            onClient.run(() -> useBackupFile(parsed, text, loaded, explicit));
         }));
     }
 
     /** Switch to rules read from a backup file; the tracker's copy wins on its next check. */
-    private void useBackupFile(FateLockedBundle parsed, Path file, boolean explicit)
+    private void useBackupFile(FateLockedBundle parsed, String text, Path file, boolean explicit)
     {
         if (!switchRules(parsed, RulesSource.FILE))
         {
             panel.flashStatus("couldn't read the backup file — rules unchanged", false);
             return;
         }
+        saveRules(RulesSource.FILE, text, null);
         trackerRulesReplaced();
         log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
             file, parsed.getRegionChunks().size(), parsed.getUnlockedRegions().size());
@@ -1467,6 +1478,26 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus(
                 "loaded backup file: " + parsed.getRegionChunks().size() + " regions", true);
         }
+    }
+
+    /** Keep rules the plugin accepted for the next start, on the file writer. */
+    private void saveRules(RulesSource source, String text, String relayVersion)
+    {
+        SavedRulesStore store = savedRules;
+        if (store == null) return;
+        String pairingTag = source == RulesSource.RELAY
+            ? PairingSupport.tag(connectionSettings.pairingCode()) : null;
+        SavedRules rules = new SavedRules(text, source, Instant.now(), relayVersion, pairingTag);
+        fileWriter.submit(() -> {
+            try
+            {
+                store.save(rules);
+            }
+            catch (IOException | RuntimeException ex)
+            {
+                log.warn("Could not save the rules for the next start: {}", ex.getMessage());
+            }
+        });
     }
 
     /** A local import replaced the rules: the tracker's copy wins on its next check. */
@@ -1568,18 +1599,19 @@ MenuEntry entry = event.getMenuEntry();
                 panel.flashStatus("import failed — using previous rules", false);
                 return;
             }
-            onClient.run(() -> useClipboardRules(parsed));
+            onClient.run(() -> useClipboardRules(parsed, json));
         }));
     }
 
     /** On the client thread: switch to rules read from the clipboard. */
-    private void useClipboardRules(FateLockedBundle parsed)
+    private void useClipboardRules(FateLockedBundle parsed, String text)
     {
         if (!switchRules(parsed, RulesSource.IMPORT))
         {
             panel.flashStatus("import failed — using previous rules", false);
             return;
         }
+        saveRules(RulesSource.IMPORT, text, null);
         panel.flashStatus(
             "imported " + parsed.getRegionChunks().size() + " regions", true);
         trackerRulesReplaced();
@@ -1605,21 +1637,35 @@ MenuEntry entry = event.getMenuEntry();
      * and acknowledgement stay with TrackerConnectionController, which
      * changes them only after the second step returns true.
      */
-    private final TrackerConnectionController.RelayBundleImporter<FateLockedBundle> relayImporter =
-        new TrackerConnectionController.RelayBundleImporter<FateLockedBundle>()
+    private final TrackerConnectionController.RelayBundleImporter<ParsedRules> relayImporter =
+        new TrackerConnectionController.RelayBundleImporter<ParsedRules>()
         {
             @Override
-            public FateLockedBundle prepare(String payload)
+            public ParsedRules prepare(String payload)
             {
-                return parseRelayPayload(payload);
+                FateLockedBundle parsed = parseRelayPayload(payload);
+                return parsed == null ? null : new ParsedRules(parsed, payload);
             }
 
             @Override
-            public boolean commit(FateLockedBundle rules)
+            public boolean commit(ParsedRules rules, String version)
             {
-                return acceptRelayRules(rules);
+                return acceptRelayRules(rules.bundle, rules.text, version);
             }
         };
+
+    /** Parsed rules and the text they came as, which is what gets saved. */
+    private static final class ParsedRules
+    {
+        final FateLockedBundle bundle;
+        final String text;
+
+        ParsedRules(FateLockedBundle bundle, String text)
+        {
+            this.bundle = bundle;
+            this.text = text;
+        }
+    }
 
     /**
      * On the thread that read the relay's reply, never the game thread: parse
@@ -1639,13 +1685,14 @@ MenuEntry entry = event.getMenuEntry();
         }
     }
 
-    /** On the client thread: switch to rules the relay sent. */
-    private boolean acceptRelayRules(FateLockedBundle parsed)
+    /** On the client thread: switch to rules the relay sent, and keep them for the next start. */
+    private boolean acceptRelayRules(FateLockedBundle parsed, String text, String version)
     {
         if (!switchRules(parsed, RulesSource.RELAY))
         {
             return false;
         }
+        saveRules(RulesSource.RELAY, text, version);
         panel.flashStatus(
             "synced " + parsed.getRegionChunks().size()
                 + " regions", true);

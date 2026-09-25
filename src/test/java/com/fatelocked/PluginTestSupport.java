@@ -55,6 +55,12 @@ final class PluginTestSupport
     /** Both steps of a relay import: parse, then switch; false if either rejects it. */
     static boolean importFromRelay(FateLockedPlugin plugin, String payload) throws Exception
     {
+        return importFromRelay(plugin, payload, "1");
+    }
+
+    static boolean importFromRelay(FateLockedPlugin plugin, String payload, String version)
+        throws Exception
+    {
         Method parse = FateLockedPlugin.class.getDeclaredMethod(
             "parseRelayPayload", String.class);
         parse.setAccessible(true);
@@ -64,9 +70,9 @@ final class PluginTestSupport
             return false;
         }
         Method accept = FateLockedPlugin.class.getDeclaredMethod(
-            "acceptRelayRules", FateLockedBundle.class);
+            "acceptRelayRules", FateLockedBundle.class, String.class, String.class);
         accept.setAccessible(true);
-        return (Boolean) accept.invoke(plugin, parsed);
+        return (Boolean) accept.invoke(plugin, parsed, payload, version);
     }
 
     static void set(FateLockedPlugin plugin, String name, Object value) throws Exception
