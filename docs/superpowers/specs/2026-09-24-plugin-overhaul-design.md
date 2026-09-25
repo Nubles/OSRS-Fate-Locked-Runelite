@@ -1,6 +1,6 @@
 # Plugin overhaul design
 
-Date: 2026-09-24. Status: **proposed, waiting for the owner's approval and four decisions.** Evidence: [`docs/reviews/2026-09-24-plugin-review.md`](../../reviews/2026-09-24-plugin-review.md).
+Date: 2026-09-24. Status: **approved by the owner on 2026-09-24, with the recommended answer to all four decisions** (recorded below). Stage 0 is #18. Evidence: [`docs/reviews/2026-09-24-plugin-review.md`](../../reviews/2026-09-24-plugin-review.md).
 
 ## Why
 
@@ -60,7 +60,7 @@ Each stage leaves the plugin releasable. Finding ids refer to the review.
 
 **Goal.** Stop the harm live Hub players can hit today: the crash on start, rules that vanish, false blocks, blocking on the wrong character, and a Strict Mode status that says On when it isn't.
 
-**What players notice.** Strict Mode blocks only what it should and says when it is inactive. Rules no longer vanish. Connecting says "Waiting for confirmation" instead of red "expired". Fewer repeated warnings.
+**What players notice.** Strict Mode blocks only what it should and says when it is inactive. Rules no longer vanish. Connecting says "Confirm in browser" instead of red "expired". Fewer repeated warnings.
 
 **Web app work.** Roll Inbox copy ("Listening", "will queue here") and the ROADMAP Hub pin.
 
@@ -136,19 +136,22 @@ It also finishes D1, D3, D4, D6, D7, D9 and D11, whose copy and quick fixes ship
 
 **Done when:** real-message fixtures drive both the plugin detectors and a web parity test; per the decision, either a copied batch appears in the web Roll Inbox, or the history, counters and web pipeline are gone.
 
-## Decisions for the owner
+## Decisions
+
+The owner chose the recommended option for each on 2026-09-24. The alternatives stay listed for the record.
+
 
 1. **What should Strict Mode be allowed to block?**
-   - Travel only (recommended): It blocks only teleports and transport it can match exactly. NPC, object, bank and equip checks become warnings and menu tags. Walking is never blocked. This is the smallest Plugin Hub exposure.
+   - **Chosen: travel only.** It blocks only teleports and transport it can match exactly. NPC, object, bank and equip checks become warnings and menu tags. Walking is never blocked. This is the smallest Plugin Hub exposure.
    - Everything it blocks today, fixed and disclosed: Keep NPC, object, bank and equip blocking behind the same trust gate, with an allowlist of options, and describe each category in the Hub notes.
 2. **What should happen to the Roll inbox?**
-   - Build a clipboard hand-off (recommended): "Copy for tracker" in RuneLite, "Paste from RuneLite" in the web Roll Inbox. Nothing is uploaded, so the Hub boundary stays inbound-only. Detectors are rebuilt on web ids in Stage 4.
+   - **Chosen: build a clipboard hand-off.** "Copy for tracker" in RuneLite, "Paste from RuneLite" in the web Roll Inbox. Nothing is uploaded, so the Hub boundary stays inbound-only. Detectors are rebuilt on web ids in Stage 4.
    - Retire it: Remove the local history, the counters and the web app's dormant pipeline; keep the chat reminders. Smaller, but detection never feeds the tracker.
 3. **Which backup import methods should stay?**
-   - Clipboard plus one "Load newest backup file" button (recommended): Keep clipboard import and its hotkey for players without online sync. Drop the paste box, the 1-second folder watcher, Auto-reload and "Reload from file", which cause S2 and A6.
+   - **Chosen: clipboard plus one "Load newest backup file" button.** Keep clipboard import and its hotkey for players without online sync. Drop the paste box, the 1-second folder watcher, Auto-reload and "Reload from file", which cause S2 and A6.
    - Keep every method, fixed: All four methods stay, each routed through the new rules owner with precedence rules.
 4. **Where should the settings live?**
-   - RuneLite's config panel only (recommended): About 15 settings in RuneLite's own panel, the RuneLite convention. The sidebar keeps the online-sync consent and the Strict Mode toggle, and shows status and actions.
+   - **Chosen: RuneLite's config panel only.** About 15 settings in RuneLite's own panel, the RuneLite convention. The sidebar keeps the online-sync consent and the Strict Mode toggle, and shows status and actions.
    - Keep them in the sidebar too: Both places stay, merged to the same 15 settings and kept in step.
 
 ## Owner actions outside the code
