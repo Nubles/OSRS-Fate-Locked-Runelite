@@ -39,7 +39,7 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 7 | Teleport a few times, or cross a few loading screens, inside an area you have already visited. | The chunk you are in is not announced again, and gear warnings do not repeat. | |
 | 8 | Gain a level just after a loading screen. | The level-up nudge appears. | |
 | 9 | With Strict Mode on and rules less than 15 minutes old, cast a teleport to a locked destination: **Cast** a spellbook teleport, **Break** a tablet, or pick a destination on worn jewellery (the Rub dialog is not recognised). Then try **Walk here**, an NPC, a door, a bank and **Wear** on locked ground. | The teleport is blocked, with a chat line and an entry under Recent prevented actions. Nothing else is blocked. | |
-| 10 | Log in on the second character and teleport once or twice. | The bound-account warning shows once, not after each loading screen. Strict Mode reads Inactive ("these rules belong to …") and blocks nothing. | |
+| 10 | Log in on the second character and teleport once or twice. | The bound-account warning shows once, not after each loading screen. Strict Mode reads Inactive ("the profile is for …; you're logged in as …") and blocks nothing. | |
 | 11 | Remove any bundle file, then click **Load newest backup file**. | "no backup file in .runelite/fate-locked — rules unchanged", and the overlays keep working. | |
 | 12 | Turn off **Enable online sync**, then import a rules export made more than 15 minutes ago from the clipboard. (While paired, the tracker's copy replaces an import on its next check.) | It imports; Strict Mode reads Inactive ("the rules are more than 15 minutes old"). | |
 | 13 | Log out and back in. | The chunk you are in is announced once. | |

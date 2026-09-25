@@ -39,7 +39,8 @@ public class StrictModeReadiness
         }
         if (!accountMatches)
         {
-            return inactive("these rules belong to " + boundAccount.trim());
+            return inactive("the profile is for " + boundAccount.trim()
+                + "; you're logged in as " + loggedInAs.trim());
         }
         if (!freshRules)
         {

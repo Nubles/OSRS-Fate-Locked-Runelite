@@ -835,31 +835,24 @@ String m = raw.toLowerCase();
         return new FateRuleEngine(source, currentAccountMatches(source), false);
     }
 
+    /** For the rules and the sidebar, a profile bound to no one matches every character. */
     private boolean currentAccountMatches(FateLockedBundle source)
     {
-        String bound = source.getRules() == null
-            ? source.getState() == null ? null : source.getState().getLinkedAccount()
-            : source.getRules().getAccount();
-        if (bound == null || bound.trim().isEmpty()) return true;
-        Player local = client.getLocalPlayer();
-        String current = local == null ? null : local.getName();
-        return current != null && normName(bound).equals(normName(current));
+        String bound = AccountBinding.boundAccount(source);
+        return bound == null || AccountBinding.sameAccount(bound, loggedInName());
     }
 
+    /** Strict Mode needs current rules bound to the logged-in character. */
     private boolean strictTravelAccountMatches(FateLockedBundle source)
     {
-        if (source == null || source.getRules() == null)
-        {
-            return false;
-        }
-        String bound = source.getRules().getAccount();
-        if (bound == null || bound.trim().isEmpty())
-        {
-            return false;
-        }
+        return source != null && source.getRules() != null
+            && AccountBinding.sameAccount(AccountBinding.boundAccount(source), loggedInName());
+    }
+
+    private String loggedInName()
+    {
         Player local = client.getLocalPlayer();
-        String current = local == null ? null : local.getName();
-        return current != null && normName(bound).equals(normName(current));
+        return local == null ? null : local.getName();
     }
 
     /** Advisory when a bank is explicitly locked by the shared rules. */
@@ -1144,13 +1137,6 @@ java.util.Optional<DetectedEvent> detected =
         }
     }
 
-    /** Normalise an OSRS name for comparison via RuneLite's Text.sanitize (handles
-     *  non-breaking spaces, tags and stray whitespace), then case-fold. */
-    static String normName(String s)
-    {
-        return s == null ? "" : Text.sanitize(s).toLowerCase(java.util.Locale.ROOT);
-    }
-
     /**
      * Warn (once per login) if the bound account doesn't match the logged-in
      * character — the run's progress is tied to one OSRS account.
@@ -1158,17 +1144,16 @@ java.util.Optional<DetectedEvent> detected =
     private void checkBoundAccount()
     {
         if (!config.warnAccountMismatch()) return;
-        FateLockedBundle.RunState st = getBundle().getState();
-        String bound = st == null ? null : st.getLinkedAccount();
-        if (bound == null || bound.trim().isEmpty()) return;
+        String bound = AccountBinding.boundAccount(getBundle());
+        if (bound == null) return;
 
-        Player local = client.getLocalPlayer();
-        String current = local == null ? null : local.getName();
+        String current = loggedInName();
         if (current == null || current.isEmpty()) return;
 
-        if (normName(bound).equals(normName(current))) return;
-        if (normName(bound).equals(lastAccountWarned)) return;
-        lastAccountWarned = normName(bound);
+        if (AccountBinding.sameAccount(bound, current)) return;
+        String warnedFor = AccountBinding.normalize(bound);
+        if (warnedFor.equals(lastAccountWarned)) return;
+        lastAccountWarned = warnedFor;
 
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
@@ -1315,13 +1300,12 @@ java.util.Optional<DetectedEvent> detected =
     StrictModeReadiness strictModeReadiness()
     {
         FateLockedBundle current = getBundle();
-        Player local = client.getLocalPlayer();
         return StrictModeReadiness.evaluate(
             config.strictMode(),
             strictPause.isPaused(),
             current.getRules() != null && !current.isLegacyRules(),
-            current.getRules() == null ? null : current.getRules().getAccount(),
-            local == null ? null : local.getName(),
+            current.getRules() == null ? null : AccountBinding.boundAccount(current),
+            loggedInName(),
             strictTravelAccountMatches(current),
             rulesAreFresh());
     }
@@ -1831,7 +1815,7 @@ MenuEntry entry = event.getMenuEntry();
         overTierSummary = overTierSummary(effects.overTierGear);
         slayerTaskWarn = effects.lockedSlayerTask;
         showIsolated("sidebar", () -> {
-            panel.updateTrackerAccount(trackerAccount(rules));
+            panel.updateTrackerAccount(AccountBinding.boundAccount(rules));
             panel.update(rules, effects.view);
         });
         showIsolated("world map pins", () -> placeLockedAreaPins(effects.pins));
@@ -1849,13 +1833,6 @@ MenuEntry entry = event.getMenuEntry();
         {
             log.warn("Could not update the {}: {}", what, ex.getMessage());
         }
-    }
-
-    /** The account the tracker profile is bound to, from the rules or the older run state. */
-    private static String trackerAccount(FateLockedBundle rules)
-    {
-        if (rules.getRules() != null) return rules.getRules().getAccount();
-        return rules.getState() == null ? null : rules.getState().getLinkedAccount();
     }
 
     /** Everything a rule set means, worked out before anything changes. */

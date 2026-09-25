@@ -631,12 +631,9 @@ class FateLockedPanel extends PluginPanel
         SwingUtilities.invokeLater(() -> {
             profileVal.setText(orDash(bundle.getProfileName()));
             runIdVal.setText(orDash(bundle.getRunId()));
-            String manifestAccount = bundle.getRules() == null
-                ? null : bundle.getRules().getAccount();
-            accountVal.setText(orDash(manifestAccount));
+            accountVal.setText(orDash(AccountBinding.boundAccount(bundle)));
             if (state != null)
             {
-                if (manifestAccount == null) accountVal.setText(orDash(state.getLinkedAccount()));
                 keysVal.setText(String.valueOf(state.getKeys()));
                 omniKeysVal.setText(String.valueOf(state.getSpecialKeys()));
                 chaosKeysVal.setText(String.valueOf(state.getChaosKeys()));

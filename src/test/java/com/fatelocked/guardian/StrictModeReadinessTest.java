@@ -34,7 +34,7 @@ public class StrictModeReadinessTest
             evaluate(true, false, true, "  ", "Nubles", false, true));
         assertInactive("you are not logged in",
             evaluate(true, false, true, "Nubles", null, false, true));
-        assertInactive("these rules belong to Nubles",
+        assertInactive("the profile is for Nubles; you're logged in as Zezima",
             evaluate(true, false, true, " Nubles ", "Zezima", false, true));
         assertInactive("the rules are more than 15 minutes old",
             evaluate(true, false, true, "Nubles", "Nubles", true, false));
