@@ -109,18 +109,26 @@ connection work that reports on it. Each phase leaves `main` releasable.
   *Done as* `scripts/goldenBundles.test.ts` writing `contracts/golden-bundles/`
   for 10 runs, with chunk, area, bank, frontier and account answers (web
   PR #47). The Slayer reach index, item rules, Sailing and a degraded
-  export come with A3.
-- [ ] **A3. Web: malformed and forward-compatible cases.** `cases.json`:
+  export are not among the runs yet.
+- [x] **A3. Web: malformed and forward-compatible cases.** `cases.json`:
   inputs that must be rejected (empty, `{}`, `null`, v3 stub, v5, v4
   without chunks or rules, truncated JSON, bad FLGZ, a 9 MiB gzip bomb) and
   inputs that must keep the same answers (unknown fields, dropped optional
   fields).
-- [ ] **A4. Web: pin the relay's GET replies (relay fixtures).**
+  *Done as* 11 inputs to refuse and 5 changes to shrug off, written as
+  recipes against a golden run so the file stays small (web PR #47). The
+  reader applies them and compresses too: stored gzip bytes differ between
+  zlib builds. The plugin checks them in `GoldenBundleCasesTest`.
+- [x] **A4. Web: pin the relay's GET replies (relay fixtures).**
   `workers/fate-relay/contract/relay-get.json`, replayed through the worker
   by `contract.test.ts`: fresh, newer and older versions, 304 for bare
   validators, 404, KV failure, plus intermediary cases (HTML 200, missing
   payload, bad versions, mismatched ETag, 429 with and without
   Retry-After, 502) and transport cases (reset, timeout, oversized body).
+  *Done as* `contracts/relay/relay-get.json`, replayed through the worker
+  by `workers/fate-relay/relayContract.test.ts` (web PR #47). C1 turned the
+  quoted and weak validator cases into 304s, C2 added "gone", and C5 added
+  the rules the plugin holds, sent in full.
 - [x] **A5. Plugin: copy the web contracts at a pinned commit.**
   `scripts/pin-web-contracts.sh <web-sha>` copies A2–A4's files into
   `src/test/resources/contracts/` and writes `PINNED` (repository, commit,
@@ -136,11 +144,14 @@ connection work that reports on it. Each phase leaves `main` releasable.
   whitespace R11) assert today's plugin answer and are tagged with their
   finding, so each Stage 2 fix has to change them on purpose.
   *Done for* land chunks, areas, banks, frontier, v4 entries and `FLGZ:`,
-  with R1 and R4 pinned; `monsterReach`, item tiers and the accept/reject
-  cases follow A3. B11 removed the R11 exceptions.
-- [ ] **A7. Plugin: classify relay replies in one pure `RelayContract`**
+  with R1 and R4 pinned; the accept/reject cases are in
+  `GoldenBundleCasesTest`. `monsterReach` and item tiers wait for the runs
+  A2 left out. B11 removed the R11 exceptions.
+- [x] **A7. Plugin: classify relay replies in one pure `RelayContract`**
   (no behaviour change), and **check it against the relay fixtures**
   (`RelayContractFixtureTest`; transport cases through MockWebServer).
+  The one reply still read otherwise than the fixture says is "gone",
+  pinned as a known divergence until C15.
 - [x] **A8. Plugin CI: fail when the contract copy differs from its pinned
   web commit.**
 
@@ -198,28 +209,31 @@ Relay and web first; every relay change is compatible with 52f45f5 and
 874b9d1. The relay deploy after C3 needs the owner's `wrangler login` and
 go-ahead.
 
-- [ ] **C1. Relay: answer 304 to quoted and weak validators (S4).**
-- [ ] **C2. Relay: let the owner mark a code gone (S11):** `POST /r/<code>
+- [x] **C1. Relay: answer 304 to quoted and weak validators (S4).**
+- [x] **C2. Relay: let the owner mark a code gone (S11):** `POST /r/<code>
   {token, gone:true}` with the owner token; GET answers `404
   {"gone":true}`.
-- [ ] **C3. Web: mark the code gone on Disconnect**, after any in-flight
+- [x] **C3. Web: mark the code gone on Disconnect**, after any in-flight
   publish; **show only the code's last four characters**; document both.
-- [ ] **C4. Plugin: move connection states and timing into a pure
+  *Done in* web PR #47. The relay deploy waits for the owner's `wrangler
+  login`; merging #47 before it would ship a What's New line that isn't
+  true yet.
+- [x] **C4. Plugin: move connection states and timing into a pure
   `SyncMachine`** (no behaviour change; the controller's concurrency tests
   guard the move).
-- [ ] **C5. Count a same-version reply as a check and forget the version
+- [x] **C5. Count a same-version reply as a check and forget the version
   after a 404 (S4).**
-- [ ] **C6. Say when the relay sends an unreadable reply (S5).**
-- [ ] **C7. Remember a rejected version instead of downloading it again
+- [x] **C6. Say when the relay sends an unreadable reply (S5).**
+- [x] **C7. Remember a rejected version instead of downloading it again
   (S13).** Must land before C12, or a v5 bundle is re-fetched every five
   minutes.
-- [ ] **C8. Schedule after every reply and stop republishing "Not
+- [x] **C8. Schedule after every reply and stop republishing "Not
   connected"; remove the unused Preparing state and browser-failure path
   (S13).**
-- [ ] **C9. Time out, cap and cancel the tracker request (S12):** 20 s call
+- [x] **C9. Time out, cap and cancel the tracker request (S12):** 20 s call
   timeout, 1 MiB body cap, cancel on stop, revoke and re-pair; the tick
   never dies on an exception.
-- [ ] **C10. Show connection changes in the order they happen (S12).**
+- [x] **C10. Show connection changes in the order they happen (S12).**
 - [ ] **C11. Give each connection state its reason, local time and one
   action (S8):** a pure `SyncView`; the importer reports OK, FUTURE_FORMAT
   or INVALID; every fixture outcome maps to a visible state.
