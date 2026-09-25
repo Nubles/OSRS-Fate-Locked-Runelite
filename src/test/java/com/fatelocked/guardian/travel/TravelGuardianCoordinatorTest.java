@@ -54,7 +54,7 @@ public class TravelGuardianCoordinatorTest
         new StrictModeClickHandler(new StrictModeGuard()));
 
     @Test
-    public void provenLockedTravelIsConsumedAndExplainedOnce()
+    public void provenLockedTravelIsConsumedEachTimeButExplainedAndRecordedOnce()
     {
         MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
@@ -72,16 +72,20 @@ public class TravelGuardianCoordinatorTest
         assertTrue(first.isWriteChat());
         assertFalse(repeated.isWriteChat());
         assertTrue(first.isWriteBlockedAudit());
+        assertFalse(repeated.isWriteBlockedAudit());
         assertFalse(first.isWritePausedAudit());
     }
 
     @Test
-    public void pausedTravelIsAllowedAndMarkedOnlyForLocalAudit()
+    public void pausedTravelIsAllowedAndRecordedOnceForLocalAudit()
     {
         MenuOptionClicked click = travelClick();
         FateRuleEngine rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, true, true, true, rules), rules, availability);
+        TravelGuardianResult repeated = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
             context(true, true, true, true, rules), rules, availability);
 
@@ -90,6 +94,7 @@ public class TravelGuardianCoordinatorTest
         assertFalse(result.isWriteChat());
         assertFalse(result.isWriteBlockedAudit());
         assertTrue(result.isWritePausedAudit());
+        assertFalse(repeated.isWritePausedAudit());
     }
 
     @Test
