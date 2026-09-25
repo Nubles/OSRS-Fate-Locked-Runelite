@@ -77,7 +77,9 @@ jobs:
           # The packager reads the entry file's git history.
           git -C plugin-hub -c user.name=ci -c user.email=ci@invalid commit --quiet -am "build $SHA"
           ./prepare.sh
-          java -cp package.jar net.runelite.pluginhub.packager.Packager plugin-hub/plugins/fate-locked-ironman
+          # Name the plugin, as the Hub's manual builds do: the packager only
+          # accepts an entry file that sits directly in its own plugins folder.
+          FORCE_BUILD=fate-locked-ironman java -cp package.jar net.runelite.pluginhub.packager.Packager
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
