@@ -93,6 +93,22 @@ public class TravelGuardianCoordinatorTest
     }
 
     @Test
+    public void pausedTravelTheRulesAllowIsNotRecorded()
+    {
+        MenuOptionClicked click = travelClick();
+        FateRuleEngine rules = rules(PermissionStatus.ALLOWED);
+
+        TravelGuardianResult result = coordinator.handle(
+            click, click.getMenuEntry(), client, ORIGIN,
+            context(true, true, true, true, rules), rules, availability);
+
+        verify(click, never()).consume();
+        assertFalse(result.isWriteChat());
+        assertFalse(result.isWriteBlockedAudit());
+        assertFalse(result.isWritePausedAudit());
+    }
+
+    @Test
     public void strictModeOffLeavesTravelUnconsumedAndUnrecorded()
     {
         MenuOptionClicked click = travelClick();

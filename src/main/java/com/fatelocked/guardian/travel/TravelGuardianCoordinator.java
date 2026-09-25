@@ -55,9 +55,11 @@ public final class TravelGuardianCoordinator
         {
             GuardResult guardResult =
                 clickHandler.handleTravel(event, action, decision, context);
+            // Only locked travel is let through by the pause; travel the
+            // rules allow anyway is not worth recording.
             return new TravelGuardianResult(
                 action, decision, null, guardResult,
-                false, false, true);
+                false, false, decision.getStatus() == PermissionStatus.LOCKED);
         }
 
         if (!isProvenBlock(action, decision, context))
