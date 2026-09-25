@@ -686,6 +686,58 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void rulesRestoredFromTheLastStartAreConfirmedByA304() throws Exception
+    {
+        controller.seedAcceptedVersion("41");
+        server.enqueue(new MockResponse()
+            .setResponseCode(304)
+            .addHeader("ETag", "\"41\""));
+
+        controller.poll();
+        RecordedRequest first = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        // Not connected until the relay says they are current.
+        assertNull(controller.snapshot().getLastSync());
+        runClientTasks();
+
+        assertEquals("41", first.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals("41", controller.snapshot().getAcceptedVersion());
+        assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(0, importer.acceptedPayloads().size());
+    }
+
+    @Test
+    public void newerRulesStillArriveInFullAfterASeed() throws Exception
+    {
+        controller.seedAcceptedVersion("41");
+        server.enqueue(relayResponse(42, validV4Payload(), "\"42\""));
+
+        controller.poll();
+        assertEquals("41", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals("42", controller.snapshot().getAcceptedVersion());
+        assertEquals(1, importer.acceptedPayloads().size());
+    }
+
+    @Test
+    public void aSeedIsIgnoredOnceThisStartHasAcceptedRules() throws Exception
+    {
+        connect(6, "\"6\"");
+
+        controller.seedAcceptedVersion("41");
+
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+    }
+
+    @Test
     public void mismatched304DoesNotRefreshFreshness() throws Exception
     {
         connect(6, "\"6\"");

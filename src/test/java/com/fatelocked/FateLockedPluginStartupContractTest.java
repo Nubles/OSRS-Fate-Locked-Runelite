@@ -250,6 +250,35 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void rulesSurviveARestartAndAnOfflineStart() throws Exception
+    {
+        File dir = folder.newFolder("restart");
+        Harness first = new Harness(dir);
+        first.plugin.clipboard = fixture("bundles/v4-rules.json");
+        SwingUtilities.invokeAndWait(() ->
+            first.panel.buttonForTest("Import from clipboard").doClick());
+        first.runBackgroundTasks();
+        first.runClientTasks();
+        // The switch queued the save; it runs in the background too.
+        first.runBackgroundTasks();
+        first.plugin.shutDown();
+        assertTrue(new File(dir, SavedRulesStore.FILE_NAME).exists());
+
+        // Online sync is off, so nothing but the saved rules can bring them back.
+        Harness second = new Harness(dir);
+        try
+        {
+            assertFalse(second.settings.networkAccessAllowed());
+            assertEquals("run-1", second.plugin.getBundle().getRunId());
+            assertTrue(second.panel.hasTextForTest("saved rules from "));
+        }
+        finally
+        {
+            second.plugin.shutDown();
+        }
+    }
+
+    @Test
     public void workQueuedBeforeShutdownDoesNothingAfterIt() throws Exception
     {
         File dir = folder.newFolder("queued-before-shutdown");

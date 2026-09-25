@@ -108,12 +108,15 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.Duration;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -466,7 +469,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             updatePanelRollInbox();
             refreshInfoBoxes();
         });
-        loadBackupFile(false);
+        loadSavedRules();
         keyManager.registerKeyListener(reimportHotkey);
         startTrackerPoll();
     }
@@ -1410,6 +1413,69 @@ MenuEntry entry = event.getMenuEntry();
             .build());
     }
 
+    /**
+     * At startup: the rules the last start accepted. They are read through
+     * the file writer, so a save the previous start was still finishing
+     * lands first. With none saved, as on the first start after updating,
+     * the newest backup file instead.
+     */
+    private void loadSavedRules()
+    {
+        SavedRulesStore store = savedRules;
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(onClient.guard(() -> {
+            SavedRules saved = store == null ? null : store.load();
+            FateLockedBundle parsed = null;
+            if (saved != null)
+            {
+                try
+                {
+                    parsed = FateLockedBundle.loadFromJson(gson, saved.getPayload());
+                }
+                catch (RuntimeException ex)
+                {
+                    log.warn("Saved rules could not be read: {}", ex.getMessage());
+                }
+            }
+            if (parsed == null)
+            {
+                loadBackupFile(false);
+                return;
+            }
+            FateLockedBundle rules = parsed;
+            onClient.run(() -> useSavedRules(saved, rules));
+        }));
+    }
+
+    /**
+     * On the client thread: bring back the last start's rules, unless others
+     * arrived since. Tracker rules saved from this pairing ask the relay
+     * only whether they are still current; until it confirms them they are
+     * never fresh enough for Strict Mode.
+     */
+    private void useSavedRules(SavedRules saved, FateLockedBundle rules)
+    {
+        if (!RulesPrecedence.mayReplace(active.getSource(), RulesPrecedence.Arrival.SAVED)
+            || !switchRules(rules, saved.getSource()))
+        {
+            return;
+        }
+        panel.flashStatus("saved rules from " + SAVED_AT.format(saved.getSavedAt()), true);
+        log.info("Fate Locked rules restored from the last start: {} regions",
+            rules.getRegionChunks().size());
+        TrackerConnectionController controller = connectionController;
+        if (controller != null
+            && saved.getSource() == RulesSource.RELAY
+            && saved.getPairingTag() != null
+            && saved.getPairingTag().equals(PairingSupport.tag(connectionSettings.pairingCode())))
+        {
+            controller.seedAcceptedVersion(saved.getRelayVersion());
+        }
+    }
+
+    private static final DateTimeFormatter SAVED_AT =
+        DateTimeFormatter.ofPattern("d MMM HH:mm 'UTC'", Locale.ENGLISH).withZone(ZoneOffset.UTC);
+
     /** The sidebar's "Load newest backup file". */
     private void loadNewestBackupFile()
     {
@@ -1464,6 +1530,12 @@ MenuEntry entry = event.getMenuEntry();
     /** Switch to rules read from a backup file; the tracker's copy wins on its next check. */
     private void useBackupFile(FateLockedBundle parsed, String text, Path file, boolean explicit)
     {
+        RulesPrecedence.Arrival arrival = explicit
+            ? RulesPrecedence.Arrival.IMPORT : RulesPrecedence.Arrival.STARTUP_FILE;
+        if (!RulesPrecedence.mayReplace(active.getSource(), arrival))
+        {
+            return;
+        }
         if (!switchRules(parsed, RulesSource.FILE))
         {
             panel.flashStatus("couldn't read the backup file — rules unchanged", false);

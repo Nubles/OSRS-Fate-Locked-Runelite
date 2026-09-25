@@ -278,6 +278,28 @@ final class TrackerConnectionController
         }
     }
 
+    /**
+     * Rules this pairing's relay sent were restored from the last start.
+     * Remember their version, so the first check asks only whether they are
+     * still current (If-None-Match) and a 304 confirms them; newer rules
+     * still arrive in full. Ignored once this start has accepted anything.
+     */
+    void seedAcceptedVersion(String version)
+    {
+        if (version == null || version.trim().isEmpty())
+        {
+            return;
+        }
+        synchronized (pollLock)
+        {
+            if (stopped || acceptedVersion != null || lastSync != null)
+            {
+                return;
+            }
+            acceptedVersion = canonicalVersion(version.trim());
+        }
+    }
+
     void stop()
     {
         synchronized (pollLock)

@@ -92,8 +92,14 @@ plugin begins a new local history.
 - **Backup file:** place `fate-locked-bundle-*.json` in
   `~/.runelite/fate-locked/` (or
   `%USERPROFILE%\.runelite\fate-locked\` on Windows), then click **Load
-  newest backup file** in the Bundle section. The plugin also reads the
-  newest matching file when it starts. It does not watch the folder.
+  newest backup file** in the Bundle section. It does not watch the folder.
+
+The plugin keeps the last rules it accepted in `saved-rules.json` and
+brings them back when it starts, even offline. It reads the newest backup
+file at startup only when nothing is saved, as on the first start after
+updating. Saved tracker rules are never fresh enough for Strict Mode until
+the tracker confirms them, and rules that arrive later always replace
+them.
 
 Imports replace the active rules only after complete parsing and validation.
 Malformed, stale, or unsupported relay responses keep the previous valid

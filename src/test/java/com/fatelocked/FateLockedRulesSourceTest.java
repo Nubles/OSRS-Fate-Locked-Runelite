@@ -26,6 +26,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -203,6 +205,102 @@ public class FateLockedRulesSourceTest
     }
 
     @Test
+    public void savedRulesComeBackAtStartupInsteadOfTheBackupFile() throws Exception
+    {
+        File dir = folder.newFolder("restore");
+        // An older backup file sits beside the saved rules; the saved rules win.
+        Files.write(new File(dir, "fate-locked-bundle-old.json").toPath(),
+            fixture("bundles/v3-standard.json").getBytes(StandardCharsets.UTF_8));
+        Harness h = new Harness(dir);
+        h.save(FateLockedPlugin.RulesSource.IMPORT, null, null);
+
+        h.invoke("loadSavedRules");
+
+        assertFalse(h.plugin.getBundle().isLegacyRules());
+        assertEquals("run-1", h.plugin.getBundle().getRunId());
+        assertEquals(FateLockedPlugin.RulesSource.IMPORT, h.source());
+        verify(h.panel).flashStatus(
+            org.mockito.ArgumentMatchers.startsWith("saved rules from "), eq(true));
+        verify(h.controller, never()).seedAcceptedVersion(anyString());
+    }
+
+    @Test
+    public void withNothingSavedTheNewestBackupFileLoadsAtStartup() throws Exception
+    {
+        File dir = folder.newFolder("first-start");
+        Files.write(new File(dir, "fate-locked-bundle-2026.json").toPath(),
+            fixture("bundles/v4-rules.json").getBytes(StandardCharsets.UTF_8));
+        Harness h = new Harness(dir);
+
+        h.invoke("loadSavedRules");
+
+        assertEquals(FateLockedPlugin.RulesSource.FILE, h.source());
+        // From now on the next start finds these as saved rules.
+        assertEquals(FateLockedPlugin.RulesSource.FILE, h.savedRules().getSource());
+    }
+
+    @Test
+    public void savedRulesNeverReplaceRulesThatArrivedSince() throws Exception
+    {
+        Harness h = new Harness(folder.newFolder("arrived-since"));
+        h.save(FateLockedPlugin.RulesSource.RELAY, "41", PairingSupport.tag(CODE));
+        when(h.settings.pairingCode()).thenReturn(CODE);
+        FateLockedBundle tracker = v4Bundle(Instant.now());
+        h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
+
+        h.invoke("loadSavedRules");
+
+        assertSame(tracker, h.plugin.getBundle());
+        verify(h.controller, never()).seedAcceptedVersion(anyString());
+    }
+
+    @Test
+    public void theStartupFileNeverReplacesRulesThatArrivedSince() throws Exception
+    {
+        File dir = folder.newFolder("startup-file-late");
+        Files.write(new File(dir, "fate-locked-bundle-2026.json").toPath(),
+            fixture("bundles/v4-rules.json").getBytes(StandardCharsets.UTF_8));
+        Harness h = new Harness(dir);
+        FateLockedBundle tracker = v4Bundle(Instant.now());
+        h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
+
+        h.invoke("loadSavedRules");
+
+        assertSame(tracker, h.plugin.getBundle());
+        assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
+    }
+
+    @Test
+    public void savedTrackerRulesAskTheRelayOnlyWhetherTheyAreCurrent() throws Exception
+    {
+        Harness h = new Harness(folder.newFolder("same-pairing"));
+        h.save(FateLockedPlugin.RulesSource.RELAY, "41", PairingSupport.tag(CODE));
+        when(h.settings.pairingCode()).thenReturn(CODE);
+
+        h.invoke("loadSavedRules");
+
+        assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
+        verify(h.controller).seedAcceptedVersion("41");
+        // Not fresh for Strict Mode until the relay confirms them.
+        h.paired(true);
+        assertFalse(h.plugin.rulesAreFresh());
+    }
+
+    @Test
+    public void savedRulesFromAnotherPairingAreFetchedAfresh() throws Exception
+    {
+        Harness h = new Harness(folder.newFolder("other-pairing"));
+        h.save(FateLockedPlugin.RulesSource.RELAY, "41",
+            PairingSupport.tag("fedcba9876543210fedcba9876543210"));
+        when(h.settings.pairingCode()).thenReturn(CODE);
+
+        h.invoke("loadSavedRules");
+
+        assertFalse(h.plugin.getBundle().getRegionChunks().isEmpty());
+        verify(h.controller, never()).seedAcceptedVersion(anyString());
+    }
+
+    @Test
     public void nothingImportedIsNeverFresh() throws Exception
     {
         Harness h = new Harness(folder.newFolder("nothing"));
@@ -315,6 +413,14 @@ public class FateLockedRulesSourceTest
             set("connectionController", controller);
             set("connectionSettings", settings);
             when(controller.snapshot()).thenReturn(TrackerConnectionSnapshot.disconnected());
+        }
+
+        /** Rules a previous start saved: the v4 fixture, exported just now. */
+        void save(FateLockedPlugin.RulesSource source, String version, String pairingTag)
+            throws Exception
+        {
+            new SavedRulesStore(new Gson(), savedRulesPath).save(new SavedRules(
+                v4Json(Instant.now()), source, Instant.now(), version, pairingTag));
         }
 
         /** What the next start would find. */
