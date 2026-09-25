@@ -2005,32 +2005,21 @@ MenuEntry entry = event.getMenuEntry();
             String url = connectionController.beginPairing();
             String code = connectionSettings.pairingCode();
             SwingUtilities.invokeLater(onClient.guard(
-                () -> openTrackerPairing(onClient, url, code)));
+                () -> openTrackerPairing(url, code)));
         });
     }
 
-    private void openTrackerPairing(ClientThreadGate onClient, String url, String code)
+    /**
+     * RuneLite's LinkBrowser opens the page on its own thread and shows its
+     * own copy-the-link dialog if the browser won't open, so there is no
+     * failure to report here.
+     */
+    private void openTrackerPairing(String url, String code)
     {
-        if (!connectionSettings.networkAccessAllowed()
-            || !samePairing(code, connectionSettings.pairingCode()))
-        {
-            return;
-        }
-        try
+        if (connectionSettings.networkAccessAllowed()
+            && samePairing(code, connectionSettings.pairingCode()))
         {
             launchTrackerBrowser(url);
-        }
-        catch (RuntimeException error)
-        {
-            onClient.run(() -> {
-                if (!samePairing(code, connectionSettings.pairingCode()))
-                {
-                    return;
-                }
-                connectionController.reportBrowserLaunchFailure();
-                panel.flashStatus(
-                    "couldn't open the web tracker", false);
-            });
         }
     }
 

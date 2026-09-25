@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import java.time.Instant;
+import java.util.Objects;
 
 final class TrackerConnectionSnapshot
 {
@@ -71,5 +72,24 @@ final class TrackerConnectionSnapshot
     {
         return new TrackerConnectionSnapshot(
             state, lastSync, acceptedVersion, message);
+    }
+
+    /** Two snapshots that would show the same thing are equal, so nothing republishes it. */
+    @Override
+    public boolean equals(Object other)
+    {
+        if (this == other) return true;
+        if (!(other instanceof TrackerConnectionSnapshot)) return false;
+        TrackerConnectionSnapshot that = (TrackerConnectionSnapshot) other;
+        return state == that.state
+            && Objects.equals(lastSync, that.lastSync)
+            && Objects.equals(acceptedVersion, that.acceptedVersion)
+            && Objects.equals(message, that.message);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(state, lastSync, acceptedVersion, message);
     }
 }

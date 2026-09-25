@@ -98,23 +98,17 @@ final class TrackerConnectionController
             generation++;
             activePoll = null;
             currentIdentityCode = code;
-            snapshot = machine.pairingStarted(clock.instant());
-            listener.accept(snapshot);
+            showLocked(machine.pairingStarted(clock.instant()));
         }
         return PairingSupport.trackerPairingUrl(code);
     }
 
-    void reportBrowserLaunchFailure()
-    {
-        publish(TrackerConnectionState.OFFLINE,
-            "Could not open the web tracker");
-    }
 
     void poll()
     {
         if (!settings.networkAccessAllowed())
         {
-            networkAccessChanged();
+            networkAccessOff();
             return;
         }
         String code = settings.pairingCode();
@@ -123,25 +117,17 @@ final class TrackerConnectionController
         synchronized (pollLock)
         {
             if (stopped) return;
-            boolean identityChanged =
-                !equal(code, currentIdentityCode);
-            if (identityChanged)
+            if (!equal(code, currentIdentityCode))
             {
                 generation++;
                 activePoll = null;
                 currentIdentityCode = code;
-                snapshot = machine.pairingReplaced(!code.isEmpty());
                 clearLegacy = !code.isEmpty();
-                listener.accept(snapshot);
+                showLocked(machine.pairingReplaced(!code.isEmpty()));
             }
             if (code.isEmpty())
             {
-                TrackerConnectionSnapshot unpaired = machine.unpaired(clock.instant());
-                if (!identityChanged)
-                {
-                    snapshot = unpaired;
-                    listener.accept(snapshot);
-                }
+                showLocked(machine.unpaired(clock.instant()));
                 return;
             }
             version = machine.acceptedVersion();
@@ -202,7 +188,7 @@ final class TrackerConnectionController
     {
         if (!settings.networkAccessAllowed())
         {
-            networkAccessChanged();
+            networkAccessOff();
             return;
         }
         synchronized (pollLock)
@@ -215,14 +201,31 @@ final class TrackerConnectionController
         poll();
     }
 
+    /**
+     * A check found consent off. Reset once; the ticks that follow find
+     * nothing held and nothing in flight, and change nothing.
+     */
+    private void networkAccessOff()
+    {
+        synchronized (pollLock)
+        {
+            if (activePoll == null
+                && machine.acceptedVersion() == null
+                && snapshot.getState() == TrackerConnectionState.DISCONNECTED)
+            {
+                return;
+            }
+        }
+        networkAccessChanged();
+    }
+
     void networkAccessChanged()
     {
         synchronized (pollLock)
         {
             generation++;
             activePoll = null;
-            snapshot = machine.networkAccessChanged();
-            listener.accept(snapshot);
+            showLocked(machine.networkAccessChanged());
         }
     }
 
@@ -272,8 +275,7 @@ final class TrackerConnectionController
             stopped = true;
             generation++;
             activePoll = null;
-            snapshot = TrackerConnectionSnapshot.disconnected();
-            listener.accept(snapshot);
+            showLocked(TrackerConnectionSnapshot.disconnected());
         }
     }
 
@@ -330,6 +332,8 @@ final class TrackerConnectionController
                     confirmUnchanged(token);
                     return;
                 case UNCONFIRMED:
+                    // Nothing to show, but the next check waits its turn.
+                    showIfCurrent(token, now -> machine.unconfirmed(now));
                     clearPoll(token);
                     return;
                 case MISSING:
@@ -415,8 +419,7 @@ final class TrackerConnectionController
                         {
                             return;
                         }
-                        snapshot = machine.confirmed(refreshedAt);
-                        listener.accept(snapshot);
+                        showLocked(machine.confirmed(refreshedAt));
                     }
                 }
                 finally
@@ -495,8 +498,7 @@ final class TrackerConnectionController
                         {
                             return;
                         }
-                        snapshot = machine.accepted(version, acceptedAt);
-                        listener.accept(snapshot);
+                        showLocked(machine.accepted(version, acceptedAt));
                     }
                 }
                 finally
@@ -537,12 +539,22 @@ final class TrackerConnectionController
             }
             boolean unchanged = acceptedStateUnchangedLocked(token);
             TrackerConnectionSnapshot next = transition.apply(clock.instant());
-            if (unchanged)
+            if (unchanged && next != null)
             {
-                snapshot = next;
-                listener.accept(snapshot);
+                showLocked(next);
             }
         }
+    }
+
+    /** Show a snapshot, under pollLock, unless it says exactly what the last one did. */
+    private void showLocked(TrackerConnectionSnapshot next)
+    {
+        if (next.equals(snapshot))
+        {
+            return;
+        }
+        snapshot = next;
+        listener.accept(next);
     }
 
     private void scheduleFailure(RelayPollToken token, long minimumSeconds)
@@ -612,19 +624,8 @@ final class TrackerConnectionController
             {
                 return false;
             }
-            snapshot = machine.show(state, explicitMessage);
-            listener.accept(snapshot);
+            showLocked(machine.show(state, explicitMessage));
             return true;
-        }
-    }
-
-    private void publish(
-        TrackerConnectionState state, String explicitMessage)
-    {
-        synchronized (pollLock)
-        {
-            snapshot = machine.show(state, explicitMessage);
-            listener.accept(snapshot);
         }
     }
 

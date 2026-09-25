@@ -515,8 +515,7 @@ class FateLockedPanel extends PluginPanel
                 text += " \u00b7 " + formatUtc(copy.getLastSync());
             }
         }
-        else if (state == TrackerConnectionState.PREPARING
-            || state == TrackerConnectionState.WAITING
+        else if (state == TrackerConnectionState.WAITING
             || state == TrackerConnectionState.IMPORTING)
         {
             color = AMBER;

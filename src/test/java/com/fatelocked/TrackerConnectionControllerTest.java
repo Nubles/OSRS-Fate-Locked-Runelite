@@ -709,6 +709,58 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void withConsentOffTheTicksChangeNothing() throws Exception
+    {
+        connect(5, "\"5\"");
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        int before = listener.snapshots().size();
+
+        for (int tick = 0; tick < 5; tick++)
+        {
+            controller.pollIfDue();
+        }
+
+        // One reset to "Not connected", then silence.
+        assertEquals(before + 1, listener.snapshots().size());
+        assertEquals(TrackerConnectionState.DISCONNECTED, controller.snapshot().getState());
+        assertNull(server.takeRequest(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void aConfirmationForAnotherVersionWaitsAFullInterval() throws Exception
+    {
+        connect(6, "\"6\"");
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(304).addHeader("ETag", "5"));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+        clock.advanceSeconds(SyncMachine.WAITING_POLL_SECONDS);
+        controller.pollIfDue();
+
+        assertNoFurtherRequest();
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void theSameStatusIsNotPublishedTwice() throws Exception
+    {
+        connect(6, "\"6\"");
+        for (int reply = 0; reply < 2; reply++)
+        {
+            server.enqueue(new MockResponse().setResponseCode(200).setBody("<html></html>"));
+            pollUntilRelay();
+            waitFor(() -> !controller.pollInFlight());
+        }
+
+        long unreadable = listener.snapshots().stream()
+            .filter(s -> SyncMachine.UNREADABLE_MESSAGE.equals(s.getMessage()))
+            .count();
+        assertEquals(1, unreadable);
+    }
+
+    @Test
     public void anUnreadableReplySaysSoAndBacksOff() throws Exception
     {
         connect(6, "\"6\"");
@@ -1017,31 +1069,6 @@ public class TrackerConnectionControllerTest
         assertEquals("5", controller.snapshot().getAcceptedVersion());
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
-        assertEquals(0, clientTasks.size());
-        assertNoFurtherRequest();
-    }
-
-    @Test
-    public void browserLaunchFailureKeepsThePairingRequestRetryable()
-        throws Exception
-    {
-        controller.beginPairing();
-        String code = settings.pairingCode();
-
-        controller.reportBrowserLaunchFailure();
-
-        assertEquals(TrackerConnectionState.OFFLINE,
-            controller.snapshot().getState());
-        assertEquals("Could not open the web tracker",
-            controller.snapshot().getMessage());
-        assertEquals(code, settings.pairingCode());
-        server.enqueue(new MockResponse().setResponseCode(404));
-        controller.poll();
-        RecordedRequest retry = takeRelay();
-        waitFor(() -> SyncMachine.CONFIRM_MESSAGE
-            .equals(controller.snapshot().getMessage()));
-        assertEquals("/r/" + code, retry.getPath());
-        assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
     }
@@ -1456,6 +1483,11 @@ public class TrackerConnectionControllerTest
         TrackerConnectionSnapshot last()
         {
             return snapshots.get(snapshots.size() - 1);
+        }
+
+        List<TrackerConnectionSnapshot> snapshots()
+        {
+            return snapshots;
         }
     }
 

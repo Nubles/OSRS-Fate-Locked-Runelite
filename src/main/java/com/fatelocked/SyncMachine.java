@@ -159,6 +159,17 @@ final class SyncMachine
         return TrackerConnectionSnapshot.connected(now, acceptedVersion);
     }
 
+    /**
+     * A 304 for a version the plugin does not hold. Nothing changes on
+     * screen, so this returns null, but the next check waits a full interval
+     * instead of the few seconds reserved while this one ran.
+     */
+    TrackerConnectionSnapshot unconfirmed(Instant now)
+    {
+        healthy(now);
+        return null;
+    }
+
     /** The client thread switched to the relay's rules at this version. */
     TrackerConnectionSnapshot accepted(String version, Instant now)
     {
@@ -278,8 +289,6 @@ final class SyncMachine
     {
         switch (state)
         {
-            case PREPARING:
-                return "Preparing connection";
             case IMPORTING:
                 return "Importing tracker data";
             case EXPIRED:

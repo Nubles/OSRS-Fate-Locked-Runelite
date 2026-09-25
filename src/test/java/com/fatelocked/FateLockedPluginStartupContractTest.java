@@ -415,42 +415,6 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
-    @Test
-    public void browserFailureKeepsRuntimePairingRetryableAndVisible()
-        throws Exception
-    {
-        Harness harness = new Harness(folder.newFolder("browser-failure"));
-        try
-        {
-            harness.plugin.failBrowser = true;
-            SwingUtilities.invokeAndWait(
-                () -> harness.panel.connectButtonForTest().doClick());
-            harness.runClientTasks();
-            harness.flushEdt();
-            harness.runClientTasks();
-            harness.flushEdt();
-
-            String firstCode = harness.settings.pairingCode();
-            assertTrue(harness.panel.hasTextForTest(
-                "couldn't open the web tracker"));
-            assertEquals("Could not open the web tracker",
-                harness.panel.connectionTextForTest());
-
-            SwingUtilities.invokeAndWait(
-                () -> harness.panel.connectButtonForTest().doClick());
-            harness.runClientTasks();
-            harness.flushEdt();
-
-            assertNotEquals(firstCode, harness.settings.pairingCode());
-            assertEquals(2, harness.plugin.browserUrls.size());
-            assertEquals(1, harness.consentPrompts.get());
-        }
-        finally
-        {
-            harness.plugin.shutDown();
-        }
-    }
-
     private static final class Harness
     {
         private final ConcurrentLinkedQueue<BooleanSupplier> clientTasks =
@@ -714,7 +678,6 @@ public class FateLockedPluginStartupContractTest
         private final ConcurrentLinkedQueue<String> browserUrls =
             new ConcurrentLinkedQueue<>();
         private final AtomicInteger pauseCalls = new AtomicInteger();
-        private boolean failBrowser;
         private String clipboard = "";
 
         private TestPlugin(File dataDirectory)
@@ -732,10 +695,6 @@ public class FateLockedPluginStartupContractTest
         void launchTrackerBrowser(String url)
         {
             browserUrls.add(url);
-            if (failBrowser)
-            {
-                throw new RuntimeException("browser unavailable");
-            }
         }
 
         @Override
