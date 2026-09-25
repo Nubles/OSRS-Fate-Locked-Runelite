@@ -3,6 +3,7 @@ package com.fatelocked;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.runelite.api.Client;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Rule;
@@ -17,14 +18,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -37,13 +42,13 @@ public class FateLockedRulesSourceTest
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void reloadWithoutAFileKeepsTheActiveRules() throws Exception
+    public void startingWithoutABackupFileKeepsTheActiveRules() throws Exception
     {
         Harness h = new Harness(folder.newFolder("no-file"));
         FateLockedBundle tracker = v4Bundle(Instant.now());
         h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
 
-        h.invoke("reloadBundle");
+        h.invoke("loadBackupFileAtStartup");
 
         assertSame(tracker, h.plugin.getBundle());
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
@@ -51,21 +56,42 @@ public class FateLockedRulesSourceTest
     }
 
     @Test
-    public void reloadButtonWithoutAFileSaysSoAndKeepsTheRules() throws Exception
+    public void loadingABackupFileWhenThereIsNoneSaysSoAndKeepsTheRules() throws Exception
     {
         Harness h = new Harness(folder.newFolder("button"));
         FateLockedBundle tracker = v4Bundle(Instant.now());
         h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
 
-        h.invoke("reloadBundleOnRequest");
+        h.invoke("loadNewestBackupFile");
 
         assertSame(tracker, h.plugin.getBundle());
+        assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
+        verify(h.controller, never()).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "no bundle file in .runelite/fate-locked — rules unchanged", false);
+            "no backup file in .runelite/fate-locked — rules unchanged", false);
     }
 
     @Test
-    public void autoReloadToggleDoesNotReplaceTheRulesWithAnOldFile() throws Exception
+    public void anUnreadableBackupFileKeepsTheRulesAndSaysSo() throws Exception
+    {
+        File dir = folder.newFolder("unreadable");
+        Files.write(new File(dir, "fate-locked-bundle-bad.json").toPath(),
+            "{\"rules\":".getBytes(StandardCharsets.UTF_8));
+        Harness h = new Harness(dir);
+        FateLockedBundle tracker = v4Bundle(Instant.now());
+        h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
+
+        h.invoke("loadNewestBackupFile");
+
+        assertSame(tracker, h.plugin.getBundle());
+        assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
+        verify(h.controller, never()).localRulesReplacedTrackerRules();
+        verify(h.panel).flashStatus(
+            "couldn't read the backup file — rules unchanged", false);
+    }
+
+    @Test
+    public void theRemovedAutoReloadSettingIsIgnored() throws Exception
     {
         File dir = folder.newFolder("toggle");
         Files.write(new File(dir, "fate-locked-bundle-old.json").toPath(),
@@ -74,6 +100,7 @@ public class FateLockedRulesSourceTest
         FateLockedBundle tracker = v4Bundle(Instant.now());
         h.setRules(tracker, FateLockedPlugin.RulesSource.RELAY);
 
+        // A profile can still hold the old Auto-reload value.
         ConfigChanged toggled = new ConfigChanged();
         toggled.setGroup(FateLockedConfig.GROUP);
         toggled.setKey("autoReload");
@@ -81,29 +108,41 @@ public class FateLockedRulesSourceTest
 
         assertSame(tracker, h.plugin.getBundle());
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
+        verifyNoInteractions(h.executor);
     }
 
     @Test
-    public void aFileImportHandsBackToTheTrackerOnItsNextCheck() throws Exception
+    public void aBackupFileLoadsTheNewestFileAndHandsBackToTheTracker() throws Exception
     {
         File dir = folder.newFolder("file-import");
-        Files.write(new File(dir, "fate-locked-bundle-2026.json").toPath(),
+        File older = new File(dir, "fate-locked-bundle-older.json");
+        Files.write(older.toPath(),
+            fixture("bundles/v3-standard.json").getBytes(StandardCharsets.UTF_8));
+        File newer = new File(dir, "fate-locked-bundle-newer.json");
+        Files.write(newer.toPath(),
             fixture("bundles/v4-rules.json").getBytes(StandardCharsets.UTF_8));
+        assertTrue(older.setLastModified(1_000_000_000_000L));
+        assertTrue(newer.setLastModified(1_000_000_060_000L));
         Harness h = new Harness(dir);
         h.setRules(v4Bundle(Instant.now()), FateLockedPlugin.RulesSource.RELAY);
 
-        h.invoke("reloadBundle");
+        h.invoke("loadNewestBackupFile");
 
+        assertFalse(h.plugin.getBundle().isLegacyRules());
         assertEquals(FateLockedPlugin.RulesSource.FILE, h.source());
         verify(h.controller).localRulesReplacedTrackerRules();
+        verify(h.panel).flashStatus(
+            "loaded backup file: "
+                + h.plugin.getBundle().getRegionChunks().size() + " regions",
+            true);
     }
 
     @Test
-    public void aPastedImportHandsBackToTheTrackerOnItsNextCheck() throws Exception
+    public void aClipboardImportHandsBackToTheTrackerOnItsNextCheck() throws Exception
     {
-        Harness h = new Harness(folder.newFolder("paste"));
+        Harness h = new Harness(folder.newFolder("clipboard"));
 
-        assertTrue(h.paste(v4Json(Instant.now())));
+        assertTrue(h.importFromClipboard(v4Json(Instant.now())));
 
         assertEquals(FateLockedPlugin.RulesSource.IMPORT, h.source());
         verify(h.controller).localRulesReplacedTrackerRules();
@@ -197,6 +236,8 @@ public class FateLockedRulesSourceTest
             mock(TrackerConnectionController.class);
         private final TrackerConnectionSettings settings =
             mock(TrackerConnectionSettings.class);
+        private final ScheduledExecutorService executor =
+            mock(ScheduledExecutorService.class);
 
         private Harness(File dataDirectory) throws Exception
         {
@@ -208,7 +249,20 @@ public class FateLockedRulesSourceTest
                     return dataDirectory;
                 }
             };
+            // Background and client-thread work run at once here; the
+            // startup contract test checks which thread does what.
+            doAnswer(invocation -> {
+                ((Runnable) invocation.getArgument(0)).run();
+                return null;
+            }).when(executor).execute(any(Runnable.class));
+            ClientThread clientThread = mock(ClientThread.class);
+            doAnswer(invocation -> {
+                ((Runnable) invocation.getArgument(0)).run();
+                return null;
+            }).when(clientThread).invoke(any(Runnable.class));
             set("client", mock(Client.class));
+            set("clientThread", clientThread);
+            set("executor", executor);
             set("config", mock(FateLockedConfig.class));
             set("panel", panel);
             set("gson", new Gson());
@@ -251,16 +305,12 @@ public class FateLockedRulesSourceTest
             declared.invoke(plugin);
         }
 
-        boolean paste(String json) throws Exception
+        boolean importFromClipboard(String json) throws Exception
         {
-            Class<?> sourceClass = Class.forName(
-                FateLockedPlugin.class.getName() + "$ImportSource");
-            @SuppressWarnings({"rawtypes", "unchecked"})
-            Object source = Enum.valueOf((Class<? extends Enum>) sourceClass, "PASTE");
             Method method = FateLockedPlugin.class.getDeclaredMethod(
-                "applyPastedBundle", String.class, sourceClass);
+                "applyClipboardBundle", String.class);
             method.setAccessible(true);
-            return (Boolean) method.invoke(plugin, json, source);
+            return (Boolean) method.invoke(plugin, json);
         }
 
         private void set(String name, Object value) throws Exception

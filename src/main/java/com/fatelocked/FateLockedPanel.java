@@ -15,8 +15,6 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
@@ -25,8 +23,6 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
-import java.awt.Toolkit;
-import java.awt.datatransfer.DataFlavor;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -36,7 +32,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /** Narrow category-first side panel with compact rule rows. */
 class FateLockedPanel extends PluginPanel
@@ -68,7 +63,6 @@ class FateLockedPanel extends PluginPanel
     private final JLabel importVal = value();
     private final JPanel chunkBody = column();
     private final JPanel bundleBody = column();
-    private final JTextArea pasteArea = new JTextArea(6, 10);
     private final JLabel strictModeVal = value();
     private final JLabel strictModeReason = new JLabel();
     private final JButton strictModeButton = new JButton();
@@ -89,8 +83,8 @@ class FateLockedPanel extends PluginPanel
     private boolean strictPaused;
 
     private String rollInboxUrl = TRACKER_URL + "?open=roll-inbox";
-    private Consumer<String> onImport = json -> {};
-    private Runnable onReload = () -> {};
+    private Runnable onClipboardImport = () -> {};
+    private Runnable onLoadBackupFile = () -> {};
     private Runnable onConnect = () -> {};
 
     FateLockedPanel()
@@ -250,9 +244,6 @@ class FateLockedPanel extends PluginPanel
             configBinder.booleanSetting(
                 FateLockedConfig.NETWORK_ACCESS_KEY, "Enable online sync",
                 config::trackerNetworkAccess, this::confirmNetworkConnection)));
-        addSetting(bundleBody, ownSetting("Bundle", "autoReload",
-            configBinder.booleanSetting(
-                "autoReload", "Auto-reload on change", config::autoReload)));
         addLabeledSetting(bundleBody, "Re-import hotkey",
             ownSetting("Bundle", "reimportHotkey",
                 configBinder.keybindSetting(
@@ -446,42 +437,23 @@ class FateLockedPanel extends PluginPanel
         JButton clipboardBtn = new JButton("Import from clipboard");
         fullWidth(clipboardBtn);
         clipboardBtn.setToolTipText("Click RuneLite in the tracker, then click here");
-        clipboardBtn.addActionListener(e -> importFromClipboard());
+        clipboardBtn.addActionListener(e -> onClipboardImport.run());
         bundleBody.add(clipboardBtn);
-        bundleBody.add(Box.createVerticalStrut(6));
-        bundleBody.add(section("…OR PASTE JSON"));
-
-        pasteArea.setLineWrap(true);
-        pasteArea.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        pasteArea.setForeground(Color.LIGHT_GRAY);
-        pasteArea.setCaretColor(Color.LIGHT_GRAY);
-        pasteArea.setBorder(new EmptyBorder(4, 4, 4, 4));
-        JScrollPane scroll = new JScrollPane(pasteArea);
-        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        bundleBody.add(scroll);
-        bundleBody.add(Box.createVerticalStrut(6));
-
-        JButton importBtn = new JButton("Import pasted JSON");
-        fullWidth(importBtn);
-        importBtn.addActionListener(e -> {
-            String text = pasteArea.getText().trim();
-            if (!text.isEmpty()) onImport.accept(text);
-        });
-        bundleBody.add(importBtn);
         bundleBody.add(Box.createVerticalStrut(4));
 
-        JButton reloadBtn = new JButton("Reload from file");
-        fullWidth(reloadBtn);
-        reloadBtn.addActionListener(e -> onReload.run());
-        bundleBody.add(reloadBtn);
+        JButton backupBtn = new JButton("Load newest backup file");
+        fullWidth(backupBtn);
+        backupBtn.setToolTipText(
+            "Load the newest fate-locked-bundle*.json in .runelite/fate-locked, once");
+        backupBtn.addActionListener(e -> onLoadBackupFile.run());
+        bundleBody.add(backupBtn);
     }
 
     void setCallbacks(
-        Consumer<String> onImport, Runnable onReload, Runnable onConnect)
+        Runnable onClipboardImport, Runnable onLoadBackupFile, Runnable onConnect)
     {
-        this.onImport = onImport;
-        this.onReload = onReload;
+        this.onClipboardImport = onClipboardImport;
+        this.onLoadBackupFile = onLoadBackupFile;
         this.onConnect = onConnect;
     }
 
@@ -617,7 +589,6 @@ class FateLockedPanel extends PluginPanel
     String connectionTextForTest() { return connectionVal.getText(); }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }
-    JTextArea pasteAreaForTest() { return pasteArea; }
     JButton buttonForTest(String text) { return findButton(this, text); }
     JButton guardianPauseButtonForTest() { return strictModeButton; }
     List<String> sectionTitlesForTest()
@@ -652,27 +623,6 @@ class FateLockedPanel extends PluginPanel
     {
         return hasText(this, text);
     }
-    private void importFromClipboard()
-    {
-        try
-        {
-            Object data = Toolkit.getDefaultToolkit().getSystemClipboard()
-                .getData(DataFlavor.stringFlavor);
-            String text = data == null ? "" : data.toString().trim();
-            if (text.isEmpty())
-            {
-                flashStatus("clipboard empty", false);
-                return;
-            }
-            pasteArea.setText(text);
-            onImport.accept(text);
-        }
-        catch (Exception ex)
-        {
-            flashStatus("couldn't read clipboard", false);
-        }
-    }
-
     void update(FateLockedBundle bundle, ChunkPanelViewModel view)
     {
         FateLockedBundle.RunState state = bundle.getState();

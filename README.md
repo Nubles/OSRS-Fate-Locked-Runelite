@@ -89,11 +89,11 @@ plugin begins a new local history.
 
 - **Import from clipboard:** copy a bundle in the tracker, then use the
   plugin sidebar or its re-import hotkey.
-- **Paste JSON:** paste a complete bundle into the Bundle section.
-- **File:** place `fate-locked-bundle-*.json` in
+- **Backup file:** place `fate-locked-bundle-*.json` in
   `~/.runelite/fate-locked/` (or
-  `%USERPROFILE%\.runelite\fate-locked\` on Windows). The plugin reads the
-  newest matching file and can watch for changes.
+  `%USERPROFILE%\.runelite\fate-locked\` on Windows), then click **Load
+  newest backup file** in the Bundle section. The plugin also reads the
+  newest matching file when it starts. It does not watch the folder.
 
 Imports replace the active rules only after complete parsing and validation.
 Malformed, stale, or unsupported relay responses keep the previous valid

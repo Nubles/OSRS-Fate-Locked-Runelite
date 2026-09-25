@@ -139,16 +139,14 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
-    public void pastedRulesAreImportedOnTheClientThread() throws Exception
+    public void clipboardRulesAreImportedOnTheClientThread() throws Exception
     {
-        Harness harness = new Harness(folder.newFolder("paste-on-client-thread"));
+        Harness harness = new Harness(folder.newFolder("clipboard-on-client-thread"));
         try
         {
-            String json = fixture("bundles/v4-rules.json");
-            SwingUtilities.invokeAndWait(() -> {
-                harness.panel.pasteAreaForTest().setText(json);
-                harness.panel.buttonForTest("Import pasted JSON").doClick();
-            });
+            harness.plugin.clipboard = fixture("bundles/v4-rules.json");
+            SwingUtilities.invokeAndWait(() ->
+                harness.panel.buttonForTest("Import from clipboard").doClick());
 
             // The Swing thread only hands the text over: an import reads
             // game state such as worn equipment, which RuneLite allows only
@@ -169,6 +167,44 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void theNewestBackupFileIsReadOffTheGameThreadAndAppliedOnIt()
+        throws Exception
+    {
+        File dir = folder.newFolder("backup-file");
+        Harness harness = new Harness(dir);
+        try
+        {
+            // Written after startup: nothing watches the folder.
+            write(new File(dir, "fate-locked-bundle-export.json"),
+                fixture("bundles/v4-rules.json"));
+            harness.flushEdt();
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertTrue(harness.backgroundTasks.isEmpty());
+
+            SwingUtilities.invokeAndWait(() ->
+                harness.panel.buttonForTest("Load newest backup file").doClick());
+
+            // Neither the Swing thread nor the client thread reads the file.
+            assertEquals(1, harness.backgroundTasks.size());
+            assertTrue(harness.clientTasks.isEmpty());
+
+            harness.runBackgroundTasks();
+            assertEquals(1, harness.clientTasks.size());
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertTrue(harness.panel.hasTextForTest("loaded backup file: "));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
     public void aFailedImportRunsOnceAndSaysSo() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("failed-import-once"));
@@ -176,10 +212,9 @@ public class FateLockedPluginStartupContractTest
         {
             harness.plugin.clipboard = "{}";
             harness.pressReimportHotkey();
-            SwingUtilities.invokeAndWait(() -> {
-                harness.panel.pasteAreaForTest().setText("not a bundle");
-                harness.panel.buttonForTest("Import pasted JSON").doClick();
-            });
+            harness.plugin.clipboard = "not a bundle";
+            SwingUtilities.invokeAndWait(() ->
+                harness.panel.buttonForTest("Import from clipboard").doClick());
             assertEquals(2, harness.clientTasks.size());
 
             harness.runClientTick();
@@ -299,6 +334,9 @@ public class FateLockedPluginStartupContractTest
     {
         private final ConcurrentLinkedQueue<BooleanSupplier> clientTasks =
             new ConcurrentLinkedQueue<>();
+        /** Work handed to RuneLite's shared executor, off the game thread. */
+        private final ConcurrentLinkedQueue<Runnable> backgroundTasks =
+            new ConcurrentLinkedQueue<>();
         private final AtomicInteger navigationAdds = new AtomicInteger();
         private final AtomicInteger consentPrompts = new AtomicInteger();
         private boolean acceptConsent = true;
@@ -325,14 +363,7 @@ public class FateLockedPluginStartupContractTest
 
             ConfigManager configManager = statefulConfigManager();
             settings = new TrackerConnectionSettings(configManager);
-            FateLockedConfig config = new FateLockedConfig()
-            {
-                @Override
-                public boolean autoReload()
-                {
-                    return false;
-                }
-            };
+            FateLockedConfig config = new FateLockedConfig() { };
             panel = new FateLockedPanel(config, configManager)
             {
                 @Override
@@ -372,6 +403,10 @@ public class FateLockedPluginStartupContractTest
             doReturn(future).when(executor).scheduleWithFixedDelay(
                 any(Runnable.class), anyLong(), anyLong(),
                 any(TimeUnit.class));
+            doAnswer(invocation -> {
+                backgroundTasks.add(invocation.getArgument(0));
+                return null;
+            }).when(executor).execute(any(Runnable.class));
 
             set("client", mock(Client.class));
             set("clientThread", clientThread);
@@ -462,6 +497,15 @@ public class FateLockedPluginStartupContractTest
             {
                 assertTrue("a client task keeps asking to run again", tick < 50);
                 runClientTick();
+            }
+        }
+
+        private void runBackgroundTasks()
+        {
+            Runnable task;
+            while ((task = backgroundTasks.poll()) != null)
+            {
+                task.run();
             }
         }
 

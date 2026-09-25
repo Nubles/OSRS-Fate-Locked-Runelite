@@ -75,8 +75,7 @@ public class FateLockedPluginLocalHistoryTest
         assertEquals(1, relay.history.events().size());
 
         Harness clipboard = harness("clipboard-source");
-        assertTrue(invokePastedImport(
-            clipboard.plugin, rules, "CLIPBOARD"));
+        assertTrue(invokeClipboardImport(clipboard.plugin, rules));
         invokeRecord(clipboard.plugin, detected("Dragon Slayer"));
         assertEquals(1, clipboard.history.events().size());
 
@@ -84,7 +83,7 @@ public class FateLockedPluginLocalHistoryTest
         Files.write(
             file.dataDirectory.resolve("fate-locked-bundle-test.json"),
             rules.getBytes(StandardCharsets.UTF_8));
-        invokeNoArg(file.plugin, "reloadBundle");
+        invokeNoArg(file.plugin, "loadBackupFileAtStartup");
         invokeRecord(file.plugin, detected("Dragon Slayer"));
         assertEquals(1, file.history.events().size());
 
@@ -188,19 +187,13 @@ public class FateLockedPluginLocalHistoryTest
         return (Boolean) method.invoke(plugin, value);
     }
 
-    private static boolean invokePastedImport(
-        FateLockedPlugin plugin, String value, String sourceName)
-        throws Exception
+    private static boolean invokeClipboardImport(
+        FateLockedPlugin plugin, String value) throws Exception
     {
-        Class<?> sourceClass = Class.forName(
-            FateLockedPlugin.class.getName() + "$ImportSource");
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        Object source = Enum.valueOf(
-            (Class<? extends Enum>) sourceClass, sourceName);
         Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "applyPastedBundle", String.class, sourceClass);
+            "applyClipboardBundle", String.class);
         method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value, source);
+        return (Boolean) method.invoke(plugin, value);
     }
 
     private static void invokeNoArg(

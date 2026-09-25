@@ -102,9 +102,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.Duration;
 import java.time.Clock;
@@ -115,7 +113,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ScheduledExecutorService;
@@ -216,9 +213,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     /** Warnings count the sidebar shows, so each change is sent to it once. */
     private int shownWarningCount = -1;
     private NavigationButton navButton;
-    private ScheduledFuture<?> watcherFuture;
-    private Path watcherLoadedPath;
-    private FileTime watcherLastModified;
 
     /** Achievement-diary completion varbits (1 = that tier done), watched for 0→1. */
     private static final int[] DIARY_VARBITS = {
@@ -429,8 +423,8 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
 
         wirePanelActions(
             panel,
-            json -> importOnClientThread(json, ImportSource.PASTE),
-            () -> clientThread.invoke(this::reloadBundleOnRequest),
+            this::reimportFromClipboard,
+            this::loadNewestBackupFile,
             this::beginTrackerPairing);
         panel.setGuardianCallbacks(
             this::pauseStrictModeForSixtySeconds,
@@ -445,8 +439,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
 
-        reloadBundle();
-        startWatcher();
+        loadBackupFileAtStartup();
         refreshInfoBoxes();
         keyManager.registerKeyListener(reimportHotkey);
         startTrackerPoll();
@@ -455,7 +448,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     @Override
     protected void shutDown()
     {
-        stopWatcher();
         stopTrackerPoll();
         if (travelOverlayLifecycle != null)
         {
@@ -495,14 +487,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         if (!FateLockedConfig.GROUP.equals(ev.getGroup())) return;
         panel.refreshConfig(ev.getKey());
         String key = ev.getKey();
-        if ("autoReload".equals(key))
-        {
-            // Only start or stop the watcher. Reloading here replaced the
-            // tracker's rules with an old file, or with nothing at all.
-            stopWatcher();
-            startWatcher();
-        }
-        else if ("warnOverTierGear".equals(key))
+        if ("warnOverTierGear".equals(key))
         {
             recomputeOverTierGear();
         }
@@ -1303,14 +1288,10 @@ MenuEntry entry = event.getMenuEntry();
             .build());
     }
 
-    private void reloadBundle()
+    /** At startup, use the newest backup file if there is one. */
+    private void loadBackupFileAtStartup()
     {
         Path file = effectiveBundlePath();
-        // Mark what we're about to read up-front so the watcher doesn't re-fire
-        // every tick if the file is missing or fails to parse.
-        watcherLoadedPath = file;
-        watcherLastModified = file == null ? null : lastModified(file);
-
         if (file == null)
         {
             // No file is not "no rules": keep the active tracker or clipboard
@@ -1320,12 +1301,7 @@ MenuEntry entry = event.getMenuEntry();
         }
         try
         {
-            FateLockedBundle parsed = FateLockedBundle.loadFromFile(gson, file);
-            bundle = parsed;
-            rulesSource = RulesSource.FILE;
-            trackerRulesReplaced();
-            log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
-                file, parsed.getRegionChunks().size(), parsed.getUnlockedRegions().size());
+            useBackupFile(FateLockedBundle.loadFromFile(gson, file), file);
         }
         catch (IOException | RuntimeException ex)
         {
@@ -1335,16 +1311,53 @@ MenuEntry entry = event.getMenuEntry();
         refreshPanel();
     }
 
-    /** The sidebar's "Reload from file": say so when there is no file to load. */
-    private void reloadBundleOnRequest()
+    /**
+     * The sidebar's "Load newest backup file": find and read the file once,
+     * off the game thread, then switch to it on the client thread. Nothing
+     * watches the folder, so a file that appears later changes nothing.
+     */
+    private void loadNewestBackupFile()
     {
-        if (effectiveBundlePath() == null)
-        {
-            panel.flashStatus(
-                "no bundle file in .runelite/fate-locked \u2014 rules unchanged", false);
-            return;
-        }
-        reloadBundle();
+        executor.execute(() -> {
+            Path file = null;
+            FateLockedBundle parsed;
+            try
+            {
+                file = effectiveBundlePath();
+                if (file == null)
+                {
+                    panel.flashStatus(
+                        "no backup file in .runelite/fate-locked \u2014 rules unchanged", false);
+                    return;
+                }
+                parsed = FateLockedBundle.loadFromFile(gson, file);
+            }
+            catch (IOException | RuntimeException ex)
+            {
+                log.warn("Failed to load backup file {}: {}", file, ex.getMessage());
+                panel.flashStatus(
+                    "couldn't read the backup file \u2014 rules unchanged", false);
+                return;
+            }
+            Path loaded = file;
+            clientThread.invoke((Runnable) () -> {
+                useBackupFile(parsed, loaded);
+                refreshPanel();
+                panel.flashStatus(
+                    "loaded backup file: " + parsed.getRegionChunks().size() + " regions",
+                    true);
+            });
+        });
+    }
+
+    /** Switch to rules read from a backup file; the tracker's copy wins on its next check. */
+    private void useBackupFile(FateLockedBundle parsed, Path file)
+    {
+        bundle = parsed;
+        rulesSource = RulesSource.FILE;
+        trackerRulesReplaced();
+        log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
+            file, parsed.getRegionChunks().size(), parsed.getUnlockedRegions().size());
     }
 
     /** A local import replaced the rules: the tracker's copy wins on its next check. */
@@ -1358,9 +1371,9 @@ MenuEntry entry = event.getMenuEntry();
     }
 
     /**
-     * The bundle file to read: the newest fate-locked-bundle-*.json in the
+     * The backup file to read: the newest fate-locked-bundle-*.json in the
      * plugin's data dir under .runelite/. All file I/O is confined there (Hub
-     * rule); drop a bundle in there, or use the clipboard import instead.
+     * rule).
      */
     private Path effectiveBundlePath()
     {
@@ -1380,7 +1393,10 @@ MenuEntry entry = event.getMenuEntry();
         return DATA_DIR;
     }
 
-    /** Hotkey action: read the clipboard and import it as a bundle (on the client thread). */
+    /**
+     * The hotkey and the sidebar's "Import from clipboard": read the
+     * clipboard and import it as a bundle (on the client thread).
+     */
     private void reimportFromClipboard()
     {
         String text;
@@ -1398,7 +1414,7 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus("clipboard empty", false);
             return;
         }
-        importOnClientThread(text, ImportSource.CLIPBOARD);
+        importOnClientThread(text);
     }
 
     /** The clipboard's text, trimmed; empty when it holds no text. */
@@ -1414,13 +1430,13 @@ MenuEntry entry = event.getMenuEntry();
      * Runnable): the BooleanSupplier overload re-runs a task that returns
      * false on every client tick, so a failed import would never stop.
      */
-    private void importOnClientThread(String json, ImportSource source)
+    private void importOnClientThread(String json)
     {
-        clientThread.invoke((Runnable) () -> applyPastedBundle(json, source));
+        clientThread.invoke((Runnable) () -> applyClipboardBundle(json));
     }
 
-    /** Load a bundle from JSON pasted into the side panel. */
-    private boolean applyPastedBundle(String json, ImportSource source)
+    /** Load a bundle from JSON read from the clipboard. */
+    private boolean applyClipboardBundle(String json)
     {
         String trimmed = json == null ? "" : json.trim();
         if (trimmed.matches("[0-9a-f]{32}"))
@@ -1441,8 +1457,7 @@ MenuEntry entry = event.getMenuEntry();
                 "imported " + parsed.getRegionChunks().size() + " regions", true);
             trackerRulesReplaced();
             log.info(
-                "Fate Locked bundle imported from {}: {} regions",
-                source.name().toLowerCase(),
+                "Fate Locked bundle imported from the clipboard: {} regions",
                 parsed.getRegionChunks().size());
             return true;
         }
@@ -1455,26 +1470,20 @@ MenuEntry entry = event.getMenuEntry();
             if (invalidImportLimiter.shouldReport(
                 trimmed, System.currentTimeMillis()))
             {
-                log.warn("Pasted bundle could not be parsed: {}", ex.getMessage());
+                log.warn("Clipboard bundle could not be parsed: {}", ex.getMessage());
             }
             panel.flashStatus("import failed — using previous rules", false);
             return false;
         }
     }
 
-    private enum ImportSource
-    {
-        CLIPBOARD,
-        PASTE
-    }
-
     enum RulesSource
     {
         /** Nothing imported this session. */
         NONE,
-        /** A bundle file from the data folder. */
+        /** A backup file from the data folder. */
         FILE,
-        /** Pasted into the sidebar, or read from the clipboard. */
+        /** Read from the clipboard. */
         IMPORT,
         /** Delivered by the tracker relay. */
         RELAY
@@ -1717,11 +1726,11 @@ MenuEntry entry = event.getMenuEntry();
 
     private static void wirePanelActions(
         FateLockedPanel target,
-        Consumer<String> onImport,
-        Runnable onReload,
+        Runnable onClipboardImport,
+        Runnable onLoadBackupFile,
         Runnable onConnect)
     {
-        target.setCallbacks(onImport, onReload, onConnect);
+        target.setCallbacks(onClipboardImport, onLoadBackupFile, onConnect);
     }
 
     private static NavigationButton buildNavigationButton(FateLockedPanel target)
@@ -1751,36 +1760,6 @@ MenuEntry entry = event.getMenuEntry();
         g.fillRect(20, 14, 2, 4);
         g.dispose();
         return img;
-    }
-
-    // ---- hot-reload watcher --------------------------------------------------
-
-    private void startWatcher()
-    {
-        if (!config.autoReload()) return;
-
-        // Poll the bundle file in .runelite/fate-locked on RuneLite's shared
-        // executor, reloading when it changes (or a newer one is dropped in). No
-        // background worker of our own and no blocking calls.
-        watcherFuture = executor.scheduleWithFixedDelay(() -> {
-            Path file = effectiveBundlePath();
-            if (file == null) return;
-            FileTime now = lastModified(file);
-            if (now == null) return;
-            if (!file.equals(watcherLoadedPath) || !now.equals(watcherLastModified))
-            {
-                clientThread.invoke(this::reloadBundle);
-            }
-        }, 1, 1, TimeUnit.SECONDS);
-    }
-
-    private void stopWatcher()
-    {
-        if (watcherFuture != null)
-        {
-            watcherFuture.cancel(false);
-            watcherFuture = null;
-        }
     }
 
     private void startTrackerPoll()
@@ -1854,18 +1833,5 @@ MenuEntry entry = event.getMenuEntry();
         if (slayerTaskWarn != null && !slayerTaskWarn.trim().isEmpty()) warnings++;
         if (overTierSummary != null && !overTierSummary.trim().isEmpty()) warnings++;
         return warnings;
-    }
-
-    /** Last-modified time of the bundle file, or null if it doesn't exist yet. */
-    private static FileTime lastModified(Path file)
-    {
-        try
-        {
-            return Files.exists(file) ? Files.getLastModifiedTime(file) : null;
-        }
-        catch (IOException ex)
-        {
-            return null;
-        }
     }
 }

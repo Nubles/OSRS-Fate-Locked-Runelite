@@ -24,13 +24,15 @@ public class FateLockedConfigTest
     public void configRetainsSettingsAndAddsDefaultOffNetworkConsent()
     {
         Map<String, ConfigItem> items = configItemsByKey();
-        assertEquals(31, items.size());
+        assertEquals(30, items.size());
         assertFalse(new FateLockedConfig() { }.trackerNetworkAccess());
         assertEquals(FateLockedConfig.NETWORK_WARNING,
             items.get(FateLockedConfig.NETWORK_ACCESS_KEY).warning());
         assertFalse(items.containsKey("onlineSync"));
         assertFalse(items.containsKey("syncCode"));
         assertFalse(items.containsKey("relayUrl"));
+        // Owner decision 3: the folder watcher and its setting are gone.
+        assertFalse(items.containsKey("autoReload"));
         assertEquals("Strict Mode", items.get("strictMode").name());
     }
 

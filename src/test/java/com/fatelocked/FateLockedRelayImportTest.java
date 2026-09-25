@@ -35,10 +35,8 @@ public class FateLockedRelayImportTest
         FateLockedBundle previous = testPlugin.plugin.getBundle();
         setField(testPlugin.plugin, "rulesSource", FateLockedPlugin.RulesSource.RELAY);
 
-        assertFalse(applyPastedBundle(
-            testPlugin.plugin, PAIRING_CODE, "PASTE"));
-        assertFalse(applyPastedBundle(
-            testPlugin.plugin, PAIRING_CODE, "CLIPBOARD"));
+        assertFalse(applyClipboardBundle(testPlugin.plugin, PAIRING_CODE));
+        assertFalse(applyClipboardBundle(testPlugin.plugin, PAIRING_CODE));
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.RELAY, field(testPlugin.plugin, "rulesSource"));
@@ -54,9 +52,8 @@ public class FateLockedRelayImportTest
         FateLockedBundle previous = testPlugin.plugin.getBundle();
         setField(testPlugin.plugin, "rulesSource", FateLockedPlugin.RulesSource.RELAY);
 
-        assertFalse(applyPastedBundle(testPlugin.plugin, "{bad", "PASTE"));
-        assertFalse(applyPastedBundle(
-            testPlugin.plugin, "{bad", "CLIPBOARD"));
+        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
+        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.RELAY, field(testPlugin.plugin, "rulesSource"));
@@ -70,10 +67,9 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
 
-        assertFalse(applyPastedBundle(testPlugin.plugin, "{bad", "PASTE"));
-        assertTrue(applyPastedBundle(
-            testPlugin.plugin, fixture("bundles/v4-rules.json"), "PASTE"));
-        assertFalse(applyPastedBundle(testPlugin.plugin, "{bad", "PASTE"));
+        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
+        assertTrue(applyClipboardBundle(testPlugin.plugin, fixture("bundles/v4-rules.json")));
+        assertFalse(applyClipboardBundle(testPlugin.plugin, "{bad"));
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(testPlugin.panel);
         order.verify(testPlugin.panel).flashStatus(
@@ -135,19 +131,13 @@ public class FateLockedRelayImportTest
         return new TestPlugin(plugin, panel);
     }
 
-    private static boolean applyPastedBundle(
-        FateLockedPlugin plugin, String value, String sourceName)
-        throws Exception
+    private static boolean applyClipboardBundle(
+        FateLockedPlugin plugin, String value) throws Exception
     {
-        Class<?> sourceClass = Class.forName(
-            FateLockedPlugin.class.getName() + "$ImportSource");
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        Object source = Enum.valueOf(
-            (Class<? extends Enum>) sourceClass, sourceName);
         Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "applyPastedBundle", String.class, sourceClass);
+            "applyClipboardBundle", String.class);
         method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value, source);
+        return (Boolean) method.invoke(plugin, value);
     }
 
     private static boolean acceptRelayPayload(

@@ -152,7 +152,7 @@ connection work that reports on it. Each phase leaves `main` releasable.
   paste box, the watcher and "Reload from file"; keep clipboard import and
   its hotkey (the button reuses the hotkey's path). The new button loads
   the newest `fate-locked-bundle*.json` once, off the game thread, as an
-  explicit import.
+  explicit import. The startup read of the newest file stays until B10.
 - [ ] **B6. Drop work queued before the plugin was turned off (A8):** a
   `PluginSession` token checked by every queued task; `beginPairing`
   refuses once the controller is stopped.
@@ -174,7 +174,10 @@ connection work that reports on it. Each phase leaves `main` releasable.
   confirms them; a matching pairing tag seeds `If-None-Match`, so the first
   check's 304 confirms them. A pure `RulesPrecedence` pins the order:
   saved never replaces active, the tracker wins while paired, explicit
-  imports always apply and hand back to the tracker.
+  imports always apply and hand back to the tracker. Saved rules replace
+  the startup read of the newest backup file, which otherwise shadows them
+  (A6); that read stays only when there are no saved rules, so the first
+  start after updating still finds an offline player's file.
 - [ ] **B11. Read the bound account from one place with the tracker's
   normalisation (R11)**, and **say which account the profile is for when
   another is logged in.** Removes the R11 divergence tags from A6.
