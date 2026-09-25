@@ -1,11 +1,11 @@
 package com.fatelocked.guardian.travel;
 
 import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.Skill;
-import net.runelite.api.Varbits;
+import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.VarbitID;
 
 import java.util.Set;
 
@@ -26,9 +26,9 @@ public class RuneLiteTravelAvailability implements TravelAvailability
             return false;
         }
         return containsAny(
-            client.getItemContainer(InventoryID.INVENTORY), itemIds)
+            client.getItemContainer(InventoryID.INV), itemIds)
             || containsAny(
-                client.getItemContainer(InventoryID.EQUIPMENT), itemIds);
+                client.getItemContainer(InventoryID.WORN), itemIds);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class RuneLiteTravelAvailability implements TravelAvailability
     @Override
     public int spellbook()
     {
-        return client.getVarbitValue(Varbits.SPELLBOOK);
+        return client.getVarbitValue(VarbitID.SPELLBOOK);
     }
 
     private static boolean containsAny(

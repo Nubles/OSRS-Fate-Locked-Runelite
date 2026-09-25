@@ -1,11 +1,11 @@
 package com.fatelocked.guardian.travel;
 
 import net.runelite.api.Client;
-import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.Skill;
-import net.runelite.api.Varbits;
+import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -31,8 +31,8 @@ public class RuneLiteTravelAvailabilityTest
     @Test
     public void readsOnlyCarriedAndEquippedItems()
     {
-        when(client.getItemContainer(InventoryID.INVENTORY)).thenReturn(inventory);
-        when(client.getItemContainer(InventoryID.EQUIPMENT)).thenReturn(equipment);
+        when(client.getItemContainer(InventoryID.INV)).thenReturn(inventory);
+        when(client.getItemContainer(InventoryID.WORN)).thenReturn(equipment);
         when(inventory.getItems()).thenReturn(new Item[]{new Item(8007, 1)});
         when(equipment.getItems()).thenReturn(new Item[]{new Item(8009, 1)});
 
@@ -45,8 +45,8 @@ public class RuneLiteTravelAvailabilityTest
     @Test
     public void missingOrUnreadableContainersFailClosed()
     {
-        when(client.getItemContainer(InventoryID.INVENTORY)).thenReturn(null);
-        when(client.getItemContainer(InventoryID.EQUIPMENT)).thenReturn(equipment);
+        when(client.getItemContainer(InventoryID.INV)).thenReturn(null);
+        when(client.getItemContainer(InventoryID.WORN)).thenReturn(equipment);
         when(equipment.getItems()).thenReturn(null);
 
         assertFalse(availability.hasAnyItem(setOf(8007)));
@@ -58,7 +58,7 @@ public class RuneLiteTravelAvailabilityTest
     public void readsRealLevelsAndCurrentSpellbookDirectly()
     {
         when(client.getRealSkillLevel(Skill.MAGIC)).thenReturn(67);
-        when(client.getVarbitValue(Varbits.SPELLBOOK)).thenReturn(2);
+        when(client.getVarbitValue(VarbitID.SPELLBOOK)).thenReturn(2);
 
         assertEquals(67, availability.realLevel(Skill.MAGIC));
         assertEquals(2, availability.spellbook());
