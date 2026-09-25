@@ -538,17 +538,17 @@ class FateLockedPanel extends PluginPanel
     /** A longer explanation for the short connection states. */
     private static String connectionHelp(String message)
     {
-        if (TrackerConnectionController.CONFIRM_MESSAGE.equals(message))
+        if (SyncMachine.CONFIRM_MESSAGE.equals(message))
         {
             return "Confirm the profile in the browser tab RuneLite opened. "
                 + "RuneLite checks every few seconds.";
         }
-        if (TrackerConnectionController.NO_PROFILE_MESSAGE.equals(message))
+        if (SyncMachine.NO_PROFILE_MESSAGE.equals(message))
         {
             return "No profile arrived within 10 minutes. "
                 + "Press Connect tracker to try again.";
         }
-        if (TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE.equals(message))
+        if (SyncMachine.NO_RECENT_UPDATE_MESSAGE.equals(message))
         {
             return "The tracker hasn't sent your rules in the last 24 hours. "
                 + "Open the web tracker to send them again.";

@@ -9,29 +9,17 @@ import okhttp3.Response;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+/**
+ * Runs the tracker connection: the one relay request, its threads and its
+ * locking. What each reply means is RelayContract's; the state and timing
+ * that follow are SyncMachine's, always changed under pollLock.
+ */
 final class TrackerConnectionController
 {
-    static final long CONNECTED_POLL_SECONDS = 60;
-    static final long WAITING_POLL_SECONDS = 5;
-    static final long FAILURE_BACKOFF_SECONDS = 30;
-    static final long MAX_FAILURE_BACKOFF_SECONDS = 15 * 60;
-    /** How long a pairing started here waits for the browser to publish. */
-    static final long PAIRING_CONFIRM_SECONDS = 10 * 60;
-    /** Check every WAITING_POLL_SECONDS this long, then every PAIRING_SLOW_POLL_SECONDS. */
-    static final long PAIRING_FAST_POLL_WINDOW_SECONDS = 2 * 60;
-    static final long PAIRING_SLOW_POLL_SECONDS = 15;
-    /** The relay has nothing yet because the player is still confirming. */
-    static final String CONFIRM_MESSAGE = "Confirm in browser";
-    /** A pairing started here got no profile within PAIRING_CONFIRM_SECONDS. */
-    static final String NO_PROFILE_MESSAGE = "No profile received";
-    /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
-    static final String NO_RECENT_UPDATE_MESSAGE = "No recent update";
-
     /**
      * Turns a relay payload into active rules in two steps. prepare runs on
      * the thread that read the reply, so a large bundle is parsed off the
@@ -55,15 +43,10 @@ final class TrackerConnectionController
     private final Consumer<TrackerConnectionSnapshot> listener;
     private final Object pollLock = new Object();
 
+    private final SyncMachine machine = new SyncMachine();
     private long generation;
     private RelayPollToken activePoll;
-    private String acceptedVersion;
-    private Instant lastSync;
-    private Instant nextAutomaticPoll = Instant.EPOCH;
-    private int consecutiveFailures;
     private String currentIdentityCode;
-    /** When this session began the current pairing; null once it imports. */
-    private Instant pairingStartedAt;
     private boolean stopped;
     private volatile TrackerConnectionSnapshot snapshot =
         TrackerConnectionSnapshot.disconnected();
@@ -107,13 +90,8 @@ final class TrackerConnectionController
             settings.clearLegacySettings();
             generation++;
             activePoll = null;
-            acceptedVersion = null;
-            lastSync = null;
-            resetAutomaticPollingLocked();
             currentIdentityCode = code;
-            pairingStartedAt = clock.instant();
-            snapshot = TrackerConnectionSnapshot.of(
-                TrackerConnectionState.WAITING, null, null, CONFIRM_MESSAGE);
+            snapshot = machine.pairingStarted(clock.instant());
             listener.accept(snapshot);
         }
         return PairingSupport.trackerPairingUrl(code);
@@ -144,29 +122,22 @@ final class TrackerConnectionController
             {
                 generation++;
                 activePoll = null;
-                acceptedVersion = null;
-                lastSync = null;
-                resetAutomaticPollingLocked();
                 currentIdentityCode = code;
-                pairingStartedAt = null;
-                snapshot = code.isEmpty()
-                    ? TrackerConnectionSnapshot.disconnected()
-                    : TrackerConnectionSnapshot.waiting();
+                snapshot = machine.pairingReplaced(!code.isEmpty());
                 clearLegacy = !code.isEmpty();
                 listener.accept(snapshot);
             }
             if (code.isEmpty())
             {
-                nextAutomaticPoll = clock.instant()
-                    .plusSeconds(CONNECTED_POLL_SECONDS);
+                TrackerConnectionSnapshot unpaired = machine.unpaired(clock.instant());
                 if (!identityChanged)
                 {
-                    snapshot = TrackerConnectionSnapshot.disconnected();
+                    snapshot = unpaired;
                     listener.accept(snapshot);
                 }
                 return;
             }
-            version = acceptedVersion;
+            version = machine.acceptedVersion();
         }
         if (clearLegacy)
         {
@@ -197,8 +168,7 @@ final class TrackerConnectionController
                     publishIfCurrent(token,
                         TrackerConnectionState.OFFLINE,
                         "Could not reach tracker");
-                    scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                        MAX_FAILURE_BACKOFF_SECONDS);
+                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
                 }
 
@@ -214,8 +184,7 @@ final class TrackerConnectionController
             publishIfCurrent(token,
                 TrackerConnectionState.OFFLINE,
                 "Could not reach tracker");
-            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                MAX_FAILURE_BACKOFF_SECONDS);
+            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
     }
@@ -229,15 +198,10 @@ final class TrackerConnectionController
         }
         synchronized (pollLock)
         {
-            Instant now = clock.instant();
-            if (stopped || now.isBefore(nextAutomaticPoll))
+            if (stopped || !machine.checkDue(clock.instant()))
             {
                 return;
             }
-            // Reserve the next scheduler tick while this asynchronous request
-            // is in flight. Its response will replace this with the healthy or
-            // failure cadence.
-            nextAutomaticPoll = now.plusSeconds(WAITING_POLL_SECONDS);
         }
         poll();
     }
@@ -248,11 +212,7 @@ final class TrackerConnectionController
         {
             generation++;
             activePoll = null;
-            acceptedVersion = null;
-            lastSync = null;
-            pairingStartedAt = null;
-            resetAutomaticPollingLocked();
-            snapshot = TrackerConnectionSnapshot.disconnected();
+            snapshot = machine.networkAccessChanged();
             listener.accept(snapshot);
         }
     }
@@ -267,14 +227,11 @@ final class TrackerConnectionController
     {
         synchronized (pollLock)
         {
-            if (acceptedVersion == null)
+            if (machine.localRulesReplaced())
             {
-                return;
+                generation++;
+                activePoll = null;
             }
-            generation++;
-            activePoll = null;
-            acceptedVersion = null;
-            resetAutomaticPollingLocked();
         }
     }
 
@@ -292,11 +249,10 @@ final class TrackerConnectionController
         }
         synchronized (pollLock)
         {
-            if (stopped || acceptedVersion != null || lastSync != null)
+            if (!stopped)
             {
-                return;
+                machine.seed(version.trim());
             }
-            acceptedVersion = RelayContract.canonicalVersion(version.trim());
         }
     }
 
@@ -332,7 +288,7 @@ final class TrackerConnectionController
         {
             if (stopped || !settings.networkAccessAllowed() || activePoll != null
                 || !code.equals(settings.pairingCode())
-                || !equal(version, acceptedVersion))
+                || !equal(version, machine.acceptedVersion()))
             {
                 return null;
             }
@@ -373,16 +329,14 @@ final class TrackerConnectionController
                 case BUSY:
                     publishIfCurrent(token, TrackerConnectionState.OFFLINE,
                         "Tracker relay is busy; retrying later");
-                    scheduleFailure(token,
-                        Math.max(FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds),
-                        MAX_FAILURE_BACKOFF_SECONDS);
+                    scheduleFailure(token, Math.max(
+                        SyncMachine.FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds));
                     clearPoll(token);
                     return;
                 case UNAVAILABLE:
                     publishIfCurrent(token, TrackerConnectionState.OFFLINE,
                         "Tracker is unavailable");
-                    scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                        MAX_FAILURE_BACKOFF_SECONDS);
+                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
                     return;
                 case RULES:
@@ -402,15 +356,13 @@ final class TrackerConnectionController
                 case STALE:
                 case UNREADABLE:
                 default:
-                    scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                        MAX_FAILURE_BACKOFF_SECONDS);
+                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
             }
         }
         catch (Exception error)
         {
-            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                MAX_FAILURE_BACKOFF_SECONDS);
+            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
     }
@@ -436,10 +388,7 @@ final class TrackerConnectionController
                         {
                             return;
                         }
-                        lastSync = refreshedAt;
-                        scheduleHealthyPollLocked();
-                        snapshot = TrackerConnectionSnapshot.connected(
-                            refreshedAt, acceptedVersion);
+                        snapshot = machine.confirmed(refreshedAt);
                         listener.accept(snapshot);
                     }
                 }
@@ -476,8 +425,7 @@ final class TrackerConnectionController
             publishIfCurrent(token,
                 TrackerConnectionState.IMPORT_FAILED,
                 "Could not import tracker data");
-            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                MAX_FAILURE_BACKOFF_SECONDS);
+            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
             return;
         }
@@ -514,8 +462,7 @@ final class TrackerConnectionController
                         publishIfCurrent(token,
                             TrackerConnectionState.IMPORT_FAILED,
                             "Could not import tracker data");
-                        scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                            MAX_FAILURE_BACKOFF_SECONDS);
+                        scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                         return;
                     }
 
@@ -527,12 +474,7 @@ final class TrackerConnectionController
                         {
                             return;
                         }
-                        acceptedVersion = version;
-                        lastSync = acceptedAt;
-                        pairingStartedAt = null;
-                        scheduleHealthyPollLocked();
-                        snapshot = TrackerConnectionSnapshot.connected(
-                            acceptedAt, version);
+                        snapshot = machine.accepted(version, acceptedAt);
                         listener.accept(snapshot);
                     }
                 }
@@ -547,104 +489,38 @@ final class TrackerConnectionController
             publishIfCurrent(token,
                 TrackerConnectionState.IMPORT_FAILED,
                 "Could not import tracker data");
-            scheduleFailure(token, FAILURE_BACKOFF_SECONDS,
-                MAX_FAILURE_BACKOFF_SECONDS);
+            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
     }
 
-    /**
-     * The relay has no profile for this code. While a pairing this session
-     * started is waiting for the browser, that is expected: say "Confirm in
-     * browser" and keep checking, quickly at first. After 10 minutes, say no
-     * profile arrived. Otherwise the relay's copy has lapsed (it keeps one
-     * for 24 hours after the web app last published): the pairing still
-     * works, and opening the web tracker sends the rules again.
-     */
+    /** The relay has no profile for this code; SyncMachine.notFound says what that means. */
     private void handleNotFound(RelayPollToken token)
     {
-        Instant now = clock.instant();
-        Instant startedAt;
         synchronized (pollLock)
         {
-            startedAt = pairingStartedAt;
-        }
-        if (token.acceptedVersion == null && startedAt != null)
-        {
-            long waited = Duration.between(startedAt, now).getSeconds();
-            if (waited < PAIRING_CONFIRM_SECONDS)
+            if (isPollCurrentLocked(token))
             {
-                publishIfCurrent(token,
-                    TrackerConnectionState.WAITING, CONFIRM_MESSAGE);
-                scheduleAfter(token, waited < PAIRING_FAST_POLL_WINDOW_SECONDS
-                    ? WAITING_POLL_SECONDS : PAIRING_SLOW_POLL_SECONDS);
+                TrackerConnectionSnapshot notFound =
+                    machine.notFound(token.acceptedVersion != null, clock.instant());
+                if (acceptedStateUnchangedLocked(token))
+                {
+                    snapshot = notFound;
+                    listener.accept(snapshot);
+                }
             }
-            else
-            {
-                publishIfCurrent(token,
-                    TrackerConnectionState.EXPIRED, NO_PROFILE_MESSAGE);
-                scheduleHealthyPoll(token);
-            }
-        }
-        else
-        {
-            publishIfCurrent(token,
-                TrackerConnectionState.WAITING, NO_RECENT_UPDATE_MESSAGE);
-            scheduleHealthyPoll(token);
         }
         clearPoll(token);
     }
 
-    private void scheduleAfter(RelayPollToken token, long seconds)
+    private void scheduleFailure(RelayPollToken token, long minimumSeconds)
     {
         synchronized (pollLock)
         {
             if (isPollCurrentLocked(token))
             {
-                consecutiveFailures = 0;
-                nextAutomaticPoll = clock.instant().plusSeconds(seconds);
+                machine.failed(clock.instant(), minimumSeconds);
             }
-        }
-    }
-
-    private void resetAutomaticPollingLocked()
-    {
-        consecutiveFailures = 0;
-        nextAutomaticPoll = Instant.EPOCH;
-    }
-
-    private void scheduleHealthyPoll(RelayPollToken token)
-    {
-        synchronized (pollLock)
-        {
-            if (isPollCurrentLocked(token))
-            {
-                scheduleHealthyPollLocked();
-            }
-        }
-    }
-
-    private void scheduleHealthyPollLocked()
-    {
-        consecutiveFailures = 0;
-        nextAutomaticPoll = clock.instant()
-            .plusSeconds(CONNECTED_POLL_SECONDS);
-    }
-
-    private void scheduleFailure(
-        RelayPollToken token, long minimumSeconds, long maximumSeconds)
-    {
-        synchronized (pollLock)
-        {
-            if (!isPollCurrentLocked(token))
-            {
-                return;
-            }
-            int shift = Math.min(consecutiveFailures, 5);
-            long delay = minimumSeconds * (1L << shift);
-            consecutiveFailures++;
-            nextAutomaticPoll = clock.instant().plusSeconds(
-                Math.min(delay, maximumSeconds));
         }
     }
 
@@ -678,7 +554,7 @@ final class TrackerConnectionController
     private boolean acceptedStateUnchangedLocked(RelayPollToken token)
     {
         return equal(token.acceptedVersion,
-            RelayContract.canonicalVersion(acceptedVersion));
+            RelayContract.canonicalVersion(machine.acceptedVersion()));
     }
 
     private void clearPoll(RelayPollToken token)
@@ -704,7 +580,7 @@ final class TrackerConnectionController
             {
                 return false;
             }
-            snapshot = snapshotForLocked(state, explicitMessage);
+            snapshot = machine.show(state, explicitMessage);
             listener.accept(snapshot);
             return true;
         }
@@ -715,55 +591,8 @@ final class TrackerConnectionController
     {
         synchronized (pollLock)
         {
-            snapshot = snapshotForLocked(state, explicitMessage);
+            snapshot = machine.show(state, explicitMessage);
             listener.accept(snapshot);
-        }
-    }
-
-    private TrackerConnectionSnapshot snapshotForLocked(
-        TrackerConnectionState state, String explicitMessage)
-    {
-        if (state == TrackerConnectionState.DISCONNECTED)
-        {
-            return TrackerConnectionSnapshot.disconnected();
-        }
-        else if (state == TrackerConnectionState.WAITING)
-        {
-            return explicitMessage == null
-                ? TrackerConnectionSnapshot.waiting()
-                : TrackerConnectionSnapshot.of(
-                    state, lastSync, acceptedVersion, explicitMessage);
-        }
-        else if (state == TrackerConnectionState.CONNECTED)
-        {
-            return TrackerConnectionSnapshot.connected(
-                lastSync, acceptedVersion);
-        }
-        else
-        {
-            return TrackerConnectionSnapshot.of(
-                state, lastSync, acceptedVersion,
-                explicitMessage == null
-                    ? defaultMessage(state) : explicitMessage);
-        }
-    }
-
-    private static String defaultMessage(TrackerConnectionState state)
-    {
-        switch (state)
-        {
-            case PREPARING:
-                return "Preparing connection";
-            case IMPORTING:
-                return "Importing tracker data";
-            case EXPIRED:
-                return "Pairing request expired";
-            case OFFLINE:
-                return "Tracker is offline";
-            case IMPORT_FAILED:
-                return "Could not import tracker data";
-            default:
-                return "";
         }
     }
 

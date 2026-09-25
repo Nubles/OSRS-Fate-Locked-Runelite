@@ -352,7 +352,7 @@ public class TrackerConnectionControllerTest
         Thread.sleep(350);
         controller.poll();
         RecordedRequest replacement = takeRelay();
-        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncMachine.NO_RECENT_UPDATE_MESSAGE
             .equals(controller.snapshot().getMessage()));
 
         assertEquals("/r/" + replacementCode, replacement.getPath());
@@ -440,7 +440,7 @@ public class TrackerConnectionControllerTest
 
         takeRelay();
         assertNull(server.takeRequest(150, TimeUnit.MILLISECONDS));
-        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncMachine.NO_RECENT_UPDATE_MESSAGE
             .equals(controller.snapshot().getMessage()));
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
@@ -864,7 +864,7 @@ public class TrackerConnectionControllerTest
             controller.snapshot().getState());
 
         clock.advanceSeconds(
-            TrackerConnectionController.CONNECTED_POLL_SECONDS - 1);
+            SyncMachine.CONNECTED_POLL_SECONDS - 1);
         controller.pollIfDue();
         assertNoFurtherRequest();
         clock.advanceSeconds(1);
@@ -885,7 +885,7 @@ public class TrackerConnectionControllerTest
 
         controller.poll();
         takeRelay();
-        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncMachine.NO_RECENT_UPDATE_MESSAGE
             .equals(controller.snapshot().getMessage()));
         // The pairing still works: the relay's copy lapsed, which is not red.
         assertEquals(TrackerConnectionState.WAITING,
@@ -916,7 +916,7 @@ public class TrackerConnectionControllerTest
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.poll();
         RecordedRequest retry = takeRelay();
-        waitFor(() -> TrackerConnectionController.CONFIRM_MESSAGE
+        waitFor(() -> SyncMachine.CONFIRM_MESSAGE
             .equals(controller.snapshot().getMessage()));
         assertEquals("/r/" + code, retry.getPath());
         assertEquals(0, importer.acceptedPayloads().size());
@@ -984,7 +984,7 @@ public class TrackerConnectionControllerTest
     {
         controller.beginPairing();
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
-        assertEquals(TrackerConnectionController.CONFIRM_MESSAGE,
+        assertEquals(SyncMachine.CONFIRM_MESSAGE,
             controller.snapshot().getMessage());
 
         // The browser has not published yet: the relay answers 404.
@@ -994,7 +994,7 @@ public class TrackerConnectionControllerTest
         waitFor(() -> !controller.pollInFlight());
 
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
-        assertEquals(TrackerConnectionController.CONFIRM_MESSAGE,
+        assertEquals(SyncMachine.CONFIRM_MESSAGE,
             controller.snapshot().getMessage());
 
         // Checked again after 5 seconds, not after a growing back-off.
@@ -1015,14 +1015,14 @@ public class TrackerConnectionControllerTest
     public void aPairingChecksLessOftenAfterTwoMinutes() throws Exception
     {
         controller.beginPairing();
-        clock.advanceSeconds(TrackerConnectionController.PAIRING_FAST_POLL_WINDOW_SECONDS);
+        clock.advanceSeconds(SyncMachine.PAIRING_FAST_POLL_WINDOW_SECONDS);
 
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.pollIfDue();
         takeRelay();
         waitFor(() -> !controller.pollInFlight());
 
-        clock.advanceSeconds(TrackerConnectionController.PAIRING_SLOW_POLL_SECONDS - 1);
+        clock.advanceSeconds(SyncMachine.PAIRING_SLOW_POLL_SECONDS - 1);
         controller.pollIfDue();
         assertNoFurtherRequest();
         clock.advanceSeconds(1);
@@ -1035,12 +1035,12 @@ public class TrackerConnectionControllerTest
     public void aPairingWithNoProfileAfterTenMinutesSaysSo() throws Exception
     {
         controller.beginPairing();
-        clock.advanceSeconds(TrackerConnectionController.PAIRING_CONFIRM_SECONDS);
+        clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
 
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.pollIfDue();
         takeRelay();
-        waitFor(() -> TrackerConnectionController.NO_PROFILE_MESSAGE
+        waitFor(() -> SyncMachine.NO_PROFILE_MESSAGE
             .equals(controller.snapshot().getMessage()));
 
         assertEquals(TrackerConnectionState.EXPIRED, controller.snapshot().getState());
