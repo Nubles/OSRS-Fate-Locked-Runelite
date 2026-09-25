@@ -87,13 +87,13 @@ connection work that reports on it. Each phase leaves `main` releasable.
 
 ### Phase A: safety nets (no behaviour change)
 
-- [ ] **A1. Plugin: build each commit the way the Plugin Hub does (C1).**
+- [x] **A1. Plugin: build each commit the way the Plugin Hub does (C1).**
   A CI job runs the Hub's own packager (plugin-hub-tooling `v4`, SHA-256
   pinned from the Hub's build log) on this commit, then runs
   `verifyPluginHubJar` against the jar it produced. `verifyPluginHubJar`
   gains `-PpluginHubJar=<path>`. Subject: `ci: also build each commit with
   the Plugin Hub's standard build`.
-- [ ] **A2. Web: write golden bundles with the app's own answers (R3).**
+- [x] **A2. Web: write golden bundles with the app's own answers (R3).**
   `scripts/runelite-goldens.test.ts` (vitest; runs in check mode inside
   `npm test`) builds bundles through `buildBundlePayload(...,
   {requireRulesData:true})` for 12 runs: vanilla fresh, mid-run and a
@@ -106,6 +106,10 @@ connection work that reports on it. Each phase leaves `main` releasable.
   system time; check mode compares parsed JSON so locale sort order and
   zlib bytes don't matter. Output `contracts/runelite/` (gzipped bundles,
   expect files, a manifest with SHA-256s; under 3.5 MiB).
+  *Done as* `scripts/goldenBundles.test.ts` writing `contracts/golden-bundles/`
+  for 10 runs, with chunk, area, bank, frontier and account answers (web
+  PR #47). The Slayer reach index, item rules, Sailing and a degraded
+  export come with A3.
 - [ ] **A3. Web: malformed and forward-compatible cases.** `cases.json`:
   inputs that must be rejected (empty, `{}`, `null`, v3 stub, v5, v4
   without chunks or rules, truncated JSON, bad FLGZ, a 9 MiB gzip bomb) and
@@ -117,12 +121,12 @@ connection work that reports on it. Each phase leaves `main` releasable.
   validators, 404, KV failure, plus intermediary cases (HTML 200, missing
   payload, bad versions, mismatched ETag, 429 with and without
   Retry-After, 502) and transport cases (reset, timeout, oversized body).
-- [ ] **A5. Plugin: copy the web contracts at a pinned commit.**
+- [x] **A5. Plugin: copy the web contracts at a pinned commit.**
   `scripts/pin-web-contracts.sh <web-sha>` copies A2–A4's files into
   `src/test/resources/contracts/` and writes `PINNED` (repository, commit,
   SHA-256 per file). `.gitattributes` marks them binary so line endings
   never change them.
-- [ ] **A6. Plugin: check the golden bundles through the real codec and
+- [x] **A6. Plugin: check the golden bundles through the real codec and
   rule engine.** `GoldenBundleContractTest` (parameterized) loads each
   bundle as JSON and as `FLGZ:`, and asserts `lockStateAt`,
   `FateRuleEngine.entry`, `isUnlocked`, frontier, `isBankUnlocked` and the
@@ -131,43 +135,46 @@ connection work that reports on it. Each phase leaves `main` releasable.
   progress R9, per-master Slayer R16, root-field mutations R6/R10, account
   whitespace R11) assert today's plugin answer and are tagged with their
   finding, so each Stage 2 fix has to change them on purpose.
+  *Done for* land chunks, areas, banks, frontier, v4 entries and `FLGZ:`,
+  with R1 and R4 pinned; `monsterReach`, item tiers and the accept/reject
+  cases follow A3. B11 removed the R11 exceptions.
 - [ ] **A7. Plugin: classify relay replies in one pure `RelayContract`**
   (no behaviour change), and **check it against the relay fixtures**
   (`RelayContractFixtureTest`; transport cases through MockWebServer).
-- [ ] **A8. Plugin CI: fail when the contract copy differs from its pinned
+- [x] **A8. Plugin CI: fail when the contract copy differs from its pinned
   web commit.**
 
 ### Phase B: one owner for the rules
 
-- [ ] **B1. Remove dead code from the plugin class (A16):**
+- [x] **B1. Remove dead code from the plugin class (A16):**
   `BOSS_LOOT_COMBAT_LEVEL`, unused imports, `rulesImportedAt`, the
   two-argument `setCallbacks`, `SlayerTaskDetector.cancel`.
-- [ ] **B2. Read diaries, spellbook and worn items through gameval ids
+- [x] **B2. Read diaries, spellbook and worn items through gameval ids
   (A14).** Same numeric ids; a test pins all 48 diary ids.
-- [ ] **B3. Log only locked travel that a pause lets through (G9a).**
-- [ ] **B4. Record a repeated blocked trip once (G9b)**, reusing the
+- [x] **B3. Log only locked travel that a pause lets through (G9a).**
+- [x] **B4. Record a repeated blocked trip once (G9b)**, reusing the
   once-per-10-seconds chat decision.
-- [ ] **B5. Replace the paste box and folder watcher with "Load newest
+- [x] **B5. Replace the paste box and folder watcher with "Load newest
   backup file" (owner decision 3).** Remove the `autoReload` setting, the
   paste box, the watcher and "Reload from file"; keep clipboard import and
   its hotkey (the button reuses the hotkey's path). The new button loads
   the newest `fate-locked-bundle*.json` once, off the game thread, as an
   explicit import. The startup read of the newest file stays until B10.
-- [ ] **B6. Drop work queued before the plugin was turned off (A8):** a
+- [x] **B6. Drop work queued before the plugin was turned off (A8):** a
   `PluginSession` token checked by every queued task; `beginPairing`
   refuses once the controller is stopped.
-- [ ] **B7. Change plugin state only on the client thread (A5):** one
+- [x] **B7. Change plugin state only on the client thread (A5):** one
   `ClientThreadGate`; config changes, sidebar and overlay actions and
   startup go through it; world-map markers removed with `removeIf`. Pins
   the startup case (a bundle with gear tiers) the way 6279da0 pinned paste.
-- [ ] **B8. Build imported rules completely before switching to them
+- [x] **B8. Build imported rules completely before switching to them
   (A12):** one immutable `ActiveRules` reference; markers, gear, Slayer and
   panel model are worked out from the candidate; one swap; announcements
   after, each isolated.
-- [ ] **B9. Parse rules and write local files off the game thread (A10):**
+- [x] **B9. Parse rules and write local files off the game thread (A10):**
   relay payloads parse on the OkHttp thread before dispatch; one serial
   worker for writes.
-- [ ] **B10. Keep the last accepted rules across restarts (S1, A6).**
+- [x] **B10. Keep the last accepted rules across restarts (S1, A6).**
   `saved-rules.json` (FLGZ payload, source, export time, relay version,
   pairing tag); loads at startup only when nothing is active, as "Saved
   rules from <time>", never fresh for Strict Mode until the tracker
@@ -178,7 +185,10 @@ connection work that reports on it. Each phase leaves `main` releasable.
   the startup read of the newest backup file, which otherwise shadows them
   (A6); that read stays only when there are no saved rules, so the first
   start after updating still finds an offline player's file.
-- [ ] **B11. Read the bound account from one place with the tracker's
+  *Done:* saved rules keep their source, so saved tracker rules stay
+  unfresh until the relay confirms them and saved imports keep counting
+  from their export time.
+- [x] **B11. Read the bound account from one place with the tracker's
   normalisation (R11)**, and **say which account the profile is for when
   another is logged in.** Removes the R11 divergence tags from A6.
 
