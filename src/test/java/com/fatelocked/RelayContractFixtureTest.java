@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
@@ -28,6 +29,15 @@ public class RelayContractFixtureTest
 {
     static final String FIXTURE = "contracts/relay/relay-get.json";
     private static final Gson GSON = new Gson();
+    /**
+     * Replies the plugin does not read as the fixture says yet: what it reads
+     * each as today, and the task that fixes it.
+     */
+    private static final Map<String, Divergence> KNOWN = Map.of(
+        "the rules the plugin holds, sent in full",
+        new Divergence(RelayContract.Outcome.STALE, "review finding S4: Stage 1 task C5"),
+        "the owner marked the code gone",
+        new Divergence(RelayContract.Outcome.MISSING, "review finding S11: Stage 1 task C15"));
 
     @Parameterized.Parameters(name = "{0}")
     public static List<Object[]> replies() throws IOException
@@ -66,6 +76,13 @@ public class RelayContractFixtureTest
             text(headers, "Retry-After"),
             text(response, "body"));
 
+        Divergence known = KNOWN.get(name);
+        if (known != null)
+        {
+            // Today's answer, until the divergence is fixed on purpose.
+            assertEquals(name + " until " + known.fixedBy, known.today, reply.outcome);
+            return;
+        }
         assertEquals(name, expectedOutcome(relayCase), reply.outcome);
         if (relayCase.has("retryAfterSeconds"))
         {
@@ -101,5 +118,17 @@ public class RelayContractFixtureTest
     {
         return object.has(field) && !object.get(field).isJsonNull()
             ? object.get(field).getAsString() : null;
+    }
+
+    private static final class Divergence
+    {
+        private final RelayContract.Outcome today;
+        private final String fixedBy;
+
+        private Divergence(RelayContract.Outcome today, String fixedBy)
+        {
+            this.today = today;
+            this.fixedBy = fixedBy;
+        }
     }
 }

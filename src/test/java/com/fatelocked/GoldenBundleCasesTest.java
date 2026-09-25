@@ -107,13 +107,32 @@ public class GoldenBundleCasesTest
         assertEquals(name, List.of(), mismatches);
     }
 
-    /** The case's input text, or its scenario's bundle changed as the recipe says. */
+    /** The case's input text, or its scenario's bundle, changed as the recipe says. */
     private String input() throws IOException
     {
-        if (bundleCase.has("input"))
+        String text = bundleCase.has("input")
+            ? bundleCase.get("input").getAsString().repeat(
+                bundleCase.has("repeat") ? bundleCase.get("repeat").getAsInt() : 1)
+            : scenarioText();
+        if (bundleCase.has("truncate"))
         {
-            return bundleCase.get("input").getAsString();
+            text = text.substring(0, (int) (text.length() * bundleCase.get("truncate").getAsDouble()));
         }
+        if (bundleCase.has("compress") && bundleCase.get("compress").getAsBoolean())
+        {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzip = new GZIPOutputStream(bytes))
+            {
+                gzip.write(text.getBytes(StandardCharsets.UTF_8));
+            }
+            text = "FLGZ:" + Base64.getEncoder().encodeToString(bytes.toByteArray());
+        }
+        return text;
+    }
+
+    /** The scenario's bundle with the recipe's fields set and removed. */
+    private String scenarioText() throws IOException
+    {
         String scenario = bundleCase.get("scenario").getAsString();
         JsonObject root = GSON.fromJson(GoldenBundleContractTest.gunzip(
             GoldenBundleContractTest.bytes(scenario + ".bundle.json.gz")), JsonObject.class);
@@ -135,21 +154,7 @@ public class GoldenBundleCasesTest
                 }
             }
         }
-        String text = GSON.toJson(root);
-        if (bundleCase.has("truncate"))
-        {
-            text = text.substring(0, (int) (text.length() * bundleCase.get("truncate").getAsDouble()));
-        }
-        if (bundleCase.has("compress") && bundleCase.get("compress").getAsBoolean())
-        {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            try (GZIPOutputStream gzip = new GZIPOutputStream(bytes))
-            {
-                gzip.write(text.getBytes(StandardCharsets.UTF_8));
-            }
-            text = "FLGZ:" + Base64.getEncoder().encodeToString(bytes.toByteArray());
-        }
-        return text;
+        return GSON.toJson(root);
     }
 
     private static JsonObject parentOf(JsonObject root, String dotted)

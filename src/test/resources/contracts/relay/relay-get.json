@@ -7,6 +7,7 @@
   "unconfirmed": "a 304 for a version the plugin does not hold; nothing changes",
   "stale": "rules the plugin already holds, or older ones; not imported",
   "missing": "no profile for this code",
+  "gone": "the owner disconnected this code in the web tracker",
   "unreadable": "a reply the plugin cannot use",
   "busy": "the relay asks the plugin to slow down",
   "unavailable": "the relay or something in front of it failed",
@@ -22,6 +23,15 @@
    "request": { "ifNoneMatch": null },
    "response": { "status": 404, "headers": { "Content-Type": "application/json" }, "body": "{}" },
    "outcome": "missing"
+  },
+  {
+   "name": "the owner marked the code gone",
+   "from": "worker",
+   "held": "41",
+   "stored": { "gone": true, "version": 42 },
+   "request": { "ifNoneMatch": "41" },
+   "response": { "status": 404, "headers": { "Content-Type": "application/json" }, "body": "{\"gone\":true}" },
+   "outcome": "gone"
   },
   {
    "name": "first fetch",
@@ -72,30 +82,22 @@
    "outcome": "stale"
   },
   {
-   "name": "a quoted validator, answered in full",
+   "name": "a quoted validator",
    "from": "worker",
    "held": "41",
    "stored": { "version": 41, "payload": "FLGZ:rules-41" },
    "request": { "ifNoneMatch": "\"41\"" },
-   "response": {
-    "status": 200,
-    "headers": { "Content-Type": "application/json", "ETag": "41" },
-    "body": "{\"version\":41,\"payload\":\"FLGZ:rules-41\"}"
-   },
-   "outcome": "stale"
+   "response": { "status": 304, "headers": { "ETag": "41" }, "body": null },
+   "outcome": "unchanged"
   },
   {
-   "name": "a weak validator, answered in full",
+   "name": "a weak validator",
    "from": "worker",
    "held": "41",
    "stored": { "version": 41, "payload": "FLGZ:rules-41" },
    "request": { "ifNoneMatch": "W/\"41\"" },
-   "response": {
-    "status": 200,
-    "headers": { "Content-Type": "application/json", "ETag": "41" },
-    "body": "{\"version\":41,\"payload\":\"FLGZ:rules-41\"}"
-   },
-   "outcome": "stale"
+   "response": { "status": 304, "headers": { "ETag": "41" }, "body": null },
+   "outcome": "unchanged"
   },
   {
    "name": "the relay's storage fails",
@@ -149,6 +151,17 @@
     "body": "{\"version\":42,\"payload\":\"FLGZ:rules-42\"}"
    },
    "outcome": "unreadable"
+  },
+  {
+   "name": "the rules the plugin holds, sent in full",
+   "from": "network",
+   "held": "41",
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "41" },
+    "body": "{\"version\":41,\"payload\":\"FLGZ:rules-41\"}"
+   },
+   "outcome": "unchanged"
   },
   {
    "name": "a 304 for a version the plugin does not hold",
