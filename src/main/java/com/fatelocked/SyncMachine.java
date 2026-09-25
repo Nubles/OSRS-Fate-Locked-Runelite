@@ -28,6 +28,12 @@ final class SyncMachine
     static final String NO_PROFILE_MESSAGE = "No profile received";
     /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
     static final String NO_RECENT_UPDATE_MESSAGE = "No recent update";
+    /** No reply at all: the network, or the relay's host, failed. */
+    static final String UNREACHABLE_MESSAGE = "Could not reach tracker";
+    /** A reply the plugin cannot use, such as a captive portal's page. */
+    static final String UNREADABLE_MESSAGE = "Tracker sent an unreadable reply";
+    static final String BUSY_MESSAGE = "Tracker relay is busy; retrying later";
+    static final String UNAVAILABLE_MESSAGE = "Tracker is unavailable";
 
     private String acceptedVersion;
     private Instant lastSync;

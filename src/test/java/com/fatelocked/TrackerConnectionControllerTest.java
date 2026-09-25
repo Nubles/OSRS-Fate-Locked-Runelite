@@ -572,8 +572,11 @@ public class TrackerConnectionControllerTest
         }
         Thread.sleep(50);
 
-        assertEquals(TrackerConnectionState.CONNECTED,
+        // Unreadable, and said so; the rules and their version stay.
+        assertEquals(TrackerConnectionState.OFFLINE,
             controller.snapshot().getState());
+        assertEquals(SyncMachine.UNREADABLE_MESSAGE,
+            controller.snapshot().getMessage());
         assertEquals("5", controller.snapshot().getAcceptedVersion());
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(imports, importer.acceptedPayloads().size());
@@ -602,7 +605,7 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void olderEqualAndMalformedVersionsAreRejected() throws Exception
+    public void olderEqualAndMalformedVersionsAreNeverImported() throws Exception
     {
         connect(5, "\"5\"");
         int imports = importer.acceptedPayloads().size();
@@ -622,13 +625,56 @@ public class TrackerConnectionControllerTest
         }
         Thread.sleep(50);
 
-        assertEquals(TrackerConnectionState.CONNECTED,
-            controller.snapshot().getState());
         assertEquals("5", controller.snapshot().getAcceptedVersion());
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
         assertEquals(imports, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
+    }
+
+    @Test
+    public void anUnreadableReplySaysSoAndBacksOff() throws Exception
+    {
+        connect(6, "\"6\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", "text/html")
+            .setBody("<html><body>Sign in to the Wi-Fi</body></html>"));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> SyncMachine.UNREADABLE_MESSAGE.equals(
+            controller.snapshot().getMessage()));
+
+        // The rules and their version stay; only the status says what happened.
+        assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
+        assertEquals(1, importer.acceptedPayloads().size());
+        waitFor(() -> !controller.pollInFlight());
+        clock.advanceSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+    }
+
+    @Test
+    public void aReplyThatBreaksOffIsUnreachable() throws Exception
+    {
+        connect(6, "\"6\"");
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\"")
+            .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> SyncMachine.UNREACHABLE_MESSAGE.equals(
+            controller.snapshot().getMessage()));
+
+        assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        assertEquals(1, importer.acceptedPayloads().size());
     }
 
     @Test

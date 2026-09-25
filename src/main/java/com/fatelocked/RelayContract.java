@@ -42,18 +42,27 @@ final class RelayContract
         final String payload;
         /** BUSY only: seconds the relay asked for, or 0 when it did not say. */
         final long retryAfterSeconds;
+        /** UNREADABLE only: what was wrong with it, for the log. */
+        final String detail;
 
-        private Reply(Outcome outcome, int version, String payload, long retryAfterSeconds)
+        private Reply(
+            Outcome outcome, int version, String payload, long retryAfterSeconds, String detail)
         {
             this.outcome = outcome;
             this.version = version;
             this.payload = payload;
             this.retryAfterSeconds = retryAfterSeconds;
+            this.detail = detail;
         }
 
         private static Reply of(Outcome outcome)
         {
-            return new Reply(outcome, 0, null, 0);
+            return new Reply(outcome, 0, null, 0, null);
+        }
+
+        private static Reply unreadable(String detail)
+        {
+            return new Reply(Outcome.UNREADABLE, 0, null, 0, detail);
         }
     }
 
@@ -82,7 +91,7 @@ final class RelayContract
         }
         if (status == 429)
         {
-            return new Reply(Outcome.BUSY, 0, null, retryAfterSeconds(retryAfter));
+            return new Reply(Outcome.BUSY, 0, null, retryAfterSeconds(retryAfter), null);
         }
         if (status < 200 || status >= 300)
         {
@@ -96,23 +105,27 @@ final class RelayContract
         }
         catch (JsonParseException | IllegalStateException ex)
         {
-            return Reply.of(Outcome.UNREADABLE);
+            return Reply.unreadable("not a relay reply");
         }
         if (envelope == null || envelope.payload == null)
         {
-            return Reply.of(Outcome.UNREADABLE);
+            return Reply.unreadable("no rules in the reply");
+        }
+        if (envelope.version <= 0)
+        {
+            return Reply.unreadable("no valid version");
         }
         Integer version = etag == null ? Integer.valueOf(envelope.version) : parseVersion(etag);
-        if (envelope.version <= 0 || version == null || version != envelope.version)
+        if (version == null || version != envelope.version)
         {
-            return Reply.of(Outcome.UNREADABLE);
+            return Reply.unreadable("an ETag that disagrees with the reply");
         }
         Integer previous = held == null ? null : parseVersion(held);
         if (held != null && (previous == null || version <= previous))
         {
             return Reply.of(Outcome.STALE);
         }
-        return new Reply(Outcome.RULES, version, envelope.payload, 0);
+        return new Reply(Outcome.RULES, version, envelope.payload, 0, null);
     }
 
     /** A positive version from a bare, quoted or weak ETag, or null. */

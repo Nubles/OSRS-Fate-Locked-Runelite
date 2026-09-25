@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.OkHttpClient;
@@ -9,6 +10,7 @@ import okhttp3.Response;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -18,6 +20,7 @@ import java.util.function.Consumer;
  * locking. What each reply means is RelayContract's; the state and timing
  * that follow are SyncMachine's, always changed under pollLock.
  */
+@Slf4j
 final class TrackerConnectionController
 {
     /**
@@ -44,6 +47,9 @@ final class TrackerConnectionController
     private final Object pollLock = new Object();
 
     private final SyncMachine machine = new SyncMachine();
+    /** Logs each kind of unreadable reply, and a repeat at most every 15 minutes. */
+    private final RepeatedValueLimiter unreadableLimiter =
+        new RepeatedValueLimiter(Duration.ofMinutes(15).toMillis());
     private long generation;
     private RelayPollToken activePoll;
     private String currentIdentityCode;
@@ -167,7 +173,7 @@ final class TrackerConnectionController
                 {
                     publishIfCurrent(token,
                         TrackerConnectionState.OFFLINE,
-                        "Could not reach tracker");
+                        SyncMachine.UNREACHABLE_MESSAGE);
                     scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
                 }
@@ -183,7 +189,7 @@ final class TrackerConnectionController
         {
             publishIfCurrent(token,
                 TrackerConnectionState.OFFLINE,
-                "Could not reach tracker");
+                SyncMachine.UNREACHABLE_MESSAGE);
             scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
@@ -328,14 +334,14 @@ final class TrackerConnectionController
                     return;
                 case BUSY:
                     publishIfCurrent(token, TrackerConnectionState.OFFLINE,
-                        "Tracker relay is busy; retrying later");
+                        SyncMachine.BUSY_MESSAGE);
                     scheduleFailure(token, Math.max(
                         SyncMachine.FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds));
                     clearPoll(token);
                     return;
                 case UNAVAILABLE:
                     publishIfCurrent(token, TrackerConnectionState.OFFLINE,
-                        "Tracker is unavailable");
+                        SyncMachine.UNAVAILABLE_MESSAGE);
                     scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
                     return;
@@ -353,8 +359,19 @@ final class TrackerConnectionController
                             String.valueOf(reply.version));
                     }
                     return;
-                case STALE:
                 case UNREADABLE:
+                    // A captive portal's page or a broken reply: say so,
+                    // instead of backing off with the old status showing.
+                    if (unreadableLimiter.shouldReport(reply.detail, clock.millis()))
+                    {
+                        log.warn("Tracker relay sent an unreadable reply: {}", reply.detail);
+                    }
+                    publishIfCurrent(token, TrackerConnectionState.OFFLINE,
+                        SyncMachine.UNREADABLE_MESSAGE);
+                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
+                    clearPoll(token);
+                    return;
+                case STALE:
                 default:
                     scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     clearPoll(token);
@@ -362,6 +379,9 @@ final class TrackerConnectionController
         }
         catch (Exception error)
         {
+            // The reply broke off before it was read in full.
+            publishIfCurrent(token, TrackerConnectionState.OFFLINE,
+                SyncMachine.UNREACHABLE_MESSAGE);
             scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
