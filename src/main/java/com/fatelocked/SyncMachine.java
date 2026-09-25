@@ -36,6 +36,8 @@ final class SyncMachine
     static final String UNAVAILABLE_MESSAGE = "Tracker is unavailable";
 
     private String acceptedVersion;
+    /** The relay version the plugin could not import, until something newer arrives. */
+    private String rejectedVersion;
     private Instant lastSync;
     private Instant nextCheck = Instant.EPOCH;
     private int consecutiveFailures;
@@ -46,6 +48,22 @@ final class SyncMachine
     String acceptedVersion()
     {
         return acceptedVersion;
+    }
+
+    /** The relay version the plugin could not import, or null. */
+    String rejectedVersion()
+    {
+        return rejectedVersion;
+    }
+
+    /**
+     * What the next check sends as If-None-Match: the rejected version while
+     * there is one, so the relay answers 304 instead of sending it again,
+     * else the version the plugin holds.
+     */
+    String validator()
+    {
+        return rejectedVersion != null ? rejectedVersion : acceptedVersion;
     }
 
     /** When the relay last delivered or confirmed the rules, or null. */
@@ -145,10 +163,30 @@ final class SyncMachine
     TrackerConnectionSnapshot accepted(String version, Instant now)
     {
         acceptedVersion = version;
+        rejectedVersion = null;
         lastSync = now;
         pairingStartedAt = null;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, version);
+    }
+
+    /**
+     * The relay's rules at this version could not be imported, for example
+     * a newer bundle format. Remember the version, so later checks ask only
+     * whether something newer has arrived.
+     */
+    TrackerConnectionSnapshot rejected(String version, Instant now)
+    {
+        rejectedVersion = RelayContract.canonicalVersion(version);
+        failed(now, FAILURE_BACKOFF_SECONDS);
+        return show(TrackerConnectionState.IMPORT_FAILED, null);
+    }
+
+    /** The relay still has only the version the plugin could not import. */
+    TrackerConnectionSnapshot stillRejected(Instant now)
+    {
+        failed(now, FAILURE_BACKOFF_SECONDS);
+        return show(TrackerConnectionState.IMPORT_FAILED, null);
     }
 
     /**
@@ -163,6 +201,8 @@ final class SyncMachine
      */
     TrackerConnectionSnapshot notFound(boolean heldVersion, Instant now)
     {
+        // Whatever could not be imported has gone with the profile.
+        rejectedVersion = null;
         if (!heldVersion && pairingStartedAt != null)
         {
             long waited = Duration.between(pairingStartedAt, now).getSeconds();
@@ -212,6 +252,7 @@ final class SyncMachine
     private void forget()
     {
         acceptedVersion = null;
+        rejectedVersion = null;
         lastSync = null;
         resetChecks();
     }

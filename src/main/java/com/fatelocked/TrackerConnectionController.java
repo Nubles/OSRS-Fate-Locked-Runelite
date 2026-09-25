@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Runs the tracker connection: the one relay request, its threads and its
@@ -159,9 +160,11 @@ final class TrackerConnectionController
             .url(TrackerConnectionSettings.RELAY_BASE_URL
                 + "/r/" + token.code)
             .get();
-        if (token.acceptedVersion != null)
+        String validator = token.rejectedVersion != null
+            ? token.rejectedVersion : token.acceptedVersion;
+        if (validator != null)
         {
-            builder.header("If-None-Match", token.acceptedVersion);
+            builder.header("If-None-Match", validator);
         }
         Request request = builder.build();
         try
@@ -298,8 +301,8 @@ final class TrackerConnectionController
             {
                 return null;
             }
-            RelayPollToken token = new RelayPollToken(
-                generation, code, RelayContract.canonicalVersion(version));
+            RelayPollToken token = new RelayPollToken(generation, code,
+                RelayContract.canonicalVersion(version), machine.rejectedVersion());
             activePoll = token;
             return token;
         }
@@ -319,7 +322,7 @@ final class TrackerConnectionController
             String body = status >= 200 && status < 300 && current.body() != null
                 ? current.body().string() : null;
             RelayContract.Reply reply = RelayContract.classify(gson,
-                token.acceptedVersion, status, current.header("ETag"),
+                token.acceptedVersion, token.rejectedVersion, status, current.header("ETag"),
                 current.header("Retry-After"), body);
             switch (reply.outcome)
             {
@@ -369,6 +372,10 @@ final class TrackerConnectionController
                     publishIfCurrent(token, TrackerConnectionState.OFFLINE,
                         SyncMachine.UNREADABLE_MESSAGE);
                     scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
+                    clearPoll(token);
+                    return;
+                case STILL_REJECTED:
+                    showIfCurrent(token, now -> machine.stillRejected(now));
                     clearPoll(token);
                     return;
                 case STALE:
@@ -442,10 +449,7 @@ final class TrackerConnectionController
         }
         if (prepared == null)
         {
-            publishIfCurrent(token,
-                TrackerConnectionState.IMPORT_FAILED,
-                "Could not import tracker data");
-            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
+            showIfCurrent(token, now -> machine.rejected(version, now));
             clearPoll(token);
             return;
         }
@@ -479,10 +483,7 @@ final class TrackerConnectionController
                     }
                     if (!imported)
                     {
-                        publishIfCurrent(token,
-                            TrackerConnectionState.IMPORT_FAILED,
-                            "Could not import tracker data");
-                        scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
+                        showIfCurrent(token, now -> machine.rejected(version, now));
                         return;
                     }
 
@@ -517,20 +518,31 @@ final class TrackerConnectionController
     /** The relay has no profile for this code; SyncMachine.notFound says what that means. */
     private void handleNotFound(RelayPollToken token)
     {
+        showIfCurrent(token, now -> machine.notFound(token.acceptedVersion != null, now));
+        clearPoll(token);
+    }
+
+    /**
+     * For a current check: apply a machine transition, and show its snapshot
+     * unless rules were accepted or forgotten since the check began.
+     */
+    private void showIfCurrent(
+        RelayPollToken token, Function<Instant, TrackerConnectionSnapshot> transition)
+    {
         synchronized (pollLock)
         {
-            if (isPollCurrentLocked(token))
+            if (!isPollCurrentLocked(token))
             {
-                TrackerConnectionSnapshot notFound =
-                    machine.notFound(token.acceptedVersion != null, clock.instant());
-                if (acceptedStateUnchangedLocked(token))
-                {
-                    snapshot = notFound;
-                    listener.accept(snapshot);
-                }
+                return;
+            }
+            boolean unchanged = acceptedStateUnchangedLocked(token);
+            TrackerConnectionSnapshot next = transition.apply(clock.instant());
+            if (unchanged)
+            {
+                snapshot = next;
+                listener.accept(snapshot);
             }
         }
-        clearPoll(token);
     }
 
     private void scheduleFailure(RelayPollToken token, long minimumSeconds)
@@ -626,15 +638,19 @@ final class TrackerConnectionController
         private final long generation;
         private final String code;
         private final String acceptedVersion;
+        /** The version the plugin could not import, sent as the validator instead. */
+        private final String rejectedVersion;
 
         private RelayPollToken(
             long generation,
             String code,
-            String acceptedVersion)
+            String acceptedVersion,
+            String rejectedVersion)
         {
             this.generation = generation;
             this.code = code;
             this.acceptedVersion = acceptedVersion;
+            this.rejectedVersion = rejectedVersion;
         }
     }
 }

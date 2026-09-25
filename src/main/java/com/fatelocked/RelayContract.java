@@ -22,6 +22,8 @@ final class RelayContract
         UNCONFIRMED,
         /** Rules the plugin already holds, or older ones; not imported. */
         STALE,
+        /** Still the version the plugin could not import; not downloaded or tried again. */
+        STILL_REJECTED,
         /** No profile for this code. */
         MISSING,
         /** A reply the plugin cannot use. */
@@ -72,18 +74,25 @@ final class RelayContract
 
     /**
      * @param held the version the plugin holds, or null
+     * @param rejected the version the plugin could not import, or null; when
+     *     set, it was the request's validator
      * @param etag the reply's ETag header, or null
      * @param retryAfter the reply's Retry-After header, or null
      * @param body the reply's body; read only for a 2xx reply
      */
-    static Reply classify(
-        Gson gson, String held, int status, String etag, String retryAfter, String body)
+    static Reply classify(Gson gson, String held, String rejected,
+        int status, String etag, String retryAfter, String body)
     {
         if (status == 304)
         {
-            String version = etag == null ? held : canonicalVersion(etag);
-            return Reply.of(held != null && held.equals(version)
-                ? Outcome.UNCHANGED : Outcome.UNCONFIRMED);
+            String validator = rejected != null ? rejected : held;
+            String version = etag == null ? validator : canonicalVersion(etag);
+            if (held != null && held.equals(version))
+            {
+                return Reply.of(Outcome.UNCHANGED);
+            }
+            return Reply.of(rejected != null && rejected.equals(version)
+                ? Outcome.STILL_REJECTED : Outcome.UNCONFIRMED);
         }
         if (status == 404)
         {
@@ -119,6 +128,11 @@ final class RelayContract
         if (version == null || version != envelope.version)
         {
             return Reply.unreadable("an ETag that disagrees with the reply");
+        }
+        if (rejected != null && version.equals(parseVersion(rejected)))
+        {
+            // A reply that ignored the validator: still nothing new to try.
+            return Reply.of(Outcome.STILL_REJECTED);
         }
         Integer previous = held == null ? null : parseVersion(held);
         if (held != null && (previous == null || version <= previous))

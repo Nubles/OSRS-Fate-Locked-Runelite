@@ -633,6 +633,82 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void aVersionThatCannotBeImportedIsNotDownloadedAgain() throws Exception
+    {
+        connect(5, "\"5\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
+        // Say the tracker publishes a bundle this plugin can't read yet.
+        importer.failToPrepareNextPayload();
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> controller.snapshot().getState()
+            == TrackerConnectionState.IMPORT_FAILED);
+        waitFor(() -> !controller.pollInFlight());
+
+        // The next check asks only whether something newer has arrived.
+        clock.advanceSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(304).addHeader("ETag", "6"));
+        controller.pollIfDue();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, controller.snapshot().getState());
+        assertEquals("5", controller.snapshot().getAcceptedVersion());
+        // Not confirmed: the relay has newer rules the plugin can't use.
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
+        assertEquals(2, importer.preparedOnThreads().size());
+    }
+
+    @Test
+    public void aReplyIgnoringTheValidatorIsNotTriedAgain() throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.rejectNextPayload();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, controller.snapshot().getState());
+
+        // Something in front of the relay answers in full anyway.
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(2, importer.preparedOnThreads().size());
+        assertEquals(0, clientTasks.size());
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void newerRulesAfterARejectedVersionAreTried() throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.rejectNextPayload();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\""));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals("7", controller.snapshot().getAcceptedVersion());
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.poll();
+        assertEquals("7", takeRelay().getHeader("If-None-Match"));
+    }
+
+    @Test
     public void anUnreadableReplySaysSoAndBacksOff() throws Exception
     {
         connect(6, "\"6\"");

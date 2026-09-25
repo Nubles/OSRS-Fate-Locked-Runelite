@@ -118,6 +118,37 @@ public class SyncMachineTest
     }
 
     @Test
+    public void aRejectedVersionBecomesTheValidatorUntilNewerRulesArrive()
+    {
+        machine.accepted("41", START);
+        assertEquals("41", machine.validator());
+
+        TrackerConnectionSnapshot failed = machine.rejected("42", START);
+
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, failed.getState());
+        assertEquals("42", machine.validator());
+        assertEquals("41", machine.acceptedVersion());
+        assertEquals(TrackerConnectionState.IMPORT_FAILED,
+            machine.stillRejected(START.plusSeconds(30)).getState());
+        assertEquals("42", machine.validator());
+
+        machine.accepted("43", START.plusSeconds(90));
+        assertNull(machine.rejectedVersion());
+        assertEquals("43", machine.validator());
+    }
+
+    @Test
+    public void aRejectedVersionGoesWithTheProfile()
+    {
+        machine.rejected("42", START);
+
+        machine.notFound(false, START.plusSeconds(30));
+
+        assertNull(machine.rejectedVersion());
+        assertNull(machine.validator());
+    }
+
+    @Test
     public void changingThePairingOrConsentStartsOver()
     {
         machine.accepted("41", START);

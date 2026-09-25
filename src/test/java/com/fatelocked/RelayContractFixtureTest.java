@@ -60,6 +60,7 @@ public class RelayContractFixtureTest
         JsonObject headers = response.getAsJsonObject("headers");
         RelayContract.Reply reply = RelayContract.classify(GSON,
             text(relayCase, "held"),
+            null,
             response.get("status").getAsInt(),
             text(headers, "ETag"),
             text(headers, "Retry-After"),
