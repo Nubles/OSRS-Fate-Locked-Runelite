@@ -1,7 +1,10 @@
 name: Build
 
-# Compile-check the plugin (Hub-compliant build). The RuneLite Plugin Hub builds
-# from this repo's root on submission; this mirrors that so breakage is caught here.
+# `build` runs this repository's own Gradle build: tests, the source and jar
+# compliance gates, and the standard jar. The Plugin Hub replaces build.gradle
+# with its own standard build and pins RuneLite to its runelite.version, so
+# `hub-standard-build` also packages each commit with the Hub's own packager
+# and checks the jar that produces.
 
 on:
   push:
@@ -31,3 +34,49 @@ jobs:
           name: fatelocked-plugin
           path: build/libs/*.jar
           if-no-files-found: error
+
+  hub-standard-build:
+    runs-on: ubuntu-24.04
+    env:
+      PACKAGER_URL: https://github.com/runelite/plugin-hub-tooling/releases/download/v4/bundle.tar.zst
+      # As printed by runelite/plugin-hub's own build (run 36180037455).
+      PACKAGER_SHA256: 627c97f0ae8b86d59dc3e9c666ab75a7c88ed58ec6320967eabc172b36c3dcd5
+      REPO: ${{ github.event.pull_request.head.repo.clone_url || format('https://github.com/{0}.git', github.repository) }}
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Cache the Plugin Hub packager
+        uses: actions/cache@v4
+        with:
+          path: hub/bundle.tar.zst
+          key: hub-packager-${{ env.PACKAGER_SHA256 }}
+      - name: Package this commit with the Plugin Hub's packager
+        run: |
+          set -eu
+          mkdir -p hub /tmp/jars
+          cd hub
+          [ -f bundle.tar.zst ] || curl --location --fail --retry 4 --max-time 120 --output bundle.tar.zst "$PACKAGER_URL"
+          echo "$PACKAGER_SHA256  bundle.tar.zst" | sha256sum -c -
+          tar xf bundle.tar.zst
+          git clone --quiet --depth 1 https://github.com/runelite/plugin-hub.git plugin-hub
+          grep -q "$PACKAGER_URL" plugin-hub/.github/workflows/build.yml \
+            || echo "::warning::The Plugin Hub now uses a different packager; update PACKAGER_URL and PACKAGER_SHA256"
+          printf 'repository=%s\ncommit=%s\n' "$REPO" "$SHA" > plugin-hub/plugins/fate-locked-ironman
+          # The packager reads the entry file's git history.
+          git -C plugin-hub -c user.name=ci -c user.email=ci@invalid commit --quiet -am "build $SHA"
+          ./prepare.sh
+          java -cp package.jar net.runelite.pluginhub.packager.Packager plugin-hub/plugins/fate-locked-ironman
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+      - name: Verify the jar the Plugin Hub built
+        run: |
+          JAR=$(find /tmp/jars -name '*.jar' | head -n 1)
+          test -n "$JAR" || { echo "The packager produced no jar"; exit 1; }
+          gradle verifyPluginHubJar -PpluginHubJar="$JAR" --no-daemon

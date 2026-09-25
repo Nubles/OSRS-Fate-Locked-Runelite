@@ -57,11 +57,21 @@ tasks.register('runClient', JavaExec) {
     args '--developer-mode'
 }
 
+// Checks the jar this build makes. With -PpluginHubJar=<path> it checks that
+// jar instead: CI passes the one the Plugin Hub's own packager built from the
+// same commit (the hub-standard-build job).
 tasks.register('verifyPluginHubJar') {
-    dependsOn tasks.named('jar')
+    def hubJar = project.findProperty('pluginHubJar')
+    if (!hubJar) {
+        dependsOn tasks.named('jar')
+    }
     doLast {
-        File pluginJar = tasks.named('jar').get()
-            .archiveFile.get().asFile
+        File pluginJar = hubJar
+            ? file(hubJar)
+            : tasks.named('jar').get().archiveFile.get().asFile
+        if (!pluginJar.isFile()) {
+            throw new GradleException("no plugin jar at ${pluginJar}")
+        }
         def zip = new java.util.zip.ZipFile(pluginJar)
         try {
             def entries = zip.entries().toList()
@@ -99,6 +109,12 @@ tasks.register('verifyPluginHubJar') {
                         zip.getInputStream(it).bytes,
                         java.nio.charset.StandardCharsets.ISO_8859_1)
                 }.join('\n')
+            // Without the request-owning class the route check below would
+            // pass without checking anything.
+            if (routeText.isEmpty()) {
+                throw new GradleException(
+                    'no TrackerConnectionController class in the jar')
+            }
             [
                 '/events', '/acks', '/suggest', '/state'
             ].each { forbidden ->
