@@ -24,6 +24,7 @@ import okhttp3.OkHttpClient;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.ArgumentCaptor;
 
 import javax.swing.SwingUtilities;
 import java.io.File;
@@ -55,6 +56,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -116,6 +118,34 @@ public class FateLockedPluginStartupContractTest
             assertEquals(1, harness.plugin.browserUrls.size());
             assertEquals(PairingSupport.trackerPairingUrl(code),
                 harness.plugin.browserUrls.peek());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void theTrackerTickKeepsRunningAfterAFailedCheck() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("tick"));
+        try
+        {
+            ArgumentCaptor<Runnable> tick = ArgumentCaptor.forClass(Runnable.class);
+            verify(harness.executor).scheduleWithFixedDelay(
+                tick.capture(), eq(2L), eq(4L), eq(TimeUnit.SECONDS));
+            TrackerConnectionController controller = mock(TrackerConnectionController.class);
+            doThrow(new IllegalStateException("settings unreadable"))
+                .doNothing()
+                .when(controller).pollIfDue();
+            harness.set("connectionController", controller);
+
+            // A scheduled task that throws is never run again, so the tick
+            // must not let the failure out.
+            tick.getValue().run();
+            tick.getValue().run();
+
+            verify(controller, times(2)).pollIfDue();
         }
         finally
         {

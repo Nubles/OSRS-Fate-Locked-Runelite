@@ -36,11 +36,6 @@ import static org.mockito.Mockito.when;
 public class RelayTransportFixtureTest
 {
     private static final String CODE = "0123456789abcdef0123456789abcdef";
-    private static final String UNREACHABLE = "Could not reach tracker";
-    /** Cases the plugin does not read as the fixture says yet, with the task that fixes each. */
-    private static final Map<String, String> KNOWN = Map.of(
-        "a reply larger than any real bundle",
-        "review finding S12: read in full until Stage 1 task C9 caps the reply");
 
     private final List<String> prepared = new CopyOnWriteArrayList<>();
     private final List<TrackerConnectionSnapshot> published = new CopyOnWriteArrayList<>();
@@ -135,10 +130,9 @@ public class RelayTransportFixtureTest
     }
 
     @Test
-    public void aReplyLargerThanAnyRealBundleIsStillReadInFull() throws Exception
+    public void aReplyLargerThanAnyRealBundleIsUnreadable() throws Exception
     {
         JsonObject relayCase = transportCase("oversized");
-        String name = relayCase.get("name").getAsString();
         int bodyBytes = relayCase.get("bodyBytes").getAsInt();
         StringBuilder payload = new StringBuilder(bodyBytes);
         while (payload.length() < bodyBytes) payload.append('x');
@@ -149,11 +143,9 @@ public class RelayTransportFixtureTest
 
         poll(relayCase);
 
-        // Today's answer, until the known divergence is fixed on purpose.
         assertEquals("unreadable", relayCase.get("outcome").getAsString());
-        assertTrue(name + " is a known divergence", KNOWN.containsKey(name));
-        waitFor(() -> prepared.size() == 1);
-        assertEquals(KNOWN.get(name), bodyBytes, prepared.get(0).length());
+        waitFor(() -> shown(SyncMachine.UNREADABLE_MESSAGE));
+        assertTrue(prepared.isEmpty());
     }
 
     private void poll(JsonObject relayCase)
@@ -164,9 +156,14 @@ public class RelayTransportFixtureTest
 
     private boolean unreachable()
     {
+        return shown(SyncMachine.UNREACHABLE_MESSAGE);
+    }
+
+    private boolean shown(String offlineMessage)
+    {
         return published.stream().anyMatch(snapshot ->
             snapshot.getState() == TrackerConnectionState.OFFLINE
-                && UNREACHABLE.equals(snapshot.getMessage()));
+                && offlineMessage.equals(snapshot.getMessage()));
     }
 
     private static JsonObject transportCase(String transport) throws Exception

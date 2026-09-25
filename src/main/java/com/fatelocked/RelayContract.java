@@ -142,6 +142,15 @@ final class RelayContract
         return new Reply(Outcome.RULES, version, envelope.payload, 0, null);
     }
 
+    /**
+     * A 2xx reply longer than any real bundle. The connection stops reading
+     * it at its cap, so it never reaches classify.
+     */
+    static Reply oversized()
+    {
+        return Reply.unreadable("a reply larger than any real bundle");
+    }
+
     /** A positive version from a bare, quoted or weak ETag, or null. */
     static Integer parseVersion(String raw)
     {

@@ -7,11 +7,14 @@ import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
+import okio.BufferedSource;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -37,6 +40,15 @@ final class TrackerConnectionController
         /** Switch to the prepared rules, which the relay calls version; false rejects them. */
         boolean commit(T prepared, String version);
     }
+
+    /**
+     * A limit on the whole request. OkHttp limits each connect, read and
+     * write, but not the whole call unless asked, so a reply that trickled
+     * in slowly held the only check for as long as it liked.
+     */
+    static final Duration CALL_TIMEOUT = Duration.ofSeconds(20);
+    /** No real reply comes near this: the relay refuses to store a bundle over 256 KiB. */
+    static final long MAX_REPLY_BYTES = 1024 * 1024;
 
     private final OkHttpClient http;
     private final Gson gson;
@@ -67,7 +79,22 @@ final class TrackerConnectionController
         RelayBundleImporter<?> importer,
         Consumer<TrackerConnectionSnapshot> listener)
     {
-        this.http = http;
+        this(http, CALL_TIMEOUT, gson, settings, clock, clientDispatcher, importer, listener);
+    }
+
+    TrackerConnectionController(
+        OkHttpClient http,
+        Duration callTimeout,
+        Gson gson,
+        TrackerConnectionSettings settings,
+        Clock clock,
+        Consumer<Runnable> clientDispatcher,
+        RelayBundleImporter<?> importer,
+        Consumer<TrackerConnectionSnapshot> listener)
+    {
+        this.http = http.newBuilder()
+            .callTimeout(callTimeout.toMillis(), TimeUnit.MILLISECONDS)
+            .build();
         this.gson = gson;
         this.settings = settings;
         this.clock = clock;
@@ -95,8 +122,7 @@ final class TrackerConnectionController
             }
             settings.replacePairingCode(code);
             settings.clearLegacySettings();
-            generation++;
-            activePoll = null;
+            abandonCheckLocked();
             currentIdentityCode = code;
             showLocked(machine.pairingStarted(clock.instant()));
         }
@@ -119,8 +145,7 @@ final class TrackerConnectionController
             if (stopped) return;
             if (!equal(code, currentIdentityCode))
             {
-                generation++;
-                activePoll = null;
+                abandonCheckLocked();
                 currentIdentityCode = code;
                 clearLegacy = !code.isEmpty();
                 showLocked(machine.pairingReplaced(!code.isEmpty()));
@@ -155,7 +180,17 @@ final class TrackerConnectionController
         Request request = builder.build();
         try
         {
-            http.newCall(request).enqueue(new Callback()
+            Call call = http.newCall(request);
+            synchronized (pollLock)
+            {
+                // Abandoned already, by a stop, a consent change or a new pairing.
+                if (activePoll != token)
+                {
+                    return;
+                }
+                token.call = call;
+            }
+            call.enqueue(new Callback()
             {
                 @Override
                 public void onFailure(Call call, IOException error)
@@ -223,8 +258,7 @@ final class TrackerConnectionController
     {
         synchronized (pollLock)
         {
-            generation++;
-            activePoll = null;
+            abandonCheckLocked();
             showLocked(machine.networkAccessChanged());
         }
     }
@@ -241,8 +275,7 @@ final class TrackerConnectionController
         {
             if (machine.localRulesReplaced())
             {
-                generation++;
-                activePoll = null;
+                abandonCheckLocked();
             }
         }
     }
@@ -273,10 +306,23 @@ final class TrackerConnectionController
         synchronized (pollLock)
         {
             stopped = true;
-            generation++;
-            activePoll = null;
+            abandonCheckLocked();
             showLocked(TrackerConnectionSnapshot.disconnected());
         }
+    }
+
+    /**
+     * Drop the check in flight, if any: cancel its request, and make its
+     * reply, if one still comes, change nothing.
+     */
+    private void abandonCheckLocked()
+    {
+        generation++;
+        if (activePoll != null && activePoll.call != null)
+        {
+            activePoll.call.cancel();
+        }
+        activePoll = null;
     }
 
     TrackerConnectionSnapshot snapshot()
@@ -320,12 +366,7 @@ final class TrackerConnectionController
                 clearPoll(token);
                 return;
             }
-            int status = current.code();
-            String body = status >= 200 && status < 300 && current.body() != null
-                ? current.body().string() : null;
-            RelayContract.Reply reply = RelayContract.classify(gson,
-                token.acceptedVersion, token.rejectedVersion, status, current.header("ETag"),
-                current.header("Retry-After"), body);
+            RelayContract.Reply reply = classify(token, current);
             switch (reply.outcome)
             {
                 case UNCHANGED:
@@ -390,12 +431,33 @@ final class TrackerConnectionController
         }
         catch (Exception error)
         {
-            // The reply broke off before it was read in full.
+            // The reply broke off, or took too long, before it was read in full.
             publishIfCurrent(token, TrackerConnectionState.OFFLINE,
                 SyncMachine.UNREACHABLE_MESSAGE);
             scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
             clearPoll(token);
         }
+    }
+
+    /** Read the reply, a 2xx body only up to MAX_REPLY_BYTES, and say what it means. */
+    private RelayContract.Reply classify(RelayPollToken token, Response response)
+        throws IOException
+    {
+        int status = response.code();
+        ResponseBody content = response.body();
+        String body = null;
+        if (status >= 200 && status < 300 && content != null)
+        {
+            BufferedSource source = content.source();
+            // Buffers at most one byte past the cap, however long the reply.
+            if (source.request(MAX_REPLY_BYTES + 1))
+            {
+                return RelayContract.oversized();
+            }
+            body = content.string();
+        }
+        return RelayContract.classify(gson, token.acceptedVersion, token.rejectedVersion,
+            status, response.header("ETag"), response.header("Retry-After"), body);
     }
 
     /** The relay says the rules the plugin holds are still current. */
@@ -641,6 +703,8 @@ final class TrackerConnectionController
         private final String acceptedVersion;
         /** The version the plugin could not import, sent as the validator instead. */
         private final String rejectedVersion;
+        /** The request, once sent; cancelled if the check is abandoned. Guarded by pollLock. */
+        private Call call;
 
         private RelayPollToken(
             long generation,

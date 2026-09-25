@@ -2,6 +2,8 @@ package com.fatelocked;
 
 import com.google.gson.Gson;
 import net.runelite.client.config.ConfigManager;
+import okhttp3.Call;
+import okhttp3.EventListener;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -53,6 +56,9 @@ public class TrackerConnectionControllerTest
         new ConcurrentHashMap<>();
     private final List<String> unsetKeys = new CopyOnWriteArrayList<>();
     private final List<Request> pluginRequests = new CopyOnWriteArrayList<>();
+    /** Every relay request, and those that have ended, however they ended. */
+    private final List<Call> sentCalls = new CopyOnWriteArrayList<>();
+    private final List<Call> endedCalls = new CopyOnWriteArrayList<>();
     private final RecordingDispatcher dispatcher =
         new RecordingDispatcher();
     private final ConcurrentLinkedQueue<Runnable> clientTasks =
@@ -63,6 +69,7 @@ public class TrackerConnectionControllerTest
         Instant.parse("2026-07-27T10:00:00Z"));
 
     private MockWebServer server;
+    private OkHttpClient http;
     private TrackerConnectionSettings settings;
     private TrackerConnectionController controller;
 
@@ -99,8 +106,25 @@ public class TrackerConnectionControllerTest
                 .url(server.url(original.url().encodedPath()))
                 .build());
         };
-        OkHttpClient http = new OkHttpClient.Builder()
+        http = new OkHttpClient.Builder()
             .addInterceptor(redirectToServer)
+            .eventListenerFactory(call -> {
+                sentCalls.add(call);
+                return new EventListener()
+                {
+                    @Override
+                    public void callEnd(Call ended)
+                    {
+                        endedCalls.add(ended);
+                    }
+
+                    @Override
+                    public void callFailed(Call failed, IOException error)
+                    {
+                        endedCalls.add(failed);
+                    }
+                };
+            })
             .build();
         controller = new TrackerConnectionController(
             http, gson, settings, clock, dispatcher,
@@ -1193,6 +1217,121 @@ public class TrackerConnectionControllerTest
             .equals(controller.snapshot().getMessage()));
 
         assertEquals(TrackerConnectionState.EXPIRED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void aReplyThatTricklesInIsCutOffByTheCallTimeout() throws Exception
+    {
+        RecordingListener shown = new RecordingListener();
+        TrackerConnectionController shortCalls = new TrackerConnectionController(
+            http, Duration.ofMillis(500), gson, settings, clock, dispatcher, importer, shown);
+        try
+        {
+            // Each piece arrives well inside the read timeout, but the whole
+            // reply would take about 20 seconds.
+            server.enqueue(relayResponse(1, validV4Payload(), "\"1\"")
+                .throttleBody(16, 100, TimeUnit.MILLISECONDS));
+            shortCalls.poll();
+            takeRelay();
+            waitFor(() -> !shortCalls.pollInFlight());
+
+            assertEquals(TrackerConnectionState.OFFLINE, shortCalls.snapshot().getState());
+            assertEquals(SyncMachine.UNREACHABLE_MESSAGE, shortCalls.snapshot().getMessage());
+            assertTrue(importer.preparedOnThreads().isEmpty());
+        }
+        finally
+        {
+            shortCalls.stop();
+        }
+    }
+
+    @Test
+    public void aReplyWithNoLengthStopsBeingReadAtTheCap() throws Exception
+    {
+        StringBuilder payload = new StringBuilder();
+        while (payload.length() <= TrackerConnectionController.MAX_REPLY_BYTES)
+        {
+            payload.append("0123456789abcdef");
+        }
+        // Chunked, so nothing says how long it is until it ends.
+        server.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .addHeader("ETag", "\"1\"")
+            .setChunkedBody(gson.toJson(new RelayEnvelope(1, payload.toString())), 64 * 1024));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
+        assertEquals(SyncMachine.UNREADABLE_MESSAGE, controller.snapshot().getMessage());
+        assertTrue(importer.preparedOnThreads().isEmpty());
+    }
+
+    @Test
+    public void stoppingCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        controller.stop();
+
+        assertCancelled(check);
+        // The cancelled check's failure shows nothing.
+        waitFor(() -> http.dispatcher().runningCallsCount() == 0);
+        assertEquals(TrackerConnectionState.DISCONNECTED, listener.last().getState());
+    }
+
+    @Test
+    public void withdrawingConsentCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+        controller.networkAccessChanged();
+
+        assertCancelled(check);
+    }
+
+    @Test
+    public void pairingAgainCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        controller.beginPairing();
+
+        assertCancelled(check);
+    }
+
+    @Test
+    public void aPairingCodeChangedElsewhereCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        // A RuneLite profile switch, say, brings another pairing code.
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY,
+            "fedcba9876543210fedcba9876543210");
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.poll();
+
+        assertCancelled(check);
+    }
+
+    /** Send a check the relay never answers. */
+    private Call sendCheckThatHangs() throws Exception
+    {
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+        controller.poll();
+        takeRelay();
+        assertEquals(1, sentCalls.size());
+        assertTrue(controller.pollInFlight());
+        return sentCalls.get(0);
+    }
+
+    private void assertCancelled(Call check) throws Exception
+    {
+        assertTrue(check.isCanceled());
+        // It ends now, not when the read would have timed out.
+        waitFor(() -> endedCalls.contains(check));
     }
 
     private void connect(int version, String etag) throws Exception

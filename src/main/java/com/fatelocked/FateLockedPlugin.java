@@ -170,6 +170,9 @@ public class FateLockedPlugin extends Plugin
     private TrackerConnectionController connectionController;
     private final RepeatedValueLimiter invalidImportLimiter =
         new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
+    /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
+    private final RepeatedValueLimiter trackerTickFailureLimiter =
+        new RepeatedValueLimiter(TimeUnit.MINUTES.toMillis(15));
     private FateEventHistory eventHistory;
     private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
@@ -2110,7 +2113,20 @@ MenuEntry entry = event.getMenuEntry();
     {
         TrackerConnectionController controller = connectionController;
         if (controller == null) return;
-        controller.pollIfDue();
+        try
+        {
+            controller.pollIfDue();
+        }
+        catch (RuntimeException error)
+        {
+            // A scheduled task that throws is never run again: log it and
+            // keep checking.
+            if (trackerTickFailureLimiter.shouldReport(
+                String.valueOf(error), System.currentTimeMillis()))
+            {
+                log.warn("Tracker check failed", error);
+            }
+        }
     }
 
     private void updatePanelRollInbox()
