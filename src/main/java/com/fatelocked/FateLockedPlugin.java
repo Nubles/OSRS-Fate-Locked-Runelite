@@ -10,6 +10,7 @@ import com.fatelocked.rules.FateRuleEngine;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
 import com.fatelocked.rules.RulesSnapshot;
+import com.fatelocked.rules.Trust;
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.panel.LocalTimeText;
@@ -1415,35 +1416,23 @@ public class FateLockedPlugin extends Plugin
     }
     /**
      * Tag right-click menu entries whose target stands in a locked chunk with a
-     * red (LOCKED) marker: the "are you sure?" before you ever click.
+     * red (LOCKED) marker: the "are you sure?" before you ever click. The
+     * decision service decides (B2), so a tag never disagrees with the
+     * sidebar, and another character, or nobody logged in, sees none.
      */
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
     {
         if (!config.tagLockedMenus() && !config.tagLockedTeleports()) return;
-        FateLockedBundle b = getBundle();
-        if (b.getRegionChunks().isEmpty()) return;
+        DecisionService ruleDecisions = decisions;
+        if (ruleDecisions.trust() != Trust.TRUSTED) return;
 
-MenuEntry entry = event.getMenuEntry();
+        MenuEntry entry = event.getMenuEntry();
         GuardedAction action = guardedActionFactory.from(entry, client);
-        boolean locked = false;
-        if (config.tagLockedMenus()
-            && action.getChunk() != null
-            && action.getKind() != GuardedAction.Kind.TELEPORT)
-        {
-            locked = b.isLegacyRules()
-                ? b.lockStateAt(action.getChunk()) == FateLockedBundle.LockState.LOCKED
-                : ruleEngine(b).entry(action.getChunk()).getStatus() == PermissionStatus.LOCKED;
-        }
-        if (!locked && config.tagLockedTeleports()
-            && action.getKind() == GuardedAction.Kind.TELEPORT
-            && action.getChunk() != null)
-        {
-            locked = b.isLegacyRules()
-                ? b.lockStateAt(action.getChunk()) == FateLockedBundle.LockState.LOCKED
-                : ruleEngine(b).entry(action.getChunk()).getStatus() == PermissionStatus.LOCKED;
-        }
-        if (!locked) return;
+        if (action.getChunk() == null) return;
+        boolean teleport = action.getKind() == GuardedAction.Kind.TELEPORT;
+        if (teleport ? !config.tagLockedTeleports() : !config.tagLockedMenus()) return;
+        if (!ruleDecisions.chunk(action.getChunk()).isLocked()) return;
         String t = entry.getTarget();
         String base = t == null ? "" : t;
         if (!base.contains("(LOCKED)"))
