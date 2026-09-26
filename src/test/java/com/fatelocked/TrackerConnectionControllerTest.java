@@ -713,6 +713,49 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void aNewerBundleFormatSaysToUpdateThePluginUntilSomethingElseArrives()
+        throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.readNextPayloadAsAFutureFormat();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> controller.snapshot().getState() == TrackerConnectionState.IMPORT_FAILED);
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.FUTURE_FORMAT, controller.snapshot().getReason());
+
+        // Later checks hear that the relay still has only that version.
+        server.enqueue(new MockResponse().setResponseCode(304).addHeader("ETag", "6"));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.FUTURE_FORMAT, controller.snapshot().getReason());
+
+        // Rules the plugin can read clear it.
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals(SyncReason.NONE, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void rulesThatCannotBeReadSayToSendThemAgain() throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.failToPrepareNextPayload();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> controller.snapshot().getState() == TrackerConnectionState.IMPORT_FAILED);
+
+        assertEquals(SyncReason.INVALID_RULES, controller.snapshot().getReason());
+    }
+
+    @Test
     public void aReplyIgnoringTheValidatorIsNotTriedAgain() throws Exception
     {
         connect(5, "\"5\"");
@@ -1531,11 +1574,12 @@ public class TrackerConnectionControllerTest
         private final List<String> preparedOn = new ArrayList<>();
         private boolean rejectNext;
         private volatile boolean unreadableNext;
+        private volatile boolean futureFormatNext;
         private volatile CountDownLatch blocked;
         private volatile CountDownLatch release;
 
         @Override
-        public String prepare(String payload)
+        public TrackerConnectionController.Prepared<String> prepare(String payload)
         {
             synchronized (preparedOn)
             {
@@ -1544,9 +1588,16 @@ public class TrackerConnectionControllerTest
             if (unreadableNext)
             {
                 unreadableNext = false;
-                return null;
+                return TrackerConnectionController.Prepared.refused(
+                    TrackerConnectionController.ImportVerdict.INVALID);
             }
-            return payload;
+            if (futureFormatNext)
+            {
+                futureFormatNext = false;
+                return TrackerConnectionController.Prepared.refused(
+                    TrackerConnectionController.ImportVerdict.FUTURE_FORMAT);
+            }
+            return TrackerConnectionController.Prepared.ok(payload);
         }
 
         @Override
@@ -1587,6 +1638,11 @@ public class TrackerConnectionControllerTest
         void failToPrepareNextPayload()
         {
             unreadableNext = true;
+        }
+
+        void readNextPayloadAsAFutureFormat()
+        {
+            futureFormatNext = true;
         }
 
         List<String> preparedOnThreads()

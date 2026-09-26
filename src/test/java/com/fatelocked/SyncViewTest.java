@@ -87,6 +87,27 @@ public class SyncViewTest
     }
 
     @Test
+    public void aNewerBundleFormatAsksForAPluginUpdate()
+    {
+        SyncView view = view(TrackerConnectionSnapshot.of(TrackerConnectionState.IMPORT_FAILED,
+            null, "41", SyncReason.FUTURE_FORMAT, null));
+
+        assertEquals("Plugin update needed", view.status);
+        assertEquals(SyncView.Tone.RED, view.tone);
+        assertEquals(SyncView.Action.UPDATE_PLUGIN, view.action);
+        assertTrue(view.detail, view.detail.contains("Plugin Hub"));
+    }
+
+    @Test
+    public void rulesThatCannotBeUsedPointToTheWebTracker()
+    {
+        SyncView view = view(TrackerConnectionSnapshot.of(TrackerConnectionState.IMPORT_FAILED,
+            null, "41", SyncReason.INVALID_RULES, null));
+
+        assertEquals(SyncView.Action.OPEN_TRACKER, view.action);
+    }
+
+    @Test
     public void everyReasonHasItsOwnStatusAndExplanation()
     {
         Set<String> statuses = new HashSet<>();

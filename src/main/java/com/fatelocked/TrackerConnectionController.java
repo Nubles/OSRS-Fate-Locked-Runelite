@@ -34,11 +34,44 @@ final class TrackerConnectionController
      */
     interface RelayBundleImporter<T>
     {
-        /** Parse and check the payload; null rejects it. */
-        T prepare(String payload);
+        /** Parse and check the payload: rules to commit, or why there are none. */
+        Prepared<T> prepare(String payload);
 
         /** Switch to the prepared rules, which the relay calls version; false rejects them. */
         boolean commit(T prepared, String version);
+    }
+
+    /** What the importer made of a payload. */
+    enum ImportVerdict
+    {
+        OK,
+        /** Rules in a newer bundle format than this plugin reads. */
+        FUTURE_FORMAT,
+        /** Anything else the plugin can't use. */
+        INVALID
+    }
+
+    /** Rules ready to commit, or the verdict that says why there are none. */
+    static final class Prepared<T>
+    {
+        final ImportVerdict verdict;
+        final T rules;
+
+        private Prepared(ImportVerdict verdict, T rules)
+        {
+            this.verdict = verdict;
+            this.rules = rules;
+        }
+
+        static <T> Prepared<T> ok(T rules)
+        {
+            return new Prepared<>(ImportVerdict.OK, rules);
+        }
+
+        static <T> Prepared<T> refused(ImportVerdict verdict)
+        {
+            return new Prepared<>(verdict, null);
+        }
     }
 
     /**
@@ -488,7 +521,7 @@ final class TrackerConnectionController
         String payload,
         String version)
     {
-        T prepared;
+        Prepared<T> prepared;
         try
         {
             prepared = importer.prepare(payload);
@@ -497,13 +530,15 @@ final class TrackerConnectionController
         {
             prepared = null;
         }
-        if (prepared == null)
+        if (prepared == null || prepared.verdict != ImportVerdict.OK)
         {
-            showIfCurrent(token, now -> machine.rejected(version, now));
+            SyncReason reason = prepared != null && prepared.verdict == ImportVerdict.FUTURE_FORMAT
+                ? SyncReason.FUTURE_FORMAT : SyncReason.INVALID_RULES;
+            showIfCurrent(token, now -> machine.rejected(version, reason, now));
             clearPoll(token);
             return;
         }
-        T rules = prepared;
+        T rules = prepared.rules;
         dispatchImport(token, () -> importer.commit(rules, version), version);
     }
 
@@ -533,7 +568,8 @@ final class TrackerConnectionController
                     }
                     if (!imported)
                     {
-                        showIfCurrent(token, now -> machine.rejected(version, now));
+                        showIfCurrent(token,
+                            now -> machine.rejected(version, SyncReason.INVALID_RULES, now));
                         return;
                     }
 

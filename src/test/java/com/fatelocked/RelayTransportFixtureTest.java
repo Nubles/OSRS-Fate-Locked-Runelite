@@ -70,10 +70,10 @@ public class RelayTransportFixtureTest
             new TrackerConnectionController.RelayBundleImporter<String>()
             {
                 @Override
-                public String prepare(String payload)
+                public TrackerConnectionController.Prepared<String> prepare(String payload)
                 {
                     prepared.add(payload);
-                    return payload;
+                    return TrackerConnectionController.Prepared.ok(payload);
                 }
 
                 @Override

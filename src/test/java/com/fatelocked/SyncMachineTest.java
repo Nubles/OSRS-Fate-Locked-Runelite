@@ -151,13 +151,15 @@ public class SyncMachineTest
         machine.accepted("41", START);
         assertEquals("41", machine.validator());
 
-        TrackerConnectionSnapshot failed = machine.rejected("42", START);
+        TrackerConnectionSnapshot failed = machine.rejected("42", SyncReason.FUTURE_FORMAT, START);
 
         assertEquals(TrackerConnectionState.IMPORT_FAILED, failed.getState());
+        assertEquals(SyncReason.FUTURE_FORMAT, failed.getReason());
         assertEquals("42", machine.validator());
         assertEquals("41", machine.acceptedVersion());
-        assertEquals(TrackerConnectionState.IMPORT_FAILED,
-            machine.stillRejected(START.plusSeconds(30)).getState());
+        // Still that version, still for the same reason.
+        assertEquals(SyncReason.FUTURE_FORMAT,
+            machine.stillRejected(START.plusSeconds(30)).getReason());
         assertEquals("42", machine.validator());
 
         machine.accepted("43", START.plusSeconds(90));
@@ -168,7 +170,7 @@ public class SyncMachineTest
     @Test
     public void aRejectedVersionGoesWithTheProfile()
     {
-        machine.rejected("42", START);
+        machine.rejected("42", SyncReason.INVALID_RULES, START);
 
         machine.notFound(false, START.plusSeconds(30));
 

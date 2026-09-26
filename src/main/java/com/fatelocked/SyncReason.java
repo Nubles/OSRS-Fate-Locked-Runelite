@@ -27,7 +27,11 @@ enum SyncReason
     /** The relay asked the plugin to slow down. */
     BUSY("Tracker relay is busy; retrying later"),
     /** The relay, or something in front of it, failed. */
-    UNAVAILABLE("Tracker is unavailable");
+    UNAVAILABLE("Tracker is unavailable"),
+    /** The tracker's rules are in a newer format than this plugin reads. */
+    FUTURE_FORMAT("Plugin update needed"),
+    /** The tracker's rules could not be read or used. */
+    INVALID_RULES("Could not import tracker data");
 
     /** The short status the sidebar's Connection row shows, or null for the state's own. */
     final String status;

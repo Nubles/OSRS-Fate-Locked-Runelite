@@ -26,6 +26,8 @@ final class SyncMachine
     private String acceptedVersion;
     /** The relay version the plugin could not import, until something newer arrives. */
     private String rejectedVersion;
+    /** Why it could not: a newer format or broken rules. */
+    private SyncReason rejectedReason;
     private Instant lastSync;
     private Instant nextCheck = Instant.EPOCH;
     private int consecutiveFailures;
@@ -176,6 +178,7 @@ final class SyncMachine
     {
         acceptedVersion = version;
         rejectedVersion = null;
+        rejectedReason = null;
         lastSync = now;
         pairingStartedAt = null;
         healthy(now);
@@ -187,18 +190,22 @@ final class SyncMachine
      * a newer bundle format. Remember the version, so later checks ask only
      * whether something newer has arrived.
      */
-    TrackerConnectionSnapshot rejected(String version, Instant now)
+    TrackerConnectionSnapshot rejected(String version, SyncReason reason, Instant now)
     {
         rejectedVersion = RelayContract.canonicalVersion(version);
-        return failure(TrackerConnectionState.IMPORT_FAILED, SyncReason.NONE,
-            now, FAILURE_BACKOFF_SECONDS);
+        rejectedReason = reason;
+        return stillRejected(now);
     }
 
-    /** The relay still has only the version the plugin could not import. */
+    /**
+     * The relay still has only the version the plugin could not import. The
+     * status says why, not when the next check is: another check won't help
+     * until the tracker sends something else or the plugin is updated.
+     */
     TrackerConnectionSnapshot stillRejected(Instant now)
     {
-        return failure(TrackerConnectionState.IMPORT_FAILED, SyncReason.NONE,
-            now, FAILURE_BACKOFF_SECONDS);
+        failed(now, FAILURE_BACKOFF_SECONDS);
+        return show(TrackerConnectionState.IMPORT_FAILED, rejectedReason);
     }
 
     /**
@@ -219,6 +226,7 @@ final class SyncMachine
         // Whatever the plugin held, or could not import, has gone with the profile.
         acceptedVersion = null;
         rejectedVersion = null;
+        rejectedReason = null;
         if (!heldVersion && pairingStartedAt != null)
         {
             long waited = Duration.between(pairingStartedAt, now).getSeconds();
@@ -265,6 +273,7 @@ final class SyncMachine
     {
         acceptedVersion = null;
         rejectedVersion = null;
+        rejectedReason = null;
         lastSync = null;
         resetChecks();
     }

@@ -336,6 +336,23 @@ public class FateLockedBundle
     /** Marker prefix the web app uses for a gzip+base64 clipboard payload. */
     private static final String GZ_PREFIX = "FLGZ:";
 
+    /** A bundle in a newer format than this plugin reads: the player needs a plugin update. */
+    public static final class FutureFormatException extends IllegalArgumentException
+    {
+        private final int version;
+
+        FutureFormatException(int version)
+        {
+            super("Unsupported future bundle version " + version);
+            this.version = version;
+        }
+
+        public int getVersion()
+        {
+            return version;
+        }
+    }
+
     public static FateLockedBundle loadFromFile(Gson gson, Path path) throws IOException, JsonSyntaxException
     {
         // The web app writes UTF-8; real bundles contain characters such as
@@ -392,7 +409,7 @@ public class FateLockedBundle
         RawBundle raw = gson.fromJson(text, RawBundle.class);
         if (raw != null && raw.version > 4)
         {
-            throw new IllegalArgumentException("Unsupported future bundle version " + raw.version);
+            throw new FutureFormatException(raw.version);
         }
         if (raw != null && raw.version == 4
             && (raw.chunks == null || raw.rules == null || !raw.rules.hasRequiredFields()))

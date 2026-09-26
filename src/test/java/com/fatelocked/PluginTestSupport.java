@@ -58,21 +58,21 @@ final class PluginTestSupport
         return importFromRelay(plugin, payload, "1");
     }
 
+    /** Through the plugin's own relay importer, both steps on this thread. */
     static boolean importFromRelay(FateLockedPlugin plugin, String payload, String version)
         throws Exception
     {
-        Method parse = FateLockedPlugin.class.getDeclaredMethod(
-            "parseRelayPayload", String.class);
-        parse.setAccessible(true);
-        Object parsed = parse.invoke(plugin, payload);
-        if (parsed == null)
-        {
-            return false;
-        }
-        Method accept = FateLockedPlugin.class.getDeclaredMethod(
-            "acceptRelayRules", FateLockedBundle.class, String.class, String.class);
-        accept.setAccessible(true);
-        return (Boolean) accept.invoke(plugin, parsed, payload, version);
+        TrackerConnectionController.RelayBundleImporter<Object> importer = relayImporter(plugin);
+        TrackerConnectionController.Prepared<Object> prepared = importer.prepare(payload);
+        return prepared.verdict == TrackerConnectionController.ImportVerdict.OK
+            && importer.commit(prepared.rules, version);
+    }
+
+    @SuppressWarnings("unchecked")
+    static TrackerConnectionController.RelayBundleImporter<Object> relayImporter(
+        FateLockedPlugin plugin) throws Exception
+    {
+        return (TrackerConnectionController.RelayBundleImporter<Object>) get(plugin, "relayImporter");
     }
 
     static void set(FateLockedPlugin plugin, String name, Object value) throws Exception

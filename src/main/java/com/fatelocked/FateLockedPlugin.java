@@ -1694,10 +1694,25 @@ MenuEntry entry = event.getMenuEntry();
         new TrackerConnectionController.RelayBundleImporter<ParsedRules>()
         {
             @Override
-            public ParsedRules prepare(String payload)
+            public TrackerConnectionController.Prepared<ParsedRules> prepare(String payload)
             {
-                FateLockedBundle parsed = parseRelayPayload(payload);
-                return parsed == null ? null : new ParsedRules(parsed, payload);
+                try
+                {
+                    return TrackerConnectionController.Prepared.ok(
+                        new ParsedRules(parseRelayPayload(payload), payload));
+                }
+                catch (FateLockedBundle.FutureFormatException ex)
+                {
+                    log.debug("Relay bundle needs a newer plugin: {}", ex.getMessage());
+                    return TrackerConnectionController.Prepared.refused(
+                        TrackerConnectionController.ImportVerdict.FUTURE_FORMAT);
+                }
+                catch (RuntimeException ex)
+                {
+                    log.debug("Relay bundle rejected: {}", ex.getMessage());
+                    return TrackerConnectionController.Prepared.refused(
+                        TrackerConnectionController.ImportVerdict.INVALID);
+                }
             }
 
             @Override
@@ -1722,20 +1737,17 @@ MenuEntry entry = event.getMenuEntry();
 
     /**
      * On the thread that read the relay's reply, never the game thread: parse
-     * the payload, accepting only strict v4 rules. Null rejects it.
+     * the payload, accepting only strict v4 rules. Throws FutureFormatException
+     * for a newer format, and another RuntimeException for anything else.
      */
     private FateLockedBundle parseRelayPayload(String payload)
     {
-        try
+        FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, payload);
+        if (parsed.getVersion() != 4 || parsed.isLegacyRules())
         {
-            FateLockedBundle parsed = FateLockedBundle.loadFromJson(gson, payload);
-            return parsed.getVersion() == 4 && !parsed.isLegacyRules() ? parsed : null;
+            throw new IllegalArgumentException("Relay rules must be a version 4 bundle");
         }
-        catch (RuntimeException ex)
-        {
-            log.debug("Relay bundle rejected: {}", ex.getMessage());
-            return null;
-        }
+        return parsed;
     }
 
     /** On the client thread: switch to rules the relay sent, and keep them for the next start. */

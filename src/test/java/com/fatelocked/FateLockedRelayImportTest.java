@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 
 import static com.fatelocked.PluginTestSupport.importFromClipboard;
 import static com.fatelocked.PluginTestSupport.importFromRelay;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -101,6 +102,24 @@ public class FateLockedRelayImportTest
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
         verify(testPlugin.panel, times(1))
             .update(any(FateLockedBundle.class), any());
+    }
+
+    @Test
+    public void theRelayImporterSaysWhenANewerFormatNeedsAPluginUpdate() throws Exception
+    {
+        TrackerConnectionController.RelayBundleImporter<Object> importer =
+            PluginTestSupport.relayImporter(newPlugin().plugin);
+        JsonObject v5 = new Gson().fromJson(fixture("bundles/v4-rules.json"), JsonObject.class);
+        v5.addProperty("version", 5);
+
+        assertEquals(TrackerConnectionController.ImportVerdict.FUTURE_FORMAT,
+            importer.prepare(v5.toString()).verdict);
+        assertEquals(TrackerConnectionController.ImportVerdict.INVALID,
+            importer.prepare("{bad").verdict);
+        assertEquals(TrackerConnectionController.ImportVerdict.INVALID,
+            importer.prepare(fixture("bundles/v3-standard.json")).verdict);
+        assertEquals(TrackerConnectionController.ImportVerdict.OK,
+            importer.prepare(fixture("bundles/v4-rules.json")).verdict);
     }
 
     @Test

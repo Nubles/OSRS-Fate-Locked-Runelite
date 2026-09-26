@@ -31,7 +31,9 @@ final class SyncView
         /** Tick "Enable online sync"; the pairing is kept. */
         ENABLE_SYNC,
         /** Open the web tracker, which sends the rules again. */
-        OPEN_TRACKER
+        OPEN_TRACKER,
+        /** Update Fate Locked in the Plugin Hub. */
+        UPDATE_PLUGIN
     }
 
     final String status;
@@ -98,9 +100,19 @@ final class SyncView
             case UNAVAILABLE:
                 detail = "The tracker had a problem." + nextCheck;
                 break;
+            case FUTURE_FORMAT:
+                detail = "Your tracker sent rules in a newer format than this version"
+                    + " of Fate Locked reads. Update it in the Plugin Hub.";
+                action = Action.UPDATE_PLUGIN;
+                break;
+            case INVALID_RULES:
+                detail = "The tracker sent rules RuneLite couldn't use."
+                    + " Open the web tracker to send them again.";
+                action = Action.OPEN_TRACKER;
+                break;
             default:
                 detail = snapshot.getState() == TrackerConnectionState.IMPORT_FAILED
-                    ? "RuneLite couldn't use the tracker's rules." + nextCheck : null;
+                    ? "RuneLite couldn't apply the tracker's rules." + nextCheck : null;
                 break;
         }
         return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync);
