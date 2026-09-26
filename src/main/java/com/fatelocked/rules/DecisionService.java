@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The one reader of the tracker's rules. Every surface (sidebar, HUD,
@@ -158,6 +159,24 @@ public final class DecisionService
         if (chunk == null) return null;
         String region = snapshotAt(chunk).map(ChunkPermissionSnapshot::getRegion).orElse(null);
         return isBlank(region) ? rules.regionAt(chunk) : region;
+    }
+
+    /**
+     * The chunks the rules decide, for the world map: the tracker's land, or
+     * an older export's areas. The sea the rules don't cover isn't in it.
+     */
+    public Set<CanonicalChunk> mappedChunks()
+    {
+        return rules.mappedChunks();
+    }
+
+    /**
+     * Whether a chunk is on the frontier of a Chunked run: locked, next to an
+     * owned chunk, so it can be rolled next. False unless the rules apply.
+     */
+    public boolean isFrontier(CanonicalChunk chunk)
+    {
+        return trust == Trust.TRUSTED && chunk != null && rules.isFrontier(chunk);
     }
 
     /**

@@ -3,8 +3,11 @@ package com.fatelocked.rules;
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The loaded rules, fixed at load time. {@link DecisionService} answers from
@@ -16,11 +19,38 @@ public final class RulesSnapshot
 
     private final FateLockedBundle bundle;
     private final LegacyRules legacy;
+    private final Set<CanonicalChunk> mapped;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
         this.bundle = bundle;
         this.legacy = bundle.isLegacyRules() ? new LegacyRules(bundle) : null;
+        this.mapped = Collections.unmodifiableSet(mapped(bundle));
+    }
+
+    /** The tracker's chunk keys ("cx,cy"), or an older export's area chunks. */
+    private static Set<CanonicalChunk> mapped(FateLockedBundle bundle)
+    {
+        Set<CanonicalChunk> chunks = new LinkedHashSet<>();
+        if (bundle.isLegacyRules())
+        {
+            for (Set<CanonicalChunk> region : bundle.getRegionChunks().values()) chunks.addAll(region);
+            return chunks;
+        }
+        for (String key : bundle.getRules().getChunks().keySet())
+        {
+            String[] xy = key.split(",");
+            if (xy.length != 2) continue;
+            try
+            {
+                chunks.add(new CanonicalChunk(Integer.parseInt(xy[0].trim()), Integer.parseInt(xy[1].trim())));
+            }
+            catch (NumberFormatException ignored)
+            {
+                // Not a chunk key: nothing to draw for it.
+            }
+        }
+        return chunks;
     }
 
     public static RulesSnapshot of(FateLockedBundle bundle)
@@ -53,6 +83,18 @@ public final class RulesSnapshot
     LegacyRules legacy()
     {
         return legacy;
+    }
+
+    /** Every chunk the rules decide, fixed when they load. */
+    Set<CanonicalChunk> mappedChunks()
+    {
+        return mapped;
+    }
+
+    /** In a Chunked run, a locked chunk next to an owned one. */
+    boolean isFrontier(CanonicalChunk chunk)
+    {
+        return bundle.isFrontierChunk(chunk);
     }
 
     /** The root-field area name ("Falador · Asgarnia") older exports and unmapped chunks fall back to. */

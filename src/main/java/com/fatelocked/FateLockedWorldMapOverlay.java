@@ -1,5 +1,7 @@
 package com.fatelocked;
 
+import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.Trust;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
 import net.runelite.api.RenderOverview;
@@ -22,14 +24,14 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
-import java.util.Map;
-import java.util.Set;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Draws tinted rectangles on the world map widget for every authored chunk:
- * green for chunks in an unlocked region, red for locked, grey for unauthored
- * (only when the camera is zoomed close enough that an unauthored overlay isn't
- * visually overwhelming).
+ * Draws tinted rectangles on the world map widget for every chunk the rules
+ * decide (B8): green for owned, red for locked, and the frontier colour for
+ * a Chunked run's next rolls. Land only, as the web map; nothing on another
+ * character.
  *
  * The render math mirrors RuneLite's built-in WorldMapOverlay — we translate
  * world tile coords to world-map viewport pixels via RenderOverview's zoom
@@ -57,8 +59,9 @@ public class FateLockedWorldMapOverlay extends Overlay
     public Dimension render(Graphics2D graphics)
     {
         if (!config.drawWorldMap()) return null;
-        FateLockedBundle bundle = plugin.getBundle();
-        if (bundle.getRegionChunks().isEmpty()) return null;
+        DecisionService decisions = plugin.decisions();
+        // No rules, or another character's: the map draws nothing.
+        if (decisions.trust() != Trust.TRUSTED) return null;
 
         Widget worldMap = client.getWidget(ComponentID.WORLD_MAP_MAPVIEW);
         if (worldMap == null) return null;
@@ -75,37 +78,33 @@ public class FateLockedWorldMapOverlay extends Overlay
         // Clipping region on the world map
         Area clip = new Area(bounds);
 
-        for (Map.Entry<String, Set<CanonicalChunk>> entry : bundle.getRegionChunks().entrySet())
+        for (CanonicalChunk chunk : decisions.mappedChunks())
         {
-            for (CanonicalChunk chunk : entry.getValue())
-            {
-                // Sub-area-aware per-chunk colouring (Falador vs the rest of
-                // Asgarnia), matching the web app's map exactly.
-                Color fill = bundle.lockStateAt(chunk) == FateLockedBundle.LockState.UNLOCKED
-                    ? config.unlockedColor()
-                    : bundle.isFrontierChunk(chunk) ? config.frontierColor() : config.lockedColor();
-                Rectangle2D rect = worldMapRectForChunk(chunk, bounds, ro);
-                if (rect == null) continue;
-                if (!clip.intersects(rect)) continue;
+            Rectangle2D rect = worldMapRectForChunk(chunk, bounds, ro);
+            if (rect == null) continue;
+            if (!clip.intersects(rect)) continue;
+            WorldMapChunks.Fill fill = WorldMapChunks.fill(decisions, chunk);
+            if (fill == null) continue;
 
-                graphics.setColor(fill);
-                graphics.fill(rect);
-                graphics.setColor(fill.darker());
-                graphics.draw(rect);
-            }
+            Color color = fill == WorldMapChunks.Fill.UNLOCKED ? config.unlockedColor()
+                : fill == WorldMapChunks.Fill.FRONTIER ? config.frontierColor() : config.lockedColor();
+            graphics.setColor(color);
+            graphics.fill(rect);
+            graphics.setColor(color.darker());
+            graphics.draw(rect);
         }
 
         if (config.worldMapTooltip())
         {
-            addHoverTooltip(bundle, bounds, ro);
+            addHoverTooltip(decisions, bounds, ro);
         }
 
         graphics.setClip(prevClip);
         return null;
     }
 
-    /** Show the area name + lock status for the authored chunk under the cursor. */
-    private void addHoverTooltip(FateLockedBundle bundle, Rectangle bounds, RenderOverview ro)
+    /** Show the area name + lock status for the chunk under the cursor. */
+    private void addHoverTooltip(DecisionService decisions, Rectangle bounds, RenderOverview ro)
     {
         Point mouse = client.getMouseCanvasPosition();
         if (mouse == null || !bounds.contains(mouse.getX(), mouse.getY())) return;
@@ -121,24 +120,13 @@ public class FateLockedWorldMapOverlay extends Overlay
         CanonicalChunk hovered = new CanonicalChunk(
             ((int) Math.floor(tileX)) >> 6, ((int) Math.floor(tileY)) >> 6);
 
-        String label = bundle.labelAt(hovered);
-        if (label == null) return; // unauthored — nothing to say
+        if (WorldMapChunks.fill(decisions, hovered) == null) return; // nothing drawn there
 
-        String status = bundle.lockStateAt(hovered) == FateLockedBundle.LockState.UNLOCKED
-            ? "<col=2ee59d>Unlocked</col>"
-            : bundle.isFrontierChunk(hovered)
-                ? "<col=f59e0b>Locked — rollable next</col>" : "<col=ef4444>Locked</col>";
-        StringBuilder tip = new StringBuilder(label).append("</br>").append(status);
-        if (config.worldMapTooltipContent())
-        {
-            // Per-chunk "what's here" from the app's chunk-content dataset —
-            // capped per category so dense chunks stay a tooltip, not a page.
-            for (String line : bundle.contentAt(hovered, 4))
-            {
-                tip.append("</br><col=a8a8a8>").append(line).append("</col>");
-            }
-        }
-        tooltipManager.add(new Tooltip(tip.toString()));
+        // Per-chunk "what's here" from the app's chunk-content dataset —
+        // capped per category so dense chunks stay a tooltip, not a page.
+        List<String> content = config.worldMapTooltipContent()
+            ? plugin.getBundle().contentAt(hovered, 4) : Collections.emptyList();
+        tooltipManager.add(new Tooltip(WorldMapChunks.tooltip(decisions, hovered, content)));
     }
 
     /**
