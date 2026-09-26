@@ -145,27 +145,36 @@ re-pins to a web `main` commit that has C and D (E1). Each phase leaves
   answers).
   *Done as* `e2aadb0`, with `chunk`, `details`, `target`, `bankAt`,
   `mobility` and `item`; nothing reads it yet.
-- [ ] **A3. Fix R10:** with `rules` present, a bundle is Chunked only when
+- [x] **A3. Fix R10:** with `rules` present, a bundle is Chunked only when
   `rules.gameModeId` is `chunked`. Pinned by
   `GoldenBundleMutationTest.strayRootUnlockedChunksChangeNothing` over every
   non-Chunked golden.
-- [ ] **A4. Build the snapshot on the parse thread (R13)**, publish the
+  *Done as* `1e9e8fb`.
+- [x] **A4. Build the snapshot on the parse thread (R13)**, publish the
   service through a volatile field, and rebuild it when the bound or
   logged-in account changes. Pinned by the relay and startup import tests
   (the snapshot exists before the client-thread switch) and
   `FateLockedLoginSessionTest`.
-- [ ] **A5. `ChunkLocator`, not wired yet (G11).** Player, actor and scene
+  *Done as* `144e0c7`: every source builds a `ParsedRules` with its
+  snapshot where it parses; the service is refreshed at each switch, login,
+  logout and tick.
+- [x] **A5. `ChunkLocator`, not wired yet (G11).** Player, actor and scene
   tile to a rules chunk: top-level views as today, instances through
   `WorldPoint.fromLocalInstance`, boats through
   `WorldEntity.transformToMainWorld`, and Unknown for a missing entity, an
   instance zone with template -1, WALK, minimap and `WORLD_ENTITY_*`
   options. Pinned by `ChunkLocatorTest` with a real template array.
-- [ ] **A6. Remove dead travel code (G14):** `GuardedAction.Kind.MOVEMENT`,
+  *Done as* `fc09b14`, with `player`, `actor`, `menuTarget` and `sceneTile`.
+- [~] **A6. Remove dead travel code (G14):** `GuardedAction.Kind.MOVEMENT`,
   `TravelAction.Family.WALK`, `BOUNDARY_OBJECT`, `OTHER_TRANSPORT`,
   `TravelAction.origin`, `TravelGuardianResult.guardResult`,
   `Teleports.destinationChunk(String,String)` and `destinations()`,
   `GuardContext.rules`, the resolver's `client` parameter and
   `FateRuleEngine.staleImport`. Pinned by the existing suites.
+  *Folded into B4 and F2–F5:* every one of these lives in a class those
+  tasks delete or rewrite (`FateRuleEngine`, `TravelActionResolver`,
+  `TravelAction`, `Teleports`), so trimming them now would edit about fifty
+  call sites twice.
 - [ ] **A7. One Strict Mode gate (G14).** `StrictModeReadiness` becomes the
   only gate; `isTrustedExact` goes, and the not-proven path no longer calls
   the click handler. Pinned by a parameterised `StrictModeGateTest` (a
