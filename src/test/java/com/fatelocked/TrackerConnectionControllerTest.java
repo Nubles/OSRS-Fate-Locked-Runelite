@@ -376,7 +376,7 @@ public class TrackerConnectionControllerTest
         Thread.sleep(350);
         controller.poll();
         RecordedRequest replacement = takeRelay();
-        waitFor(() -> SyncMachine.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncReason.NO_RECENT_UPDATE.status
             .equals(controller.snapshot().getMessage()));
 
         assertEquals("/r/" + replacementCode, replacement.getPath());
@@ -464,7 +464,7 @@ public class TrackerConnectionControllerTest
 
         takeRelay();
         assertNull(server.takeRequest(150, TimeUnit.MILLISECONDS));
-        waitFor(() -> SyncMachine.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncReason.NO_RECENT_UPDATE.status
             .equals(controller.snapshot().getMessage()));
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
@@ -599,7 +599,7 @@ public class TrackerConnectionControllerTest
         // Unreadable, and said so; the rules and their version stay.
         assertEquals(TrackerConnectionState.OFFLINE,
             controller.snapshot().getState());
-        assertEquals(SyncMachine.UNREADABLE_MESSAGE,
+        assertEquals(SyncReason.UNREADABLE.status,
             controller.snapshot().getMessage());
         assertEquals("5", controller.snapshot().getAcceptedVersion());
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
@@ -798,17 +798,63 @@ public class TrackerConnectionControllerTest
     public void theSameStatusIsNotPublishedTwice() throws Exception
     {
         connect(6, "\"6\"");
+        // The relay's copy lapsed, and says so at every check.
         for (int reply = 0; reply < 2; reply++)
         {
-            server.enqueue(new MockResponse().setResponseCode(200).setBody("<html></html>"));
+            server.enqueue(new MockResponse().setResponseCode(404));
             pollUntilRelay();
             waitFor(() -> !controller.pollInFlight());
         }
 
-        long unreadable = listener.snapshots().stream()
-            .filter(s -> SyncMachine.UNREADABLE_MESSAGE.equals(s.getMessage()))
+        long lapsed = listener.snapshots().stream()
+            .filter(s -> s.getReason() == SyncReason.NO_RECENT_UPDATE)
             .count();
-        assertEquals(1, unreadable);
+        assertEquals(1, lapsed);
+    }
+
+    @Test
+    public void aFailedCheckSaysWhenTheNextOneIs() throws Exception
+    {
+        connect(6, "\"6\"");
+        for (long wait : new long[] {SyncMachine.FAILURE_BACKOFF_SECONDS,
+            2 * SyncMachine.FAILURE_BACKOFF_SECONDS})
+        {
+            server.enqueue(new MockResponse().setResponseCode(503));
+            pollUntilRelay();
+            waitFor(() -> !controller.pollInFlight());
+
+            assertEquals(SyncReason.UNAVAILABLE, controller.snapshot().getReason());
+            assertEquals(clock.instant().plusSeconds(wait), controller.snapshot().getNextCheck());
+        }
+        // Each new wait is a new status, so the sidebar shows it.
+        assertEquals(2, listener.snapshots().stream()
+            .filter(s -> s.getReason() == SyncReason.UNAVAILABLE)
+            .count());
+    }
+
+    @Test
+    public void theFirstStatusSaysWhetherSyncIsOffOrAboutToCheck() throws Exception
+    {
+        assertEquals(SyncReason.CHECKING, controller.snapshot().getReason());
+
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        RecordingListener syncOff = new RecordingListener();
+        TrackerConnectionController paired = new TrackerConnectionController(
+            http, gson, settings, clock, dispatcher, importer, syncOff);
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        RecordingListener unpaired = new RecordingListener();
+        TrackerConnectionController fresh = new TrackerConnectionController(
+            http, gson, settings, clock, dispatcher, importer, unpaired);
+        try
+        {
+            assertEquals(SyncReason.SYNC_OFF, syncOff.last().getReason());
+            assertEquals(SyncReason.NOT_PAIRED, unpaired.last().getReason());
+        }
+        finally
+        {
+            paired.stop();
+            fresh.stop();
+        }
     }
 
     @Test
@@ -824,7 +870,7 @@ public class TrackerConnectionControllerTest
 
         controller.pollIfDue();
         takeRelay();
-        waitFor(() -> SyncMachine.UNREADABLE_MESSAGE.equals(
+        waitFor(() -> SyncReason.UNREADABLE.status.equals(
             controller.snapshot().getMessage()));
 
         // The rules and their version stay; only the status says what happened.
@@ -848,7 +894,7 @@ public class TrackerConnectionControllerTest
 
         controller.pollIfDue();
         takeRelay();
-        waitFor(() -> SyncMachine.UNREACHABLE_MESSAGE.equals(
+        waitFor(() -> SyncReason.UNREACHABLE.status.equals(
             controller.snapshot().getMessage()));
 
         assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
@@ -1110,7 +1156,7 @@ public class TrackerConnectionControllerTest
 
         controller.poll();
         takeRelay();
-        waitFor(() -> SyncMachine.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncReason.NO_RECENT_UPDATE.status
             .equals(controller.snapshot().getMessage()));
         // The pairing still works: the relay's copy lapsed, which is not red.
         assertEquals(TrackerConnectionState.WAITING,
@@ -1207,7 +1253,7 @@ public class TrackerConnectionControllerTest
     {
         controller.beginPairing();
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
-        assertEquals(SyncMachine.CONFIRM_MESSAGE,
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER.status,
             controller.snapshot().getMessage());
 
         // The browser has not published yet: the relay answers 404.
@@ -1217,7 +1263,7 @@ public class TrackerConnectionControllerTest
         waitFor(() -> !controller.pollInFlight());
 
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
-        assertEquals(SyncMachine.CONFIRM_MESSAGE,
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER.status,
             controller.snapshot().getMessage());
 
         // Checked again after 5 seconds, not after a growing back-off.
@@ -1263,7 +1309,7 @@ public class TrackerConnectionControllerTest
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.pollIfDue();
         takeRelay();
-        waitFor(() -> SyncMachine.NO_PROFILE_MESSAGE
+        waitFor(() -> SyncReason.NO_PROFILE.status
             .equals(controller.snapshot().getMessage()));
 
         assertEquals(TrackerConnectionState.EXPIRED, controller.snapshot().getState());
@@ -1286,7 +1332,7 @@ public class TrackerConnectionControllerTest
             waitFor(() -> !shortCalls.pollInFlight());
 
             assertEquals(TrackerConnectionState.OFFLINE, shortCalls.snapshot().getState());
-            assertEquals(SyncMachine.UNREACHABLE_MESSAGE, shortCalls.snapshot().getMessage());
+            assertEquals(SyncReason.UNREACHABLE.status, shortCalls.snapshot().getMessage());
             assertTrue(importer.preparedOnThreads().isEmpty());
         }
         finally
@@ -1314,7 +1360,7 @@ public class TrackerConnectionControllerTest
         waitFor(() -> !controller.pollInFlight());
 
         assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
-        assertEquals(SyncMachine.UNREADABLE_MESSAGE, controller.snapshot().getMessage());
+        assertEquals(SyncReason.UNREADABLE.status, controller.snapshot().getMessage());
         assertTrue(importer.preparedOnThreads().isEmpty());
     }
 

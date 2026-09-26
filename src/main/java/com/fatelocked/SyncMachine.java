@@ -22,18 +22,6 @@ final class SyncMachine
     /** Check every WAITING_POLL_SECONDS this long, then every PAIRING_SLOW_POLL_SECONDS. */
     static final long PAIRING_FAST_POLL_WINDOW_SECONDS = 2 * 60;
     static final long PAIRING_SLOW_POLL_SECONDS = 15;
-    /** The relay has nothing yet because the player is still confirming. */
-    static final String CONFIRM_MESSAGE = "Confirm in browser";
-    /** A pairing started here got no profile within PAIRING_CONFIRM_SECONDS. */
-    static final String NO_PROFILE_MESSAGE = "No profile received";
-    /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
-    static final String NO_RECENT_UPDATE_MESSAGE = "No recent update";
-    /** No reply at all: the network, or the relay's host, failed. */
-    static final String UNREACHABLE_MESSAGE = "Could not reach tracker";
-    /** A reply the plugin cannot use, such as a captive portal's page. */
-    static final String UNREADABLE_MESSAGE = "Tracker sent an unreadable reply";
-    static final String BUSY_MESSAGE = "Tracker relay is busy; retrying later";
-    static final String UNAVAILABLE_MESSAGE = "Tracker is unavailable";
 
     private String acceptedVersion;
     /** The relay version the plugin could not import, until something newer arrives. */
@@ -92,7 +80,7 @@ final class SyncMachine
         forget();
         pairingStartedAt = now;
         return TrackerConnectionSnapshot.of(
-            TrackerConnectionState.WAITING, null, null, CONFIRM_MESSAGE);
+            TrackerConnectionState.WAITING, null, null, SyncReason.CONFIRM_IN_BROWSER, null);
     }
 
     /** The pairing code changed underneath this session (or was cleared). */
@@ -101,7 +89,8 @@ final class SyncMachine
         forget();
         pairingStartedAt = null;
         return paired
-            ? TrackerConnectionSnapshot.waiting()
+            ? TrackerConnectionSnapshot.of(
+                TrackerConnectionState.WAITING, null, null, SyncReason.CHECKING, null)
             : TrackerConnectionSnapshot.disconnected();
     }
 
@@ -113,11 +102,23 @@ final class SyncMachine
     }
 
     /** Online sync was allowed or refused: start over. */
-    TrackerConnectionSnapshot networkAccessChanged()
+    TrackerConnectionSnapshot networkAccessChanged(boolean allowed, boolean paired)
     {
         forget();
         pairingStartedAt = null;
-        return TrackerConnectionSnapshot.disconnected();
+        return idle(allowed, paired);
+    }
+
+    /**
+     * Before any check: sync off, with or without a pairing to keep; no
+     * pairing; or paired and about to check.
+     */
+    static TrackerConnectionSnapshot idle(boolean allowed, boolean paired)
+    {
+        SyncReason reason = !paired ? SyncReason.NOT_PAIRED
+            : allowed ? SyncReason.CHECKING : SyncReason.SYNC_OFF;
+        return TrackerConnectionSnapshot.of(
+            TrackerConnectionState.DISCONNECTED, null, null, reason, null);
     }
 
     /**
@@ -189,15 +190,15 @@ final class SyncMachine
     TrackerConnectionSnapshot rejected(String version, Instant now)
     {
         rejectedVersion = RelayContract.canonicalVersion(version);
-        failed(now, FAILURE_BACKOFF_SECONDS);
-        return show(TrackerConnectionState.IMPORT_FAILED, null);
+        return failure(TrackerConnectionState.IMPORT_FAILED, SyncReason.NONE,
+            now, FAILURE_BACKOFF_SECONDS);
     }
 
     /** The relay still has only the version the plugin could not import. */
     TrackerConnectionSnapshot stillRejected(Instant now)
     {
-        failed(now, FAILURE_BACKOFF_SECONDS);
-        return show(TrackerConnectionState.IMPORT_FAILED, null);
+        return failure(TrackerConnectionState.IMPORT_FAILED, SyncReason.NONE,
+            now, FAILURE_BACKOFF_SECONDS);
     }
 
     /**
@@ -225,13 +226,24 @@ final class SyncMachine
             {
                 after(now, waited < PAIRING_FAST_POLL_WINDOW_SECONDS
                     ? WAITING_POLL_SECONDS : PAIRING_SLOW_POLL_SECONDS);
-                return show(TrackerConnectionState.WAITING, CONFIRM_MESSAGE);
+                return show(TrackerConnectionState.WAITING, SyncReason.CONFIRM_IN_BROWSER);
             }
             healthy(now);
-            return show(TrackerConnectionState.EXPIRED, NO_PROFILE_MESSAGE);
+            return show(TrackerConnectionState.EXPIRED, SyncReason.NO_PROFILE);
         }
         healthy(now);
-        return show(TrackerConnectionState.WAITING, NO_RECENT_UPDATE_MESSAGE);
+        return show(TrackerConnectionState.WAITING, SyncReason.NO_RECENT_UPDATE);
+    }
+
+    /**
+     * A check failed: back off as failed does, and show the state and why,
+     * with when the next check is.
+     */
+    TrackerConnectionSnapshot failure(
+        TrackerConnectionState state, SyncReason reason, Instant now, long minimumSeconds)
+    {
+        failed(now, minimumSeconds);
+        return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, reason, nextCheck);
     }
 
     /** A check failed: wait longer each time, from minimumSeconds up to 15 minutes. */
@@ -243,25 +255,10 @@ final class SyncMachine
         nextCheck = now.plusSeconds(Math.min(delay, MAX_FAILURE_BACKOFF_SECONDS));
     }
 
-    /** The snapshot for a state, with its default message unless one is given. */
-    TrackerConnectionSnapshot show(TrackerConnectionState state, String explicitMessage)
+    /** The snapshot for a state and why, with the version and sync time held. */
+    TrackerConnectionSnapshot show(TrackerConnectionState state, SyncReason reason)
     {
-        if (state == TrackerConnectionState.DISCONNECTED)
-        {
-            return TrackerConnectionSnapshot.disconnected();
-        }
-        if (state == TrackerConnectionState.WAITING)
-        {
-            return explicitMessage == null
-                ? TrackerConnectionSnapshot.waiting()
-                : TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, explicitMessage);
-        }
-        if (state == TrackerConnectionState.CONNECTED)
-        {
-            return TrackerConnectionSnapshot.connected(lastSync, acceptedVersion);
-        }
-        return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion,
-            explicitMessage == null ? defaultMessage(state) : explicitMessage);
+        return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, reason, null);
     }
 
     private void forget()
@@ -289,20 +286,4 @@ final class SyncMachine
         nextCheck = now.plusSeconds(seconds);
     }
 
-    private static String defaultMessage(TrackerConnectionState state)
-    {
-        switch (state)
-        {
-            case IMPORTING:
-                return "Importing tracker data";
-            case EXPIRED:
-                return "Pairing request expired";
-            case OFFLINE:
-                return "Tracker is offline";
-            case IMPORT_FAILED:
-                return "Could not import tracker data";
-            default:
-                return "";
-        }
-    }
 }

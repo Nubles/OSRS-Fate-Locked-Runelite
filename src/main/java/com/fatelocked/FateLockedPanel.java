@@ -24,8 +24,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -60,6 +59,9 @@ class FateLockedPanel extends PluginPanel
     private final JLabel connectionVal = value();
     private final JLabel trackerAccountVal = value();
     private final JLabel lastSyncVal = value();
+    /** Why the connection is as it is, and what to do: SyncView's detail. */
+    private final JLabel connectionDetail = new JLabel();
+    private String connectionDetailText;
     private final JLabel importVal = value();
     private final JPanel chunkBody = column();
     private final JPanel bundleBody = column();
@@ -121,6 +123,10 @@ class FateLockedPanel extends PluginPanel
         col.add(stats(
             new String[]{"Connection", "Tracker account", "Last sync"},
             new JLabel[]{connectionVal, trackerAccountVal, lastSyncVal}));
+        connectionDetail.setForeground(GRAY);
+        connectionDetail.setAlignmentX(Component.LEFT_ALIGNMENT);
+        connectionDetail.setVisible(false);
+        col.add(connectionDetail);
         col.add(Box.createVerticalStrut(4));
 
         importVal.setVisible(false);
@@ -502,68 +508,37 @@ class FateLockedPanel extends PluginPanel
     {
         TrackerConnectionSnapshot copy = snapshot == null
             ? TrackerConnectionSnapshot.disconnected() : snapshot;
-        TrackerConnectionState state = copy.getState();
-        String message = copy.getMessage();
-        String text = message == null || message.trim().isEmpty()
-            ? state.name() : message;
-        Color color = GRAY;
-        if (state == TrackerConnectionState.CONNECTED)
-        {
-            color = GREEN;
-            if (copy.getLastSync() != null)
-            {
-                text += " \u00b7 " + formatUtc(copy.getLastSync());
-            }
-        }
-        else if (state == TrackerConnectionState.WAITING
-            || state == TrackerConnectionState.IMPORTING)
-        {
-            color = AMBER;
-        }
-        else if (state == TrackerConnectionState.EXPIRED
-            || state == TrackerConnectionState.IMPORT_FAILED)
-        {
-            color = RED;
-        }
-        connectionVal.setText(text);
-        connectionVal.setForeground(color);
-        connectionVal.setToolTipText(connectionHelp(message));
-        lastSyncVal.setText(copy.getLastSync() == null
-            ? "\u2014" : formatUtc(copy.getLastSync()));
+        SyncView view = SyncView.of(copy, Instant.now(), ZoneId.systemDefault());
+        connectionVal.setText(view.status);
+        connectionVal.setForeground(color(view.tone));
+        connectionVal.setToolTipText(view.detail);
+        connectionDetailText = view.detail;
+        connectionDetail.setText(view.detail == null
+            ? "" : "<html>" + escapeHtml(view.detail) + "</html>");
+        connectionDetail.setVisible(view.detail != null);
+        lastSyncVal.setText(view.lastSync);
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);
     }
 
-    /** A longer explanation for the short connection states. */
-    private static String connectionHelp(String message)
+    private static Color color(SyncView.Tone tone)
     {
-        if (SyncMachine.CONFIRM_MESSAGE.equals(message))
+        switch (tone)
         {
-            return "Confirm the profile in the browser tab RuneLite opened. "
-                + "RuneLite checks every few seconds.";
+            case GREEN:
+                return GREEN;
+            case AMBER:
+                return AMBER;
+            case RED:
+                return RED;
+            default:
+                return GRAY;
         }
-        if (SyncMachine.NO_PROFILE_MESSAGE.equals(message))
-        {
-            return "No profile arrived within 10 minutes. "
-                + "Press Connect tracker to try again.";
-        }
-        if (SyncMachine.NO_RECENT_UPDATE_MESSAGE.equals(message))
-        {
-            return "The tracker hasn't sent your rules in the last 24 hours. "
-                + "Open the web tracker to send them again.";
-        }
-        return message;
     }
 
     private static String escapeHtml(String text)
     {
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
-    private static String formatUtc(Instant instant)
-    {
-        return DateTimeFormatter.ofPattern("HH:mm:ss 'UTC'")
-            .withZone(ZoneOffset.UTC).format(instant);
     }
 
     /**
@@ -586,6 +561,7 @@ class FateLockedPanel extends PluginPanel
     { return historyStatusVal.isVisible(); }
     String lastSyncTextForTest() { return lastSyncVal.getText(); }
     String connectionTextForTest() { return connectionVal.getText(); }
+    String connectionDetailForTest() { return connectionDetailText; }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }
     JButton buttonForTest(String text) { return findButton(this, text); }

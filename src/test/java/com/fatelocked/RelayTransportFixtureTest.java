@@ -144,7 +144,7 @@ public class RelayTransportFixtureTest
         poll(relayCase);
 
         assertEquals("unreadable", relayCase.get("outcome").getAsString());
-        waitFor(() -> shown(SyncMachine.UNREADABLE_MESSAGE));
+        waitFor(() -> shown(SyncReason.UNREADABLE.status));
         assertTrue(prepared.isEmpty());
     }
 
@@ -156,7 +156,7 @@ public class RelayTransportFixtureTest
 
     private boolean unreachable()
     {
-        return shown(SyncMachine.UNREACHABLE_MESSAGE);
+        return shown(SyncReason.UNREACHABLE.status);
     }
 
     private boolean shown(String offlineMessage)

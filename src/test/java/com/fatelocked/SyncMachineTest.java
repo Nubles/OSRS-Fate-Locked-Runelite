@@ -38,6 +38,30 @@ public class SyncMachineTest
     }
 
     @Test
+    public void beforeAnyCheckTheStatusSaysWhetherSyncIsOffOrAboutToCheck()
+    {
+        assertEquals(SyncReason.CHECKING, SyncMachine.idle(true, true).getReason());
+        assertEquals(SyncReason.SYNC_OFF, SyncMachine.idle(false, true).getReason());
+        assertEquals(SyncReason.NOT_PAIRED, SyncMachine.idle(true, false).getReason());
+        assertEquals(SyncReason.NOT_PAIRED, SyncMachine.idle(false, false).getReason());
+    }
+
+    @Test
+    public void aFailureSaysWhyAndWhenTheNextCheckIs()
+    {
+        machine.accepted("41", START);
+
+        TrackerConnectionSnapshot failed = machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(60), SyncMachine.FAILURE_BACKOFF_SECONDS);
+
+        assertEquals(SyncReason.UNREACHABLE, failed.getReason());
+        assertEquals(START.plusSeconds(90), failed.getNextCheck());
+        assertEquals(START, failed.getLastSync());
+        assertFalse(machine.checkDue(START.plusSeconds(89)));
+        assertTrue(machine.checkDue(START.plusSeconds(90)));
+    }
+
+    @Test
     public void acceptedRulesAreConnectedAndCheckedEveryMinute()
     {
         machine.failed(START, SyncMachine.FAILURE_BACKOFF_SECONDS);
@@ -70,17 +94,17 @@ public class SyncMachineTest
         machine.pairingStarted(START);
 
         TrackerConnectionSnapshot early = machine.notFound(false, START.plusSeconds(10));
-        assertEquals(SyncMachine.CONFIRM_MESSAGE, early.getMessage());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER.status, early.getMessage());
         assertTrue(machine.checkDue(START.plusSeconds(10 + SyncMachine.WAITING_POLL_SECONDS)));
 
         Instant slow = START.plusSeconds(SyncMachine.PAIRING_FAST_POLL_WINDOW_SECONDS);
-        assertEquals(SyncMachine.CONFIRM_MESSAGE, machine.notFound(false, slow).getMessage());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER.status, machine.notFound(false, slow).getMessage());
         assertFalse(machine.checkDue(slow.plusSeconds(SyncMachine.PAIRING_SLOW_POLL_SECONDS - 1)));
 
         TrackerConnectionSnapshot expired = machine.notFound(false,
             START.plusSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS));
         assertEquals(TrackerConnectionState.EXPIRED, expired.getState());
-        assertEquals(SyncMachine.NO_PROFILE_MESSAGE, expired.getMessage());
+        assertEquals(SyncReason.NO_PROFILE.status, expired.getMessage());
     }
 
     @Test
@@ -91,7 +115,7 @@ public class SyncMachineTest
         TrackerConnectionSnapshot lapsed = machine.notFound(true, START.plusSeconds(60));
 
         assertEquals(TrackerConnectionState.WAITING, lapsed.getState());
-        assertEquals(SyncMachine.NO_RECENT_UPDATE_MESSAGE, lapsed.getMessage());
+        assertEquals(SyncReason.NO_RECENT_UPDATE.status, lapsed.getMessage());
         // The next check asks for whatever the relay has, with no validator.
         assertNull(machine.acceptedVersion());
         assertNull(machine.validator());
@@ -162,7 +186,7 @@ public class SyncMachineTest
 
         machine.accepted("41", START);
         assertEquals(TrackerConnectionState.DISCONNECTED,
-            machine.networkAccessChanged().getState());
+            machine.networkAccessChanged(false, true).getState());
         assertNull(machine.acceptedVersion());
         assertTrue(machine.checkDue(START));
     }

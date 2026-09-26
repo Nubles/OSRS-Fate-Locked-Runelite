@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.panel.LocalTimeText;
 import com.google.gson.Gson;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -321,12 +322,12 @@ public class FateLockedPanelStatusTest
         flushSwing();
         assertEquals("Waiting for tracker", panel.connectionTextForTest());
 
-        panel.updateConnection(TrackerConnectionSnapshot.connected(
-            Instant.parse("2026-07-27T14:05:06Z"), "6"));
+        Instant synced = Instant.parse("2026-07-27T14:05:06Z");
+        panel.updateConnection(TrackerConnectionSnapshot.connected(synced, "6"));
         flushSwing();
-        assertTrue(panel.connectionTextForTest().contains("Connected"));
-        assertTrue(panel.connectionTextForTest().contains("14:05:06 UTC"));
-        assertEquals("14:05:06 UTC", panel.lastSyncTextForTest());
+        assertEquals("Connected", panel.connectionTextForTest());
+        // On the player's own clock, not UTC.
+        assertEquals(LocalTimeText.of(synced), panel.lastSyncTextForTest());
 
         panel.updateTrackerAccount("Nubles");
         flushSwing();

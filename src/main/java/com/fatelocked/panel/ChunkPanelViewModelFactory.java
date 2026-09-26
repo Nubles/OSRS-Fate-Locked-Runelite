@@ -8,7 +8,6 @@ import com.fatelocked.rules.FateRuleEngine;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -155,11 +154,13 @@ public final class ChunkPanelViewModelFactory
         return "Unknown";
     }
 
+    /**
+     * When the tracker last confirmed the rules, on the player's clock. The
+     * card is rebuilt only when the player changes chunk, so "5m ago" went
+     * stale where it stood; a time of day stays true.
+     */
     private static String freshness(Instant importedAt)
     {
-        if (importedAt == null) return "Offline snapshot";
-        long minutes = Math.max(0,
-            Duration.between(importedAt, Instant.now()).toMinutes());
-        return minutes < 1 ? "Synced now" : "Synced " + minutes + "m ago";
+        return importedAt == null ? "Offline snapshot" : "Synced " + LocalTimeText.of(importedAt);
     }
 }

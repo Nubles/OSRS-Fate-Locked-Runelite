@@ -10,6 +10,7 @@ import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.panel.ChunkPanelViewModelFactory;
+import com.fatelocked.panel.LocalTimeText;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.GuardContext;
@@ -108,15 +109,12 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.Duration;
 import java.time.Clock;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -1446,7 +1444,7 @@ MenuEntry entry = event.getMenuEntry();
         {
             return;
         }
-        panel.flashStatus("saved rules from " + SAVED_AT.format(saved.getSavedAt()), true);
+        panel.flashStatus("saved rules from " + LocalTimeText.of(saved.getSavedAt()), true);
         log.info("Fate Locked rules restored from the last start: {} regions",
             rules.getRegionChunks().size());
         TrackerConnectionController controller = connectionController;
@@ -1458,9 +1456,6 @@ MenuEntry entry = event.getMenuEntry();
             controller.seedAcceptedVersion(saved.getRelayVersion());
         }
     }
-
-    private static final DateTimeFormatter SAVED_AT =
-        DateTimeFormatter.ofPattern("d MMM HH:mm 'UTC'", Locale.ENGLISH).withZone(ZoneOffset.UTC);
 
     /** The sidebar's "Load newest backup file". */
     private void loadNewestBackupFile()

@@ -60,6 +60,19 @@ public class ChunkPanelViewModelFactoryTest
     }
 
     @Test
+    public void saysWhenTheRulesWereSyncedAsATimeThatCannotGoStale() throws Exception
+    {
+        // The card is rebuilt only on a chunk change: "2m ago" would stay
+        // on screen long after it stopped being true.
+        Instant synced = Instant.now().minusSeconds(2 * 60);
+
+        ChunkPanelViewModel view = new ChunkPanelViewModelFactory().create(
+            fixture(), new CanonicalChunk(50, 50), true, synced);
+
+        assertEquals("Synced " + LocalTimeText.of(synced), view.getFreshnessLabel());
+    }
+
+    @Test
     public void omitsEmptyCategoriesAndCountsVisibleRows() throws Exception
     {
         ChunkPanelViewModel view = new ChunkPanelViewModelFactory().create(

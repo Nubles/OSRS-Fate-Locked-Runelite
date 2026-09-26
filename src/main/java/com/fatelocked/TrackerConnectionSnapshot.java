@@ -8,18 +8,22 @@ final class TrackerConnectionSnapshot
     private final TrackerConnectionState state;
     private final Instant lastSync;
     private final String acceptedVersion;
-    private final String message;
+    private final SyncReason reason;
+    /** When the next check is due, for states that say so; null otherwise. */
+    private final Instant nextCheck;
 
     private TrackerConnectionSnapshot(
         TrackerConnectionState state,
         Instant lastSync,
         String acceptedVersion,
-        String message)
+        SyncReason reason,
+        Instant nextCheck)
     {
         this.state = state;
         this.lastSync = lastSync;
         this.acceptedVersion = acceptedVersion;
-        this.message = message;
+        this.reason = reason == null ? SyncReason.NONE : reason;
+        this.nextCheck = nextCheck;
     }
 
     TrackerConnectionState getState()
@@ -37,41 +41,70 @@ final class TrackerConnectionSnapshot
         return acceptedVersion;
     }
 
+    SyncReason getReason()
+    {
+        return reason;
+    }
+
+    Instant getNextCheck()
+    {
+        return nextCheck;
+    }
+
+    /** The short status: the reason's, or the state's own. */
     String getMessage()
     {
-        return message;
+        return reason.status != null ? reason.status : stateStatus(state);
     }
 
     static TrackerConnectionSnapshot disconnected()
     {
-        return new TrackerConnectionSnapshot(
-            TrackerConnectionState.DISCONNECTED,
-            null, null, "Not connected");
+        return of(TrackerConnectionState.DISCONNECTED, null, null, SyncReason.NOT_PAIRED, null);
     }
 
     static TrackerConnectionSnapshot waiting()
     {
-        return new TrackerConnectionSnapshot(
-            TrackerConnectionState.WAITING,
-            null, null, "Waiting for tracker");
+        return of(TrackerConnectionState.WAITING, null, null, SyncReason.NONE, null);
     }
 
     static TrackerConnectionSnapshot connected(
         Instant at, String version)
     {
-        return new TrackerConnectionSnapshot(
-            TrackerConnectionState.CONNECTED,
-            at, version, "Connected");
+        return of(TrackerConnectionState.CONNECTED, at, version, SyncReason.NONE, null);
     }
 
     static TrackerConnectionSnapshot of(
         TrackerConnectionState state,
         Instant lastSync,
         String acceptedVersion,
-        String message)
+        SyncReason reason,
+        Instant nextCheck)
     {
         return new TrackerConnectionSnapshot(
-            state, lastSync, acceptedVersion, message);
+            state, lastSync, acceptedVersion, reason, nextCheck);
+    }
+
+    private static String stateStatus(TrackerConnectionState state)
+    {
+        switch (state)
+        {
+            case DISCONNECTED:
+                return "Not connected";
+            case WAITING:
+                return "Waiting for tracker";
+            case IMPORTING:
+                return "Importing tracker data";
+            case CONNECTED:
+                return "Connected";
+            case EXPIRED:
+                return "Pairing request expired";
+            case OFFLINE:
+                return "Tracker is offline";
+            case IMPORT_FAILED:
+                return "Could not import tracker data";
+            default:
+                return "";
+        }
     }
 
     /** Two snapshots that would show the same thing are equal, so nothing republishes it. */
@@ -84,12 +117,13 @@ final class TrackerConnectionSnapshot
         return state == that.state
             && Objects.equals(lastSync, that.lastSync)
             && Objects.equals(acceptedVersion, that.acceptedVersion)
-            && Objects.equals(message, that.message);
+            && reason == that.reason
+            && Objects.equals(nextCheck, that.nextCheck);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(state, lastSync, acceptedVersion, message);
+        return Objects.hash(state, lastSync, acceptedVersion, reason, nextCheck);
     }
 }

@@ -102,6 +102,7 @@ final class TrackerConnectionController
         this.importer = importer;
         this.listener = listener;
         this.currentIdentityCode = settings.pairingCode();
+        snapshot = SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired());
         listener.accept(snapshot);
     }
 
@@ -195,11 +196,8 @@ final class TrackerConnectionController
                 @Override
                 public void onFailure(Call call, IOException error)
                 {
-                    publishIfCurrent(token,
-                        TrackerConnectionState.OFFLINE,
-                        SyncMachine.UNREACHABLE_MESSAGE);
-                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-                    clearPoll(token);
+                    failCheck(token, TrackerConnectionState.OFFLINE,
+                        SyncReason.UNREACHABLE, SyncMachine.FAILURE_BACKOFF_SECONDS);
                 }
 
                 @Override
@@ -211,11 +209,8 @@ final class TrackerConnectionController
         }
         catch (RuntimeException error)
         {
-            publishIfCurrent(token,
-                TrackerConnectionState.OFFLINE,
-                SyncMachine.UNREACHABLE_MESSAGE);
-            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-            clearPoll(token);
+            failCheck(token, TrackerConnectionState.OFFLINE,
+                SyncReason.UNREACHABLE, SyncMachine.FAILURE_BACKOFF_SECONDS);
         }
     }
 
@@ -259,7 +254,8 @@ final class TrackerConnectionController
         synchronized (pollLock)
         {
             abandonCheckLocked();
-            showLocked(machine.networkAccessChanged());
+            showLocked(machine.networkAccessChanged(
+                settings.networkAccessAllowed(), settings.isPaired()));
         }
     }
 
@@ -381,17 +377,12 @@ final class TrackerConnectionController
                     handleNotFound(token);
                     return;
                 case BUSY:
-                    publishIfCurrent(token, TrackerConnectionState.OFFLINE,
-                        SyncMachine.BUSY_MESSAGE);
-                    scheduleFailure(token, Math.max(
-                        SyncMachine.FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds));
-                    clearPoll(token);
+                    failCheck(token, TrackerConnectionState.OFFLINE, SyncReason.BUSY,
+                        Math.max(SyncMachine.FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds));
                     return;
                 case UNAVAILABLE:
-                    publishIfCurrent(token, TrackerConnectionState.OFFLINE,
-                        SyncMachine.UNAVAILABLE_MESSAGE);
-                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-                    clearPoll(token);
+                    failCheck(token, TrackerConnectionState.OFFLINE,
+                        SyncReason.UNAVAILABLE, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     return;
                 case RULES:
                     if (!isPollCurrent(token))
@@ -399,9 +390,7 @@ final class TrackerConnectionController
                         clearPoll(token);
                         return;
                     }
-                    if (publishIfCurrent(token,
-                        TrackerConnectionState.IMPORTING,
-                        "Importing tracker data"))
+                    if (publishIfCurrent(token, TrackerConnectionState.IMPORTING))
                     {
                         prepareImport(importer, token, reply.payload,
                             String.valueOf(reply.version));
@@ -414,10 +403,8 @@ final class TrackerConnectionController
                     {
                         log.warn("Tracker relay sent an unreadable reply: {}", reply.detail);
                     }
-                    publishIfCurrent(token, TrackerConnectionState.OFFLINE,
-                        SyncMachine.UNREADABLE_MESSAGE);
-                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-                    clearPoll(token);
+                    failCheck(token, TrackerConnectionState.OFFLINE,
+                        SyncReason.UNREADABLE, SyncMachine.FAILURE_BACKOFF_SECONDS);
                     return;
                 case STILL_REJECTED:
                     showIfCurrent(token, now -> machine.stillRejected(now));
@@ -432,10 +419,8 @@ final class TrackerConnectionController
         catch (Exception error)
         {
             // The reply broke off, or took too long, before it was read in full.
-            publishIfCurrent(token, TrackerConnectionState.OFFLINE,
-                SyncMachine.UNREACHABLE_MESSAGE);
-            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-            clearPoll(token);
+            failCheck(token, TrackerConnectionState.OFFLINE,
+                SyncReason.UNREACHABLE, SyncMachine.FAILURE_BACKOFF_SECONDS);
         }
     }
 
@@ -571,11 +556,8 @@ final class TrackerConnectionController
         }
         catch (RuntimeException error)
         {
-            publishIfCurrent(token,
-                TrackerConnectionState.IMPORT_FAILED,
-                "Could not import tracker data");
-            scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-            clearPoll(token);
+            failCheck(token, TrackerConnectionState.IMPORT_FAILED,
+                SyncReason.NONE, SyncMachine.FAILURE_BACKOFF_SECONDS);
         }
     }
 
@@ -621,6 +603,14 @@ final class TrackerConnectionController
         }
         snapshot = next;
         listener.accept(next);
+    }
+
+    /** A current check failed: back off, show why and when the next check is, and end it. */
+    private void failCheck(
+        RelayPollToken token, TrackerConnectionState state, SyncReason reason, long minimumSeconds)
+    {
+        showIfCurrent(token, now -> machine.failure(state, reason, now, minimumSeconds));
+        clearPoll(token);
     }
 
     private void scheduleFailure(RelayPollToken token, long minimumSeconds)
@@ -678,10 +668,7 @@ final class TrackerConnectionController
         }
     }
 
-    private boolean publishIfCurrent(
-        RelayPollToken token,
-        TrackerConnectionState state,
-        String explicitMessage)
+    private boolean publishIfCurrent(RelayPollToken token, TrackerConnectionState state)
     {
         synchronized (pollLock)
         {
@@ -690,7 +677,7 @@ final class TrackerConnectionController
             {
                 return false;
             }
-            showLocked(machine.show(state, explicitMessage));
+            showLocked(machine.show(state, SyncReason.NONE));
             return true;
         }
     }
