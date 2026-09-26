@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import com.fatelocked.panel.ChunkPanelViewModel;
+import com.fatelocked.rules.Trust;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -31,6 +32,41 @@ public class FateLockedRelayImportTest
 {
     private static final String PAIRING_CODE =
         "0123456789abcdef0123456789abcdef";
+
+    /** The snapshot is built in the parse step, off the client thread, and the switch only publishes it. */
+    @Test
+    public void theDecisionServiceUsesTheSnapshotBuiltWhileParsing() throws Exception
+    {
+        TestPlugin testPlugin = newPlugin();
+        TrackerConnectionController.RelayBundleImporter<Object> importer =
+            PluginTestSupport.relayImporter(testPlugin.plugin);
+
+        TrackerConnectionController.Prepared<Object> prepared = importer.prepare(fixture("bundles/v4-rules.json"));
+        java.lang.reflect.Field field = prepared.rules.getClass().getDeclaredField("snapshot");
+        field.setAccessible(true);
+        Object built = field.get(prepared.rules);
+        assertNotNull(built);
+        assertTrue("nothing switched yet", testPlugin.plugin.decisions().rules().isEmpty());
+
+        assertTrue(importer.commit(prepared.rules, "1"));
+
+        assertSame(built, testPlugin.plugin.decisions().rules());
+        assertSame(built, ((ActiveRules) field(testPlugin.plugin, "active")).getSnapshot());
+        // Bound to Nubles, and nobody is logged in to compare.
+        assertEquals(Trust.LOGGED_OUT, testPlugin.plugin.decisions().trust());
+    }
+
+    @Test
+    public void aClipboardImportPublishesItsRulesToTheDecisionService() throws Exception
+    {
+        TestPlugin testPlugin = newPlugin();
+
+        importFromClipboard(testPlugin.plugin, fixture("bundles/v4-rules.json"));
+
+        assertSame(((ActiveRules) field(testPlugin.plugin, "active")).getSnapshot(),
+            testPlugin.plugin.decisions().rules());
+        assertFalse(testPlugin.plugin.decisions().rules().isEmpty());
+    }
 
     @Test
     public void manualPairingCodeIsDetectedBeforeParsingAndEveryAttemptSaysSo()

@@ -5,9 +5,11 @@ import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.FateRuleEngine;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
+import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.panel.LocalTimeText;
@@ -201,6 +203,15 @@ public class FateLockedPlugin extends Plugin
      * freshness (see rulesAreFresh). Replaced only by switchRules.
      */
     private volatile ActiveRules active = ActiveRules.NONE;
+    /**
+     * The one reader of the active rules, for the logged-in character.
+     * Rebuilt on the client thread when the rules or the character change;
+     * overlays read it through this volatile field.
+     */
+    private volatile DecisionService decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
+    /** The bound account and character the decision service was built for (client thread). */
+    private String decisionsBound = "";
+    private String decisionsPlayer = "";
     private final ChunkPanelViewModelFactory chunkPanelFactory =
         new ChunkPanelViewModelFactory();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
@@ -473,6 +484,9 @@ public class FateLockedPlugin extends Plugin
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         active = ActiveRules.NONE;
+        decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
+        decisionsBound = "";
+        decisionsPlayer = "";
         lastChunk = null;
     }
 
@@ -543,6 +557,7 @@ public class FateLockedPlugin extends Plugin
             awaitingLogin = true;
             forgetLoginWarnings();
             trackerLoggedIn(false);
+            refreshDecisions();
             return;
         }
         if (state == GameState.LOGGING_IN || state == GameState.HOPPING
@@ -570,6 +585,7 @@ public class FateLockedPlugin extends Plugin
         loggedInAccountHash = accountHash;
         if (newAccount) forgetLoginWarnings();
         if (newSession) resetBaselines();
+        refreshDecisions();
     }
 
     /**
@@ -1239,6 +1255,7 @@ public class FateLockedPlugin extends Plugin
         Player local = client.getLocalPlayer();
         if (local == null) return;
 
+        refreshDecisions();
         readDiaryTiersIfDue();
         updateStrictModePanel();
 
@@ -1473,12 +1490,12 @@ MenuEntry entry = event.getMenuEntry();
         ClientThreadGate onClient = gate;
         fileWriter.submit(onClient.guard(() -> {
             SavedRules saved = store == null ? null : store.load();
-            FateLockedBundle parsed = null;
+            ParsedRules parsed = null;
             if (saved != null)
             {
                 try
                 {
-                    parsed = FateLockedBundle.loadFromJson(gson, saved.getPayload());
+                    parsed = new ParsedRules(FateLockedBundle.loadFromJson(gson, saved.getPayload()), saved.getPayload());
                 }
                 catch (RuntimeException ex)
                 {
@@ -1490,7 +1507,7 @@ MenuEntry entry = event.getMenuEntry();
                 loadBackupFile(false);
                 return;
             }
-            FateLockedBundle rules = parsed;
+            ParsedRules rules = parsed;
             onClient.run(() -> useSavedRules(saved, rules));
         }));
     }
@@ -1501,7 +1518,7 @@ MenuEntry entry = event.getMenuEntry();
      * only whether they are still current; until it confirms them they are
      * never fresh enough for Strict Mode.
      */
-    private void useSavedRules(SavedRules saved, FateLockedBundle rules)
+    private void useSavedRules(SavedRules saved, ParsedRules rules)
     {
         if (!RulesPrecedence.mayReplace(active.getSource(), RulesPrecedence.Arrival.SAVED)
             || !switchRules(rules, saved.getSource()))
@@ -1510,7 +1527,7 @@ MenuEntry entry = event.getMenuEntry();
         }
         panel.flashStatus("saved rules from " + LocalTimeText.of(saved.getSavedAt()), true);
         log.info("Fate Locked rules restored from the last start: {} regions",
-            rules.getRegionChunks().size());
+            rules.bundle.getRegionChunks().size());
         TrackerConnectionController controller = connectionController;
         if (controller != null
             && saved.getSource() == RulesSource.RELAY
@@ -1539,8 +1556,7 @@ MenuEntry entry = event.getMenuEntry();
         ClientThreadGate onClient = gate;
         executor.execute(onClient.guard(() -> {
             Path file = null;
-            String text;
-            FateLockedBundle parsed;
+            ParsedRules parsed;
             try
             {
                 file = effectiveBundlePath();
@@ -1556,8 +1572,8 @@ MenuEntry entry = event.getMenuEntry();
                 }
                 // The web app writes UTF-8, which the platform's default
                 // charset would garble on Windows.
-                text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-                parsed = FateLockedBundle.loadFromJson(gson, text);
+                String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                parsed = new ParsedRules(FateLockedBundle.loadFromJson(gson, text), text);
             }
             catch (IOException | RuntimeException ex)
             {
@@ -1568,12 +1584,12 @@ MenuEntry entry = event.getMenuEntry();
                 return;
             }
             Path loaded = file;
-            onClient.run(() -> useBackupFile(parsed, text, loaded, explicit));
+            onClient.run(() -> useBackupFile(parsed, loaded, explicit));
         }));
     }
 
     /** Switch to rules read from a backup file; the tracker's copy wins on its next check. */
-    private void useBackupFile(FateLockedBundle parsed, String text, Path file, boolean explicit)
+    private void useBackupFile(ParsedRules parsed, Path file, boolean explicit)
     {
         RulesPrecedence.Arrival arrival = explicit
             ? RulesPrecedence.Arrival.IMPORT : RulesPrecedence.Arrival.STARTUP_FILE;
@@ -1586,14 +1602,14 @@ MenuEntry entry = event.getMenuEntry();
             panel.flashStatus("couldn't read the backup file — rules unchanged", false);
             return;
         }
-        saveRules(RulesSource.FILE, text, null);
+        saveRules(RulesSource.FILE, parsed.text, null);
         trackerRulesReplaced();
         log.info("Fate Locked bundle loaded from {}: {} regions, {} unlocked",
-            file, parsed.getRegionChunks().size(), parsed.getUnlockedRegions().size());
+            file, parsed.bundle.getRegionChunks().size(), parsed.bundle.getUnlockedRegions().size());
         if (explicit)
         {
             panel.flashStatus(
-                "loaded backup file: " + parsed.getRegionChunks().size() + " regions", true);
+                "loaded backup file: " + parsed.bundle.getRegionChunks().size() + " regions", true);
         }
     }
 
@@ -1702,10 +1718,10 @@ MenuEntry entry = event.getMenuEntry();
         }
         ClientThreadGate onClient = gate;
         executor.execute(onClient.guard(() -> {
-            FateLockedBundle parsed;
+            ParsedRules parsed;
             try
             {
-                parsed = FateLockedBundle.loadFromJson(gson, json);
+                parsed = new ParsedRules(FateLockedBundle.loadFromJson(gson, json), json);
             }
             catch (RuntimeException ex)
             {
@@ -1719,25 +1735,25 @@ MenuEntry entry = event.getMenuEntry();
                 panel.flashStatus("import failed — using previous rules", false);
                 return;
             }
-            onClient.run(() -> useClipboardRules(parsed, json));
+            onClient.run(() -> useClipboardRules(parsed));
         }));
     }
 
     /** On the client thread: switch to rules read from the clipboard. */
-    private void useClipboardRules(FateLockedBundle parsed, String text)
+    private void useClipboardRules(ParsedRules parsed)
     {
         if (!switchRules(parsed, RulesSource.IMPORT))
         {
             panel.flashStatus("import failed — using previous rules", false);
             return;
         }
-        saveRules(RulesSource.IMPORT, text, null);
+        saveRules(RulesSource.IMPORT, parsed.text, null);
         panel.flashStatus(
-            "imported " + parsed.getRegionChunks().size() + " regions", true);
+            "imported " + parsed.bundle.getRegionChunks().size() + " regions", true);
         trackerRulesReplaced();
         log.info(
             "Fate Locked bundle imported from the clipboard: {} regions",
-            parsed.getRegionChunks().size());
+            parsed.bundle.getRegionChunks().size());
     }
 
     enum RulesSource
@@ -1785,19 +1801,25 @@ MenuEntry entry = event.getMenuEntry();
             @Override
             public boolean commit(ParsedRules rules, String version)
             {
-                return acceptRelayRules(rules.bundle, rules.text, version);
+                return acceptRelayRules(rules, version);
             }
         };
 
-    /** Parsed rules and the text they came as, which is what gets saved. */
+    /**
+     * Parsed rules, their snapshot and the text they came as, which is what
+     * gets saved. Made where the text was parsed, off the client thread, so
+     * the snapshot is ready before the switch (R13).
+     */
     private static final class ParsedRules
     {
         final FateLockedBundle bundle;
+        final RulesSnapshot snapshot;
         final String text;
 
         ParsedRules(FateLockedBundle bundle, String text)
         {
             this.bundle = bundle;
+            this.snapshot = RulesSnapshot.of(bundle);
             this.text = text;
         }
     }
@@ -1818,13 +1840,14 @@ MenuEntry entry = event.getMenuEntry();
     }
 
     /** On the client thread: switch to rules the relay sent, and keep them for the next start. */
-    private boolean acceptRelayRules(FateLockedBundle parsed, String text, String version)
+    private boolean acceptRelayRules(ParsedRules rules, String version)
     {
-        if (!switchRules(parsed, RulesSource.RELAY))
+        FateLockedBundle parsed = rules.bundle;
+        if (!switchRules(rules, RulesSource.RELAY))
         {
             return false;
         }
-        saveRules(RulesSource.RELAY, text, version);
+        saveRules(RulesSource.RELAY, rules.text, version);
         panel.flashStatus(
             "synced " + parsed.getRegionChunks().size()
                 + " regions", true);
@@ -1841,21 +1864,48 @@ MenuEntry entry = event.getMenuEntry();
      * leaves everything as it was; a failure while showing one change is
      * logged, and neither undoes the switch nor stops the others.
      */
-    private boolean switchRules(FateLockedBundle candidate, RulesSource source)
+    private boolean switchRules(ParsedRules candidate, RulesSource source)
     {
         RulesEffects effects;
         try
         {
-            effects = effectsOf(candidate);
+            effects = effectsOf(candidate.bundle);
         }
         catch (RuntimeException ex)
         {
             log.warn("New rules could not be applied: {}", ex.getMessage());
             return false;
         }
-        active = new ActiveRules(candidate, source);
-        show(candidate, effects);
+        active = new ActiveRules(candidate.bundle, candidate.snapshot, source);
+        refreshDecisions();
+        show(candidate.bundle, effects);
         return true;
+    }
+
+    /**
+     * On the client thread: a decision service for the active rules and the
+     * character logged in now. Cheap when nothing changed, so it runs every
+     * tick as well as on each switch, login and logout.
+     */
+    private void refreshDecisions()
+    {
+        ActiveRules current = active;
+        String bound = AccountBinding.normalize(AccountBinding.boundAccount(current.getBundle()));
+        String player = AccountBinding.normalize(loggedInName());
+        if (decisions.rules() == current.getSnapshot()
+            && bound.equals(decisionsBound) && player.equals(decisionsPlayer))
+        {
+            return;
+        }
+        decisions = DecisionService.create(current.getSnapshot(), bound, player);
+        decisionsBound = bound;
+        decisionsPlayer = player;
+    }
+
+    /** The decision service in force, for every surface that shows the rules. */
+    DecisionService decisions()
+    {
+        return decisions;
     }
 
     /** Recompute the player's current chunk and show everything the active rules mean. */
