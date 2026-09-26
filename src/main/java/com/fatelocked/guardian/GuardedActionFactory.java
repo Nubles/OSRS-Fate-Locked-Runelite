@@ -2,6 +2,7 @@ package com.fatelocked.guardian;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.Teleports;
+import com.fatelocked.WorldChunks;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
 import net.runelite.api.MenuAction;
@@ -52,7 +53,7 @@ public final class GuardedActionFactory
                 ? GuardedAction.Kind.BANK : GuardedAction.Kind.NPC;
             return new GuardedAction(
                 kind, option, target,
-                point == null ? null : CanonicalChunk.of(point), null);
+                point == null ? null : WorldChunks.of(point), null);
         }
 
         CanonicalChunk tile = tileChunk(entry, client);
@@ -79,7 +80,7 @@ public final class GuardedActionFactory
         if (x < 0 || x >= Constants.SCENE_SIZE
             || y < 0 || y >= Constants.SCENE_SIZE) return null;
         WorldPoint point = WorldPoint.fromScene(client, x, y, client.getPlane());
-        return point == null ? null : CanonicalChunk.of(point);
+        return point == null ? null : WorldChunks.of(point);
     }
 
     private static boolean hasSceneCoordinates(MenuAction action)

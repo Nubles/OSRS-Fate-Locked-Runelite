@@ -885,7 +885,7 @@ public class FateLockedPlugin extends Plugin
         Player local = client.getLocalPlayer();
         WorldPoint wp = local == null ? null : local.getWorldLocation();
         if (wp == null) return;
-        CanonicalChunk chunk = CanonicalChunk.of(wp);
+        CanonicalChunk chunk = WorldChunks.of(wp);
         FateLockedBundle rules = getBundle();
         String where;
         if (rules.isLegacyRules())
@@ -1248,7 +1248,7 @@ public class FateLockedPlugin extends Plugin
         WorldPoint wp = local.getWorldLocation();
         if (wp == null) return;
 
-        CanonicalChunk current = CanonicalChunk.of(wp);
+        CanonicalChunk current = WorldChunks.of(wp);
         FateLockedBundle b = getBundle();
         FateLockedBundle.LockState lock = b.lockStateAt(current);
         String label = b.labelAt(current);
@@ -1303,7 +1303,7 @@ public class FateLockedPlugin extends Plugin
         Player local = client.getLocalPlayer();
         if (local != null && local.getWorldLocation() != null)
         {
-            origin = CanonicalChunk.of(local.getWorldLocation());
+            origin = WorldChunks.of(local.getWorldLocation());
         }
         travelGuardianShell.handle(event, client, origin, context, rules);
     }
@@ -1876,7 +1876,7 @@ MenuEntry entry = event.getMenuEntry();
         Player local = client.getLocalPlayer();
         if (local != null && local.getWorldLocation() != null)
         {
-            current = CanonicalChunk.of(local.getWorldLocation());
+            current = WorldChunks.of(local.getWorldLocation());
         }
         return new RulesEffects(
             viewModelFor(rules, current),

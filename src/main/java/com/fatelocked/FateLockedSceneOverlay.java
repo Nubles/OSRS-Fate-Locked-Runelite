@@ -50,7 +50,7 @@ public class FateLockedSceneOverlay extends Overlay
 
         FateLockedBundle bundle = plugin.getBundle();
         if (bundle.isEmpty()) return null; // no rules yet: nothing to tint
-        CanonicalChunk chunk = CanonicalChunk.of(wp);
+        CanonicalChunk chunk = WorldChunks.of(wp);
         int plane = wp.getPlane();
 
         // Light shading for surrounding locked chunks goes first, under the

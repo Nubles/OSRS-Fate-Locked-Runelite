@@ -118,7 +118,7 @@ public class FateLockedHudOverlay extends OverlayPanel
         WorldPoint wp = local == null ? null : local.getWorldLocation();
         if (wp != null)
         {
-            CanonicalChunk chunk = CanonicalChunk.of(wp);
+            CanonicalChunk chunk = WorldChunks.of(wp);
             String label = bundle.labelAt(chunk);
             FateLockedBundle.LockState lock = bundle.lockStateAt(chunk);
 
