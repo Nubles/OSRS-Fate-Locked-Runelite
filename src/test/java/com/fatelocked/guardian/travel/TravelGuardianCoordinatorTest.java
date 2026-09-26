@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 public class TravelGuardianCoordinatorTest
 {
     private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 51);
-    /** Where "Teleport" on "Falador" lands: the exact-travel example below. */
+    /** Where "Cast" on "Falador Teleport" lands: the exact-travel example below. */
     private static final CanonicalChunk DESTINATION = new CanonicalChunk(46, 52);
 
     private final Client client = mock(Client.class);
@@ -102,13 +102,64 @@ public class TravelGuardianCoordinatorTest
             context(true, false, true, true, rules), rules, availability);
 
         verify(click, times(2)).consume();
-        assertEquals("Travel blocked \u2014 Teleport falador",
+        assertEquals("Strict Mode blocked Falador Teleport",
             noticeStore.current().get().getHeadline());
         assertTrue(first.isWriteChat());
         assertFalse(repeated.isWriteChat());
         assertTrue(first.isWriteBlockedAudit());
         assertFalse(repeated.isWriteBlockedAudit());
         assertFalse(first.isWritePausedAudit());
+    }
+
+    /** B15: the words are worked out first; if that fails, the click goes through. */
+    @Test
+    public void aPresenterFailureMeansNoConsume()
+    {
+        EnforcementPresenter broken = new EnforcementPresenter()
+        {
+            @Override
+            public BlockNotice present(TravelAction action, TravelDecision decision, TravelAlternative alternative)
+            {
+                throw new IllegalStateException("no words");
+            }
+        };
+        TravelGuardianCoordinator failing = new TravelGuardianCoordinator(
+            new TravelActionResolver(), new TravelRuleEvaluator(), finder, noticeStore, clickHandler, broken);
+        MenuOptionClicked click = travelClick();
+        DecisionService rules = rules(PermissionStatus.LOCKED);
+
+        try
+        {
+            failing.handle(click, click.getMenuEntry(), client, ORIGIN,
+                context(true, false, true, true, rules), rules, availability);
+            org.junit.Assert.fail("the presenter's failure reaches the shell, which lets the click through");
+        }
+        catch (IllegalStateException expected)
+        {
+            // The shell's catch turns this into FAIL_OPEN.
+        }
+        verify(click, never()).consume();
+        assertFalse(noticeStore.current().isPresent());
+    }
+
+    @Test
+    public void theNoticeIsUpBeforeTheClickIsConsumed()
+    {
+        MenuOptionClicked click = travelClick();
+        boolean[] noticeWasUp = { false };
+        org.mockito.Mockito.doAnswer(call -> {
+            noticeWasUp[0] = noticeStore.current().isPresent();
+            return null;
+        }).when(click).consume();
+        DecisionService rules = rules(PermissionStatus.LOCKED);
+
+        TravelGuardianResult result = coordinator.handle(click, click.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, rules), rules, availability);
+
+        verify(click).consume();
+        assertTrue(noticeWasUp[0]);
+        assertEquals("Strict Mode blocked Falador Teleport", result.getNotice().getHeadline());
+        assertTrue(result.getNotice().getChatLine().contains("pause Strict Mode for 60 seconds"));
     }
 
     @Test
@@ -350,10 +401,10 @@ public class TravelGuardianCoordinatorTest
         return click;
     }
 
-    /** An exact travel click: "Teleport" on "Falador" lands in DESTINATION. */
+    /** An exact travel click: "Cast" on the tagged "Falador Teleport" lands in DESTINATION. */
     private static MenuOptionClicked travelClick()
     {
-        return namedTeleportClick("Teleport", "Falador");
+        return namedTeleportClick("Cast", "<col=00ff00>Falador Teleport</col> <col=ef4444>(LOCKED)</col>");
     }
 
     private static DecisionService lockedEverywhere()

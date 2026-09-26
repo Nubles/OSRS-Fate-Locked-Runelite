@@ -49,6 +49,12 @@ public class FateLockedTravelBlockOverlayTest
     }
 
     @Test
+    public void theButtonNamesStrictMode()
+    {
+        assertEquals("Pause Strict Mode for 60s", FateLockedTravelBlockOverlay.PAUSE_LABEL);
+    }
+
+    @Test
     public void onlyLeftPressInsidePauseButtonInvokesTheSuppliedCallbackAndConsumesTheEvent()
     {
         TravelBlockNoticeStore store = new TravelBlockNoticeStore(

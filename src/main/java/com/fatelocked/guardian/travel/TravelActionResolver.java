@@ -2,7 +2,10 @@ package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.Teleports;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
@@ -10,17 +13,22 @@ import net.runelite.client.util.Text;
 
 public final class TravelActionResolver
 {
+    /** Options that name no place themselves, so the target alone says where. */
+    private static final Set<String> ACTIVATIONS = new HashSet<>(Arrays.asList(
+        "cast", "break", "teleport", "rub", "read", "travel", "charter", "pay-fare", "minigame teleport"));
+
     public TravelAction resolve(MenuEntry entry, Client client, CanonicalChunk origin)
     {
-        if (entry == null) return unknown("", "", origin);
+        if (entry == null) return unknown("", origin);
 
         String option = clean(entry.getOption());
         String target = clean(entry.getTarget());
+        String label = displayLabel(entry.getOption(), entry.getTarget());
         if (entry.getType() == MenuAction.WALK)
         {
             // "Walk here" carries viewport pixel coordinates, not a scene
             // tile, and walking is never blocked, so it is never travel.
-            return unknown(option, target, origin);
+            return unknown(label, origin);
         }
 
         CanonicalChunk destination = Teleports.checkedTravelDestinationChunk(
@@ -28,13 +36,33 @@ public final class TravelActionResolver
         if (destination != null)
         {
             Transport transport = transport(option + " " + target);
-            return exact(transport.family, transport.methodId, option, target,
+            return exact(transport.family, transport.methodId, label,
                 origin, destination, transport.requiredUnlock);
         }
 
         // Doors, stairs, ladders and other objects are not travel either: an
         // object's own tile is not where it leads. Menu tags cover them.
-        return unknown(option, target, origin);
+        return unknown(label, origin);
+    }
+
+    /**
+     * The trip as the menu names it, in its own case, without colour tags or
+     * the "(LOCKED)" tag (B15): "Varrock Teleport" for Cast on the spell, and
+     * "Amulet of glory(4) to Edgeville" for an option that names the place.
+     */
+    static String displayLabel(String rawOption, String rawTarget)
+    {
+        String option = display(rawOption);
+        String target = display(rawTarget);
+        if (target.isEmpty()) return option;
+        if (option.isEmpty() || ACTIVATIONS.contains(option.toLowerCase(Locale.ROOT))) return target;
+        return target + " to " + option;
+    }
+
+    private static String display(String value)
+    {
+        return Text.removeTags(value == null ? "" : value).replace("(LOCKED)", "")
+            .replaceAll("\\s+", " ").trim();
     }
 
     private static Transport transport(String text)
@@ -81,19 +109,19 @@ public final class TravelActionResolver
     }
 
     private static TravelAction exact(TravelAction.Family family, String methodId,
-        String option, String target, CanonicalChunk origin, CanonicalChunk destination,
+        String label, CanonicalChunk origin, CanonicalChunk destination,
         String requiredUnlock)
     {
-        return new TravelAction(family, methodId, cleanLabel(option, target), origin,
+        return new TravelAction(family, methodId, label, origin,
             destination, requiredUnlock, TravelAction.Confidence.EXACT);
     }
 
-    private static TravelAction unknown(String option, String target, CanonicalChunk origin)
+    private static TravelAction unknown(String label, CanonicalChunk origin)
     {
         return new TravelAction(
             TravelAction.Family.UNKNOWN,
             "unknown",
-            cleanLabel(option, target),
+            label,
             origin,
             null,
             null,
@@ -104,12 +132,6 @@ public final class TravelActionResolver
     {
         return Text.removeTags(value == null ? "" : value)
             .replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static String cleanLabel(String option, String target)
-    {
-        String label = (option + " " + target).trim();
-        return label.replaceAll("\\s+", " ");
     }
 
     private static final class Transport

@@ -23,6 +23,7 @@ public final class TravelGuardianCoordinator
     private final TravelAlternativeFinder alternativeFinder;
     private final TravelBlockNoticeStore noticeStore;
     private final StrictModeClickHandler clickHandler;
+    private final EnforcementPresenter presenter;
 
     public TravelGuardianCoordinator(
         TravelActionResolver resolver,
@@ -31,11 +32,23 @@ public final class TravelGuardianCoordinator
         TravelBlockNoticeStore noticeStore,
         StrictModeClickHandler clickHandler)
     {
+        this(resolver, evaluator, alternativeFinder, noticeStore, clickHandler, new EnforcementPresenter());
+    }
+
+    TravelGuardianCoordinator(
+        TravelActionResolver resolver,
+        TravelRuleEvaluator evaluator,
+        TravelAlternativeFinder alternativeFinder,
+        TravelBlockNoticeStore noticeStore,
+        StrictModeClickHandler clickHandler,
+        EnforcementPresenter presenter)
+    {
         this.resolver = resolver;
         this.evaluator = evaluator;
         this.alternativeFinder = alternativeFinder;
         this.noticeStore = noticeStore;
         this.clickHandler = clickHandler;
+        this.presenter = presenter;
     }
 
     public TravelGuardianResult handle(
@@ -48,8 +61,7 @@ public final class TravelGuardianCoordinator
         TravelAvailability availability)
     {
         TravelAction action = resolver.resolve(entry, client, origin);
-        TravelDecision decision = withDisplayLabel(
-            evaluator.evaluate(action, rules));
+        TravelDecision decision = evaluator.evaluate(action, rules);
         GuardResult verdict = clickHandler.decide(action, decision, readiness);
 
         if (verdict.getOutcome() == GuardResult.Outcome.ALLOW_PAUSED)
@@ -60,7 +72,7 @@ public final class TravelGuardianCoordinator
             boolean recordPaused =
                 noticeStore.shouldWriteChat("paused:" + fingerprint(action));
             return new TravelGuardianResult(
-                action, decision, null, verdict,
+                action, decision, null, verdict, null,
                 false, false, recordPaused);
         }
 
@@ -68,17 +80,16 @@ public final class TravelGuardianCoordinator
         {
             // Not proven locked: the click is not Strict Mode's to touch.
             return new TravelGuardianResult(
-                action, decision, null, verdict,
+                action, decision, null, verdict, null,
                 false, false, false);
         }
 
         TravelAlternative alternative = findAlternative(action, rules, availability);
+        // Staged before the consume (B15): if the words can't be worked out,
+        // the click goes through.
+        BlockNotice notice = presenter.present(action, decision, alternative);
         String fingerprint = fingerprint(action);
-        noticeStore.show(
-            fingerprint,
-            "Travel blocked \u2014 " + decision.getLabel(),
-            reason(decision),
-            alternative == null ? null : alternative.getLabel());
+        noticeStore.show(fingerprint, notice.getHeadline(), notice.getReason(), notice.getAlternative());
         boolean writeChat = noticeStore.shouldWriteChat(fingerprint);
 
         // Final enforcement operation: all fallible coordinator work is above.
@@ -87,7 +98,7 @@ public final class TravelGuardianCoordinator
         // Every click on a blocked trip is consumed, but a repeat inside the
         // chat window is neither announced nor recorded again.
         return new TravelGuardianResult(
-            action, decision, alternative, guardResult,
+            action, decision, alternative, guardResult, notice,
             writeChat, writeChat, false);
     }
 
@@ -108,21 +119,6 @@ public final class TravelGuardianCoordinator
         }
     }
 
-    private static TravelDecision withDisplayLabel(TravelDecision decision)
-    {
-        if (decision == null
-            || decision.getLabel() == null
-            || decision.getLabel().isEmpty()
-            || Character.isUpperCase(decision.getLabel().charAt(0)))
-        {
-            return decision;
-        }
-        String label = Character.toUpperCase(decision.getLabel().charAt(0))
-            + decision.getLabel().substring(1);
-        return new TravelDecision(
-            decision.getStatus(), label, decision.getReason());
-    }
-
     private static String fingerprint(TravelAction action)
     {
         CanonicalChunk destination = action.getDestination();
@@ -130,12 +126,5 @@ public final class TravelGuardianCoordinator
             ? action.getFamily().name().toLowerCase()
             : action.getMethodId();
         return method + ":" + destination.getCx() + "," + destination.getCy();
-    }
-
-    private static String reason(TravelDecision decision)
-    {
-        String reason = decision.getReason();
-        return reason == null || reason.trim().isEmpty()
-            ? "Travel is locked" : reason;
     }
 }

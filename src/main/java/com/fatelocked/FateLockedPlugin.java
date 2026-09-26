@@ -1295,14 +1295,12 @@ public class FateLockedPlugin extends Plugin
         travelGuardianShell.handle(event, client, chunkLocator().player(), strictModeReadiness(), decisions);
     }
 
+    /** Strict Mode's chat line, which names it and says how to pause (B15). */
     private void writeTravelChat(String text)
     {
-        String prefix = "[Fate Guardian] ";
-        String content = text.startsWith(prefix)
-            ? text.substring(prefix.length()) : text;
         ChatMessageBuilder message = new ChatMessageBuilder()
-            .append(ChatColorType.HIGHLIGHT).append(prefix)
-            .append(ChatColorType.NORMAL).append(content);
+            .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
+            .append(ChatColorType.NORMAL).append(text);
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(message.build())

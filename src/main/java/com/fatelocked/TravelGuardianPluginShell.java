@@ -3,7 +3,6 @@ package com.fatelocked;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.guardian.travel.TravelAction;
-import com.fatelocked.guardian.travel.TravelAlternative;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelGuardianResult;
@@ -102,11 +101,11 @@ final class TravelGuardianPluginShell
             return Route.NOT_TRAVEL;
         }
 
-        if (result.isWriteChat())
+        if (result.isWriteChat() && result.getNotice() != null)
         {
             try
             {
-                chatSink.write(chatMessage(result));
+                chatSink.write(result.getNotice().getChatLine());
             }
             catch (RuntimeException ex)
             {
@@ -125,31 +124,6 @@ final class TravelGuardianPluginShell
             }
         }
         return Route.EXACT_TRAVEL;
-    }
-
-    private String chatMessage(TravelGuardianResult result)
-    {
-        String reason = result.getDecision().getReason();
-        if (reason == null || reason.trim().isEmpty())
-        {
-            reason = "Travel is locked";
-        }
-        StringBuilder message = new StringBuilder()
-            .append("[Fate Guardian] Blocked ")
-            .append(result.getDecision().getLabel())
-            .append(": ")
-            .append(reason)
-            .append('.');
-        TravelAlternative alternative = result.getAlternative();
-        if (alternative != null
-            && alternative.getLabel() != null
-            && !alternative.getLabel().trim().isEmpty())
-        {
-            message.append(" Suggested: ")
-                .append(alternative.getLabel())
-                .append('.');
-        }
-        return message.toString();
     }
 
     private StrictModeAuditEntry auditEntry(TravelGuardianResult result)

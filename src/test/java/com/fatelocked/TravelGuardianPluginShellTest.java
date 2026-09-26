@@ -12,6 +12,7 @@ import com.fatelocked.guardian.travel.TravelAlternativeFinder;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
 import com.fatelocked.guardian.travel.TravelDecision;
+import com.fatelocked.guardian.travel.EnforcementPresenter;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelGuardianResult;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
@@ -157,13 +158,15 @@ public class TravelGuardianPluginShellTest
             harness.client, ORIGIN, ACTIVE, rules);
 
         assertEquals(
-            "[Fate Guardian] Blocked Teleport to Morytania: Morytania is locked. "
-                + "Suggested: Varrock teleport tablet.",
+            "Strict Mode blocked Teleport to Morytania: Morytania is locked. "
+                + "Try Varrock teleport tablet instead. "
+                + "To go anyway, pause Strict Mode for 60 seconds from the banner or the sidebar.",
             harness.chat.get(0));
         assertEquals(
-            "[Fate Guardian] Blocked Teleport to Morytania: Morytania is locked.",
+            "Strict Mode blocked Teleport to Morytania: Morytania is locked. "
+                + "To go anyway, pause Strict Mode for 60 seconds from the banner or the sidebar.",
             harness.chat.get(1));
-        assertFalse(harness.chat.get(1).contains("Suggested"));
+        assertFalse(harness.chat.get(1).contains("Try"));
     }
 
     @Test
@@ -352,6 +355,7 @@ public class TravelGuardianPluginShellTest
         return new TravelGuardianResult(
             action, decision, alternative,
             new GuardResult(GuardResult.Outcome.BLOCK, decision),
+            new EnforcementPresenter().present(action, decision, alternative),
             true, true, false);
     }
 
@@ -362,7 +366,7 @@ public class TravelGuardianPluginShellTest
             PermissionStatus.LOCKED, "Teleport to Morytania", "Morytania is locked");
         return new TravelGuardianResult(
             action, decision, null,
-            new GuardResult(GuardResult.Outcome.ALLOW_PAUSED, null),
+            new GuardResult(GuardResult.Outcome.ALLOW_PAUSED, null), null,
             false, false, true);
     }
 

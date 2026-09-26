@@ -10,6 +10,8 @@ public class TravelGuardianResult
     TravelDecision decision;
     TravelAlternative alternative;
     GuardResult guardResult;
+    /** What Strict Mode said, when it blocked; null otherwise. */
+    BlockNotice notice;
     boolean writeChat;
     boolean writeBlockedAudit;
     boolean writePausedAudit;

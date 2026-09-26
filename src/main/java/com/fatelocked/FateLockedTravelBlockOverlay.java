@@ -23,7 +23,8 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
     private static final Color HEADLINE = new Color(239, 68, 68);
     private static final Color TEXT = new Color(255, 255, 255);
     private static final Color AMBER = new Color(245, 158, 11);
-    private static final String PAUSE_LABEL = "Pause Guardian for 60s";
+    /** The banner's button, which names Strict Mode (B15). */
+    static final String PAUSE_LABEL = "Pause Strict Mode for 60s";
     private static final int PADDING = 10;
     private static final int LINE_GAP = 5;
     private static final int BUTTON_HORIZONTAL_PADDING = 8;
