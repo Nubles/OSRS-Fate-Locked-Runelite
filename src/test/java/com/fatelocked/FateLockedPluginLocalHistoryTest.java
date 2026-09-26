@@ -8,7 +8,10 @@ import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.ItemStack;
+import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
+import net.runelite.http.api.loottracker.LootRecordType;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,6 +53,25 @@ public class FateLockedPluginLocalHistoryTest
             harness.history.events().get(0).getCanonicalLabel());
         verify(harness.panel).updateRollInboxStatus(1, 0, 0, false);
     }
+
+    @Test
+    public void aClueRewardIsRecordedButACasketInOtherLootIsNot() throws Exception
+    {
+        Harness harness = harness("clues");
+
+        // Tempoross's reward pool can hold an item called "Casket".
+        harness.plugin.onLootReceived(new LootReceived("Tempoross", 0, LootRecordType.EVENT,
+            java.util.List.of(new ItemStack(CASKET, 1)), 1, null));
+        harness.plugin.onLootReceived(new LootReceived("Clue Scroll (Hard)", 0, LootRecordType.EVENT,
+            java.util.List.of(new ItemStack(COINS, 5000)), 1, null));
+
+        assertEquals(1, harness.history.events().size());
+        assertEquals("Clue Scroll (Hard)", harness.history.events().get(0).getCanonicalLabel());
+    }
+
+    /** The item ids of a casket and of coins. */
+    private static final int CASKET = 405;
+    private static final int COINS = 995;
 
     @Test
     public void nullDetectionAndMissingAccountAddNothing() throws Exception

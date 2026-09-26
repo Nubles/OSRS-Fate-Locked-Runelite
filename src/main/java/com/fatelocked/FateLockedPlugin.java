@@ -29,7 +29,7 @@ import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
 import com.fatelocked.detectors.CollectionLogDetector;
-import com.fatelocked.detectors.ClueCasketDetector;
+import com.fatelocked.detectors.ClueCompletionDetector;
 import com.fatelocked.detectors.CombatAchievementDetector;
 import com.fatelocked.detectors.DetectedEvent;
 import com.fatelocked.detectors.QuestDetector;
@@ -179,7 +179,7 @@ public class FateLockedPlugin extends Plugin
     private final QuestDetector questDetector = new QuestDetector();
     private final CombatAchievementDetector combatAchievementDetector = new CombatAchievementDetector();
     private final CollectionLogDetector collectionLogDetector = new CollectionLogDetector();
-    private final ClueCasketDetector clueCasketDetector = new ClueCasketDetector();
+    private final ClueCompletionDetector clueCompletionDetector = new ClueCompletionDetector();
     private final RaidDetector raidDetector = new RaidDetector();
     private final BossKillDetectorV2 bossKillDetectorV2 = new BossKillDetectorV2();
     private final DiaryTierReviewDetector diaryTierReviewDetector = new DiaryTierReviewDetector();
@@ -922,16 +922,8 @@ String m = raw.toLowerCase();
     public void onLootReceived(LootReceived ev)
     {
         String type = ev.getType() == null ? "" : ev.getType().name();
-        if (ev.getItems() != null)
-        {
-            for (net.runelite.client.game.ItemStack stack : ev.getItems())
-            {
-                String itemName = itemManager.getItemComposition(stack.getId()).getName();
-                java.util.Optional<DetectedEvent> clue = clueCasketDetector.detect(itemName);
-                if (clue.isPresent()) record(clue.get());
-            }
-        }
-java.util.Optional<DetectedEvent> detected =
+        clueCompletionDetector.detect(type, ev.getName()).ifPresent(this::record);
+        java.util.Optional<DetectedEvent> detected =
             bossKillDetectorV2.detect(type, ev.getName(), client.getGameCycle());
         if (!detected.isPresent())
         {
