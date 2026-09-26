@@ -310,16 +310,6 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
     /** CA completion broadcast: the task name follows "combat task:". */
     private static final Pattern COMBAT_TASK =
         Pattern.compile("combat task:\\s*(.+?)\\.?$", Pattern.CASE_INSENSITIVE);
-    /**
-     * Reward-scroll text. Most quests read "You have completed The Corsair
-     * Curse!" (no trailing "quest"); a few older ones read "...completed the
-     * Dragon Slayer quest". Try the suffixed form first so it doesn't leave
-     * a dangling "quest" in the captured name, then the bare form.
-     */
-    private static final Pattern QUEST_COMPLETE_SUFFIXED =
-        Pattern.compile("completed (?:the )?(.+?) quest[!.]?", Pattern.CASE_INSENSITIVE);
-    private static final Pattern QUEST_COMPLETE_BARE =
-        Pattern.compile("(?:you have |have )completed (.+?)[!.]", Pattern.CASE_INSENSITIVE);
     /** Current slayer task monster name (raw), or null. */
     private String slayerTask;
     /** The locked slayer task to show on the HUD, or null. */
@@ -913,11 +903,8 @@ String m = raw.toLowerCase();
             {
                 net.runelite.api.widgets.Widget w = client.getWidget(QUEST_COMPLETED_GROUP_ID, child);
                 if (w == null || w.getText() == null) continue;
-                String text = Text.removeTags(w.getText());
-                Matcher mat = QUEST_COMPLETE_SUFFIXED.matcher(text);
-                if (mat.find()) return mat.group(1).trim();
-                mat = QUEST_COMPLETE_BARE.matcher(text);
-                if (mat.find()) return mat.group(1).trim();
+                String name = QuestDetector.questName(Text.removeTags(w.getText()));
+                if (name != null) return name;
             }
         }
         catch (Exception ignored) { /* layout mismatch — fall back to generic label */ }
