@@ -307,6 +307,9 @@ go-ahead.
 - [ ] **E3. Release:** in-game checklist on the release commit; then, with
   the owner, the web release, the relay deploy and the Plugin Hub pull
   request.
+  The relay is deployed, and web PRs #49 and #48 are merged. What remains:
+  merging #47, whose head this branch is pinned to; the checklist; and the
+  Hub pull request.
 
 ## Owner decisions and pending steps
 
@@ -314,9 +317,10 @@ go-ahead.
    says (confirmed 25 September).
 2. **Boss reminders:** only the exact boss detector's bosses until Stage 4
    (confirmed 25 September).
-3. **Relay deploy (pending):** Phase C's relay changes, and the undeployed
-   changes from web PR #45, need the owner's `wrangler login` and
-   go-ahead.
+3. **Relay deploy:** done 26 September, after the owner's `wrangler login`
+   and go-ahead, as version `38a4c717`. It carries Phase C's relay changes,
+   web PR #45's, and everything else since the 2 July deploy. That deploy,
+   `5bc2ff14`, is the rollback target.
 
 ## Test and file map (new files, as built)
 
