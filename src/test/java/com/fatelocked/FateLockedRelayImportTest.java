@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import com.fatelocked.panel.ChunkPanelViewModel;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -165,7 +166,7 @@ public class FateLockedRelayImportTest
         TestPlugin testPlugin = newPlugin(new FateLockedPlugin()
         {
             @Override
-            ChunkPanelViewModel viewModelFor(FateLockedBundle source, CanonicalChunk chunk)
+            ChunkPanelViewModel viewModelFor(DecisionService ruleDecisions, CanonicalChunk chunk)
             {
                 throw new IllegalStateException("view failed");
             }

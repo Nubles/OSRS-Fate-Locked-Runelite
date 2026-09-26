@@ -1,6 +1,7 @@
 package com.fatelocked;
 
 import com.fatelocked.panel.ChunkPanelViewModel;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
@@ -49,10 +50,10 @@ public class FateLockedContentOverlay extends OverlayPanel
         WorldPoint point = local == null ? null : local.getWorldLocation();
         if (point == null) return null;
 
-        FateLockedBundle bundle = plugin.getBundle();
-        if (bundle.isEmpty()) return null; // no rules yet: nothing to list
+        DecisionService decisions = plugin.decisions();
+        if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to list
         CanonicalChunk chunk = WorldChunks.of(point);
-        ChunkPanelViewModel view = plugin.viewModelFor(bundle, chunk);
+        ChunkPanelViewModel view = plugin.viewModelFor(decisions, chunk);
         if (view == null) return null;
 
         panelComponent.setPreferredSize(new Dimension(210, 0));
@@ -66,7 +67,7 @@ public class FateLockedContentOverlay extends OverlayPanel
             .leftColor(GRAY)
             .build());
         panelComponent.getChildren().add(LineComponent.builder()
-            .left(statusText(view.getEntryStatus()) + " · " + view.getFreshnessLabel())
+            .left(statusText(view.getEntryStatus()) + " · " + view.getStatusNote())
             .leftColor(statusColor(view.getEntryStatus()))
             .build());
 

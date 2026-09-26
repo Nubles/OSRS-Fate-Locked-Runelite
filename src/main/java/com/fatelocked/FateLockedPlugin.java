@@ -862,13 +862,12 @@ public class FateLockedPlugin extends Plugin
     }
 
     /** Build the shared compact model for the current chunk. */
-    ChunkPanelViewModel viewModelFor(FateLockedBundle source, CanonicalChunk chunk)
+    ChunkPanelViewModel viewModelFor(DecisionService ruleDecisions, CanonicalChunk chunk)
     {
         if (chunk == null) return null;
         return chunkPanelFactory.create(
-            source,
+            ruleDecisions,
             chunk,
-            currentAccountMatches(source),
             trackerPaired() ? trackerLastSync() : null);
     }
     private FateRuleEngine ruleEngine(FateLockedBundle source)
@@ -1276,7 +1275,7 @@ public class FateLockedPlugin extends Plugin
         boolean changed = !current.equals(lastChunk);
         if (changed)
         {
-            panel.update(b, viewModelFor(b, current));
+            panel.update(b, viewModelFor(decisions, current));
             // Chunks the tracker hasn't mapped (every chunk before rules are
             // loaded; dungeons and instances) are never announced.
             if (config.chatOnEnter() && lock != FateLockedBundle.LockState.UNAUTHORED)
@@ -1871,7 +1870,7 @@ MenuEntry entry = event.getMenuEntry();
         RulesEffects effects;
         try
         {
-            effects = effectsOf(candidate.bundle);
+            effects = effectsOf(candidate.bundle, decisionsFor(candidate.bundle, candidate.snapshot));
         }
         catch (RuntimeException ex)
         {
@@ -1904,6 +1903,14 @@ MenuEntry entry = event.getMenuEntry();
         decisionsPlayer = player;
     }
 
+    /** What rules not yet switched in will decide for the character logged in now. */
+    private DecisionService decisionsFor(FateLockedBundle bundle, RulesSnapshot snapshot)
+    {
+        return DecisionService.create(snapshot,
+            AccountBinding.normalize(AccountBinding.boundAccount(bundle)),
+            AccountBinding.normalize(loggedInName()));
+    }
+
     /** The decision service in force, for every surface that shows the rules. */
     DecisionService decisions()
     {
@@ -1913,8 +1920,8 @@ MenuEntry entry = event.getMenuEntry();
     /** Recompute the player's current chunk and show everything the active rules mean. */
     private void refreshPanel()
     {
-        FateLockedBundle current = getBundle();
-        show(current, effectsOf(current));
+        refreshDecisions();
+        show(getBundle(), effectsOf(getBundle(), decisions));
     }
 
     /**
@@ -1922,7 +1929,7 @@ MenuEntry entry = event.getMenuEntry();
      * warnings. Reads the game, so it runs on the client thread, but changes
      * nothing.
      */
-    private RulesEffects effectsOf(FateLockedBundle rules)
+    private RulesEffects effectsOf(FateLockedBundle rules, DecisionService ruleDecisions)
     {
         CanonicalChunk current = null;
         Player local = client.getLocalPlayer();
@@ -1931,7 +1938,7 @@ MenuEntry entry = event.getMenuEntry();
             current = WorldChunks.of(local.getWorldLocation());
         }
         return new RulesEffects(
-            viewModelFor(rules, current),
+            viewModelFor(ruleDecisions, current),
             overTierGear(rules),
             lockedSlayerTask(rules),
             lockedAreaPins(rules));

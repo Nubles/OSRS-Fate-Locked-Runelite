@@ -705,7 +705,7 @@ class FateLockedPanel extends PluginPanel
         meta.setFont(meta.getFont().deriveFont(10f));
         header.add(meta);
         JLabel entry = new JLabel(
-            statusText(view.getEntryStatus()) + "  ·  " + view.getFreshnessLabel());
+            statusText(view.getEntryStatus()) + "  ·  " + view.getStatusNote());
         entry.setForeground(statusColor(view.getEntryStatus()));
         entry.setFont(entry.getFont().deriveFont(Font.BOLD, 10f));
         header.add(entry);

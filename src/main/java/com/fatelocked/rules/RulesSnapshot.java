@@ -1,6 +1,10 @@
 package com.fatelocked.rules;
 
+import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * The loaded rules, fixed at load time. {@link DecisionService} answers from
@@ -49,5 +53,23 @@ public final class RulesSnapshot
     LegacyRules legacy()
     {
         return legacy;
+    }
+
+    /** The root-field area name ("Falador · Asgarnia") older exports and unmapped chunks fall back to. */
+    String areaLabel(CanonicalChunk chunk)
+    {
+        return bundle.labelAt(chunk);
+    }
+
+    /** The root-field region (continent), as {@link #areaLabel} falls back. */
+    String regionAt(CanonicalChunk chunk)
+    {
+        return bundle.regionAt(chunk);
+    }
+
+    /** An older export's content lists for a chunk ("mon", "shop", "farm", "poi"). */
+    Map<String, List<String>> legacyContent(CanonicalChunk chunk)
+    {
+        return bundle.legacyContentAt(chunk);
     }
 }

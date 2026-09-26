@@ -3,6 +3,7 @@ package com.fatelocked.rules;
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -129,6 +130,36 @@ public final class DecisionService
         return unmapped(targetName);
     }
 
+    /**
+     * What a chunk is called, on any character: names aren't decisions. The
+     * tracker's name for it, else the area name older exports also carry
+     * ("Falador · Asgarnia"); null when the rules name neither.
+     */
+    public String chunkName(CanonicalChunk chunk)
+    {
+        if (chunk == null) return null;
+        String name = snapshotAt(chunk).map(ChunkPermissionSnapshot::getName).orElse(null);
+        return isBlank(name) ? rules.areaLabel(chunk) : name;
+    }
+
+    /** The region (continent) a chunk is in, on any character; null when the rules don't say. */
+    public String regionName(CanonicalChunk chunk)
+    {
+        if (chunk == null) return null;
+        String region = snapshotAt(chunk).map(ChunkPermissionSnapshot::getRegion).orElse(null);
+        return isBlank(region) ? rules.regionAt(chunk) : region;
+    }
+
+    /**
+     * An older export's content lists for a chunk, for the sidebar; empty
+     * unless those rules apply to this character.
+     */
+    public Map<String, List<String>> legacyContent(CanonicalChunk chunk)
+    {
+        if (trust != Trust.TRUSTED || !rules.isLegacy() || chunk == null) return Collections.emptyMap();
+        return rules.legacyContent(chunk);
+    }
+
     /** The bank at a chunk. */
     public Decision bankAt(CanonicalChunk chunk)
     {
@@ -168,6 +199,16 @@ public final class DecisionService
         PermissionStatus status = item.getTier() > unlocked ? PermissionStatus.LOCKED : PermissionStatus.ALLOWED;
         String reason = "T" + item.getTier() + "; " + item.getSlot() + " is unlocked to T" + unlocked;
         return new Decision(status, label, reason, Decision.Source.ITEM);
+    }
+
+    private Optional<ChunkPermissionSnapshot> snapshotAt(CanonicalChunk chunk)
+    {
+        return rules.isEmpty() || rules.isLegacy() ? Optional.empty() : rules.bundle().permissionsAt(chunk);
+    }
+
+    private static boolean isBlank(String value)
+    {
+        return value == null || value.trim().isEmpty();
     }
 
     /** Null when the rules apply; otherwise the Unknown answer every question gets. */

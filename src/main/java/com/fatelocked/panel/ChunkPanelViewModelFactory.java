@@ -1,12 +1,10 @@
 package com.fatelocked.panel;
 
 import com.fatelocked.CanonicalChunk;
-import com.fatelocked.FateLockedBundle;
 import com.fatelocked.rules.ChunkPermissionRow;
 import com.fatelocked.rules.ChunkPermissionSnapshot;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,6 +14,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The sidebar's chunk card and its in-game twin, from the decision service
+ * (B1), so they say what every other surface says. On another character, or
+ * with no rules, the card is Unknown and says why.
+ */
 public final class ChunkPanelViewModelFactory
 {
     private static final List<String> ORDER = Arrays.asList(
@@ -38,15 +41,12 @@ public final class ChunkPanelViewModelFactory
     }
 
     public ChunkPanelViewModel create(
-        FateLockedBundle bundle,
+        DecisionService decisions,
         CanonicalChunk chunk,
-        boolean accountMatches,
         Instant importedAt)
     {
-        RuleDecision entry = new FateRuleEngine(
-            bundle, accountMatches, false).entry(chunk);
-        ChunkPermissionSnapshot snapshot = accountMatches
-            ? bundle.permissionsAt(chunk).orElse(null) : null;
+        PermissionStatus entry = decisions.chunk(chunk).getStatus();
+        ChunkPermissionSnapshot snapshot = decisions.details(chunk).orElse(null);
         List<ChunkPanelViewModel.CategoryView> categories = new ArrayList<>();
         int allowed = 0;
         int notReady = 0;
@@ -78,9 +78,9 @@ public final class ChunkPanelViewModelFactory
                     id, TITLES.get(id), rows));
             }
         }
-        else if (accountMatches && bundle.isLegacyRules())
+        else
         {
-            Map<String, List<String>> legacy = bundle.legacyContentAt(chunk);
+            Map<String, List<String>> legacy = decisions.legacyContent(chunk);
             Map<String, String> legacyCategories = new LinkedHashMap<>();
             legacyCategories.put("mon", "COMBAT");
             legacyCategories.put("shop", "SHOPS");
@@ -112,15 +112,15 @@ public final class ChunkPanelViewModelFactory
             }
         }
 
-        String name = snapshot == null ? bundle.labelAt(chunk) : snapshot.getName();
+        String name = decisions.chunkName(chunk);
         if (name == null || name.trim().isEmpty()) name = "Unknown chunk";
-        String region = snapshot == null ? bundle.regionAt(chunk) : snapshot.getRegion();
         return new ChunkPanelViewModel(
             name,
-            region,
+            decisions.regionName(chunk),
             chunk.getCx() + ", " + chunk.getCy(),
-            entry.getStatus(),
+            entry,
             freshness(importedAt),
+            decisions.trustReason(),
             allowed,
             notReady,
             locked,
