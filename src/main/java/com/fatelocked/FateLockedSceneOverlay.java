@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
 import net.runelite.api.Perspective;
@@ -48,8 +49,8 @@ public class FateLockedSceneOverlay extends Overlay
         WorldPoint wp = local.getWorldLocation();
         if (wp == null) return null;
 
-        FateLockedBundle bundle = plugin.getBundle();
-        if (bundle.isEmpty()) return null; // no rules yet: nothing to tint
+        DecisionService decisions = plugin.decisions();
+        if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
         CanonicalChunk chunk = WorldChunks.of(wp);
         int plane = wp.getPlane();
 
@@ -57,26 +58,18 @@ public class FateLockedSceneOverlay extends Overlay
         // current-chunk tint and borders.
         if (config.shadeNearbyLocked())
         {
-            drawSurroundingLocked(graphics, chunk, plane, bundle);
+            drawSurroundingLocked(graphics, chunk, plane, decisions);
         }
 
         if (config.drawScene())
         {
-            // Sub-area-aware: a Falador chunk reflects Falador's lock state, not
-            // all of Asgarnia's.
-            Color color;
-            switch (bundle.lockStateAt(chunk))
-            {
-                case UNLOCKED: color = config.unlockedColor(); break;
-                case LOCKED: color = config.lockedColor(); break;
-                default: color = config.unauthoredColor(); break;
-            }
-            drawChunkOutline(graphics, chunk, plane, color);
+            drawChunkOutline(graphics, chunk, plane,
+                TintPolicy.color(TintPolicy.at(decisions, chunk), config));
         }
 
         if (config.highlightLockedBorders())
         {
-            drawLockedBorders(graphics, chunk, plane, bundle);
+            drawLockedBorders(graphics, chunk, plane, decisions);
         }
         return null;
     }
@@ -85,7 +78,7 @@ public class FateLockedSceneOverlay extends Overlay
      * Trace a bright line along any edge of the current chunk that borders a
      * locked chunk — the "danger here" cue right where you'd cross over.
      */
-    private void drawLockedBorders(Graphics2D g, CanonicalChunk chunk, int plane, FateLockedBundle bundle)
+    private void drawLockedBorders(Graphics2D g, CanonicalChunk chunk, int plane, DecisionService decisions)
     {
         int cx = chunk.getCx();
         int cy = chunk.getCy();
@@ -96,22 +89,22 @@ public class FateLockedSceneOverlay extends Overlay
         g.setStroke(BORDER_STROKE);
         g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 255));
 
-        if (isLocked(bundle, cx + 1, cy)) drawEdge(g, bx + 63, by, bx + 63, by + 63, plane); // east
-        if (isLocked(bundle, cx - 1, cy)) drawEdge(g, bx, by, bx, by + 63, plane);           // west
-        if (isLocked(bundle, cx, cy + 1)) drawEdge(g, bx, by + 63, bx + 63, by + 63, plane); // north
-        if (isLocked(bundle, cx, cy - 1)) drawEdge(g, bx, by, bx + 63, by, plane);           // south
+        if (isLocked(decisions, cx + 1, cy)) drawEdge(g, bx + 63, by, bx + 63, by + 63, plane); // east
+        if (isLocked(decisions, cx - 1, cy)) drawEdge(g, bx, by, bx, by + 63, plane);           // west
+        if (isLocked(decisions, cx, cy + 1)) drawEdge(g, bx, by + 63, bx + 63, by + 63, plane); // north
+        if (isLocked(decisions, cx, cy - 1)) drawEdge(g, bx, by, bx + 63, by, plane);           // south
     }
 
-    private static boolean isLocked(FateLockedBundle bundle, int cx, int cy)
+    private static boolean isLocked(DecisionService decisions, int cx, int cy)
     {
-        return bundle.lockStateAt(new CanonicalChunk(cx, cy)) == FateLockedBundle.LockState.LOCKED;
+        return TintPolicy.isLocked(decisions, new CanonicalChunk(cx, cy));
     }
 
     /**
      * Lightly tint every locked chunk overlapping the loaded scene (except the
      * one the player is standing in, which gets the full treatment elsewhere).
      */
-    private void drawSurroundingLocked(Graphics2D g, CanonicalChunk current, int plane, FateLockedBundle bundle)
+    private void drawSurroundingLocked(Graphics2D g, CanonicalChunk current, int plane, DecisionService decisions)
     {
         int baseX = client.getBaseX();
         int baseY = client.getBaseY();
@@ -126,7 +119,7 @@ public class FateLockedSceneOverlay extends Overlay
             {
                 if (cx == current.getCx() && cy == current.getCy()) continue;
                 CanonicalChunk c = new CanonicalChunk(cx, cy);
-                if (bundle.lockStateAt(c) != FateLockedBundle.LockState.LOCKED) continue;
+                if (!TintPolicy.isLocked(decisions, c)) continue;
                 Polygon p = chunkScenePolyClamped(c, plane);
                 if (p != null) g.fillPolygon(p);
             }

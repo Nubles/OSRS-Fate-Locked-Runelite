@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
 import net.runelite.api.Perspective;
@@ -65,18 +66,10 @@ public class FateLockedMinimapOverlay extends Overlay
         WorldPoint wp = local.getWorldLocation();
         if (wp == null) return null;
 
-        FateLockedBundle bundle = plugin.getBundle();
-        if (bundle.isEmpty()) return null; // no rules yet: nothing to tint
+        DecisionService decisions = plugin.decisions();
+        if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
         CanonicalChunk chunk = WorldChunks.of(wp);
-        // Sub-area-aware: a Falador chunk reflects Falador's lock state, not
-        // all of Asgarnia's.
-        Color color;
-        switch (bundle.lockStateAt(chunk))
-        {
-            case UNLOCKED: color = config.unlockedColor(); break;
-            case LOCKED: color = config.lockedColor(); break;
-            default: color = config.unauthoredColor(); break;
-        }
+        Color color = TintPolicy.color(TintPolicy.at(decisions, chunk), config);
 
         Polygon poly = chunkMinimapPolygon(chunk);
 
@@ -90,7 +83,7 @@ public class FateLockedMinimapOverlay extends Overlay
         // Faint shading for surrounding locked chunks first, beneath the current.
         if (config.shadeNearbyLocked())
         {
-            drawSurroundingLocked(graphics, chunk, bundle);
+            drawSurroundingLocked(graphics, chunk, decisions);
         }
 
         if (poly != null)
@@ -111,7 +104,7 @@ public class FateLockedMinimapOverlay extends Overlay
     }
 
     /** Lightly tint locked chunks overlapping the loaded scene around the player. */
-    private void drawSurroundingLocked(Graphics2D graphics, CanonicalChunk current, FateLockedBundle bundle)
+    private void drawSurroundingLocked(Graphics2D graphics, CanonicalChunk current, DecisionService decisions)
     {
         int baseX = client.getBaseX();
         int baseY = client.getBaseY();
@@ -127,7 +120,7 @@ public class FateLockedMinimapOverlay extends Overlay
             {
                 if (cx == current.getCx() && cy == current.getCy()) continue;
                 CanonicalChunk ch = new CanonicalChunk(cx, cy);
-                if (bundle.lockStateAt(ch) != FateLockedBundle.LockState.LOCKED) continue;
+                if (!TintPolicy.isLocked(decisions, ch)) continue;
                 Polygon p = chunkMinimapPolygon(ch);
                 if (p != null) graphics.fillPolygon(p);
             }
