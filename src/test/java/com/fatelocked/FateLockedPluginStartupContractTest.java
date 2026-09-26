@@ -462,16 +462,24 @@ public class FateLockedPluginStartupContractTest
     }
 
     /** The v4 rules, with the harness's worn weapon one tier above the unlocked Weapon tier. */
+    /**
+     * Rules that rate the worn weapon T6 with weapons unlocked to T5 (B12
+     * reads itemRules and unlocks), on a profile bound to no one, so they
+     * apply at startup with nobody logged in.
+     */
     private static String overTierWeaponBundle() throws Exception
     {
         JsonObject root = new Gson().fromJson(
             fixture("bundles/v4-rules.json"), JsonObject.class);
-        JsonObject tiers = new JsonObject();
-        tiers.addProperty(String.valueOf(Harness.WORN_WEAPON), 6);
-        root.add("itemTiers", tiers);
-        JsonObject equipment = new JsonObject();
-        equipment.addProperty("Weapon", 5);
-        root.getAsJsonObject("state").add("equipment", equipment);
+        JsonObject rules = root.getAsJsonObject("rules");
+        rules.remove("account");
+        JsonObject weapon = new JsonObject();
+        weapon.addProperty("slot", "Weapon");
+        weapon.addProperty("tier", 6);
+        JsonObject itemRules = new JsonObject();
+        itemRules.add(String.valueOf(Harness.WORN_WEAPON), weapon);
+        rules.add("itemRules", itemRules);
+        rules.getAsJsonObject("unlocks").getAsJsonObject("equipment").addProperty("Weapon", 5);
         return root.toString();
     }
 
