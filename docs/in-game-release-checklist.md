@@ -19,7 +19,8 @@ Plugin Hub, and paste the filled-in table into the release pull request.
   good. Without a bound account Strict Mode stays Inactive, so rows 9 and 10
   cannot pass. Have a second character ready for row 10, or import an export
   whose `rules.account` names another player.
-- Start from a RuneLite profile with no Fate Locked rules loaded, and turn
+- Start from a RuneLite profile with no Fate Locked rules loaded (move
+  `saved-rules.json` out of `.runelite/fate-locked` too), and turn
   on **Send RuneLite notifications** in the plugin settings (it is off by
   default) and RuneLite's own **Send notifications when focused**, so rows
   4 and 5 can show them while you play.
@@ -46,6 +47,7 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 14 | Change something in the web tracker (unlock an area, say), then press **Check now** in the sidebar. | The change shows within a few seconds and Last sync updates. | |
 | 15 | Press **Re-pair tracker…**, confirm, then close the browser tab without confirming. Press **Cancel re-pairing**. | The sidebar says "Confirm the new pairing" and the overlays keep working. After Cancel it is **Connected** again on the old pairing. | |
 | 16 | Note the last four characters in the sidebar's **Pairing** row, then press **Disconnect** in the web tracker. (Needs the relay deployed with the gone marker.) | The web tracker's pairing dialog showed the same four characters. Within a minute the sidebar says "Disconnected in the web tracker", and **Connect tracker** pairs afresh. | |
+| 17 | Close RuneLite, turn off your network, and start RuneLite again. | "saved rules from" and a time appear, and the overlays and HUD show your rules; the connection says it couldn't reach the tracker. With the network back, **Check now** confirms the same rules without importing them again. | |
 
 Record the commit, the RuneLite version, the date, and a pass or fail (with a
 note for any fail) in each row. Any fail blocks the release until it is fixed
