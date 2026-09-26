@@ -324,14 +324,11 @@ public class FateLockedPlugin extends Plugin
     /** Item ids already warned about this session, to avoid chat spam. */
     private final Set<Integer> warnedOverTier = new HashSet<>();
 
-    /** Assigned slayer monster from chat (matches both "to kill X;" and Konar's "in <area>"). */
-    private static final Pattern SLAYER_TASK =
-        Pattern.compile("to kill\\s+(?:the\\s+)?(.+?)(?:\\s+in\\s+|[;:.])", Pattern.CASE_INSENSITIVE);
     /** The client's own broadcast on a new Collection Log entry: "New item added to your collection log: X". */
     private static final Pattern COLLECTION_LOG_ITEM =
         Pattern.compile("new item added to your collection log:\\s*(.+)", Pattern.CASE_INSENSITIVE);
-    /** Current slayer task monster name (raw), or null. */
-    private String slayerTask;
+    /** The Slayer task the last task message stated, this character's; or null. */
+    private SlayerAssignment slayerAssignment;
     /** The locked slayer task to show on the HUD, or null. */
     @Getter private volatile String slayerTaskWarn;
     /** Task we've already chat-warned about, to warn at most once per assignment. */
@@ -585,7 +582,11 @@ public class FateLockedPlugin extends Plugin
         boolean newSession = awaitingLogin || newAccount;
         awaitingLogin = false;
         loggedInAccountHash = accountHash;
-        if (newAccount) forgetLoginWarnings();
+        if (newAccount)
+        {
+            forgetLoginWarnings();
+            forgetSlayerTask();
+        }
         if (newSession) resetBaselines();
         refreshDecisions();
     }
@@ -767,14 +768,15 @@ public class FateLockedPlugin extends Plugin
         // Slayer assignment / task-check messages mention the monster.
         if (m.contains("to kill"))
         {
-            Matcher mat = SLAYER_TASK.matcher(raw);
-            if (mat.find())
+            SlayerAssignment assignment = SlayerAssignment.fromChat(
+                Text.removeTags(raw), client.getVarbitValue(VarbitID.SLAYER_MASTER));
+            if (assignment != null)
             {
-                slayerTask = mat.group(1).trim();
+                slayerAssignment = assignment;
                 if (slayerTaskDetector != null && accountFilesInUse())
                 {
                     SlayerTaskDetector detector = slayerTaskDetector;
-                    String task = slayerTask;
+                    String task = assignment.getTask();
                     fileWriter.submit(() -> {
                         try
                         {
@@ -797,21 +799,27 @@ public class FateLockedPlugin extends Plugin
     /** Re-check whether the current slayer task's monster is in an unlocked chunk. */
     private void recomputeSlayer()
     {
-        String locked = lockedSlayerTask(getBundle());
+        String locked = lockedSlayerTask(decisions);
         slayerTaskWarn = locked;
         warnLockedSlayerTask(locked);
     }
 
-    /** The current slayer task if these rules put its monster only in locked chunks, else null. */
-    private String lockedSlayerTask(FateLockedBundle rules)
+    /** The current slayer task if the rules put its monsters only in locked chunks, else null (B11). */
+    private String lockedSlayerTask(DecisionService ruleDecisions)
     {
-        String task = slayerTask;
-        if (!config.warnLockedSlayer() || task == null || task.isEmpty())
-        {
-            return null;
-        }
+        SlayerAssignment assignment = slayerAssignment;
+        if (!config.warnLockedSlayer() || assignment == null) return null;
         // Reachable or unknown: no warning.
-        return rules.monsterReach(task) == FateLockedBundle.Reach.LOCKED ? task : null;
+        return ruleDecisions.slayerTask(assignment.getMaster(), assignment.getTask(), assignment.getLocation())
+            .isLocked() ? assignment.getTask() : null;
+    }
+
+    /** Another character's task isn't this one's. */
+    private void forgetSlayerTask()
+    {
+        slayerAssignment = null;
+        slayerTaskWarn = null;
+        slayerWarnedFor = null;
     }
 
     /** Say once per assignment that the task is in a locked area. */
@@ -1902,7 +1910,7 @@ public class FateLockedPlugin extends Plugin
         return new RulesEffects(
             viewModelFor(ruleDecisions, current),
             overTierGear(rules),
-            lockedSlayerTask(rules));
+            lockedSlayerTask(ruleDecisions));
     }
 
     /** Show what the rules mean: the HUD fields, then each other change on its own. */

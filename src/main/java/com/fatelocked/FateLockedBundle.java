@@ -65,7 +65,6 @@ import java.util.zip.GZIPInputStream;
 public class FateLockedBundle
 {
     public enum LockState { UNLOCKED, LOCKED, UNAUTHORED }
-    public enum Reach { REACHABLE, LOCKED, UNKNOWN }
 
     private final String runId;
     private final String profileName;
@@ -628,28 +627,26 @@ public class FateLockedBundle
     }
 
     /**
-     * Is a monster (e.g. a slayer task) reachable? REACHABLE if it appears in any
-     * unlocked chunk, LOCKED if every chunk holding it is locked, UNKNOWN if we
-     * have no location for it (its name isn't in the chunk-content summary).
+     * The tracker's Slayer index entry for a key: "abyssal demons",
+     * "krystilia:abyssal demons", or Konar's "konar quo maten:aberrant
+     * spectres - slayer tower" (compared lower-case, with one trailing "s"
+     * dropped, as the tracker writes them). Null when the index has no such
+     * key; empty when it has one but located none of it.
      */
-    public Reach monsterReach(String monsterName)
+    public Set<CanonicalChunk> slayerChunks(String key)
     {
-        if (monsterName == null || monsterName.trim().isEmpty()) return Reach.UNKNOWN;
-        String key = normMonster(monsterName);
-        // Prefer the complete slayer index (uncapped); fall back to the slim
-        // per-chunk monster summary (capped) for anything it doesn't cover.
-        Set<CanonicalChunk> chunks = slayerChunks.get(key);
-        if (chunks == null || chunks.isEmpty())
-        {
-            if (monsterIndex == null) buildMonsterIndex();
-            chunks = monsterIndex.get(key);
-        }
-        if (chunks == null || chunks.isEmpty()) return Reach.UNKNOWN;
-        for (CanonicalChunk c : chunks)
-        {
-            if (lockStateAt(c) == LockState.UNLOCKED) return Reach.REACHABLE;
-        }
-        return Reach.LOCKED;
+        if (key == null || key.trim().isEmpty()) return null;
+        Set<CanonicalChunk> chunks = slayerChunks.get(normMonster(key));
+        return chunks == null ? null : Collections.unmodifiableSet(chunks);
+    }
+
+    /** The chunks whose slim monster lists name a monster; empty when none do. */
+    public Set<CanonicalChunk> monsterChunks(String name)
+    {
+        if (name == null || name.trim().isEmpty()) return Collections.emptySet();
+        if (monsterIndex == null) buildMonsterIndex();
+        Set<CanonicalChunk> chunks = monsterIndex.get(normMonster(name));
+        return chunks == null ? Collections.emptySet() : Collections.unmodifiableSet(chunks);
     }
 
     private void buildMonsterIndex()

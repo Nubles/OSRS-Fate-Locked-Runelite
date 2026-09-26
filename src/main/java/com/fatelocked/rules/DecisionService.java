@@ -176,6 +176,51 @@ public final class DecisionService
         return trust == Trust.TRUSTED ? rules.progress() : null;
     }
 
+    /**
+     * Whether a Slayer task can be done (B11): LOCKED when every chunk its
+     * monsters live in is locked, ALLOWED when any is owned, and Unknown
+     * otherwise, since a lock is never inferred from a gap. A known master's
+     * own list decides when the tracker has one (Krystilia's tasks are in the
+     * Wilderness), and a place Konar names decides alone; otherwise every
+     * master's merged list, then the chunks' monster lists.
+     *
+     * @param master   the master as the tracker names them, or null when unknown
+     * @param location Konar's place, or null
+     */
+    public Decision slayerTask(String master, String task, String location)
+    {
+        Decision gate = gate();
+        if (gate != null) return gate;
+        if (isBlank(task)) return unmapped(null);
+        Set<CanonicalChunk> chunks = slayerChunks(master, task.trim(), location);
+        if (chunks.isEmpty()) return unmapped(task);
+        boolean allLocked = true;
+        for (CanonicalChunk where : chunks)
+        {
+            PermissionStatus status = chunk(where).getStatus();
+            if (status == PermissionStatus.ALLOWED || status == PermissionStatus.NOT_READY)
+            {
+                return new Decision(PermissionStatus.ALLOWED, task, null, Decision.Source.SLAYER);
+            }
+            if (status != PermissionStatus.LOCKED) allLocked = false;
+        }
+        return allLocked
+            ? new Decision(PermissionStatus.LOCKED, task, task + " is only in locked areas", Decision.Source.SLAYER)
+            : unmapped(task);
+    }
+
+    /** Where a task's monsters live: the most specific list the tracker has for it. */
+    private Set<CanonicalChunk> slayerChunks(String master, String task, String location)
+    {
+        String named = isBlank(location) ? task : task + " - " + location.trim();
+        Set<CanonicalChunk> mastersOwn = isBlank(master) ? null : rules.slayerChunks(master.trim() + ":" + named);
+        if (mastersOwn != null) return mastersOwn;
+        Set<CanonicalChunk> merged = rules.slayerChunks(named);
+        // A named place is the whole task: other places don't count.
+        if (!isBlank(location)) return merged == null ? Collections.emptySet() : merged;
+        return merged == null || merged.isEmpty() ? rules.monsterChunks(task) : merged;
+    }
+
     /** The named areas the rules list, with their chunks, for the world map's pins; on any character. */
     public Map<String, Set<CanonicalChunk>> areas()
     {

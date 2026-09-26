@@ -112,6 +112,18 @@ public final class RulesSnapshot
         return bundle.isUnlocked(name);
     }
 
+    /** The tracker's Slayer index entry for a key; null when it has none. */
+    Set<CanonicalChunk> slayerChunks(String key)
+    {
+        return bundle.slayerChunks(key);
+    }
+
+    /** The chunks whose monster lists name a monster, for tasks the Slayer index misses. */
+    Set<CanonicalChunk> monsterChunks(String name)
+    {
+        return bundle.monsterChunks(name);
+    }
+
     /** In a Chunked run, a locked chunk next to an owned one. */
     boolean isFrontier(CanonicalChunk chunk)
     {
