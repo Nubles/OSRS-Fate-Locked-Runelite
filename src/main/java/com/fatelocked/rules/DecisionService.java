@@ -142,6 +142,16 @@ public final class DecisionService
         return isBlank(name) ? rules.areaLabel(chunk) : name;
     }
 
+    /**
+     * The area a chunk belongs to, as the rules' area lists name it
+     * ("Draynor Village · Misthalin"), on any character; null when unnamed.
+     * The HUD's "Here" line shows it.
+     */
+    public String areaName(CanonicalChunk chunk)
+    {
+        return chunk == null ? null : rules.areaLabel(chunk);
+    }
+
     /** The region (continent) a chunk is in, on any character; null when the rules don't say. */
     public String regionName(CanonicalChunk chunk)
     {

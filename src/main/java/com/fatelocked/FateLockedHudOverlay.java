@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
@@ -119,8 +120,9 @@ public class FateLockedHudOverlay extends OverlayPanel
         if (wp != null)
         {
             CanonicalChunk chunk = WorldChunks.of(wp);
-            String label = bundle.labelAt(chunk);
-            FateLockedBundle.LockState lock = bundle.lockStateAt(chunk);
+            DecisionService decisions = plugin.decisions();
+            String label = decisions.areaName(chunk);
+            HudStatus status = HudStatus.of(decisions.chunk(chunk));
 
             panelComponent.getChildren().add(LineComponent.builder()
                 .left("Here")
@@ -129,10 +131,8 @@ public class FateLockedHudOverlay extends OverlayPanel
                 .build());
             panelComponent.getChildren().add(LineComponent.builder()
                 .left("Status")
-                .right(lock == FateLockedBundle.LockState.UNLOCKED ? "Unlocked"
-                    : lock == FateLockedBundle.LockState.LOCKED ? "LOCKED" : "Unknown")
-                .rightColor(lock == FateLockedBundle.LockState.UNLOCKED ? GREEN
-                    : lock == FateLockedBundle.LockState.LOCKED ? RED : GRAY)
+                .right(truncate(status.getText(), 22))
+                .rightColor(status.getColor())
                 .build());
 
             if (config.showNearest() && bundle.hasNearestData())
