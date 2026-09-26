@@ -7,6 +7,7 @@ import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.panel.ChunkPanelViewModel;
@@ -235,7 +236,8 @@ public class FateLockedPlugin extends Plugin
     @Getter private volatile long lockedFlashUntil;
 
     private CanonicalChunk lastChunk;
-    private FateLockedBundle.LockState lastLockState;
+    /** The decision for the chunk the player was last in, for the once-on-the-way-in alert. */
+    private PermissionStatus lastStatus;
     /** Warnings count the sidebar shows, so each change is sent to it once. */
     private int shownWarningCount = -1;
     private NavigationButton navButton;
@@ -1242,36 +1244,37 @@ public class FateLockedPlugin extends Plugin
 
         CanonicalChunk current = WorldChunks.of(wp);
         FateLockedBundle b = getBundle();
-        FateLockedBundle.LockState lock = b.lockStateAt(current);
-        String label = b.labelAt(current);
-        boolean unlocked = lock == FateLockedBundle.LockState.UNLOCKED;
-
+        PermissionStatus status = decisions.chunk(current).getStatus();
+        String label = decisions.areaName(current);
 
         boolean changed = !current.equals(lastChunk);
         if (changed)
         {
             panel.update(b, viewModelFor(decisions, current));
-            // Chunks the tracker hasn't mapped (every chunk before rules are
-            // loaded; dungeons and instances) are never announced.
-            if (config.chatOnEnter() && lock != FateLockedBundle.LockState.UNAUTHORED)
+            // Only the rules' own answers are announced (B6): never a chunk
+            // they don't map (dungeons, instances, every chunk before rules
+            // load), nor another character's rules. NOT_READY is owned, so
+            // it reads as unlocked and never alerts.
+            if (config.chatOnEnter() && status != PermissionStatus.UNKNOWN)
             {
-                announceEntry(current, label, unlocked);
+                announceEntry(current, label, status != PermissionStatus.LOCKED);
             }
             // Flash, sound and notification once on the way INTO locked
             // territory, not at every chunk inside it, whatever the chat
             // setting.
-            if (lock == FateLockedBundle.LockState.LOCKED
-                && lastLockState != FateLockedBundle.LockState.LOCKED)
+            if (status == PermissionStatus.LOCKED && lastStatus != PermissionStatus.LOCKED)
             {
                 lockedFlashUntil = System.currentTimeMillis() + LOCKED_FLASH_MS;
                 if (config.warnOnLocked())
                 {
                     client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
-                    notifyIfEnabled("Entered LOCKED chunk: " + label);
+                    notifyIfEnabled(label == null
+                        ? "Entered LOCKED chunk (" + current.getCx() + ", " + current.getCy() + ")"
+                        : "Entered LOCKED chunk: " + label);
                 }
             }
             lastChunk = current;
-            lastLockState = lock;
+            lastStatus = status;
         }
         refreshWarningCount();
     }
@@ -1416,26 +1419,19 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Chat line for entering a mapped chunk; {@code region} is never null. */
+    /** Chat line for entering a mapped chunk; {@code region} is null for a chunk only the tracker names. */
     private void announceEntry(CanonicalChunk chunk, String region, boolean unlocked)
     {
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append("Chunk ")
             .append("(" + chunk.getCx() + ", " + chunk.getCy() + ")");
-
-        if (unlocked)
+        if (region != null)
         {
             msg.append(ChatColorType.NORMAL).append(" · ")
-               .append(ChatColorType.HIGHLIGHT).append(region)
-               .append(ChatColorType.NORMAL).append(" ✓ unlocked");
+               .append(ChatColorType.HIGHLIGHT).append(region);
         }
-        else
-        {
-            msg.append(ChatColorType.NORMAL).append(" · ")
-               .append(ChatColorType.HIGHLIGHT).append(region)
-               .append(ChatColorType.NORMAL).append(" ⚠ LOCKED");
-        }
+        msg.append(ChatColorType.NORMAL).append(unlocked ? " ✓ unlocked" : " ⚠ LOCKED");
 
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
@@ -2312,7 +2308,7 @@ public class FateLockedPlugin extends Plugin
     private int activeWarningCount()
     {
         int warnings = 0;
-        if (lastLockState == FateLockedBundle.LockState.LOCKED) warnings++;
+        if (lastStatus == PermissionStatus.LOCKED) warnings++;
         if (slayerTaskWarn != null && !slayerTaskWarn.trim().isEmpty()) warnings++;
         if (overTierSummary != null && !overTierSummary.trim().isEmpty()) warnings++;
         return warnings;
