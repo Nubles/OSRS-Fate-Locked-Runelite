@@ -2,6 +2,7 @@ package com.fatelocked.detectors;
 
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.events.FateEventType;
+import com.fatelocked.storage.LocalFileMerge;
 import com.google.gson.Gson;
 
 import java.io.IOException;
@@ -57,20 +58,35 @@ public final class SlayerTaskDetector
         String name, String master, int count, boolean joinedMidAssignment)
         throws IOException
     {
-        state.name = name;
-        state.master = master;
-        state.startCount = count;
-        state.joinedMidAssignment = joinedMidAssignment;
-        state.completed = false;
-        persist();
+        State next = new State();
+        next.name = name;
+        next.master = master;
+        next.startCount = count;
+        next.joinedMidAssignment = joinedMidAssignment;
+        LocalFileMerge.update(path, current -> bytes(next));
+        state = next;
     }
 
+    /**
+     * The task complete, once. The saved state is re-read under the file's
+     * lock, so another RuneLite on the same account can't complete the same
+     * task a second time, and a task it saved is the one completed here.
+     */
     public synchronized Optional<DetectedEvent> completion(String signature)
         throws IOException
     {
-        if (state.name == null || state.completed) return Optional.empty();
-        state.completed = true;
-        persist();
+        State[] completed = {null};
+        LocalFileMerge.update(path, current -> {
+            State saved = current == null ? state : parse(current);
+            state = saved;
+            if (saved.name == null || saved.completed) return null;
+            State done = copy(saved);
+            done.completed = true;
+            completed[0] = done;
+            return bytes(done);
+        });
+        if (completed[0] == null) return Optional.empty();
+        state = completed[0];
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("assignment", state.name);
         if (state.master != null) evidence.put("master", state.master);
@@ -87,26 +103,35 @@ public final class SlayerTaskDetector
             .build());
     }
 
-    public synchronized void cancel() throws IOException
+    private byte[] bytes(State value)
     {
-        state = new State();
-        persist();
+        return gson.toJson(value).getBytes(StandardCharsets.UTF_8);
     }
 
-    private void persist() throws IOException
+    /** The saved state; a damaged file is moved aside, and counts as no assignment. */
+    private State parse(byte[] current) throws IOException
     {
-        if (path.getParent() != null) Files.createDirectories(path.getParent());
-        Path temporary = path.resolveSibling(path.getFileName() + ".tmp");
-        Files.writeString(temporary, gson.toJson(state), StandardCharsets.UTF_8);
         try
         {
-            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING);
+            State loaded = gson.fromJson(new String(current, StandardCharsets.UTF_8), State.class);
+            return loaded == null ? new State() : loaded;
         }
-        catch (java.nio.file.AtomicMoveNotSupportedException ex)
+        catch (RuntimeException error)
         {
-            Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
+            LocalFileMerge.moveAside(path);
+            return new State();
         }
+    }
+
+    private static State copy(State source)
+    {
+        State copy = new State();
+        copy.name = source.name;
+        copy.master = source.master;
+        copy.startCount = source.startCount;
+        copy.joinedMidAssignment = source.joinedMidAssignment;
+        copy.completed = source.completed;
+        return copy;
     }
 
     private static final class State

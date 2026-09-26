@@ -7,8 +7,16 @@ import com.fatelocked.events.FateEventType;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
+import net.runelite.api.WorldType;
+import net.runelite.api.events.GameTick;
+import net.runelite.api.events.VarbitChanged;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.ItemStack;
+import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
+import net.runelite.http.api.loottracker.LootRecordType;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -21,13 +29,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.EnumSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +63,172 @@ public class FateLockedPluginLocalHistoryTest
     }
 
     @Test
+    public void aClueRewardIsRecordedButACasketInOtherLootIsNot() throws Exception
+    {
+        Harness harness = harness("clues");
+
+        // Tempoross's reward pool can hold an item called "Casket".
+        harness.plugin.onLootReceived(new LootReceived("Tempoross", 0, LootRecordType.EVENT,
+            java.util.List.of(new ItemStack(CASKET, 1)), 1, null));
+        harness.plugin.onLootReceived(new LootReceived("Clue Scroll (Hard)", 0, LootRecordType.EVENT,
+            java.util.List.of(new ItemStack(COINS, 5000)), 1, null));
+
+        assertEquals(1, harness.history.events().size());
+        assertEquals("Clue Scroll (Hard)", harness.history.events().get(0).getCanonicalLabel());
+    }
+
+    @Test
+    public void theLoggedInAccountsOwnFilesAreOpenedAndUsed() throws Exception
+    {
+        Harness harness = harness("per-account");
+        when(harness.client.getAccountHash()).thenReturn(7L);
+
+        invokeNoArg(harness.plugin, "openAccountFiles");
+        invokeRecord(harness.plugin, detected("Dragon Slayer"));
+
+        assertTrue(Files.exists(harness.dataDirectory.resolve("accounts/7/event-history.json")));
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void aDetectionBeforeTheAccountsOwnFilesOpenIsDropped() throws Exception
+    {
+        // Another account's files are open, and this account's aren't yet.
+        Harness harness = harness("before-files");
+        when(harness.client.getAccountHash()).thenReturn(7L);
+
+        invokeRecord(harness.plugin, detected("Dragon Slayer"));
+
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void nothingIsRecordedOnALeaguesWorld() throws Exception
+    {
+        Harness harness = harness("leagues");
+        when(harness.client.getWorldType()).thenReturn(EnumSet.of(WorldType.SEASONAL));
+
+        invokeRecord(harness.plugin, detected("Dragon Slayer"));
+
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void anotherCharacterGetsNeitherRecordsNorReminders() throws Exception
+    {
+        Harness harness = harness("another-character");
+        FateLockedConfig config = (FateLockedConfig) PluginTestSupport.get(harness.plugin, "config");
+        when(config.rollNudges()).thenReturn(true);
+        ChatMessageManager chat = mock(ChatMessageManager.class);
+        setField(harness.plugin, "chatMessageManager", chat);
+        Player main = mock(Player.class);
+        when(main.getName()).thenReturn("Zezima");
+        when(harness.client.getLocalPlayer()).thenReturn(main);
+        useDiaryMemory(harness);
+        readDiaryTiers(harness);
+
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        assertEquals(0, harness.history.events().size());
+        verify(chat, never()).queue(any(QueuedMessage.class));
+
+        // The rules' own character gets both.
+        Player bound = mock(Player.class);
+        when(bound.getName()).thenReturn("Nubles");
+        when(harness.client.getLocalPlayer()).thenReturn(bound);
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY + 1, 1));
+        assertEquals(1, harness.history.events().size());
+        verify(chat).queue(any(QueuedMessage.class));
+    }
+
+    @Test
+    public void aFinishedDiaryTierIsRecordedUnderTheTrackersId() throws Exception
+    {
+        Harness harness = harness("diary");
+        useDiaryMemory(harness);
+        // The session's full reading: every tier unfinished.
+        readDiaryTiers(harness);
+
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        assertEquals(1, harness.history.events().size());
+        // A diary event names its tier in the evidence; the tracker picks the task.
+        assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+    }
+
+    @Test
+    public void aTierFinishedWhileRuneLiteWasClosedCountsAtTheNextLogin() throws Exception
+    {
+        Harness harness = harness("diary-away");
+        new DiaryTierMemory(harness.gson, harness.dataDirectory.resolve(DiaryTierMemory.FILE))
+            .reading(Collections.<String>emptyList());
+        useDiaryMemory(harness);
+        when(harness.client.getVarbitValue(LUMBRIDGE_EASY)).thenReturn(1);
+
+        readDiaryTiers(harness);
+
+        assertEquals(1, harness.history.events().size());
+        assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+    }
+
+    @Test
+    public void tiersArrivingAtLoginAreNotNewCompletions() throws Exception
+    {
+        Harness harness = harness("diary-login");
+        useDiaryMemory(harness);
+        when(harness.client.getVarbitValue(LUMBRIDGE_EASY)).thenReturn(1);
+
+        // The login's own varbits, before this session's full reading...
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+        // ...and the reading itself, this account's first.
+        readDiaryTiers(harness);
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void theFullReadingComesWithTheSessionsFirstTick() throws Exception
+    {
+        Harness harness = harness("diary-tick");
+        new DiaryTierMemory(harness.gson, harness.dataDirectory.resolve(DiaryTierMemory.FILE))
+            .reading(Collections.<String>emptyList());
+        useDiaryMemory(harness);
+        when(harness.client.getVarbitValue(LUMBRIDGE_EASY)).thenReturn(1);
+
+        harness.plugin.onGameTick(new GameTick());
+
+        assertEquals(1, harness.history.events().size());
+    }
+
+    /** The account's diary memory in the harness's folder. */
+    private static void useDiaryMemory(Harness harness) throws Exception
+    {
+        setField(harness.plugin, "diaryTiers", new DiaryTierMemory(harness.gson,
+            harness.dataDirectory.resolve(DiaryTierMemory.FILE)));
+    }
+
+    private static void readDiaryTiers(Harness harness) throws Exception
+    {
+        invokeNoArg(harness.plugin, "readDiaryTiersIfDue");
+    }
+
+    /** Lumbridge & Draynor Easy's varbit. */
+    private static final int LUMBRIDGE_EASY = 4495;
+
+    private static VarbitChanged varbit(int id, int value)
+    {
+        VarbitChanged event = new VarbitChanged();
+        event.setVarbitId(id);
+        event.setValue(value);
+        return event;
+    }
+
+    /** The item ids of a casket and of coins. */
+    private static final int CASKET = 405;
+    private static final int COINS = 995;
+
+    @Test
     public void nullDetectionAndMissingAccountAddNothing() throws Exception
     {
         Harness harness = harness("gates");
@@ -70,13 +247,12 @@ public class FateLockedPluginLocalHistoryTest
         String rules = fixture("bundles/v4-rules.json");
 
         Harness relay = harness("relay-source");
-        assertTrue(invokeRelayImport(relay.plugin, rules));
+        assertTrue(PluginTestSupport.importFromRelay(relay.plugin, rules));
         invokeRecord(relay.plugin, detected("Dragon Slayer"));
         assertEquals(1, relay.history.events().size());
 
         Harness clipboard = harness("clipboard-source");
-        assertTrue(invokePastedImport(
-            clipboard.plugin, rules, "CLIPBOARD"));
+        PluginTestSupport.importFromClipboard(clipboard.plugin, rules);
         invokeRecord(clipboard.plugin, detected("Dragon Slayer"));
         assertEquals(1, clipboard.history.events().size());
 
@@ -84,7 +260,7 @@ public class FateLockedPluginLocalHistoryTest
         Files.write(
             file.dataDirectory.resolve("fate-locked-bundle-test.json"),
             rules.getBytes(StandardCharsets.UTF_8));
-        invokeNoArg(file.plugin, "reloadBundle");
+        invokeNoArg(file.plugin, "loadNewestBackupFile");
         invokeRecord(file.plugin, detected("Dragon Slayer"));
         assertEquals(1, file.history.events().size());
 
@@ -103,8 +279,11 @@ public class FateLockedPluginLocalHistoryTest
         Harness harness = harness("write-failure");
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
         FateLockedBundle bundleBefore = harness.plugin.getBundle();
+        // A directory where the write's lock file goes: the write fails, and
+        // the file already there stays readable.
         Path temporary = harness.historyPath.resolveSibling(
-            harness.historyPath.getFileName() + ".tmp");
+            harness.historyPath.getFileName() + ".lock");
+        Files.deleteIfExists(temporary);
         Files.createDirectory(temporary);
 
         invokeRecord(harness.plugin, detected("Cook's Assistant"));
@@ -142,6 +321,7 @@ public class FateLockedPluginLocalHistoryTest
         FateEventHistory history =
             new FateEventHistory(gson, historyPath, legacyPath);
 
+        PluginTestSupport.runQueuedWorkInline(plugin);
         setField(plugin, "client", client);
         setField(plugin, "config", mock(FateLockedConfig.class));
         setField(plugin, "panel", panel);
@@ -150,8 +330,9 @@ public class FateLockedPluginLocalHistoryTest
             mock(WorldMapPointManager.class));
         setField(plugin, "connectionSettings", connectionSettings);
         setField(plugin, "eventHistory", history);
-        setField(plugin, "bundle", FateLockedBundle.loadFromJson(
-            gson, fixture("bundles/v4-rules.json")));
+        setField(plugin, "active", new ActiveRules(
+            FateLockedBundle.loadFromJson(gson, fixture("bundles/v4-rules.json")),
+            FateLockedPlugin.RulesSource.NONE));
 
         return new Harness(
             plugin, panel, client, connectionSettings, history,
@@ -179,29 +360,7 @@ public class FateLockedPluginLocalHistoryTest
         method.invoke(plugin, event);
     }
 
-    private static boolean invokeRelayImport(
-        FateLockedPlugin plugin, String value) throws Exception
-    {
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "acceptRelayPayload", String.class);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value);
-    }
 
-    private static boolean invokePastedImport(
-        FateLockedPlugin plugin, String value, String sourceName)
-        throws Exception
-    {
-        Class<?> sourceClass = Class.forName(
-            FateLockedPlugin.class.getName() + "$ImportSource");
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        Object source = Enum.valueOf(
-            (Class<? extends Enum>) sourceClass, sourceName);
-        Method method = FateLockedPlugin.class.getDeclaredMethod(
-            "applyPastedBundle", String.class, sourceClass);
-        method.setAccessible(true);
-        return (Boolean) method.invoke(plugin, value, source);
-    }
 
     private static void invokeNoArg(
         FateLockedPlugin plugin, String methodName) throws Exception

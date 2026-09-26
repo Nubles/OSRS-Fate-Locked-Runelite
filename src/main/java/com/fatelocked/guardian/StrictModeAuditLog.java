@@ -1,5 +1,6 @@
 package com.fatelocked.guardian;
 
+import com.fatelocked.storage.LocalFileMerge;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -8,13 +9,13 @@ import com.google.gson.JsonParseException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
@@ -38,12 +39,28 @@ public final class StrictModeAuditLog
         load();
     }
 
+    /**
+     * Add an entry, merged with the entries on disk now, which another
+     * RuneLite may have added since this one loaded: the newest 100.
+     */
     public synchronized void append(StrictModeAuditEntry entry) throws IOException
     {
         if (entry == null) return;
-        entries.add(entry);
-        while (entries.size() > MAX_ENTRIES) entries.remove(0);
-        persist();
+        List<StrictModeAuditEntry> merged = new ArrayList<>();
+        LocalFileMerge.update(path, current -> {
+            List<StrictModeAuditEntry> all = new ArrayList<>(onDisk(current));
+            all.addAll(entries);
+            all.add(entry);
+            all.sort(Comparator.comparingLong(StrictModeAuditEntry::getTimestamp));
+            List<StrictModeAuditEntry> unique = new ArrayList<>(new LinkedHashSet<>(all));
+            merged.clear();
+            merged.addAll(unique.subList(Math.max(0, unique.size() - MAX_ENTRIES), unique.size()));
+            State state = new State();
+            state.entries = new ArrayList<>(merged);
+            return gson.toJson(state).getBytes(StandardCharsets.UTF_8);
+        });
+        entries.clear();
+        entries.addAll(merged);
     }
 
     public synchronized List<StrictModeAuditEntry> recent(int limit)
@@ -60,29 +77,45 @@ public final class StrictModeAuditLog
     private void load() throws IOException
     {
         if (!Files.exists(path)) return;
+        entries.addAll(onDisk(Files.readAllBytes(path)));
+        while (entries.size() > MAX_ENTRIES) entries.remove(0);
+    }
+
+    /**
+     * The entries in the file's contents; none if there is no file. A file
+     * that isn't an audit log at all is moved aside, where it is kept, rather
+     * than written over; entries that aren't safe to show are skipped.
+     */
+    private List<StrictModeAuditEntry> onDisk(byte[] contents) throws IOException
+    {
+        if (contents == null) return Collections.emptyList();
+        JsonArray loaded = null;
         try
         {
             JsonObject state = gson.fromJson(
-                new String(Files.readAllBytes(path), StandardCharsets.UTF_8),
-                JsonObject.class);
-            if (state == null || !state.has("entries")
-                || !state.get("entries").isJsonArray())
+                new String(contents, StandardCharsets.UTF_8), JsonObject.class);
+            if (state != null && state.has("entries") && state.get("entries").isJsonArray())
             {
-                return;
+                loaded = state.getAsJsonArray("entries");
             }
-            JsonArray loaded = state.getAsJsonArray("entries");
-            for (JsonElement element : loaded)
-            {
-                if (!element.isJsonObject()) continue;
-                StrictModeAuditEntry entry = loadEntry(element.getAsJsonObject());
-                if (entry != null) entries.add(entry);
-            }
-            while (entries.size() > MAX_ENTRIES) entries.remove(0);
         }
         catch (JsonParseException | IllegalStateException ex)
         {
-            entries.clear();
+            loaded = null;
         }
+        if (loaded == null)
+        {
+            LocalFileMerge.moveAside(path);
+            return Collections.emptyList();
+        }
+        List<StrictModeAuditEntry> valid = new ArrayList<>();
+        for (JsonElement element : loaded)
+        {
+            if (!element.isJsonObject()) continue;
+            StrictModeAuditEntry entry = loadEntry(element.getAsJsonObject());
+            if (entry != null) valid.add(entry);
+        }
+        return valid;
     }
 
     private StrictModeAuditEntry loadEntry(JsonObject object)
@@ -171,26 +204,6 @@ public final class StrictModeAuditLog
             if (!allowed.contains(field)) return false;
         }
         return true;
-    }
-
-    private void persist() throws IOException
-    {
-        Path parent = path.toAbsolutePath().getParent();
-        if (parent != null) Files.createDirectories(parent);
-        Path temporary = path.resolveSibling(path.getFileName() + ".tmp");
-        State state = new State();
-        state.entries = new ArrayList<>(entries);
-        Files.write(temporary,
-            gson.toJson(state).getBytes(StandardCharsets.UTF_8));
-        try
-        {
-            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING);
-        }
-        catch (AtomicMoveNotSupportedException ex)
-        {
-            Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
     private static final class State

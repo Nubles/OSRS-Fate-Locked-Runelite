@@ -2,6 +2,8 @@ package com.fatelocked;
 
 import com.google.gson.Gson;
 import net.runelite.client.config.ConfigManager;
+import okhttp3.Call;
+import okhttp3.EventListener;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -33,9 +36,11 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -52,6 +57,9 @@ public class TrackerConnectionControllerTest
         new ConcurrentHashMap<>();
     private final List<String> unsetKeys = new CopyOnWriteArrayList<>();
     private final List<Request> pluginRequests = new CopyOnWriteArrayList<>();
+    /** Every relay request, and those that have ended, however they ended. */
+    private final List<Call> sentCalls = new CopyOnWriteArrayList<>();
+    private final List<Call> endedCalls = new CopyOnWriteArrayList<>();
     private final RecordingDispatcher dispatcher =
         new RecordingDispatcher();
     private final ConcurrentLinkedQueue<Runnable> clientTasks =
@@ -62,6 +70,7 @@ public class TrackerConnectionControllerTest
         Instant.parse("2026-07-27T10:00:00Z"));
 
     private MockWebServer server;
+    private OkHttpClient http;
     private TrackerConnectionSettings settings;
     private TrackerConnectionController controller;
 
@@ -98,8 +107,25 @@ public class TrackerConnectionControllerTest
                 .url(server.url(original.url().encodedPath()))
                 .build());
         };
-        OkHttpClient http = new OkHttpClient.Builder()
+        http = new OkHttpClient.Builder()
             .addInterceptor(redirectToServer)
+            .eventListenerFactory(call -> {
+                sentCalls.add(call);
+                return new EventListener()
+                {
+                    @Override
+                    public void callEnd(Call ended)
+                    {
+                        endedCalls.add(ended);
+                    }
+
+                    @Override
+                    public void callFailed(Call failed, IOException error)
+                    {
+                        endedCalls.add(failed);
+                    }
+                };
+            })
             .build();
         controller = new TrackerConnectionController(
             http, gson, settings, clock, dispatcher,
@@ -134,6 +160,22 @@ public class TrackerConnectionControllerTest
     {
         configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
         controller.beginPairing();
+    }
+
+    @Test
+    public void aStoppedControllerRefusesToPair() throws Exception
+    {
+        controller.stop();
+
+        // A Connect queued before the plugin was turned off runs after it.
+        assertThrows(IllegalStateException.class, controller::beginPairing);
+        controller.pollIfDue();
+
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(TrackerConnectionState.DISCONNECTED,
+            controller.snapshot().getState());
+        assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
+        assertTrue(pluginRequests.isEmpty());
     }
 
     @Test
@@ -177,20 +219,171 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void beginPairingReplacesTheCodeAndReturnsTheBrowserUrl()
+    public void aFirstPairingSavesItsCodeAtOnceAndReturnsTheBrowserUrl()
     {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+
         String url = controller.beginPairing();
 
         assertTrue(settings.pairingCode().matches("[0-9a-f]{32}"));
-        assertNotEquals(INITIAL_CODE, settings.pairingCode());
         assertEquals(PairingSupport.trackerPairingUrl(
             settings.pairingCode()), url);
-        assertEquals(TrackerConnectionState.WAITING,
-            listener.last().getState());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, listener.last().getReason());
         assertNull(listener.last().getAcceptedVersion());
         assertNull(listener.last().getLastSync());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
+    }
+
+    @Test
+    public void connectingAgainDuringAFirstPairingStartsOver()
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        String first = settings.pairingCode();
+
+        // Its code has never worked, so there is nothing to keep.
+        controller.beginPairing();
+
+        assertNotEquals(first, settings.pairingCode());
+        assertEquals(settings.pairingCode(), controller.activeCode());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void aCodeTheOwnerDisconnectedSaysSoAndConnectingPairsAfresh() throws Exception
+    {
+        connect(5, "\"5\"");
+        server.enqueue(new MockResponse().setResponseCode(404)
+            .addHeader("Content-Type", "application/json")
+            .setBody("{\"gone\":true}"));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(SyncReason.GONE, controller.snapshot().getReason());
+        assertNull(controller.snapshot().getAcceptedVersion());
+
+        // Nothing to keep: the new pairing replaces the gone one at once.
+        controller.beginPairing();
+        assertNotEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(settings.pairingCode(), controller.activeCode());
+    }
+
+    @Test
+    public void aPlain404IsNotGone() throws Exception
+    {
+        connect(5, "\"5\"");
+        server.enqueue(new MockResponse().setResponseCode(404).setBody("<html>Not Found</html>"));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(SyncReason.NO_RECENT_UPDATE, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void theStatusCarriesOnlyTheEndOfTheCodeInUse() throws Exception
+    {
+        assertEquals("cdef", controller.snapshot().getPairingEnding());
+
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String newCode = controller.activeCode();
+
+        // A re-pairing shows the new code's end, as the browser's dialog does.
+        assertEquals(newCode.substring(28), controller.snapshot().getPairingEnding());
+    }
+
+    @Test
+    public void rePairingKeepsTheWorkingPairingUntilTheNewOneDelivers() throws Exception
+    {
+        connect(5, "\"5\"");
+        Instant syncedAt = controller.snapshot().getLastSync();
+
+        String url = controller.beginPairing();
+        String newCode = controller.activeCode();
+
+        // The saved pairing, and the rules' sync time, stay until the new one delivers.
+        assertNotEquals(INITIAL_CODE, newCode);
+        assertEquals(PairingSupport.trackerPairingUrl(newCode), url);
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+        assertEquals(syncedAt, controller.snapshot().getLastSync());
+
+        // The browser hasn't published yet.
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + newCode, takeRelay().getPath());
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+
+        // Now it has.
+        clock.advanceSeconds(SyncMachine.WAITING_POLL_SECONDS);
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\""));
+        controller.pollIfDue();
+        assertEquals("/r/" + newCode, takeRelay().getPath());
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals(newCode, settings.pairingCode());
+        assertEquals(newCode, controller.activeCode());
+    }
+
+    @Test
+    public void aRePairingThatNeverArrivesKeepsTheWorkingPairing() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String newCode = controller.activeCode();
+        clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
+
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + newCode, takeRelay().getPath());
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(SyncReason.REPAIR_ABANDONED, controller.snapshot().getReason());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(INITIAL_CODE, controller.activeCode());
+        // The working pairing is checked again from its next minute.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + INITIAL_CODE, takeRelay().getPath());
+    }
+
+    @Test
+    public void cancellingARePairingGoesBackToTheWorkingPairingAtOnce() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+
+        controller.cancelRepair();
+
+        assertEquals(INITIAL_CODE, controller.activeCode());
+        assertEquals(SyncReason.CHECKING, controller.snapshot().getReason());
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + INITIAL_CODE, takeRelay().getPath());
+    }
+
+    @Test
+    public void aPairingChangedElsewhereEndsARePairing() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String other = "fedcba9876543210fedcba9876543210";
+
+        // A RuneLite profile switch, say, brings another saved pairing.
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, other);
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.poll();
+
+        assertEquals("/r/" + other, takeRelay().getPath());
+        assertEquals(other, controller.activeCode());
     }
 
     @Test
@@ -230,6 +423,46 @@ public class TrackerConnectionControllerTest
             request.url().encodedPath());
         assertNull(request.body());
         assertEquals(0, unsetKeys.size());
+    }
+
+    @Test
+    public void thePayloadIsParsedBeforeTheClientThreadIsAsked()
+        throws Exception
+    {
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+
+        // The reply's own thread prepared it; the client thread only commits.
+        List<String> preparedOn = importer.preparedOnThreads();
+        assertEquals(1, preparedOn.size());
+        assertNotEquals(Thread.currentThread().getName(), preparedOn.get(0));
+        assertEquals(0, importer.acceptedPayloads().size());
+
+        runClientTasks();
+        assertEquals(1, importer.acceptedPayloads().size());
+        assertEquals(1, importer.preparedOnThreads().size());
+    }
+
+    @Test
+    public void aPayloadThatCannotBeParsedFailsWithoutTheClientThread()
+        throws Exception
+    {
+        importer.failToPrepareNextPayload();
+        server.enqueue(relayResponse(7, "{bad", "\"7\""));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> listener.last().getState()
+            == TrackerConnectionState.IMPORT_FAILED);
+
+        assertEquals(0, dispatcher.dispatchedCount());
+        assertEquals(0, clientTasks.size());
+        assertNull(controller.snapshot().getAcceptedVersion());
+        assertEquals(0, importer.acceptedPayloads().size());
+        waitFor(() -> !controller.pollInFlight());
     }
 
     @Test
@@ -295,7 +528,7 @@ public class TrackerConnectionControllerTest
         Thread.sleep(350);
         controller.poll();
         RecordedRequest replacement = takeRelay();
-        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncReason.NO_RECENT_UPDATE.status
             .equals(controller.snapshot().getMessage()));
 
         assertEquals("/r/" + replacementCode, replacement.getPath());
@@ -383,7 +616,7 @@ public class TrackerConnectionControllerTest
 
         takeRelay();
         assertNull(server.takeRequest(150, TimeUnit.MILLISECONDS));
-        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncReason.NO_RECENT_UPDATE.status
             .equals(controller.snapshot().getMessage()));
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
@@ -400,7 +633,7 @@ public class TrackerConnectionControllerTest
         RecordedRequest oldRelay = takeRelay();
         String oldCode = settings.pairingCode();
         controller.beginPairing();
-        String newCode = settings.pairingCode();
+        String newCode = controller.activeCode();
         controller.poll();
         RecordedRequest newRelay = takeRelay();
         waitFor(() -> clientTasks.size() == 1);
@@ -414,6 +647,8 @@ public class TrackerConnectionControllerTest
             controller.snapshot().getState());
         assertEquals("2", controller.snapshot().getAcceptedVersion());
         assertEquals(1, importer.acceptedPayloads().size());
+        // The new pairing delivered, so it is now the saved one.
+        assertEquals(newCode, settings.pairingCode());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
     }
@@ -486,7 +721,9 @@ public class TrackerConnectionControllerTest
 
         runClientTasks();
 
-        assertNotEquals(INITIAL_CODE, settings.pairingCode());
+        // A re-pairing: the working pairing stays saved until the new one delivers.
+        assertNotEquals(INITIAL_CODE, controller.activeCode());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
         assertEquals(TrackerConnectionState.WAITING,
             controller.snapshot().getState());
         List<TrackerConnectionState> states = listener.states();
@@ -515,8 +752,11 @@ public class TrackerConnectionControllerTest
         }
         Thread.sleep(50);
 
-        assertEquals(TrackerConnectionState.CONNECTED,
+        // Unreadable, and said so; the rules and their version stay.
+        assertEquals(TrackerConnectionState.OFFLINE,
             controller.snapshot().getState());
+        assertEquals(SyncReason.UNREADABLE.status,
+            controller.snapshot().getMessage());
         assertEquals("5", controller.snapshot().getAcceptedVersion());
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(imports, importer.acceptedPayloads().size());
@@ -545,14 +785,13 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void olderEqualAndMalformedVersionsAreRejected() throws Exception
+    public void olderAndMalformedVersionsAreNeverImported() throws Exception
     {
         connect(5, "\"5\"");
         int imports = importer.acceptedPayloads().size();
 
         MockResponse[] invalid = {
             relayResponse(4, validV4Payload(), "\"4\""),
-            relayResponse(5, validV4Payload(), "W/\"5\""),
             relayResponse(6, validV4Payload(), "not-a-version"),
             relayResponse(6, validV4Payload(), "\"bad\""),
             relayResponse(6, validV4Payload(), "\"06\""),
@@ -565,13 +804,301 @@ public class TrackerConnectionControllerTest
         }
         Thread.sleep(50);
 
-        assertEquals(TrackerConnectionState.CONNECTED,
-            controller.snapshot().getState());
         assertEquals("5", controller.snapshot().getAcceptedVersion());
         assertEquals(clock.instant(), controller.snapshot().getLastSync());
         assertEquals(imports, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
+    }
+
+    @Test
+    public void theHeldVersionSentInFullCountsAsACheck() throws Exception
+    {
+        connect(5, "\"5\"");
+        int prepared = importer.preparedOnThreads().size();
+
+        // Something in front of the relay drops If-None-Match and sends the
+        // rules the plugin holds in full.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(relayResponse(5, validV4Payload(), "W/\"5\""));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(prepared, importer.preparedOnThreads().size());
+        // Checked again after the usual minute, not after a back-off.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+        clock.advanceSeconds(1);
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.pollIfDue();
+        takeRelay();
+    }
+
+    @Test
+    public void aVersionThatCannotBeImportedIsNotDownloadedAgain() throws Exception
+    {
+        connect(5, "\"5\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
+        // Say the tracker publishes a bundle this plugin can't read yet.
+        importer.failToPrepareNextPayload();
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> controller.snapshot().getState()
+            == TrackerConnectionState.IMPORT_FAILED);
+        waitFor(() -> !controller.pollInFlight());
+
+        // The next check asks only whether something newer has arrived.
+        clock.advanceSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(304).addHeader("ETag", "6"));
+        controller.pollIfDue();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, controller.snapshot().getState());
+        assertEquals("5", controller.snapshot().getAcceptedVersion());
+        // Not confirmed: the relay has newer rules the plugin can't use.
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
+        assertEquals(2, importer.preparedOnThreads().size());
+    }
+
+    @Test
+    public void aNewerBundleFormatSaysToUpdateThePluginUntilSomethingElseArrives()
+        throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.readNextPayloadAsAFutureFormat();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> controller.snapshot().getState() == TrackerConnectionState.IMPORT_FAILED);
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.FUTURE_FORMAT, controller.snapshot().getReason());
+
+        // Later checks hear that the relay still has only that version.
+        server.enqueue(new MockResponse().setResponseCode(304).addHeader("ETag", "6"));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.FUTURE_FORMAT, controller.snapshot().getReason());
+
+        // Rules the plugin can read clear it.
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals(SyncReason.NONE, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void rulesThatCannotBeReadSayToSendThemAgain() throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.failToPrepareNextPayload();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> controller.snapshot().getState() == TrackerConnectionState.IMPORT_FAILED);
+
+        assertEquals(SyncReason.INVALID_RULES, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void aReplyIgnoringTheValidatorIsNotTriedAgain() throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.rejectNextPayload();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, controller.snapshot().getState());
+
+        // Something in front of the relay answers in full anyway.
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(2, importer.preparedOnThreads().size());
+        assertEquals(0, clientTasks.size());
+        assertEquals(TrackerConnectionState.IMPORT_FAILED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void newerRulesAfterARejectedVersionAreTried() throws Exception
+    {
+        connect(5, "\"5\"");
+        importer.rejectNextPayload();
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\""));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals("7", controller.snapshot().getAcceptedVersion());
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.poll();
+        assertEquals("7", takeRelay().getHeader("If-None-Match"));
+    }
+
+    @Test
+    public void withConsentOffTheTicksChangeNothing() throws Exception
+    {
+        connect(5, "\"5\"");
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        int before = listener.snapshots().size();
+
+        for (int tick = 0; tick < 5; tick++)
+        {
+            controller.pollIfDue();
+        }
+
+        // One reset to "Not connected", then silence.
+        assertEquals(before + 1, listener.snapshots().size());
+        assertEquals(TrackerConnectionState.DISCONNECTED, controller.snapshot().getState());
+        assertNull(server.takeRequest(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void aConfirmationForAnotherVersionWaitsAFullInterval() throws Exception
+    {
+        connect(6, "\"6\"");
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(304).addHeader("ETag", "5"));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+        clock.advanceSeconds(SyncMachine.WAITING_POLL_SECONDS);
+        controller.pollIfDue();
+
+        assertNoFurtherRequest();
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void theSameStatusIsNotPublishedTwice() throws Exception
+    {
+        connect(6, "\"6\"");
+        // The relay's copy lapsed, and says so at every check.
+        for (int reply = 0; reply < 2; reply++)
+        {
+            server.enqueue(new MockResponse().setResponseCode(404));
+            pollUntilRelay();
+            waitFor(() -> !controller.pollInFlight());
+        }
+
+        long lapsed = listener.snapshots().stream()
+            .filter(s -> s.getReason() == SyncReason.NO_RECENT_UPDATE)
+            .count();
+        assertEquals(1, lapsed);
+    }
+
+    @Test
+    public void aFailedCheckSaysWhenTheNextOneIs() throws Exception
+    {
+        connect(6, "\"6\"");
+        for (long wait : new long[] {SyncMachine.FAILURE_BACKOFF_SECONDS,
+            2 * SyncMachine.FAILURE_BACKOFF_SECONDS})
+        {
+            server.enqueue(new MockResponse().setResponseCode(503));
+            pollUntilRelay();
+            waitFor(() -> !controller.pollInFlight());
+
+            assertEquals(SyncReason.UNAVAILABLE, controller.snapshot().getReason());
+            assertEquals(clock.instant().plusSeconds(wait), controller.snapshot().getNextCheck());
+        }
+        // Each new wait is a new status, so the sidebar shows it.
+        assertEquals(2, listener.snapshots().stream()
+            .filter(s -> s.getReason() == SyncReason.UNAVAILABLE)
+            .count());
+    }
+
+    @Test
+    public void theFirstStatusSaysWhetherSyncIsOffOrAboutToCheck() throws Exception
+    {
+        assertEquals(SyncReason.CHECKING, controller.snapshot().getReason());
+
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        RecordingListener syncOff = new RecordingListener();
+        TrackerConnectionController paired = new TrackerConnectionController(
+            http, gson, settings, clock, dispatcher, importer, syncOff);
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        RecordingListener unpaired = new RecordingListener();
+        TrackerConnectionController fresh = new TrackerConnectionController(
+            http, gson, settings, clock, dispatcher, importer, unpaired);
+        try
+        {
+            assertEquals(SyncReason.SYNC_OFF, syncOff.last().getReason());
+            assertEquals(SyncReason.NOT_PAIRED, unpaired.last().getReason());
+        }
+        finally
+        {
+            paired.stop();
+            fresh.stop();
+        }
+    }
+
+    @Test
+    public void anUnreadableReplySaysSoAndBacksOff() throws Exception
+    {
+        connect(6, "\"6\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .addHeader("Content-Type", "text/html")
+            .setBody("<html><body>Sign in to the Wi-Fi</body></html>"));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> SyncReason.UNREADABLE.status.equals(
+            controller.snapshot().getMessage()));
+
+        // The rules and their version stay; only the status says what happened.
+        assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
+        assertEquals(1, importer.acceptedPayloads().size());
+        waitFor(() -> !controller.pollInFlight());
+        clock.advanceSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+    }
+
+    @Test
+    public void aReplyThatBreaksOffIsUnreachable() throws Exception
+    {
+        connect(6, "\"6\"");
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\"")
+            .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY));
+
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> SyncReason.UNREACHABLE.status.equals(
+            controller.snapshot().getMessage()));
+
+        assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        assertEquals(1, importer.acceptedPayloads().size());
     }
 
     @Test
@@ -629,6 +1156,58 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void rulesRestoredFromTheLastStartAreConfirmedByA304() throws Exception
+    {
+        controller.seedAcceptedVersion("41");
+        server.enqueue(new MockResponse()
+            .setResponseCode(304)
+            .addHeader("ETag", "\"41\""));
+
+        controller.poll();
+        RecordedRequest first = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        // Not connected until the relay says they are current.
+        assertNull(controller.snapshot().getLastSync());
+        runClientTasks();
+
+        assertEquals("41", first.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals("41", controller.snapshot().getAcceptedVersion());
+        assertEquals(clock.instant(), controller.snapshot().getLastSync());
+        assertEquals(0, importer.acceptedPayloads().size());
+    }
+
+    @Test
+    public void newerRulesStillArriveInFullAfterASeed() throws Exception
+    {
+        controller.seedAcceptedVersion("41");
+        server.enqueue(relayResponse(42, validV4Payload(), "\"42\""));
+
+        controller.poll();
+        assertEquals("41", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals("42", controller.snapshot().getAcceptedVersion());
+        assertEquals(1, importer.acceptedPayloads().size());
+    }
+
+    @Test
+    public void aSeedIsIgnoredOnceThisStartHasAcceptedRules() throws Exception
+    {
+        connect(6, "\"6\"");
+
+        controller.seedAcceptedVersion("41");
+
+        assertEquals("6", controller.snapshot().getAcceptedVersion());
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.poll();
+        assertEquals("6", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+    }
+
+    @Test
     public void mismatched304DoesNotRefreshFreshness() throws Exception
     {
         connect(6, "\"6\"");
@@ -656,6 +1235,7 @@ public class TrackerConnectionControllerTest
         throws Exception
     {
         connect(6, "\"6\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
         clock.advanceSeconds(30);
         server.enqueue(new MockResponse()
             .setResponseCode(304)
@@ -670,7 +1250,8 @@ public class TrackerConnectionControllerTest
         assertEquals(TrackerConnectionState.WAITING,
             controller.snapshot().getState());
         assertNull(controller.snapshot().getAcceptedVersion());
-        assertNull(controller.snapshot().getLastSync());
+        // Still the working pairing's sync time, not the stale 304's.
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
@@ -725,6 +1306,72 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void aRelayThatStaysBusyIsCheckedWhenItAsks() throws Exception
+    {
+        for (int reply = 0; reply < 2; reply++)
+        {
+            server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "120"));
+            controller.pollIfDue();
+            takeRelay();
+            waitFor(() -> !controller.pollInFlight());
+
+            // Two minutes each time, as asked, rather than doubled.
+            assertEquals(clock.instant().plusSeconds(120), controller.snapshot().getNextCheck());
+            clock.advanceSeconds(120);
+        }
+    }
+
+    @Test
+    public void loggedOutTheTrackerIsCheckedLessOftenAndALoginChecksAtOnce() throws Exception
+    {
+        controller.loggedIn(false);
+        connect(5, "\"5\"");
+
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+
+        controller.loggedIn(true);
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+    }
+
+    @Test
+    public void checkNowChecksAtOnceAtMostEveryTenSeconds() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+
+        assertTrue(controller.checkNow());
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertFalse(controller.checkNow());
+        clock.advanceSeconds(SyncMachine.CHECK_NOW_SECONDS);
+        assertTrue(controller.checkNow());
+    }
+
+    @Test
+    public void checkNowNeedsAPairingWithOnlineSyncOn() throws Exception
+    {
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        assertFalse(controller.checkNow());
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        assertFalse(controller.checkNow());
+
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, INITIAL_CODE);
+        controller.stop();
+        assertFalse(controller.checkNow());
+    }
+
+    @Test
     public void automaticPollingBacksOffRateLimitsThenUsesHealthyCadence()
         throws Exception
     {
@@ -755,7 +1402,7 @@ public class TrackerConnectionControllerTest
             controller.snapshot().getState());
 
         clock.advanceSeconds(
-            TrackerConnectionController.CONNECTED_POLL_SECONDS - 1);
+            SyncMachine.CONNECTED_POLL_SECONDS - 1);
         controller.pollIfDue();
         assertNoFurtherRequest();
         clock.advanceSeconds(1);
@@ -776,14 +1423,15 @@ public class TrackerConnectionControllerTest
 
         controller.poll();
         takeRelay();
-        waitFor(() -> TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE
+        waitFor(() -> SyncReason.NO_RECENT_UPDATE.status
             .equals(controller.snapshot().getMessage()));
         // The pairing still works: the relay's copy lapsed, which is not red.
         assertEquals(TrackerConnectionState.WAITING,
             controller.snapshot().getState());
 
         assertEquals(INITIAL_CODE, settings.pairingCode());
-        assertEquals("5", controller.snapshot().getAcceptedVersion());
+        // The rules stay; only their version is forgotten.
+        assertNull(controller.snapshot().getAcceptedVersion());
         assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
@@ -791,28 +1439,25 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void browserLaunchFailureKeepsThePairingRequestRetryable()
-        throws Exception
+    public void afterANotFoundTheNextVersionIsImportedEvenIfOlder() throws Exception
     {
-        controller.beginPairing();
-        String code = settings.pairingCode();
-
-        controller.reportBrowserLaunchFailure();
-
-        assertEquals(TrackerConnectionState.OFFLINE,
-            controller.snapshot().getState());
-        assertEquals("Could not open the web tracker",
-            controller.snapshot().getMessage());
-        assertEquals(code, settings.pairingCode());
+        connect(5, "\"5\"");
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.poll();
-        RecordedRequest retry = takeRelay();
-        waitFor(() -> TrackerConnectionController.CONFIRM_MESSAGE
-            .equals(controller.snapshot().getMessage()));
-        assertEquals("/r/" + code, retry.getPath());
-        assertEquals(0, importer.acceptedPayloads().size());
-        assertEquals(0, clientTasks.size());
-        assertNoFurtherRequest();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        // Say the relay's storage was restored from an older copy.
+        server.enqueue(relayResponse(4, validV4Payload(), "\"4\""));
+        controller.poll();
+        RecordedRequest next = takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertNull(next.getHeader("If-None-Match"));
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals("4", controller.snapshot().getAcceptedVersion());
+        assertEquals(2, importer.acceptedPayloads().size());
     }
 
     @Test
@@ -824,13 +1469,14 @@ public class TrackerConnectionControllerTest
         assertEquals(0, unsetKeys.size());
 
         controller.beginPairing();
+        // A re-pairing touches nothing until the new pairing delivers.
+        assertEquals(0, unsetKeys.size());
+        connect(1, "\"1\"");
+
         assertEquals(3, unsetKeys.size());
         assertTrue(unsetKeys.contains("onlineSync"));
         assertTrue(unsetKeys.contains("syncCode"));
         assertTrue(unsetKeys.contains("relayUrl"));
-        connect(1, "\"1\"");
-
-        assertEquals(3, unsetKeys.size());
         assertEquals(3, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
     }
@@ -873,9 +1519,10 @@ public class TrackerConnectionControllerTest
     @Test
     public void aNewPairingWaitsForTheBrowserInsteadOfExpiring() throws Exception
     {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
         controller.beginPairing();
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
-        assertEquals(TrackerConnectionController.CONFIRM_MESSAGE,
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER.status,
             controller.snapshot().getMessage());
 
         // The browser has not published yet: the relay answers 404.
@@ -885,7 +1532,7 @@ public class TrackerConnectionControllerTest
         waitFor(() -> !controller.pollInFlight());
 
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
-        assertEquals(TrackerConnectionController.CONFIRM_MESSAGE,
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER.status,
             controller.snapshot().getMessage());
 
         // Checked again after 5 seconds, not after a growing back-off.
@@ -906,14 +1553,14 @@ public class TrackerConnectionControllerTest
     public void aPairingChecksLessOftenAfterTwoMinutes() throws Exception
     {
         controller.beginPairing();
-        clock.advanceSeconds(TrackerConnectionController.PAIRING_FAST_POLL_WINDOW_SECONDS);
+        clock.advanceSeconds(SyncMachine.PAIRING_FAST_POLL_WINDOW_SECONDS);
 
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.pollIfDue();
         takeRelay();
         waitFor(() -> !controller.pollInFlight());
 
-        clock.advanceSeconds(TrackerConnectionController.PAIRING_SLOW_POLL_SECONDS - 1);
+        clock.advanceSeconds(SyncMachine.PAIRING_SLOW_POLL_SECONDS - 1);
         controller.pollIfDue();
         assertNoFurtherRequest();
         clock.advanceSeconds(1);
@@ -925,16 +1572,132 @@ public class TrackerConnectionControllerTest
     @Test
     public void aPairingWithNoProfileAfterTenMinutesSaysSo() throws Exception
     {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
         controller.beginPairing();
-        clock.advanceSeconds(TrackerConnectionController.PAIRING_CONFIRM_SECONDS);
+        clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
 
         server.enqueue(new MockResponse().setResponseCode(404));
         controller.pollIfDue();
         takeRelay();
-        waitFor(() -> TrackerConnectionController.NO_PROFILE_MESSAGE
+        waitFor(() -> SyncReason.NO_PROFILE.status
             .equals(controller.snapshot().getMessage()));
 
         assertEquals(TrackerConnectionState.EXPIRED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void aReplyThatTricklesInIsCutOffByTheCallTimeout() throws Exception
+    {
+        RecordingListener shown = new RecordingListener();
+        TrackerConnectionController shortCalls = new TrackerConnectionController(
+            http, Duration.ofMillis(500), gson, settings, clock, dispatcher, importer, shown);
+        try
+        {
+            // Each piece arrives well inside the read timeout, but the whole
+            // reply would take about 20 seconds.
+            server.enqueue(relayResponse(1, validV4Payload(), "\"1\"")
+                .throttleBody(16, 100, TimeUnit.MILLISECONDS));
+            shortCalls.poll();
+            takeRelay();
+            waitFor(() -> !shortCalls.pollInFlight());
+
+            assertEquals(TrackerConnectionState.OFFLINE, shortCalls.snapshot().getState());
+            assertEquals(SyncReason.UNREACHABLE.status, shortCalls.snapshot().getMessage());
+            assertTrue(importer.preparedOnThreads().isEmpty());
+        }
+        finally
+        {
+            shortCalls.stop();
+        }
+    }
+
+    @Test
+    public void aReplyWithNoLengthStopsBeingReadAtTheCap() throws Exception
+    {
+        StringBuilder payload = new StringBuilder();
+        while (payload.length() <= TrackerConnectionController.MAX_REPLY_BYTES)
+        {
+            payload.append("0123456789abcdef");
+        }
+        // Chunked, so nothing says how long it is until it ends.
+        server.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .addHeader("ETag", "\"1\"")
+            .setChunkedBody(gson.toJson(new RelayEnvelope(1, payload.toString())), 64 * 1024));
+
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(TrackerConnectionState.OFFLINE, controller.snapshot().getState());
+        assertEquals(SyncReason.UNREADABLE.status, controller.snapshot().getMessage());
+        assertTrue(importer.preparedOnThreads().isEmpty());
+    }
+
+    @Test
+    public void stoppingCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        controller.stop();
+
+        assertCancelled(check);
+        // The cancelled check's failure shows nothing.
+        waitFor(() -> http.dispatcher().runningCallsCount() == 0);
+        assertEquals(TrackerConnectionState.DISCONNECTED, listener.last().getState());
+    }
+
+    @Test
+    public void withdrawingConsentCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+        controller.networkAccessChanged();
+
+        assertCancelled(check);
+    }
+
+    @Test
+    public void pairingAgainCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        controller.beginPairing();
+
+        assertCancelled(check);
+    }
+
+    @Test
+    public void aPairingCodeChangedElsewhereCancelsTheCheckInFlight() throws Exception
+    {
+        Call check = sendCheckThatHangs();
+
+        // A RuneLite profile switch, say, brings another pairing code.
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY,
+            "fedcba9876543210fedcba9876543210");
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.poll();
+
+        assertCancelled(check);
+    }
+
+    /** Send a check the relay never answers. */
+    private Call sendCheckThatHangs() throws Exception
+    {
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+        controller.poll();
+        takeRelay();
+        assertEquals(1, sentCalls.size());
+        assertTrue(controller.pollInFlight());
+        return sentCalls.get(0);
+    }
+
+    private void assertCancelled(Call check) throws Exception
+    {
+        assertTrue(check.isCanceled());
+        // It ends now, not when the read would have timed out.
+        waitFor(() -> endedCalls.contains(check));
     }
 
     private void connect(int version, String etag) throws Exception
@@ -1032,15 +1795,40 @@ public class TrackerConnectionControllerTest
     }
 
     private static final class RecordingImporter
-        implements TrackerConnectionController.RelayBundleImporter
+        implements TrackerConnectionController.RelayBundleImporter<String>
     {
         private final List<String> accepted = new ArrayList<>();
+        private final List<String> preparedOn = new ArrayList<>();
         private boolean rejectNext;
+        private volatile boolean unreadableNext;
+        private volatile boolean futureFormatNext;
         private volatile CountDownLatch blocked;
         private volatile CountDownLatch release;
 
         @Override
-        public boolean importBundle(String payload)
+        public TrackerConnectionController.Prepared<String> prepare(String payload)
+        {
+            synchronized (preparedOn)
+            {
+                preparedOn.add(Thread.currentThread().getName());
+            }
+            if (unreadableNext)
+            {
+                unreadableNext = false;
+                return TrackerConnectionController.Prepared.refused(
+                    TrackerConnectionController.ImportVerdict.INVALID);
+            }
+            if (futureFormatNext)
+            {
+                futureFormatNext = false;
+                return TrackerConnectionController.Prepared.refused(
+                    TrackerConnectionController.ImportVerdict.FUTURE_FORMAT);
+            }
+            return TrackerConnectionController.Prepared.ok(payload);
+        }
+
+        @Override
+        public boolean commit(String payload, String version)
         {
             CountDownLatch currentBlock = blocked;
             if (currentBlock != null)
@@ -1072,6 +1860,24 @@ public class TrackerConnectionControllerTest
         void rejectNextPayload()
         {
             rejectNext = true;
+        }
+
+        void failToPrepareNextPayload()
+        {
+            unreadableNext = true;
+        }
+
+        void readNextPayloadAsAFutureFormat()
+        {
+            futureFormatNext = true;
+        }
+
+        List<String> preparedOnThreads()
+        {
+            synchronized (preparedOn)
+            {
+                return new ArrayList<>(preparedOn);
+            }
         }
 
         void blockNextPayload()
@@ -1195,6 +2001,11 @@ public class TrackerConnectionControllerTest
         TrackerConnectionSnapshot last()
         {
             return snapshots.get(snapshots.size() - 1);
+        }
+
+        List<TrackerConnectionSnapshot> snapshots()
+        {
+            return snapshots;
         }
     }
 

@@ -1,0 +1,218 @@
+{
+ "schema": 1,
+ "about": "Replies to the RuneLite plugin's one request, GET /r/<code> with an optional If-None-Match. Cases from the worker are replayed through it by workers/fate-relay/relayContract.test.ts. The others are what a proxy, a captive portal or the network can hand the plugin instead. The plugin copies this file at a pinned commit and checks it reads every reply as the case's outcome.",
+ "outcomes": {
+  "rules": "newer rules, to parse and import",
+  "unchanged": "the rules the plugin holds are still current",
+  "unconfirmed": "a 304 for a version the plugin does not hold; nothing changes",
+  "stale": "rules the plugin already holds, or older ones; not imported",
+  "missing": "no profile for this code",
+  "gone": "the owner disconnected this code in the web tracker",
+  "unreadable": "a reply the plugin cannot use",
+  "busy": "the relay asks the plugin to slow down",
+  "unavailable": "the relay or something in front of it failed",
+  "unreachable": "no reply at all"
+ },
+ "code": "0123456789abcdef0123456789abcdef",
+ "cases": [
+  {
+   "name": "no profile for the code",
+   "from": "worker",
+   "held": null,
+   "stored": null,
+   "request": { "ifNoneMatch": null },
+   "response": { "status": 404, "headers": { "Content-Type": "application/json" }, "body": "{}" },
+   "outcome": "missing"
+  },
+  {
+   "name": "the owner marked the code gone",
+   "from": "worker",
+   "held": "41",
+   "stored": { "gone": true, "version": 42 },
+   "request": { "ifNoneMatch": "41" },
+   "response": { "status": 404, "headers": { "Content-Type": "application/json" }, "body": "{\"gone\":true}" },
+   "outcome": "gone"
+  },
+  {
+   "name": "first fetch",
+   "from": "worker",
+   "held": null,
+   "stored": { "version": 41, "payload": "FLGZ:rules-41" },
+   "request": { "ifNoneMatch": null },
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "41" },
+    "body": "{\"version\":41,\"payload\":\"FLGZ:rules-41\"}"
+   },
+   "outcome": "rules"
+  },
+  {
+   "name": "newer rules",
+   "from": "worker",
+   "held": "41",
+   "stored": { "version": 42, "payload": "FLGZ:rules-42" },
+   "request": { "ifNoneMatch": "41" },
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "42" },
+    "body": "{\"version\":42,\"payload\":\"FLGZ:rules-42\"}"
+   },
+   "outcome": "rules"
+  },
+  {
+   "name": "the rules the plugin holds",
+   "from": "worker",
+   "held": "41",
+   "stored": { "version": 41, "payload": "FLGZ:rules-41" },
+   "request": { "ifNoneMatch": "41" },
+   "response": { "status": 304, "headers": { "ETag": "41" }, "body": null },
+   "outcome": "unchanged"
+  },
+  {
+   "name": "older rules than the plugin holds",
+   "from": "worker",
+   "held": "41",
+   "stored": { "version": 40, "payload": "FLGZ:rules-40" },
+   "request": { "ifNoneMatch": "41" },
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "40" },
+    "body": "{\"version\":40,\"payload\":\"FLGZ:rules-40\"}"
+   },
+   "outcome": "stale"
+  },
+  {
+   "name": "a quoted validator",
+   "from": "worker",
+   "held": "41",
+   "stored": { "version": 41, "payload": "FLGZ:rules-41" },
+   "request": { "ifNoneMatch": "\"41\"" },
+   "response": { "status": 304, "headers": { "ETag": "41" }, "body": null },
+   "outcome": "unchanged"
+  },
+  {
+   "name": "a weak validator",
+   "from": "worker",
+   "held": "41",
+   "stored": { "version": 41, "payload": "FLGZ:rules-41" },
+   "request": { "ifNoneMatch": "W/\"41\"" },
+   "response": { "status": 304, "headers": { "ETag": "41" }, "body": null },
+   "outcome": "unchanged"
+  },
+  {
+   "name": "the relay's storage fails",
+   "from": "worker",
+   "held": "41",
+   "stored": "fails",
+   "request": { "ifNoneMatch": "41" },
+   "response": { "status": 503, "headers": {}, "body": "relay unavailable" },
+   "outcome": "unavailable"
+  },
+  {
+   "name": "a captive portal's login page",
+   "from": "network",
+   "held": "41",
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "text/html" },
+    "body": "<html><body>Sign in to the Wi-Fi</body></html>"
+   },
+   "outcome": "unreadable"
+  },
+  {
+   "name": "a reply without rules",
+   "from": "network",
+   "held": "41",
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "42" },
+    "body": "{\"version\":42}"
+   },
+   "outcome": "unreadable"
+  },
+  {
+   "name": "a version that is not a number",
+   "from": "network",
+   "held": "41",
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "body": "{\"version\":\"forty-two\",\"payload\":\"FLGZ:rules-42\"}"
+   },
+   "outcome": "unreadable"
+  },
+  {
+   "name": "an ETag that disagrees with the reply",
+   "from": "network",
+   "held": "41",
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "43" },
+    "body": "{\"version\":42,\"payload\":\"FLGZ:rules-42\"}"
+   },
+   "outcome": "unreadable"
+  },
+  {
+   "name": "the rules the plugin holds, sent in full",
+   "from": "network",
+   "held": "41",
+   "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "ETag": "41" },
+    "body": "{\"version\":41,\"payload\":\"FLGZ:rules-41\"}"
+   },
+   "outcome": "unchanged"
+  },
+  {
+   "name": "a 304 for a version the plugin does not hold",
+   "from": "network",
+   "held": "41",
+   "response": { "status": 304, "headers": { "ETag": "40" }, "body": null },
+   "outcome": "unconfirmed"
+  },
+  {
+   "name": "busy, with Retry-After",
+   "from": "network",
+   "held": "41",
+   "response": { "status": 429, "headers": { "Retry-After": "120" }, "body": "slow down" },
+   "outcome": "busy",
+   "retryAfterSeconds": 120
+  },
+  {
+   "name": "busy, without Retry-After",
+   "from": "network",
+   "held": "41",
+   "response": { "status": 429, "headers": {}, "body": "slow down" },
+   "outcome": "busy"
+  },
+  {
+   "name": "a proxy's bad gateway",
+   "from": "network",
+   "held": "41",
+   "response": { "status": 502, "headers": { "Content-Type": "text/html" }, "body": "<html>Bad Gateway</html>" },
+   "outcome": "unavailable"
+  },
+  {
+   "name": "the connection is reset",
+   "from": "transport",
+   "held": "41",
+   "transport": "reset",
+   "outcome": "unreachable"
+  },
+  {
+   "name": "no answer in time",
+   "from": "transport",
+   "held": "41",
+   "transport": "timeout",
+   "outcome": "unreachable"
+  },
+  {
+   "name": "a reply larger than any real bundle",
+   "from": "transport",
+   "held": "41",
+   "transport": "oversized",
+   "bodyBytes": 2097152,
+   "outcome": "unreadable"
+  }
+ ]
+}

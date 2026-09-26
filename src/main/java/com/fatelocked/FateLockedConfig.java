@@ -37,18 +37,6 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "autoReload",
-        name = "Auto-reload on change",
-        description = "Re-load the newest fate-locked-bundle-*.json from .runelite/fate-locked whenever it changes. (Or just use Import from clipboard in the side panel.)",
-        section = bundleSection,
-        position = 0
-    )
-    default boolean autoReload()
-    {
-        return true;
-    }
-
-    @ConfigItem(
         keyName = "reimportHotkey",
         name = "Re-import hotkey",
         description = "Hotkey to re-import the bundle from your clipboard — press it after clicking RuneLite in the web app to re-sync without opening the panel",

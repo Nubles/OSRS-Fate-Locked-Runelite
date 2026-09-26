@@ -1,7 +1,14 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
+import net.runelite.api.EquipmentInventorySlot;
+import net.runelite.api.Item;
+import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemContainer;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.Notifier;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
@@ -19,6 +26,7 @@ import okhttp3.OkHttpClient;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.ArgumentCaptor;
 
 import javax.swing.SwingUtilities;
 import java.io.File;
@@ -34,6 +42,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -43,11 +52,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -92,21 +103,138 @@ public class FateLockedPluginStartupContractTest
                 harness.panel.guardianPauseButtonForTest().doClick();
             });
 
+            // Both clicks hand their work to the client thread.
             assertEquals("", harness.settings.pairingCode());
             assertEquals(1, harness.consentPrompts.get());
             assertFalse(harness.settings.networkAccessAllowed());
-            assertEquals(1, harness.plugin.pauseCalls.get());
-            assertEquals(1, harness.clientTasks.size());
+            assertEquals(0, harness.plugin.pauseCalls.get());
+            assertEquals(2, harness.clientTasks.size());
 
             harness.runClientTasks();
             harness.flushEdt();
 
+            assertEquals(1, harness.plugin.pauseCalls.get());
             String code = harness.settings.pairingCode();
             assertTrue(code.matches("[0-9a-f]{32}"));
             assertTrue(harness.settings.networkAccessAllowed());
             assertEquals(1, harness.plugin.browserUrls.size());
             assertEquals(PairingSupport.trackerPairingUrl(code),
                 harness.plugin.browserUrls.peek());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void theTrackerTickKeepsRunningAfterAFailedCheck() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("tick"));
+        try
+        {
+            ArgumentCaptor<Runnable> tick = ArgumentCaptor.forClass(Runnable.class);
+            verify(harness.executor).scheduleWithFixedDelay(
+                tick.capture(), eq(2L), eq(4L), eq(TimeUnit.SECONDS));
+            TrackerConnectionController controller = mock(TrackerConnectionController.class);
+            doThrow(new IllegalStateException("settings unreadable"))
+                .doNothing()
+                .when(controller).pollIfDue();
+            harness.set("connectionController", controller);
+
+            // A scheduled task that throws is never run again, so the tick
+            // must not let the failure out.
+            tick.getValue().run();
+            tick.getValue().run();
+
+            verify(controller, times(2)).pollIfDue();
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void checkNowRunsTheTrackerTickAtOnce() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("check-now"));
+        try
+        {
+            TrackerConnectionController controller = mock(TrackerConnectionController.class);
+            when(controller.checkNow()).thenReturn(true);
+            harness.set("connectionController", controller);
+            int queued = harness.backgroundTasks.size();
+
+            SwingUtilities.invokeAndWait(() -> harness.panel.checkNowButtonForTest().doClick());
+
+            verify(controller).checkNow();
+            assertEquals(queued + 1, harness.backgroundTasks.size());
+            harness.runBackgroundTasks();
+            verify(controller).pollIfDue();
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void onlyTheLoginScreenCountsAsLoggedOutForTheTracker() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("login"));
+        try
+        {
+            TrackerConnectionController controller = mock(TrackerConnectionController.class);
+            harness.set("connectionController", controller);
+
+            harness.plugin.onGameStateChanged(gameState(GameState.LOGIN_SCREEN));
+            verify(controller).loggedIn(false);
+
+            // A hop and its loading screen are still in game.
+            harness.plugin.onGameStateChanged(gameState(GameState.HOPPING));
+            harness.plugin.onGameStateChanged(gameState(GameState.LOADING));
+            harness.plugin.onGameStateChanged(gameState(GameState.LOGGED_IN));
+            verify(controller, times(1)).loggedIn(false);
+            verify(controller).loggedIn(true);
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    private static GameStateChanged gameState(GameState state)
+    {
+        GameStateChanged event = new GameStateChanged();
+        event.setGameState(state);
+        return event;
+    }
+
+    @Test
+    public void startupReadsTheGameOnlyOnTheClientThread() throws Exception
+    {
+        File dir = folder.newFolder("startup-on-client-thread");
+        // A backup file whose gear tiers put the worn weapon above its
+        // tier, so switching to it reads worn equipment and item names.
+        write(new File(dir, "fate-locked-bundle-export.json"), overTierWeaponBundle());
+        Harness harness = new Harness(dir, false);
+        try
+        {
+            // startUp runs on the Swing thread: it queues the work and reads
+            // nothing from the game.
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertEquals(0, harness.gameReads.get());
+
+            harness.runBackgroundTasks();
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertEquals("Weapon", harness.plugin.getOverTierSummary());
+            assertTrue(harness.gameReads.get() > 0);
+            assertTrue(harness.offThreadGameReads.toString(),
+                harness.offThreadGameReads.isEmpty());
         }
         finally
         {
@@ -128,9 +256,13 @@ public class FateLockedPluginStartupContractTest
             assertEquals(1, harness.navigationAdds.get());
             assertNotNull(harness.panel.sectionForTest("Guardian"));
             assertNotNull(harness.panel.connectButtonForTest());
-            File[] kept = dir.listFiles((parent, name) ->
-                name.startsWith("slayer-assignment.json.corrupt-"));
-            assertEquals(1, kept == null ? 0 : kept.length);
+            // The shared files are only read, when an account's own files
+            // start from them: left exactly as they were.
+            assertEquals("{\"name\":\"Abyssal demons\",",
+                new String(java.nio.file.Files.readAllBytes(new File(dir, "slayer-assignment.json").toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            File[] moved = dir.listFiles((parent, name) -> name.contains(".corrupt-"));
+            assertEquals(0, moved == null ? 0 : moved.length);
         }
         finally
         {
@@ -139,20 +271,23 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
-    public void pastedRulesAreImportedOnTheClientThread() throws Exception
+    public void clipboardRulesAreParsedOffTheGameThreadAndAppliedOnIt() throws Exception
     {
-        Harness harness = new Harness(folder.newFolder("paste-on-client-thread"));
+        Harness harness = new Harness(folder.newFolder("clipboard-on-client-thread"));
         try
         {
-            String json = fixture("bundles/v4-rules.json");
-            SwingUtilities.invokeAndWait(() -> {
-                harness.panel.pasteAreaForTest().setText(json);
-                harness.panel.buttonForTest("Import pasted JSON").doClick();
-            });
+            harness.plugin.clipboard = fixture("bundles/v4-rules.json");
+            SwingUtilities.invokeAndWait(() ->
+                harness.panel.buttonForTest("Import from clipboard").doClick());
 
-            // The Swing thread only hands the text over: an import reads
-            // game state such as worn equipment, which RuneLite allows only
-            // on the client thread.
+            // The Swing thread only hands the text over. A full bundle takes
+            // a while to parse, so that happens in the background; the
+            // switch reads game state such as worn equipment, which RuneLite
+            // allows only on the client thread.
+            assertEquals(1, harness.backgroundTasks.size());
+            assertTrue(harness.clientTasks.isEmpty());
+
+            harness.runBackgroundTasks();
             assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
             assertEquals(1, harness.clientTasks.size());
 
@@ -169,6 +304,105 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void theNewestBackupFileIsReadOffTheGameThreadAndAppliedOnIt()
+        throws Exception
+    {
+        File dir = folder.newFolder("backup-file");
+        Harness harness = new Harness(dir);
+        try
+        {
+            // Written after startup: nothing watches the folder.
+            write(new File(dir, "fate-locked-bundle-export.json"),
+                fixture("bundles/v4-rules.json"));
+            harness.flushEdt();
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertTrue(harness.backgroundTasks.isEmpty());
+
+            SwingUtilities.invokeAndWait(() ->
+                harness.panel.buttonForTest("Load newest backup file").doClick());
+
+            // Neither the Swing thread nor the client thread reads the file.
+            assertEquals(1, harness.backgroundTasks.size());
+            assertTrue(harness.clientTasks.isEmpty());
+
+            harness.runBackgroundTasks();
+            assertEquals(1, harness.clientTasks.size());
+            assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
+            assertTrue(harness.panel.hasTextForTest("loaded backup file: "));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void rulesSurviveARestartAndAnOfflineStart() throws Exception
+    {
+        File dir = folder.newFolder("restart");
+        Harness first = new Harness(dir);
+        first.plugin.clipboard = fixture("bundles/v4-rules.json");
+        SwingUtilities.invokeAndWait(() ->
+            first.panel.buttonForTest("Import from clipboard").doClick());
+        first.runBackgroundTasks();
+        first.runClientTasks();
+        // The switch queued the save; it runs in the background too.
+        first.runBackgroundTasks();
+        first.plugin.shutDown();
+        assertTrue(new File(dir, SavedRulesStore.FILE_NAME).exists());
+
+        // Online sync is off, so nothing but the saved rules can bring them back.
+        Harness second = new Harness(dir);
+        try
+        {
+            assertFalse(second.settings.networkAccessAllowed());
+            assertEquals("run-1", second.plugin.getBundle().getRunId());
+            assertTrue(second.panel.hasTextForTest("saved rules from "));
+        }
+        finally
+        {
+            second.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void workQueuedBeforeShutdownDoesNothingAfterIt() throws Exception
+    {
+        File dir = folder.newFolder("queued-before-shutdown");
+        Harness harness = new Harness(dir);
+        write(new File(dir, "fate-locked-bundle-export.json"),
+            fixture("bundles/v4-rules.json"));
+        harness.plugin.clipboard = fixture("bundles/v4-rules.json");
+
+        // The player presses the re-import hotkey, loads the backup file and
+        // clicks Connect, then turns the plugin off before any of it runs.
+        harness.pressReimportHotkey();
+        SwingUtilities.invokeAndWait(() -> {
+            harness.panel.buttonForTest("Load newest backup file").doClick();
+            harness.panel.connectButtonForTest().doClick();
+        });
+        assertEquals(1, harness.clientTasks.size());
+        assertEquals(2, harness.backgroundTasks.size());
+
+        harness.plugin.shutDown();
+        harness.runBackgroundTasks();
+        harness.runClientTasks();
+        harness.flushEdt();
+
+        // No rules come back while the plugin is off, and Connect neither
+        // records consent nor opens the browser.
+        assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
+        assertFalse(harness.settings.networkAccessAllowed());
+        assertEquals("", harness.settings.pairingCode());
+        assertTrue(harness.plugin.browserUrls.isEmpty());
+    }
+
+    @Test
     public void aFailedImportRunsOnceAndSaysSo() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("failed-import-once"));
@@ -176,18 +410,18 @@ public class FateLockedPluginStartupContractTest
         {
             harness.plugin.clipboard = "{}";
             harness.pressReimportHotkey();
-            SwingUtilities.invokeAndWait(() -> {
-                harness.panel.pasteAreaForTest().setText("not a bundle");
-                harness.panel.buttonForTest("Import pasted JSON").doClick();
-            });
-            assertEquals(2, harness.clientTasks.size());
+            harness.plugin.clipboard = "not a bundle";
+            SwingUtilities.invokeAndWait(() ->
+                harness.panel.buttonForTest("Import from clipboard").doClick());
+            assertEquals(2, harness.backgroundTasks.size());
 
-            harness.runClientTick();
+            harness.runBackgroundTasks();
             harness.flushEdt();
 
-            // RuneLite runs a task that returns false again on every client
-            // tick, so a failed import must not ask to run again.
+            // Text that doesn't parse never reaches the client thread, and
+            // nothing asks to run again.
             assertTrue(harness.clientTasks.isEmpty());
+            assertTrue(harness.backgroundTasks.isEmpty());
             assertTrue(harness.panel.hasTextForTest("import failed"));
             assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
         }
@@ -212,6 +446,20 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
+    /** The v4 rules, with the harness's worn weapon one tier above the unlocked Weapon tier. */
+    private static String overTierWeaponBundle() throws Exception
+    {
+        JsonObject root = new Gson().fromJson(
+            fixture("bundles/v4-rules.json"), JsonObject.class);
+        JsonObject tiers = new JsonObject();
+        tiers.addProperty(String.valueOf(Harness.WORN_WEAPON), 6);
+        root.add("itemTiers", tiers);
+        JsonObject equipment = new JsonObject();
+        equipment.addProperty("Weapon", 5);
+        root.getAsJsonObject("state").add("equipment", equipment);
+        return root.toString();
+    }
+
     @Test
     public void decliningConnectWarningKeepsPairingAndBrowserUntouched() throws Exception
     {
@@ -229,6 +477,70 @@ public class FateLockedPluginStartupContractTest
             assertEquals(previousCode, harness.settings.pairingCode());
             assertFalse(harness.settings.networkAccessAllowed());
             assertTrue(harness.plugin.browserUrls.isEmpty());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void turningOnlineSyncBackOnKeepsTheSavedPairing() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("sync-back-on"));
+        try
+        {
+            String saved = "0123456789abcdef0123456789abcdef";
+            harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
+            harness.panel.updateConnection(SyncMachine.idle(false, true));
+            harness.flushEdt();
+
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertEquals(1, harness.consentPrompts.get());
+            assertTrue(harness.settings.networkAccessAllowed());
+            assertEquals(saved, harness.settings.pairingCode());
+            assertTrue(harness.plugin.browserUrls.isEmpty());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void rePairingAsksFirstAndKeepsTheSavedPairingUntilTheNewOneDelivers()
+        throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("re-pair"));
+        try
+        {
+            String saved = "0123456789abcdef0123456789abcdef";
+            harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
+            harness.settings.allowNetworkAccess();
+            harness.panel.updateConnection(TrackerConnectionSnapshot.connected(
+                java.time.Instant.now(), "6"));
+            harness.flushEdt();
+
+            // Declined: nothing changes.
+            harness.acceptRepair = false;
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+            assertEquals(1, harness.repairPrompts.get());
+            assertTrue(harness.plugin.browserUrls.isEmpty());
+
+            harness.acceptRepair = true;
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertEquals(2, harness.repairPrompts.get());
+            assertEquals(saved, harness.settings.pairingCode());
+            assertEquals(1, harness.plugin.browserUrls.size());
+            assertFalse(harness.plugin.browserUrls.peek().contains(saved));
         }
         finally
         {
@@ -259,49 +571,18 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
-    @Test
-    public void browserFailureKeepsRuntimePairingRetryableAndVisible()
-        throws Exception
-    {
-        Harness harness = new Harness(folder.newFolder("browser-failure"));
-        try
-        {
-            harness.plugin.failBrowser = true;
-            SwingUtilities.invokeAndWait(
-                () -> harness.panel.connectButtonForTest().doClick());
-            harness.runClientTasks();
-            harness.flushEdt();
-            harness.runClientTasks();
-            harness.flushEdt();
-
-            String firstCode = harness.settings.pairingCode();
-            assertTrue(harness.panel.hasTextForTest(
-                "couldn't open the web tracker"));
-            assertEquals("Could not open the web tracker",
-                harness.panel.connectionTextForTest());
-
-            SwingUtilities.invokeAndWait(
-                () -> harness.panel.connectButtonForTest().doClick());
-            harness.runClientTasks();
-            harness.flushEdt();
-
-            assertNotEquals(firstCode, harness.settings.pairingCode());
-            assertEquals(2, harness.plugin.browserUrls.size());
-            assertEquals(1, harness.consentPrompts.get());
-        }
-        finally
-        {
-            harness.plugin.shutDown();
-        }
-    }
-
     private static final class Harness
     {
         private final ConcurrentLinkedQueue<BooleanSupplier> clientTasks =
             new ConcurrentLinkedQueue<>();
+        /** Work handed to RuneLite's shared executor, off the game thread. */
+        private final ConcurrentLinkedQueue<Runnable> backgroundTasks =
+            new ConcurrentLinkedQueue<>();
         private final AtomicInteger navigationAdds = new AtomicInteger();
         private final AtomicInteger consentPrompts = new AtomicInteger();
         private boolean acceptConsent = true;
+        private final AtomicInteger repairPrompts = new AtomicInteger();
+        private boolean acceptRepair = true;
         private final Map<String, String> configuration =
             new ConcurrentHashMap<>();
         private final TrackerConnectionSettings settings;
@@ -310,8 +591,21 @@ public class FateLockedPluginStartupContractTest
             mock(ScheduledExecutorService.class);
         private final TestPlugin plugin;
         private NavigationButton navigation;
+        /** The item the harness's player wears as a weapon. */
+        static final int WORN_WEAPON = 4151;
+        /** Whether a client tick is running, the only time RuneLite allows game reads. */
+        private final AtomicBoolean inClientTick = new AtomicBoolean();
+        private final AtomicInteger gameReads = new AtomicInteger();
+        private final ConcurrentLinkedQueue<String> offThreadGameReads =
+            new ConcurrentLinkedQueue<>();
 
+        /** A started plugin after its first client tick. */
         private Harness(File dataDirectory) throws Exception
+        {
+            this(dataDirectory, true);
+        }
+
+        private Harness(File dataDirectory, boolean firstTick) throws Exception
         {
             String legacyCode = "0123456789abcdef0123456789abcdef";
             configuration.put("onlineSync", "true");
@@ -325,14 +619,7 @@ public class FateLockedPluginStartupContractTest
 
             ConfigManager configManager = statefulConfigManager();
             settings = new TrackerConnectionSettings(configManager);
-            FateLockedConfig config = new FateLockedConfig()
-            {
-                @Override
-                public boolean autoReload()
-                {
-                    return false;
-                }
-            };
+            FateLockedConfig config = new FateLockedConfig() { };
             panel = new FateLockedPanel(config, configManager)
             {
                 @Override
@@ -341,6 +628,14 @@ public class FateLockedPluginStartupContractTest
                     assertTrue(SwingUtilities.isEventDispatchThread());
                     consentPrompts.incrementAndGet();
                     return acceptConsent;
+                }
+
+                @Override
+                boolean confirmRepair()
+                {
+                    assertTrue(SwingUtilities.isEventDispatchThread());
+                    repairPrompts.incrementAndGet();
+                    return acceptRepair;
                 }
             };
             plugin = new TestPlugin(dataDirectory);
@@ -360,6 +655,35 @@ public class FateLockedPluginStartupContractTest
                 clientTasks.add(invocation.getArgument(0));
                 return null;
             }).when(clientThread).invoke(any(BooleanSupplier.class));
+            doAnswer(invocation -> {
+                Runnable task = invocation.getArgument(0);
+                clientTasks.add(() -> {
+                    task.run();
+                    return true;
+                });
+                return null;
+            }).when(clientThread).invokeLater(any(Runnable.class));
+
+            // Game reads the injected client allows only on the client thread.
+            Client client = mock(Client.class);
+            ItemContainer worn = mock(ItemContainer.class);
+            when(worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx()))
+                .thenReturn(new Item(WORN_WEAPON, 1));
+            when(client.getItemContainer(anyInt())).thenAnswer(invocation -> {
+                noteGameRead("getItemContainer");
+                return worn;
+            });
+            when(client.getLocalPlayer()).thenAnswer(invocation -> {
+                noteGameRead("getLocalPlayer");
+                return null;
+            });
+            ItemManager itemManager = mock(ItemManager.class);
+            ItemComposition weapon = mock(ItemComposition.class);
+            when(weapon.getName()).thenReturn("Abyssal whip");
+            when(itemManager.getItemComposition(anyInt())).thenAnswer(invocation -> {
+                noteGameRead("getItemComposition");
+                return weapon;
+            });
 
             ClientToolbar toolbar = mock(ClientToolbar.class);
             doAnswer(invocation -> {
@@ -372,8 +696,12 @@ public class FateLockedPluginStartupContractTest
             doReturn(future).when(executor).scheduleWithFixedDelay(
                 any(Runnable.class), anyLong(), anyLong(),
                 any(TimeUnit.class));
+            doAnswer(invocation -> {
+                backgroundTasks.add(invocation.getArgument(0));
+                return null;
+            }).when(executor).execute(any(Runnable.class));
 
-            set("client", mock(Client.class));
+            set("client", client);
             set("clientThread", clientThread);
             set("config", config);
             set("overlayManager", mock(OverlayManager.class));
@@ -388,7 +716,7 @@ public class FateLockedPluginStartupContractTest
             set("panel", panel);
             set("gson", new Gson());
             set("executor", executor);
-            set("itemManager", mock(ItemManager.class));
+            set("itemManager", itemManager);
             set("notifier", mock(Notifier.class));
             set("worldMapPointManager", mock(WorldMapPointManager.class));
             set("infoBoxManager", mock(InfoBoxManager.class));
@@ -400,6 +728,21 @@ public class FateLockedPluginStartupContractTest
 
             plugin.startUp();
             flushEdt();
+            if (firstTick)
+            {
+                runBackgroundTasks();
+                runClientTasks();
+                flushEdt();
+            }
+        }
+
+        private void noteGameRead(String read)
+        {
+            gameReads.incrementAndGet();
+            if (!inClientTick.get())
+            {
+                offThreadGameReads.add(read + " on " + Thread.currentThread().getName());
+            }
         }
 
         private ConfigManager statefulConfigManager()
@@ -447,12 +790,20 @@ public class FateLockedPluginStartupContractTest
             {
                 due.add(task);
             }
-            for (BooleanSupplier queued : due)
+            inClientTick.set(true);
+            try
             {
-                if (!queued.getAsBoolean())
+                for (BooleanSupplier queued : due)
                 {
-                    clientTasks.add(queued);
+                    if (!queued.getAsBoolean())
+                    {
+                        clientTasks.add(queued);
+                    }
                 }
+            }
+            finally
+            {
+                inClientTick.set(false);
             }
         }
 
@@ -462,6 +813,15 @@ public class FateLockedPluginStartupContractTest
             {
                 assertTrue("a client task keeps asking to run again", tick < 50);
                 runClientTick();
+            }
+        }
+
+        private void runBackgroundTasks()
+        {
+            Runnable task;
+            while ((task = backgroundTasks.poll()) != null)
+            {
+                task.run();
             }
         }
 
@@ -484,7 +844,6 @@ public class FateLockedPluginStartupContractTest
         private final ConcurrentLinkedQueue<String> browserUrls =
             new ConcurrentLinkedQueue<>();
         private final AtomicInteger pauseCalls = new AtomicInteger();
-        private boolean failBrowser;
         private String clipboard = "";
 
         private TestPlugin(File dataDirectory)
@@ -502,10 +861,6 @@ public class FateLockedPluginStartupContractTest
         void launchTrackerBrowser(String url)
         {
             browserUrls.add(url);
-            if (failBrowser)
-            {
-                throw new RuntimeException("browser unavailable");
-            }
         }
 
         @Override

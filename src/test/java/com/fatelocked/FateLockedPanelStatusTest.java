@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.panel.LocalTimeText;
 import com.google.gson.Gson;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -25,6 +26,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -67,9 +69,9 @@ public class FateLockedPanelStatusTest
     {
         FateLockedPanel panel = panel();
 
-        assertEquals(31, panel.settingKeysForTest().size());
+        assertEquals(30, panel.settingKeysForTest().size());
         assertEquals(new LinkedHashSet<>(Arrays.asList(
-            "trackerNetworkAccess", "autoReload", "reimportHotkey",
+            "trackerNetworkAccess", "reimportHotkey",
             "chatOnEnter", "warnOnLocked", "warnLockedBank", "flashOnLocked",
             "warnAccountMismatch", "tagLockedMenus", "tagLockedTeleports",
             "showHud", "showNearest", "showChunkContentBox", "useNotifier",
@@ -83,6 +85,7 @@ public class FateLockedPanelStatusTest
         assertFalse(panel.settingKeysForTest().contains("onlineSync"));
         assertFalse(panel.settingKeysForTest().contains("syncCode"));
         assertFalse(panel.settingKeysForTest().contains("relayUrl"));
+        assertFalse(panel.settingKeysForTest().contains("autoReload"));
         assertFalse(hasTravelGuardianCheckbox(panel));
     }
 
@@ -96,7 +99,7 @@ public class FateLockedPanelStatusTest
         assertSectionSettings(panel, "Roll inbox", keys());
         assertSectionSettings(panel, "Run", keys());
         assertSectionSettings(panel, "Bundle",
-            keys("trackerNetworkAccess", "autoReload", "reimportHotkey"));
+            keys("trackerNetworkAccess", "reimportHotkey"));
         assertSectionSettings(panel, "Warnings", keys(
             "chatOnEnter", "warnOnLocked", "warnLockedBank", "flashOnLocked",
             "warnAccountMismatch", "tagLockedMenus", "tagLockedTeleports",
@@ -127,7 +130,7 @@ public class FateLockedPanelStatusTest
         Keybind hotkey = new Keybind(keyPressed(KeyEvent.VK_F));
         Color frontier = new Color(12, 34, 56, 78);
         when(config.strictMode()).thenReturn(true);
-        when(config.autoReload()).thenReturn(false);
+        when(config.trackerNetworkAccess()).thenReturn(true);
         when(config.showHud()).thenReturn(false);
         when(config.drawScene()).thenReturn(false);
         when(config.reimportHotkey()).thenReturn(hotkey);
@@ -136,7 +139,7 @@ public class FateLockedPanelStatusTest
         FateLockedPanel panel = panel();
 
         assertTrue(settingCheckbox(panel, "strictMode").isSelected());
-        assertFalse(settingCheckbox(panel, "autoReload").isSelected());
+        assertTrue(settingCheckbox(panel, "trackerNetworkAccess").isSelected());
         assertFalse(settingCheckbox(panel, "showHud").isSelected());
         assertFalse(settingCheckbox(panel, "drawScene").isSelected());
         assertEquals(hotkey.toString(),
@@ -154,14 +157,12 @@ public class FateLockedPanelStatusTest
         throws Exception
     {
         when(config.strictMode()).thenReturn(true);
-        when(config.autoReload()).thenReturn(false);
         when(config.showHud()).thenReturn(false);
         when(config.drawScene()).thenReturn(false);
         FateLockedPanel panel = panel();
 
         SwingUtilities.invokeAndWait(() -> {
             settingCheckbox(panel, "strictMode").doClick();
-            settingCheckbox(panel, "autoReload").doClick();
             settingCheckbox(panel, "showHud").doClick();
             settingCheckbox(panel, "drawScene").doClick();
         });
@@ -169,36 +170,37 @@ public class FateLockedPanelStatusTest
         verify(configManager).setConfiguration(
             FateLockedConfig.GROUP, "strictMode", false);
         verify(configManager).setConfiguration(
-            FateLockedConfig.GROUP, "autoReload", true);
-        verify(configManager).setConfiguration(
             FateLockedConfig.GROUP, "showHud", true);
         verify(configManager).setConfiguration(
             FateLockedConfig.GROUP, "drawScene", true);
     }
 
     @Test
-    public void bundleImportAndReloadCallbacksStayInBundleSection()
+    public void clipboardAndBackupFileButtonsStayInBundleSection()
         throws Exception
     {
         FateLockedPanel panel = panel();
-        java.util.List<String> imports = new java.util.ArrayList<>();
-        AtomicInteger reloads = new AtomicInteger();
-        panel.setCallbacks(imports::add, reloads::incrementAndGet, () -> { });
+        AtomicInteger clipboardImports = new AtomicInteger();
+        AtomicInteger backupLoads = new AtomicInteger();
+        panel.setCallbacks(
+            clipboardImports::incrementAndGet, backupLoads::incrementAndGet, () -> { });
         Container bundle = sectionContent(panel, "Bundle");
-        JTextArea paste = findTextArea(bundle);
-        JButton importButton = buttonWithText(bundle, "Import pasted JSON");
-        JButton reloadButton = buttonWithText(bundle, "Reload from file");
+        JButton clipboardButton = buttonWithText(bundle, "Import from clipboard");
+        JButton backupButton = buttonWithText(bundle, "Load newest backup file");
 
         SwingUtilities.invokeAndWait(() -> {
-            paste.setText("  {\"run\":1}  ");
-            importButton.doClick();
-            reloadButton.doClick();
+            clipboardButton.doClick();
+            backupButton.doClick();
         });
 
-        assertEquals(Arrays.asList("{\"run\":1}"), imports);
-        assertEquals(1, reloads.get());
-        assertTrue(isDescendant(bundle, importButton));
-        assertTrue(isDescendant(bundle, reloadButton));
+        assertEquals(1, clipboardImports.get());
+        assertEquals(1, backupLoads.get());
+        assertTrue(isDescendant(bundle, clipboardButton));
+        assertTrue(isDescendant(bundle, backupButton));
+        // The paste box and "Reload from file" are gone (owner decision 3).
+        assertFalse(hasTextArea(panel));
+        assertNull(panel.buttonForTest("Reload from file"));
+        assertNull(panel.buttonForTest("Import pasted JSON"));
     }
 
     @Test
@@ -320,12 +322,12 @@ public class FateLockedPanelStatusTest
         flushSwing();
         assertEquals("Waiting for tracker", panel.connectionTextForTest());
 
-        panel.updateConnection(TrackerConnectionSnapshot.connected(
-            Instant.parse("2026-07-27T14:05:06Z"), "6"));
+        Instant synced = Instant.parse("2026-07-27T14:05:06Z");
+        panel.updateConnection(TrackerConnectionSnapshot.connected(synced, "6"));
         flushSwing();
-        assertTrue(panel.connectionTextForTest().contains("Connected"));
-        assertTrue(panel.connectionTextForTest().contains("14:05:06 UTC"));
-        assertEquals("14:05:06 UTC", panel.lastSyncTextForTest());
+        assertEquals("Connected", panel.connectionTextForTest());
+        // On the player's own clock, not UTC.
+        assertEquals(LocalTimeText.of(synced), panel.lastSyncTextForTest());
 
         panel.updateTrackerAccount("Nubles");
         flushSwing();
@@ -333,7 +335,83 @@ public class FateLockedPanelStatusTest
         assertTrue(panel.hasTextForTest(
             "RuneLite retrieves rules from the Fate Locked relay. "
                 + "Your IP address is visible to the relay, but RuneLite "
-                + "does not upload gameplay data."));
+                + "does not upload gameplay data. The rules the relay holds "
+                + "name your character, so it can link the two."));
+
+        panel.updateConnection(TrackerConnectionSnapshot.connected(synced, "6")
+            .forPairing("0123456789abcdef0123456789abcdef"));
+        flushSwing();
+        assertEquals("\u2026cdef", panel.pairingTextForTest());
+    }
+
+    @Test
+    public void connectionUpdatesApplyInTheOrderTheyWereMade() throws Exception
+    {
+        FateLockedPanel panel = panel();
+
+        SwingUtilities.invokeAndWait(() -> {
+            // A reply's thread queues "Connected" while the Swing thread is
+            // busy...
+            Thread reply = new Thread(() -> panel.updateConnection(
+                TrackerConnectionSnapshot.connected(Instant.parse("2026-07-27T14:05:06Z"), "6")));
+            reply.start();
+            try
+            {
+                reply.join();
+            }
+            catch (InterruptedException error)
+            {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(error);
+            }
+            // ...and then the Swing thread itself makes a newer update.
+            panel.updateConnection(TrackerConnectionSnapshot.disconnected());
+        });
+        flushSwing();
+
+        assertEquals("Not connected", panel.connectionTextForTest());
+    }
+
+    @Test
+    public void checkNowShowsOnlyWhenThereIsSomethingToCheck() throws Exception
+    {
+        FateLockedPanel panel = panel();
+        AtomicInteger checks = new AtomicInteger();
+        panel.setCheckNowCallback(checks::incrementAndGet);
+
+        panel.updateConnection(TrackerConnectionSnapshot.connected(Instant.now(), "6"));
+        flushSwing();
+        assertTrue(panel.checkNowButtonForTest().isVisible());
+        SwingUtilities.invokeAndWait(() -> panel.checkNowButtonForTest().doClick());
+        assertEquals(1, checks.get());
+
+        panel.updateConnection(SyncMachine.idle(false, true));
+        flushSwing();
+        assertFalse(panel.checkNowButtonForTest().isVisible());
+        panel.updateConnection(TrackerConnectionSnapshot.disconnected());
+        flushSwing();
+        assertFalse(panel.checkNowButtonForTest().isVisible());
+    }
+
+    @Test
+    public void theConnectButtonIsLabelledByState() throws Exception
+    {
+        FateLockedPanel panel = panel();
+
+        panel.updateConnection(SyncMachine.idle(false, true));
+        flushSwing();
+        assertEquals("Turn on online sync", panel.connectButtonForTest().getText());
+        assertEquals(SyncView.Connect.TURN_ON_SYNC, panel.connectAction());
+
+        panel.updateConnection(TrackerConnectionSnapshot.connected(Instant.now(), "6"));
+        flushSwing();
+        assertEquals(SyncView.Connect.REPAIR.label, panel.connectButtonForTest().getText());
+
+        panel.updateConnection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING,
+            null, null, SyncReason.CONFIRM_REPAIR, null));
+        flushSwing();
+        assertEquals("Cancel re-pairing", panel.connectButtonForTest().getText());
+        assertEquals(SyncView.Connect.CANCEL_REPAIR, panel.connectAction());
     }
 
     @Test
@@ -342,7 +420,7 @@ public class FateLockedPanelStatusTest
     {
         FateLockedPanel panel = panel();
         AtomicInteger connections = new AtomicInteger();
-        panel.setCallbacks(json -> { }, () -> { }, connections::incrementAndGet);
+        panel.setCallbacks(() -> { }, () -> { }, connections::incrementAndGet);
 
         SwingUtilities.invokeAndWait(
             () -> panel.connectButtonForTest().doClick());
@@ -533,27 +611,18 @@ public class FateLockedPanelStatusTest
         return false;
     }
 
-    private static JTextArea findTextArea(Container root)
+    private static boolean hasTextArea(Container root)
     {
         for (Component component : root.getComponents())
         {
-            if (component instanceof JTextArea)
+            if (component instanceof JTextArea
+                || component instanceof Container
+                && hasTextArea((Container) component))
             {
-                return (JTextArea) component;
-            }
-            if (component instanceof Container)
-            {
-                try
-                {
-                    return findTextArea((Container) component);
-                }
-                catch (AssertionError ignored)
-                {
-                    // Continue searching sibling containers.
-                }
+                return true;
             }
         }
-        throw new AssertionError("No text area found");
+        return false;
     }
 
     private static String valueBesideLabel(Container root, String label)

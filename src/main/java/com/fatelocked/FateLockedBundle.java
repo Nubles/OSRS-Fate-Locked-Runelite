@@ -336,6 +336,23 @@ public class FateLockedBundle
     /** Marker prefix the web app uses for a gzip+base64 clipboard payload. */
     private static final String GZ_PREFIX = "FLGZ:";
 
+    /** A bundle in a newer format than this plugin reads: the player needs a plugin update. */
+    public static final class FutureFormatException extends IllegalArgumentException
+    {
+        private final int version;
+
+        FutureFormatException(int version)
+        {
+            super("Unsupported future bundle version " + version);
+            this.version = version;
+        }
+
+        public int getVersion()
+        {
+            return version;
+        }
+    }
+
     public static FateLockedBundle loadFromFile(Gson gson, Path path) throws IOException, JsonSyntaxException
     {
         // The web app writes UTF-8; real bundles contain characters such as
@@ -346,9 +363,9 @@ public class FateLockedBundle
 
     /**
      * Largest inflated bundle accepted, the same limit as the web app's stream
-     * overlay. A bundle for a fully unlocked account inflates to about 120 KiB,
-     * so only a corrupt or hostile payload (a gzip bomb) comes near it; it is
-     * refused before it can exhaust the client's memory.
+     * overlay. A real bundle inflates to about 1.3 MiB, so only a corrupt or
+     * hostile payload (a gzip bomb) comes near it; it is refused before it
+     * can exhaust the client's memory.
      */
     static final int MAX_INFLATED_BYTES = 8 * 1024 * 1024;
 
@@ -384,7 +401,8 @@ public class FateLockedBundle
     public static FateLockedBundle loadFromJson(Gson gson, String json) throws JsonSyntaxException
     {
         // The web app compresses the clipboard copy (gzip+base64, "FLGZ:" prefix)
-        // so it isn't dumping ~115 KB of mostly-static data onto the clipboard.
+        // so it isn't dumping ~1.3 MiB of mostly static data onto the
+        // clipboard; compressed, it is about 200 KiB.
         // The downloaded file stays plain JSON. Accept both.
         String text = json != null && json.trim().startsWith(GZ_PREFIX)
             ? inflate(json.trim().substring(GZ_PREFIX.length())) : json;
@@ -392,7 +410,7 @@ public class FateLockedBundle
         RawBundle raw = gson.fromJson(text, RawBundle.class);
         if (raw != null && raw.version > 4)
         {
-            throw new IllegalArgumentException("Unsupported future bundle version " + raw.version);
+            throw new FutureFormatException(raw.version);
         }
         if (raw != null && raw.version == 4
             && (raw.chunks == null || raw.rules == null || !raw.rules.hasRequiredFields()))
@@ -565,7 +583,7 @@ public class FateLockedBundle
         if (alwaysUnlocked.contains(name)) return true;
         if (unlockedRegions.contains(name)) return true;
         // Mirror the web map's isRegionUnlocked (utils/reachability.ts) —
-        // pinned by the app's runelitePluginParity test:
+        // GoldenBundleContractTest pins it to the app's own answers:
         // a sub-area is unlocked when its parent continent is free/rolled
         // directly, or when the continent is complete (every sibling
         // unlocked-or-free); a continent when all its children are.

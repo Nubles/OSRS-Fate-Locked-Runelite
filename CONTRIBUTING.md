@@ -26,6 +26,20 @@ starts RuneLite in developer mode with the plugin loaded from source through
 `FateLockedPluginDevLauncher` (under `src/test`). From an IDE, run that
 class's `main` with the VM option `-ea`.
 
+To try it without touching your own RuneLite (its settings, its Hub plugins
+and `.runelite/fate-locked`), give the client an empty home folder:
+
+```powershell
+$env:GRADLE_USER_HOME = "$HOME\.gradle"
+$env:JAVA_TOOL_OPTIONS = "-Duser.home=C:\path\to\empty-folder"
+gradle runClient --no-daemon
+```
+
+Settings then live in that folder's `.runelite/profiles2`. Set
+`fatelocked.trackerNetworkAccess=true` and `fatelocked.trackerPairingCode` in
+the profile's `.properties` file, with the client closed, to pair it with a
+test code. The plugin's own lines appear in `.runelite/logs/client.log`.
+
 The unit tests run against mocks. Before every Plugin Hub update, run the
 [in-game release checklist](docs/in-game-release-checklist.md) on the commit
 you are releasing and paste the result into the release pull request.
@@ -63,42 +77,66 @@ acknowledgement, suggestion write, status callback, or relay write token. Browse
 handoffs open only the fixed GitHub Pages tracker URL and contain the random
 pairing code, never RuneLite-observed gameplay.
 
-The controller uses RuneLite's injected `OkHttpClient` asynchronously. A
+The controller uses RuneLite's injected `OkHttpClient` asynchronously, with a
+20-second limit on the whole call and a 1 MiB cap on the reply; stopping the
+plugin, withdrawing consent or re-pairing cancels the call in flight. A
 separate, default-off `trackerNetworkAccess` setting gates pairing and every
-relay poll. The Connect action and sidebar toggle show the same third-party
+relay check. The Connect action and sidebar toggle show the same third-party
 IP-address warning as the native RuneLite config item. Existing pairing codes
 and the retired `onlineSync` setting do not imply consent. Revoking access
-invalidates pending imports and pauses polling without deleting the pairing.
-A relay result is dispatched to the client thread and replaces the current
-rules only after complete parsing, strict v4 validation, and panel refresh
-succeed. Malformed payloads, compressed payloads that inflate past 8 MiB (a
-full bundle is about 120 KiB), incompatible versions, ETag/body disagreement,
-stale callbacks, stopped sessions, offline requests, and failed UI refreshes
-retain the previous valid snapshot.
+invalidates pending imports and pauses checks without deleting the pairing.
 
-## Local event history
+What each reply means is decided in one pure `RelayContract`; the state and
+timing that follow are `SyncMachine`'s, and `SyncView` turns them into the
+sidebar's words. Checks come every minute while logged in, every 5 minutes at
+the login screen, at once on login, and on **Check now** (at most every 10
+seconds); a failure retries within 5 minutes, and a `Retry-After` is honoured
+as given, from 30 seconds to an hour. Relay rules are parsed on the thread
+that read the reply, strictly as complete non-legacy v4, and switched to on
+the client thread. Malformed payloads, compressed payloads that inflate past
+8 MiB (a real bundle is about 1.3 MiB, and about 200 KiB compressed),
+incompatible versions, ETag/body disagreement, stale callbacks, stopped
+sessions and offline checks retain the previous valid rules.
 
-Detected events are local observations, not network messages. The history
-file has the shape:
+## Threads
 
-```json
-{
-  "events": []
-}
-```
+Plugin state changes only on the client thread, through the one
+`ClientThreadGate` each start opens; Swing, the executor and HTTP callbacks
+hand their work to it. A `PluginSession` token makes work queued before the
+plugin was turned off do nothing afterwards. Bundles are parsed off the game
+thread, and every local file write runs in order on RuneLite's executor
+through `SerialFileWriter`.
 
-`FateEventHistory` keeps the newest 250 unique event IDs. Writes use a sibling
-temporary file and atomic replace where supported. The in-memory list changes
-only after persistence succeeds.
+## Local files
 
-When the new history is absent, the newest 250 unique `pending` entries from
-the former local queue are migrated once. The legacy bytes are never modified
-or deleted. If the new history is malformed, it is renamed with a
-`.corrupt-<millis>` suffix and a fresh history starts. The panel exposes a
-local save-failure state and clears it after a later successful write.
+Each OSRS account's files live in `accounts/<account hash>/` in the data
+directory: `event-history.json` (the newest 250 detected events),
+`strict-mode-events.json` (the newest 100 Strict Mode audit entries),
+`slayer-assignment.json` and `diary-tiers.json` (the diary tiers the account
+has finished). They open when the account logs in; until then its detections
+are dropped rather than written into another account's files. A file that
+fails to open leaves its feature off for that account and never stops the
+plugin.
 
-Detectors record facts only. They never roll, mutate the tracker, or transfer
-the local history to the web Roll Inbox.
+Every write goes through `LocalFileMerge`: under an exclusive lock on a
+`<file>.lock` sidecar it re-reads the file, merges this client's change into
+it, writes a temp file of its own, flushes it to the disk and moves it into
+place, so two RuneLites sharing a data folder keep each other's changes. The
+in-memory state changes only after the write succeeds. A damaged file is
+renamed with a `.corrupt-<millis>` suffix and a fresh one starts; it is never
+written over.
+
+An account's folder starts, once, from the shared files earlier versions
+kept (`event-history.json`, or the older `event-outbox.json` queue, and the
+shared audit log and Slayer task). The shared files are only read: the
+history gives only that character's events, and the audit log and Slayer
+task, which name no account, come along only for the character the rules are
+bound to.
+
+Detectors record facts only, through one `DetectionGate`: rules for a run are
+loaded, bound to the logged-in character, on a world that saves to that
+account. They never roll, mutate the tracker, or transfer the local history
+to the web Roll Inbox.
 
 ## Bundle and rule ownership
 
@@ -106,10 +144,32 @@ The current network import accepts only complete non-legacy v4 bundles.
 Clipboard and file recovery retain compatibility parsing, but Unknown is
 never promoted to Locked.
 
+The rules in force are one `ActiveRules` value: a bundle and where it came
+from. `RulesPrecedence` decides which arrivals replace it: the saved rules and
+the startup backup file only fill an empty slot, while the relay and an
+explicit import always apply. New rules are worked out completely before the
+switch, and a failed sidebar update does not undo them. The last accepted
+rules are kept compressed in `saved-rules.json`, with their source, save time,
+relay version and a tag of the pairing that sent them (never the code), and
+come back at the next start, even offline.
+
 The app-authored rules manifest carries run, account, and revision identity,
 unlock families, bank state, and category-first chunk permissions. Guardian
 logic consumes only these authored decisions; it must not invent a Locked
 decision from missing or ambiguous data.
+
+## Contracts with the web app
+
+The web app writes golden bundles, with its own answers for every chunk,
+area and bank, and the bundle cases an import must refuse or shrug off
+(`contracts/golden-bundles/`), and the relay's replies to the plugin's request
+with the outcome of each (`contracts/relay/relay-get.json`).
+`scripts/pin-web-contracts.sh <web commit>` copies them into
+`src/test/resources/contracts/` and records the commit in `PINNED`; CI runs it
+with `--check` and fails if the copy differs. `GoldenBundleContractTest`,
+`GoldenBundleCasesTest`, `RelayContractFixtureTest`,
+`RelayTransportFixtureTest` and `RelayFixtureStatesTest` check the plugin
+against them.
 
 ## Strict Mode invariant
 

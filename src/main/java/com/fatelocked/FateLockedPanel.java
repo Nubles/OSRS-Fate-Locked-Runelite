@@ -15,8 +15,6 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
@@ -25,18 +23,14 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
-import java.awt.Toolkit;
-import java.awt.datatransfer.DataFlavor;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /** Narrow category-first side panel with compact rule rows. */
 class FateLockedPanel extends PluginPanel
@@ -65,14 +59,18 @@ class FateLockedPanel extends PluginPanel
     private final JLabel connectionVal = value();
     private final JLabel trackerAccountVal = value();
     private final JLabel lastSyncVal = value();
+    private final JLabel pairingVal = value();
+    /** Why the connection is as it is, and what to do: SyncView's detail. */
+    private final JLabel connectionDetail = new JLabel();
+    private String connectionDetailText;
     private final JLabel importVal = value();
     private final JPanel chunkBody = column();
     private final JPanel bundleBody = column();
-    private final JTextArea pasteArea = new JTextArea(6, 10);
     private final JLabel strictModeVal = value();
     private final JLabel strictModeReason = new JLabel();
     private final JButton strictModeButton = new JButton();
     private final JButton connectTrackerButton = new JButton("Connect tracker");
+    private final JButton checkNowButton = new JButton("Check now");
     private final JPanel strictIntro = card();
     private final JPanel recentPreventedBody = column();
     private final Map<String, CollapsiblePanelSection> sections =
@@ -89,9 +87,12 @@ class FateLockedPanel extends PluginPanel
     private boolean strictPaused;
 
     private String rollInboxUrl = TRACKER_URL + "?open=roll-inbox";
-    private Consumer<String> onImport = json -> {};
-    private Runnable onReload = () -> {};
+    private Runnable onClipboardImport = () -> {};
+    private Runnable onLoadBackupFile = () -> {};
     private Runnable onConnect = () -> {};
+    private Runnable onCheckNow = () -> {};
+    /** What the connect button does now; Swing thread only. */
+    private SyncView.Connect connectAction = SyncView.Connect.CONNECT;
 
     FateLockedPanel()
     {
@@ -125,8 +126,20 @@ class FateLockedPanel extends PluginPanel
         connectionVal.setText("Not connected");
         connectionVal.setForeground(GRAY);
         col.add(stats(
-            new String[]{"Connection", "Tracker account", "Last sync"},
-            new JLabel[]{connectionVal, trackerAccountVal, lastSyncVal}));
+            new String[]{"Connection", "Tracker account", "Last sync", "Pairing"},
+            new JLabel[]{connectionVal, trackerAccountVal, lastSyncVal, pairingVal}));
+        pairingVal.setText("\u2014");
+        pairingVal.setToolTipText("The end of the pairing code. The web tracker's pairing"
+            + " dialog shows the same four characters.");
+        connectionDetail.setForeground(GRAY);
+        connectionDetail.setAlignmentX(Component.LEFT_ALIGNMENT);
+        connectionDetail.setVisible(false);
+        col.add(connectionDetail);
+        fullWidth(checkNowButton);
+        checkNowButton.setToolTipText("Ask the tracker for your rules now");
+        checkNowButton.addActionListener(event -> onCheckNow.run());
+        checkNowButton.setVisible(false);
+        col.add(checkNowButton);
         col.add(Box.createVerticalStrut(4));
 
         importVal.setVisible(false);
@@ -137,7 +150,8 @@ class FateLockedPanel extends PluginPanel
         JLabel disclosure = new JLabel(
             "<html>RuneLite retrieves rules from the Fate Locked relay. "
                 + "Your IP address is visible to the relay, but RuneLite "
-                + "does not upload gameplay data.</html>");
+                + "does not upload gameplay data. The rules the relay holds "
+                + "name your character, so it can link the two.</html>");
         disclosure.setForeground(GRAY);
         disclosure.setAlignmentX(Component.LEFT_ALIGNMENT);
         col.add(disclosure);
@@ -250,14 +264,31 @@ class FateLockedPanel extends PluginPanel
             configBinder.booleanSetting(
                 FateLockedConfig.NETWORK_ACCESS_KEY, "Enable online sync",
                 config::trackerNetworkAccess, this::confirmNetworkConnection)));
-        addSetting(bundleBody, ownSetting("Bundle", "autoReload",
-            configBinder.booleanSetting(
-                "autoReload", "Auto-reload on change", config::autoReload)));
         addLabeledSetting(bundleBody, "Re-import hotkey",
             ownSetting("Bundle", "reimportHotkey",
                 configBinder.keybindSetting(
                     "reimportHotkey", "Re-import hotkey", config::reimportHotkey)));
         buildImportControls();
+    }
+
+    /** The connect button's job as last shown; read on the Swing thread, when it is pressed. */
+    SyncView.Connect connectAction()
+    {
+        return connectAction;
+    }
+
+    /** Ask before replacing a pairing that works. */
+    boolean confirmRepair()
+    {
+        Object[] options = {"Re-pair", "Cancel"};
+        return javax.swing.JOptionPane.showOptionDialog(
+            this,
+            "<html><body style='width: 320px'>Pair RuneLite with a tracker profile again?"
+                + "<br><br>RuneLite keeps using your current pairing until the new one"
+                + " sends your rules. If none arrives within 10 minutes, nothing"
+                + " changes.</body></html>",
+            "Fate Locked re-pairing", javax.swing.JOptionPane.YES_NO_OPTION,
+            javax.swing.JOptionPane.QUESTION_MESSAGE, null, options, options[1]) == 0;
     }
 
     boolean confirmNetworkConnection()
@@ -446,49 +477,32 @@ class FateLockedPanel extends PluginPanel
         JButton clipboardBtn = new JButton("Import from clipboard");
         fullWidth(clipboardBtn);
         clipboardBtn.setToolTipText("Click RuneLite in the tracker, then click here");
-        clipboardBtn.addActionListener(e -> importFromClipboard());
+        clipboardBtn.addActionListener(e -> onClipboardImport.run());
         bundleBody.add(clipboardBtn);
-        bundleBody.add(Box.createVerticalStrut(6));
-        bundleBody.add(section("…OR PASTE JSON"));
-
-        pasteArea.setLineWrap(true);
-        pasteArea.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-        pasteArea.setForeground(Color.LIGHT_GRAY);
-        pasteArea.setCaretColor(Color.LIGHT_GRAY);
-        pasteArea.setBorder(new EmptyBorder(4, 4, 4, 4));
-        JScrollPane scroll = new JScrollPane(pasteArea);
-        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
-        bundleBody.add(scroll);
-        bundleBody.add(Box.createVerticalStrut(6));
-
-        JButton importBtn = new JButton("Import pasted JSON");
-        fullWidth(importBtn);
-        importBtn.addActionListener(e -> {
-            String text = pasteArea.getText().trim();
-            if (!text.isEmpty()) onImport.accept(text);
-        });
-        bundleBody.add(importBtn);
         bundleBody.add(Box.createVerticalStrut(4));
 
-        JButton reloadBtn = new JButton("Reload from file");
-        fullWidth(reloadBtn);
-        reloadBtn.addActionListener(e -> onReload.run());
-        bundleBody.add(reloadBtn);
+        JButton backupBtn = new JButton("Load newest backup file");
+        fullWidth(backupBtn);
+        backupBtn.setToolTipText(
+            "Load the newest fate-locked-bundle*.json in .runelite/fate-locked, once");
+        backupBtn.addActionListener(e -> onLoadBackupFile.run());
+        bundleBody.add(backupBtn);
     }
 
     void setCallbacks(
-        Consumer<String> onImport, Runnable onReload, Runnable onConnect)
+        Runnable onClipboardImport, Runnable onLoadBackupFile, Runnable onConnect)
     {
-        this.onImport = onImport;
-        this.onReload = onReload;
+        this.onClipboardImport = onClipboardImport;
+        this.onLoadBackupFile = onLoadBackupFile;
         this.onConnect = onConnect;
     }
 
-    void setCallbacks(Consumer<String> onImport, Runnable onReload)
+    /** Check now: a check at once, whatever the back-off. */
+    void setCheckNowCallback(Runnable onCheckNow)
     {
-        setCallbacks(onImport, onReload, onConnect);
+        this.onCheckNow = onCheckNow;
     }
+
     void setRollInboxLink(String trackerUrl)
     {
         rollInboxUrl = rollInboxUrl(trackerUrl);
@@ -503,19 +517,19 @@ class FateLockedPanel extends PluginPanel
 
     void updateConnection(TrackerConnectionSnapshot snapshot)
     {
-        runOnEdt(() -> applyConnection(snapshot));
+        queueOnEdt(() -> applyConnection(snapshot));
     }
 
     void updateTrackerAccount(String account)
     {
-        runOnEdt(() -> trackerAccountVal.setText(orDash(account)));
+        queueOnEdt(() -> trackerAccountVal.setText(orDash(account)));
     }
 
     void updateRollInboxStatus(
         int localEvents, int needsReview, int warnings,
         boolean saveFailed)
     {
-        runOnEdt(() -> {
+        queueOnEdt(() -> {
             localEventsVal.setText(String.valueOf(Math.max(0, localEvents)));
             reviewVal.setText(String.valueOf(Math.max(0, needsReview)));
             warningsVal.setText(warnings <= 0 ? "None" : warnings + " active");
@@ -528,64 +542,42 @@ class FateLockedPanel extends PluginPanel
 
     void refreshConfig(String key)
     {
-        runOnEdt(() -> configBinder.refresh(key));
+        queueOnEdt(() -> configBinder.refresh(key));
     }
     private void applyConnection(TrackerConnectionSnapshot snapshot)
     {
         TrackerConnectionSnapshot copy = snapshot == null
             ? TrackerConnectionSnapshot.disconnected() : snapshot;
-        TrackerConnectionState state = copy.getState();
-        String message = copy.getMessage();
-        String text = message == null || message.trim().isEmpty()
-            ? state.name() : message;
-        Color color = GRAY;
-        if (state == TrackerConnectionState.CONNECTED)
-        {
-            color = GREEN;
-            if (copy.getLastSync() != null)
-            {
-                text += " \u00b7 " + formatUtc(copy.getLastSync());
-            }
-        }
-        else if (state == TrackerConnectionState.PREPARING
-            || state == TrackerConnectionState.WAITING
-            || state == TrackerConnectionState.IMPORTING)
-        {
-            color = AMBER;
-        }
-        else if (state == TrackerConnectionState.EXPIRED
-            || state == TrackerConnectionState.IMPORT_FAILED)
-        {
-            color = RED;
-        }
-        connectionVal.setText(text);
-        connectionVal.setForeground(color);
-        connectionVal.setToolTipText(connectionHelp(message));
-        lastSyncVal.setText(copy.getLastSync() == null
-            ? "\u2014" : formatUtc(copy.getLastSync()));
+        SyncView view = SyncView.of(copy, Instant.now(), ZoneId.systemDefault());
+        connectionVal.setText(view.status);
+        connectionVal.setForeground(color(view.tone));
+        connectionVal.setToolTipText(view.detail);
+        connectionDetailText = view.detail;
+        connectionDetail.setText(view.detail == null
+            ? "" : "<html>" + escapeHtml(view.detail) + "</html>");
+        connectionDetail.setVisible(view.detail != null);
+        checkNowButton.setVisible(view.canCheckNow);
+        connectAction = view.connect;
+        connectTrackerButton.setText(view.connect.label);
+        lastSyncVal.setText(view.lastSync);
+        pairingVal.setText(view.pairing);
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);
     }
 
-    /** A longer explanation for the short connection states. */
-    private static String connectionHelp(String message)
+    private static Color color(SyncView.Tone tone)
     {
-        if (TrackerConnectionController.CONFIRM_MESSAGE.equals(message))
+        switch (tone)
         {
-            return "Confirm the profile in the browser tab RuneLite opened. "
-                + "RuneLite checks every few seconds.";
+            case GREEN:
+                return GREEN;
+            case AMBER:
+                return AMBER;
+            case RED:
+                return RED;
+            default:
+                return GRAY;
         }
-        if (TrackerConnectionController.NO_PROFILE_MESSAGE.equals(message))
-        {
-            return "No profile arrived within 10 minutes. "
-                + "Press Connect tracker to try again.";
-        }
-        if (TrackerConnectionController.NO_RECENT_UPDATE_MESSAGE.equals(message))
-        {
-            return "The tracker hasn't sent your rules in the last 24 hours. "
-                + "Open the web tracker to send them again.";
-        }
-        return message;
     }
 
     private static String escapeHtml(String text)
@@ -593,22 +585,16 @@ class FateLockedPanel extends PluginPanel
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    private static String formatUtc(Instant instant)
+    /**
+     * Queue a sidebar update on the Swing thread, even from the Swing thread
+     * itself, so updates from every thread apply in the order they were
+     * made. Running it at once there let it overtake older updates still
+     * queued from other threads: a "Not connected" could be followed by a
+     * stale "Connected".
+     */
+    private static void queueOnEdt(Runnable update)
     {
-        return DateTimeFormatter.ofPattern("HH:mm:ss 'UTC'")
-            .withZone(ZoneOffset.UTC).format(instant);
-    }
-
-    private static void runOnEdt(Runnable update)
-    {
-        if (SwingUtilities.isEventDispatchThread())
-        {
-            update.run();
-        }
-        else
-        {
-            SwingUtilities.invokeLater(update);
-        }
+        SwingUtilities.invokeLater(update);
     }
 
     String localEventsTextForTest() { return localEventsVal.getText(); }
@@ -619,9 +605,11 @@ class FateLockedPanel extends PluginPanel
     { return historyStatusVal.isVisible(); }
     String lastSyncTextForTest() { return lastSyncVal.getText(); }
     String connectionTextForTest() { return connectionVal.getText(); }
+    String connectionDetailForTest() { return connectionDetailText; }
+    String pairingTextForTest() { return pairingVal.getText(); }
+    JButton checkNowButtonForTest() { return checkNowButton; }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }
-    JTextArea pasteAreaForTest() { return pasteArea; }
     JButton buttonForTest(String text) { return findButton(this, text); }
     JButton guardianPauseButtonForTest() { return strictModeButton; }
     List<String> sectionTitlesForTest()
@@ -656,27 +644,6 @@ class FateLockedPanel extends PluginPanel
     {
         return hasText(this, text);
     }
-    private void importFromClipboard()
-    {
-        try
-        {
-            Object data = Toolkit.getDefaultToolkit().getSystemClipboard()
-                .getData(DataFlavor.stringFlavor);
-            String text = data == null ? "" : data.toString().trim();
-            if (text.isEmpty())
-            {
-                flashStatus("clipboard empty", false);
-                return;
-            }
-            pasteArea.setText(text);
-            onImport.accept(text);
-        }
-        catch (Exception ex)
-        {
-            flashStatus("couldn't read clipboard", false);
-        }
-    }
-
     void update(FateLockedBundle bundle, ChunkPanelViewModel view)
     {
         FateLockedBundle.RunState state = bundle.getState();
@@ -685,12 +652,9 @@ class FateLockedPanel extends PluginPanel
         SwingUtilities.invokeLater(() -> {
             profileVal.setText(orDash(bundle.getProfileName()));
             runIdVal.setText(orDash(bundle.getRunId()));
-            String manifestAccount = bundle.getRules() == null
-                ? null : bundle.getRules().getAccount();
-            accountVal.setText(orDash(manifestAccount));
+            accountVal.setText(orDash(AccountBinding.boundAccount(bundle)));
             if (state != null)
             {
-                if (manifestAccount == null) accountVal.setText(orDash(state.getLinkedAccount()));
                 keysVal.setText(String.valueOf(state.getKeys()));
                 omniKeysVal.setText(String.valueOf(state.getSpecialKeys()));
                 chaosKeysVal.setText(String.valueOf(state.getChaosKeys()));
@@ -836,7 +800,7 @@ class FateLockedPanel extends PluginPanel
 
     void flashStatus(String message, boolean ok)
     {
-        runOnEdt(() -> {
+        queueOnEdt(() -> {
             importVal.setText(message);
             importVal.setForeground(ok ? GREEN : RED);
             importVal.setVisible(true);

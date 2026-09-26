@@ -185,7 +185,9 @@ public class FateLockedPluginTravelAccountBindingTest
                 (stage, error) -> { },
                 Clock.systemUTC());
 
-            setField(plugin, "bundle", bundle);
+            // Rules delivered by the relay stay fresh while it confirms them.
+            setField(plugin, "active",
+                new ActiveRules(bundle, FateLockedPlugin.RulesSource.RELAY));
             setField(plugin, "config", config);
             setField(plugin, "client", client);
             TrackerConnectionSettings connectionSettings =
@@ -198,8 +200,6 @@ public class FateLockedPluginTravelAccountBindingTest
                 TrackerConnectionSnapshot.connected(Instant.now(), "1"));
             setField(plugin, "connectionSettings", connectionSettings);
             setField(plugin, "connectionController", connectionController);
-            // Rules delivered by the relay stay fresh while it confirms them.
-            setField(plugin, "rulesSource", FateLockedPlugin.RulesSource.RELAY);
             setField(plugin, "travelGuardianShell", shell);
         }
     }

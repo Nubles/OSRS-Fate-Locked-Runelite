@@ -1,0 +1,107 @@
+{
+ "schema": 1,
+ "reject": [
+  {
+   "name": "empty",
+   "input": ""
+  },
+  {
+   "name": "an empty object",
+   "input": "{}"
+  },
+  {
+   "name": "null",
+   "input": "null"
+  },
+  {
+   "name": "a version 3 stub",
+   "input": "{\"version\":3}"
+  },
+  {
+   "name": "a future version 5",
+   "scenario": "vanilla-mid",
+   "set": {
+    "version": 5
+   }
+  },
+  {
+   "name": "version 4 without chunks",
+   "scenario": "vanilla-mid",
+   "remove": [
+    "chunks"
+   ]
+  },
+  {
+   "name": "version 4 without rules",
+   "scenario": "vanilla-mid",
+   "remove": [
+    "rules"
+   ]
+  },
+  {
+   "name": "version 4 rules without a run",
+   "scenario": "vanilla-mid",
+   "remove": [
+    "rules.runId"
+   ]
+  },
+  {
+   "name": "truncated JSON",
+   "scenario": "vanilla-mid",
+   "truncate": 0.5
+  },
+  {
+   "name": "FLGZ that is not base64",
+   "input": "FLGZ:not base64 at all"
+  },
+  {
+   "name": "a gzip bomb over 8 MiB",
+   "input": " ",
+   "repeat": 9437184,
+   "compress": true
+  }
+ ],
+ "sameAnswers": [
+  {
+   "name": "an unknown root field",
+   "scenario": "vanilla-mid",
+   "set": {
+    "futureRootField": {
+     "added": "later"
+    }
+   }
+  },
+  {
+   "name": "an unknown rules field",
+   "scenario": "vanilla-mid",
+   "set": {
+    "rules.futureRulesField": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "name": "without the optional content fields",
+   "scenario": "vanilla-mid",
+   "remove": [
+    "chunkContent",
+    "itemTiers",
+    "slayerChunks"
+   ]
+  },
+  {
+   "name": "without the run state",
+   "scenario": "custom-none-banks-on",
+   "remove": [
+    "state"
+   ]
+  },
+  {
+   "name": "compressed",
+   "scenario": "chunked-walk",
+   "compress": true
+  }
+ ]
+}

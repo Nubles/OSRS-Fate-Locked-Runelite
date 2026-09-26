@@ -27,7 +27,29 @@ The normal same-PC setup is:
 
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
 relay. It does not upload player or gameplay data. The relay sees the IP
-address used for the HTTPS request.
+address used for the HTTPS request, and the rules it holds name your
+character, so it can link the two.
+
+Once connected, RuneLite checks the tracker every minute while you play,
+every 5 minutes at the login screen, and at once when you log in. To pick
+up a change you have just made in the web tracker, press **Check now**
+under the connection status; it works once every 10 seconds. When a check
+fails, the line under the status says why and when the next check is,
+never more than 5 minutes away unless the relay asks RuneLite to wait
+longer.
+
+The same button pairs RuneLite with another tracker profile once it is
+connected: it reads **Re-pair tracker…** and asks first. RuneLite keeps
+your current pairing until the new one sends your rules; if none arrives
+within 10 minutes, or you press **Cancel re-pairing**, nothing changes. With
+online sync off, it reads **Turn on online sync** and picks up the pairing
+you already have.
+
+The sidebar's **Pairing** row shows only the last four characters of the
+code in use, as the web tracker's pairing dialog does, so the code stays
+off screen. If you press **Disconnect** in the web tracker, the sidebar
+says "Disconnected in the web tracker"; press **Connect tracker** to pair
+again.
 
 Online sync is off by default, including for existing pairings after this
 update. No relay requests are made until you accept the warning. Canceling
@@ -65,35 +87,52 @@ including the single Strict Mode toggle.
 - Strict Mode, which blocks only exactly matched travel into locked areas,
   with fail-open safeguards, a status that says when it cannot act, a
   60-second pause, and a bounded local audit log.
-- Local detection of supported skill, quest, diary, collection, clue,
-  boss, raid, pet, minigame, and Slayer observations.
+- Local detection of supported skill, quest, diary, combat achievement,
+  collection, clue, boss, raid, pet, and Slayer observations.
 
 ## Roll Inbox ownership and privacy
 
-The Roll Inbox section shows the newest 250 unique observations saved in
-RuneLite's local Fate Locked data directory. Ambiguous observations are
-counted under **Needs review**. Detection never rolls and never changes the
-tracker; the player still reviews the result and presses Roll in the web app.
+The Roll Inbox section counts the observations saved for the logged-in
+account, in its own folder of RuneLite's local Fate Locked data directory,
+which keeps the newest 250. Ambiguous observations are counted under
+**Needs review**. Only the character your tracker profile is bound to is
+tracked, and only on worlds that save to that account, so not Leagues,
+Deadman or speedrunning worlds. A profile bound to no character gets no
+roll reminders. Detection never rolls and never changes the tracker; the
+player still reviews the result and presses Roll in the web app.
 
 **Local only — RuneLite does not upload gameplay data.**
 
 **Open web Roll Inbox** opens a separate browser view. It does not transfer
 RuneLite's local history to that view.
 
-If the new history file is absent, the plugin can migrate the newest 250
-pending entries from the former local queue. The old file is left unchanged.
-A malformed history file is preserved with a corruption suffix and the
-plugin begins a new local history.
+Each account's history, Strict Mode log, Slayer task and finished diary
+tiers live in `accounts/<account id>/` in the data directory, so a main
+account and an ironman played in one RuneLite keep them apart, and two
+RuneLites on one account merge their writes rather than overwrite each
+other. A diary tier finished while RuneLite was closed counts at the next
+login. The first time an account is used, its history starts from the
+shared history (or the older queue) that earlier versions kept, taking
+only that character's observations; the Strict Mode log and Slayer task
+come along only for the character the rules are bound to. The shared files
+are left unchanged. A malformed file is preserved with a corruption suffix
+and a new one is started.
 
 ## Clipboard and file recovery
 
 - **Import from clipboard:** copy a bundle in the tracker, then use the
   plugin sidebar or its re-import hotkey.
-- **Paste JSON:** paste a complete bundle into the Bundle section.
-- **File:** place `fate-locked-bundle-*.json` in
+- **Backup file:** place `fate-locked-bundle-*.json` in
   `~/.runelite/fate-locked/` (or
-  `%USERPROFILE%\.runelite\fate-locked\` on Windows). The plugin reads the
-  newest matching file and can watch for changes.
+  `%USERPROFILE%\.runelite\fate-locked\` on Windows), then click **Load
+  newest backup file** in the Bundle section. It does not watch the folder.
+
+The plugin keeps the last rules it accepted in `saved-rules.json` and
+brings them back when it starts, even offline. It reads the newest backup
+file at startup only when nothing is saved, as on the first start after
+updating. Saved tracker rules are never fresh enough for Strict Mode until
+the tracker confirms them, and rules that arrive later always replace
+them.
 
 Imports replace the active rules only after complete parsing and validation.
 Malformed, stale, or unsupported relay responses keep the previous valid

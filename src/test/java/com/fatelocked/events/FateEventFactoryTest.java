@@ -24,10 +24,10 @@ public class FateEventFactoryTest
         FateEvent first = factory.create(
             FateEventType.QUEST, "Dragon Slayer", EventConfidence.EXACT,
             Collections.<String, Object>singletonMap("widget", 153),
-            bundle, "Nubles");
+            bundle, "Nubles", "quest-widget-v1", 1);
         FateEvent second = factory.create(
             FateEventType.QUEST, "Demon Slayer", EventConfidence.EXACT,
-            Collections.<String, Object>emptyMap(), bundle, "Nubles");
+            Collections.<String, Object>emptyMap(), bundle, "Nubles", "quest-widget-v1", 1);
 
         assertTrue(first.getEventId().matches("^[0-9a-f-]{36}$"));
         assertNotEquals(first.getEventId(), second.getEventId());

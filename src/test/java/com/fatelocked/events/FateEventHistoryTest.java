@@ -41,6 +41,39 @@ public class FateEventHistoryTest
     }
 
     @Test
+    public void twoClientsKeepEachOthersEvents() throws Exception
+    {
+        // Two RuneLites on one account, each loading before the other writes.
+        FateEventHistory main = new FateEventHistory(gson, historyPath, legacyPath);
+        FateEventHistory second = new FateEventHistory(gson, historyPath, legacyPath);
+
+        assertTrue(main.record(event("from-main")));
+        assertTrue(second.record(event("from-second")));
+
+        assertEquals(List.of("from-main", "from-second"),
+            eventIds(new FateEventHistory(gson, historyPath, legacyPath).events()));
+        assertEquals(List.of("from-main", "from-second"), eventIds(second.events()));
+    }
+
+    @Test
+    public void aHistoryDamagedSinceLoadingIsKeptAsideNotWrittenOver() throws Exception
+    {
+        FateEventHistory history = new FateEventHistory(gson, historyPath, legacyPath);
+        assertTrue(history.record(event("evt-1")));
+        Files.write(historyPath, "{damaged".getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(history.record(event("evt-2")));
+
+        assertEquals(List.of("evt-1", "evt-2"),
+            eventIds(new FateEventHistory(gson, historyPath, legacyPath).events()));
+        try (java.util.stream.Stream<Path> files = Files.list(historyPath.getParent()))
+        {
+            assertEquals(1, files.filter(path -> path.getFileName().toString()
+                .startsWith("event-history.json.corrupt-")).count());
+        }
+    }
+
+    @Test
     public void acceptedEventSurvivesRestart() throws Exception
     {
         FateEventHistory history =

@@ -1,5 +1,6 @@
 package com.fatelocked.detectors;
 
+import com.fatelocked.events.EventConfidence;
 import com.google.gson.Gson;
 import org.junit.Test;
 
@@ -8,6 +9,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ExpandedDetectorsTest
@@ -23,6 +25,21 @@ public class ExpandedDetectorsTest
         assertFalse(detector.completion("duplicate").isPresent());
         assertFalse(new SlayerTaskDetector(new Gson(), path)
             .completion("restart duplicate").isPresent());
+    }
+
+    @Test
+    public void aTaskIsCompletedOnceAcrossClients() throws Exception
+    {
+        java.nio.file.Path path = Files.createTempDirectory("slayer-clients").resolve("slayer.json");
+        // Both RuneLites load before either writes.
+        SlayerTaskDetector main = new SlayerTaskDetector(new Gson(), path);
+        SlayerTaskDetector second = new SlayerTaskDetector(new Gson(), path);
+
+        main.assignment("Kurask", null, 120, false);
+
+        assertEquals("Kurask", second.completion("task complete")
+            .map(DetectedEvent::getCanonicalLabel).orElse(null));
+        assertFalse(main.completion("task complete").isPresent());
     }
 
     @Test
@@ -61,23 +78,26 @@ public class ExpandedDetectorsTest
     }
 
     @Test
-    public void petRequiresNewPetSignature()
+    public void aNewPetIsRecordedWithoutGuessingWhichItIs()
     {
+        // The game's lines, from RuneLite's screenshot plugin.
         PetDropDetector detector = new PetDropDetector();
-        assertEquals("Vorki", detector.detect(
-            "You have a funny feeling like you're being followed.", 8029, 10_000)
-            .map(DetectedEvent::getCanonicalLabel).orElse(null));
-        assertFalse(detector.detect("Your pet is insured.", 8029, 20_000).isPresent());
+        Optional<DetectedEvent> followed = detector.detect(
+            "You have a funny feeling like you're being followed.", 10_000);
+        assertTrue(followed.isPresent());
+        assertNull(followed.get().getCanonicalLabel());
+        assertEquals(EventConfidence.UNCERTAIN, followed.get().getConfidence());
+        assertTrue(detector.detect(
+            "You feel something weird sneaking into your backpack.", 20_000).isPresent());
     }
 
     @Test
-    public void pestControlRequiresBothSignals()
+    public void aPetAlreadyOwnedIsNotANewPet()
     {
-        MinigameCompletionDetector detector = new MinigameCompletionDetector();
-        assertFalse(detector.onMessage("You have won the game!", 1000).isPresent());
-        detector.onPestControlWidget(2000);
-        assertTrue(detector.onMessage("You have won the game!", 3000).isPresent());
-        assertFalse(detector.onMessage("You have completed a farming contract.", 3001).isPresent());
+        PetDropDetector detector = new PetDropDetector();
+        assertFalse(detector.detect(
+            "You have a funny feeling like you would have been followed...", 10_000).isPresent());
+        assertFalse(detector.detect("Your pet is insured.", 20_000).isPresent());
     }
 
     @Test

@@ -1,20 +1,26 @@
 package com.fatelocked.events;
 
+import com.fatelocked.storage.LocalFileMerge;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * The newest 250 detected events, kept in a local file that another
+ * RuneLite on this computer may share: each write merges into what is on
+ * disk rather than replacing it (LocalFileMerge).
+ */
 public final class FateEventHistory
 {
     static final int MAX_EVENTS = 250;
@@ -33,8 +39,7 @@ public final class FateEventHistory
         Gson gson, Path historyPath, Path legacyOutboxPath)
         throws IOException
     {
-        this(gson, historyPath, legacyOutboxPath,
-            FateEventHistory::writeAtomically);
+        this(gson, historyPath, legacyOutboxPath, LocalFileMerge::replace);
     }
 
     FateEventHistory(
@@ -65,20 +70,68 @@ public final class FateEventHistory
         }
 
         List<FateEvent> candidate = new ArrayList<>(events);
-        while (candidate.size() >= MAX_EVENTS)
-        {
-            candidate.remove(0);
-        }
         candidate.add(event);
-        persist(candidate);
+        List<FateEvent> merged = persist(candidate);
+        // Only once written: a failed write leaves memory as it was.
         events.clear();
-        events.addAll(candidate);
+        events.addAll(merged);
         return true;
     }
 
     public synchronized List<FateEvent> events()
     {
         return Collections.unmodifiableList(new ArrayList<>(events));
+    }
+
+    /** Add events from elsewhere, such as an older shared history, merged as any write is. */
+    public synchronized void adopt(List<FateEvent> adopted) throws IOException
+    {
+        List<FateEvent> candidate = new ArrayList<>(events);
+        candidate.addAll(adopted);
+        List<FateEvent> merged = persist(candidate);
+        events.clear();
+        events.addAll(merged);
+    }
+
+    /**
+     * The events in a history file, or in the older outbox file when there
+     * is no history, without writing, moving or repairing either. None when
+     * neither can be read.
+     */
+    public static List<FateEvent> readOnly(Gson gson, Path historyPath, Path legacyOutboxPath)
+    {
+        try
+        {
+            if (Files.exists(historyPath))
+            {
+                State state = gson.fromJson(new String(
+                    Files.readAllBytes(historyPath), StandardCharsets.UTF_8), State.class);
+                return state == null || state.events == null
+                    ? Collections.emptyList() : withoutNulls(state.events);
+            }
+            if (legacyOutboxPath != null && Files.exists(legacyOutboxPath))
+            {
+                LegacyState legacy = gson.fromJson(new String(
+                    Files.readAllBytes(legacyOutboxPath), StandardCharsets.UTF_8), LegacyState.class);
+                return legacy == null || legacy.pending == null
+                    ? Collections.emptyList() : withoutNulls(legacy.pending);
+            }
+        }
+        catch (IOException | RuntimeException error)
+        {
+            // Unreadable: nothing comes from it, and it is left as it is.
+        }
+        return Collections.emptyList();
+    }
+
+    private static List<FateEvent> withoutNulls(List<FateEvent> source)
+    {
+        List<FateEvent> valid = new ArrayList<>();
+        for (FateEvent event : source)
+        {
+            if (event != null) valid.add(event);
+        }
+        return valid;
     }
 
     private boolean contains(String eventId)
@@ -151,9 +204,7 @@ public final class FateEventHistory
         {
             return;
         }
-        List<FateEvent> migrated = boundedUnique(legacy.pending);
-        persist(migrated);
-        events.addAll(migrated);
+        events.addAll(persist(boundedUnique(legacy.pending)));
     }
 
     private List<FateEvent> boundedUnique(List<FateEvent> source)
@@ -179,37 +230,53 @@ public final class FateEventHistory
         return bounded;
     }
 
-    private void persist(List<FateEvent> candidate) throws IOException
+    /**
+     * Write these events merged with those on disk now, which another
+     * RuneLite may have added since this one loaded: the newest 250, oldest
+     * first. A damaged file is moved aside first. Returns what was written.
+     */
+    private List<FateEvent> persist(List<FateEvent> ours) throws IOException
     {
-        State state = new State();
-        state.events = new ArrayList<>(candidate);
-        persistence.write(
-            historyPath,
-            gson.toJson(state).getBytes(StandardCharsets.UTF_8));
+        List<FateEvent> merged = new ArrayList<>();
+        LocalFileMerge.update(historyPath, current -> {
+            List<FateEvent> all = new ArrayList<>(onDisk(current));
+            all.addAll(ours);
+            all.sort(Comparator.comparingLong(FateEvent::getOccurredAt));
+            merged.clear();
+            merged.addAll(boundedUnique(all));
+            State state = new State();
+            state.events = new ArrayList<>(merged);
+            return gson.toJson(state).getBytes(StandardCharsets.UTF_8);
+        }, persistence::write);
+        return merged;
     }
 
-    private static void writeAtomically(Path target, byte[] bytes)
-        throws IOException
+    /** The events in the file's current contents; none if there is no file, or it is damaged. */
+    private List<FateEvent> onDisk(byte[] current) throws IOException
     {
-        Path parent = target.toAbsolutePath().getParent();
-        if (parent != null)
+        if (current == null)
         {
-            Files.createDirectories(parent);
+            return Collections.emptyList();
         }
-        Path temporary = target.resolveSibling(
-            target.getFileName() + ".tmp");
-        Files.write(temporary, bytes);
         try
         {
-            Files.move(temporary, target,
-                StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING);
+            State state = gson.fromJson(new String(current, StandardCharsets.UTF_8), State.class);
+            if (state != null && state.events != null)
+            {
+                List<FateEvent> valid = new ArrayList<>();
+                for (FateEvent event : state.events)
+                {
+                    if (event != null) valid.add(event);
+                }
+                return valid;
+            }
         }
-        catch (AtomicMoveNotSupportedException error)
+        catch (RuntimeException error)
         {
-            Files.move(temporary, target,
-                StandardCopyOption.REPLACE_EXISTING);
+            // Damaged: kept aside below, and not written over.
         }
+        LocalFileMerge.moveAside(historyPath);
+        return Collections.emptyList();
     }
 
     private static final class State

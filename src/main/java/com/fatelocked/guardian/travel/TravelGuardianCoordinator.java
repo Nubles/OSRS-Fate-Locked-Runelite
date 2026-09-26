@@ -53,11 +53,16 @@ public final class TravelGuardianCoordinator
 
         if (isTrustedExact(action, decision, context) && context.isPaused())
         {
+            // Only locked travel is let through by the pause; travel the
+            // rules allow anyway is not worth recording. A repeated trip is
+            // recorded once per chat window.
+            boolean recordPaused = decision.getStatus() == PermissionStatus.LOCKED
+                && noticeStore.shouldWriteChat("paused:" + fingerprint(action));
             GuardResult guardResult =
                 clickHandler.handleTravel(event, action, decision, context);
             return new TravelGuardianResult(
                 action, decision, null, guardResult,
-                false, false, true);
+                false, false, recordPaused);
         }
 
         if (!isProvenBlock(action, decision, context))
@@ -81,9 +86,11 @@ public final class TravelGuardianCoordinator
         // Final enforcement operation: all fallible coordinator work is above.
         GuardResult guardResult =
             clickHandler.handleTravel(event, action, decision, context);
+        // Every click on a blocked trip is consumed, but a repeat inside the
+        // chat window is neither announced nor recorded again.
         return new TravelGuardianResult(
             action, decision, alternative, guardResult,
-            writeChat, true, false);
+            writeChat, writeChat, false);
     }
 
     private TravelAlternative findAlternative(

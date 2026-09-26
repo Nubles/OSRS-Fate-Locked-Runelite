@@ -99,13 +99,13 @@ public class FateLockedHudOverlay extends OverlayPanel
                     .rightColor(Color.WHITE)
                     .build());
             }
-            String bound = state.getLinkedAccount();
-            if (bound != null && !bound.trim().isEmpty())
+            String bound = AccountBinding.boundAccount(bundle);
+            if (bound != null)
             {
                 Player me = client.getLocalPlayer();
                 String current = me == null ? null : me.getName();
                 boolean match = current == null
-                    || FateLockedPlugin.normName(bound).equals(FateLockedPlugin.normName(current));
+                    || AccountBinding.sameAccount(bound, current);
                 panelComponent.getChildren().add(LineComponent.builder()
                     .left("Account")
                     .right(truncate(bound, 14) + (match ? "" : " ⚠"))

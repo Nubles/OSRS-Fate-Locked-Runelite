@@ -15,6 +15,41 @@ import static org.junit.Assert.assertTrue;
 public class StrictModeAuditLogTest
 {
     @Test
+    public void twoClientsKeepEachOthersEntries() throws Exception
+    {
+        Path file = Files.createTempDirectory("fate-strict-log").resolve("events.json");
+        StrictModeAuditLog main = new StrictModeAuditLog(new Gson(), file);
+        StrictModeAuditLog second = new StrictModeAuditLog(new Gson(), file);
+
+        main.append(new StrictModeAuditEntry(1, "TRAVEL", "from-main", "50,50", "locked"));
+        second.append(new StrictModeAuditEntry(2, "TRAVEL", "from-second", "50,50", "locked"));
+
+        StrictModeAuditLog reloaded = new StrictModeAuditLog(new Gson(), file);
+        assertEquals("from-second", reloaded.recent(2).get(0).getTarget());
+        assertEquals("from-main", reloaded.recent(2).get(1).getTarget());
+    }
+
+    @Test
+    public void aDamagedLogIsKeptAsideNotWrittenOver() throws Exception
+    {
+        Path directory = Files.createTempDirectory("fate-strict-log");
+        Path file = directory.resolve("events.json");
+        Files.writeString(file, "{damaged");
+
+        StrictModeAuditLog log = new StrictModeAuditLog(new Gson(), file);
+        log.append(new StrictModeAuditEntry(1, "TRAVEL", "goblin", "50,50", "locked"));
+
+        assertEquals(1, new StrictModeAuditLog(new Gson(), file).recent(10).size());
+        try (java.util.stream.Stream<Path> files = Files.list(directory))
+        {
+            Path kept = files.filter(path -> path.getFileName().toString()
+                .startsWith("events.json.corrupt-")).findFirst().orElse(null);
+            assertTrue("the damaged log was kept", kept != null);
+            assertEquals("{damaged", Files.readString(kept));
+        }
+    }
+
+    @Test
     public void persistsOnlyNewestHundredWithoutSensitiveFields() throws Exception
     {
         Path directory = Files.createTempDirectory("fate-strict-log");

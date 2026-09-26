@@ -17,18 +17,6 @@ public class FateEventFactory
         EventConfidence confidence,
         Map<String, Object> evidence,
         FateLockedBundle bundle,
-        String account)
-    {
-        return create(type, canonicalLabel, confidence, evidence, bundle, account,
-            "plugin-v1", 1);
-    }
-
-    public FateEvent create(
-        FateEventType type,
-        String canonicalLabel,
-        EventConfidence confidence,
-        Map<String, Object> evidence,
-        FateLockedBundle bundle,
         String account,
         String detectorId,
         int detectorVersion)
