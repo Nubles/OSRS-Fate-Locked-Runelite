@@ -481,6 +481,70 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void turningOnlineSyncBackOnKeepsTheSavedPairing() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("sync-back-on"));
+        try
+        {
+            String saved = "0123456789abcdef0123456789abcdef";
+            harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
+            harness.panel.updateConnection(SyncMachine.idle(false, true));
+            harness.flushEdt();
+
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertEquals(1, harness.consentPrompts.get());
+            assertTrue(harness.settings.networkAccessAllowed());
+            assertEquals(saved, harness.settings.pairingCode());
+            assertTrue(harness.plugin.browserUrls.isEmpty());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void rePairingAsksFirstAndKeepsTheSavedPairingUntilTheNewOneDelivers()
+        throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("re-pair"));
+        try
+        {
+            String saved = "0123456789abcdef0123456789abcdef";
+            harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
+            harness.settings.allowNetworkAccess();
+            harness.panel.updateConnection(TrackerConnectionSnapshot.connected(
+                java.time.Instant.now(), "6"));
+            harness.flushEdt();
+
+            // Declined: nothing changes.
+            harness.acceptRepair = false;
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+            assertEquals(1, harness.repairPrompts.get());
+            assertTrue(harness.plugin.browserUrls.isEmpty());
+
+            harness.acceptRepair = true;
+            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            harness.runClientTasks();
+            harness.flushEdt();
+
+            assertEquals(2, harness.repairPrompts.get());
+            assertEquals(saved, harness.settings.pairingCode());
+            assertEquals(1, harness.plugin.browserUrls.size());
+            assertFalse(harness.plugin.browserUrls.peek().contains(saved));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
     public void revocationBeforeQueuedReconnectDoesNotReenableSync() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("revoke-before-reconnect"));
@@ -513,6 +577,8 @@ public class FateLockedPluginStartupContractTest
         private final AtomicInteger navigationAdds = new AtomicInteger();
         private final AtomicInteger consentPrompts = new AtomicInteger();
         private boolean acceptConsent = true;
+        private final AtomicInteger repairPrompts = new AtomicInteger();
+        private boolean acceptRepair = true;
         private final Map<String, String> configuration =
             new ConcurrentHashMap<>();
         private final TrackerConnectionSettings settings;
@@ -558,6 +624,14 @@ public class FateLockedPluginStartupContractTest
                     assertTrue(SwingUtilities.isEventDispatchThread());
                     consentPrompts.incrementAndGet();
                     return acceptConsent;
+                }
+
+                @Override
+                boolean confirmRepair()
+                {
+                    assertTrue(SwingUtilities.isEventDispatchThread());
+                    repairPrompts.incrementAndGet();
+                    return acceptRepair;
                 }
             };
             plugin = new TestPlugin(dataDirectory);

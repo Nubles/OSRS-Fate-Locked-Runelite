@@ -252,7 +252,7 @@ go-ahead.
   (S6).** Only the login screen counts as logged out; a hop, a lost
   connection or a loading screen keeps the minute's checks. A login still
   waits out a Retry-After.
-- [ ] **C14. Ask before re-pairing and keep the working pairing until the
+- [x] **C14. Ask before re-pairing and keep the working pairing until the
   new one delivers (S7);** turning online sync back on resumes the saved
   pairing instead of replacing it.
 - [ ] **C15. Say "Disconnected in the web tracker" and show only the

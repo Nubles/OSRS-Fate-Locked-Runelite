@@ -452,7 +452,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             panel,
             this::reimportFromClipboard,
             this::loadNewestBackupFile,
-            this::beginTrackerPairing);
+            this::connectTracker);
         panel.setGuardianCallbacks(
             pauseStrictMode,
             () -> started.run(() -> { strictPause.resume(); updateStrictModePanel(); }),
@@ -1555,8 +1555,11 @@ MenuEntry entry = event.getMenuEntry();
     {
         SavedRulesStore store = savedRules;
         if (store == null) return;
-        String pairingTag = source == RulesSource.RELAY
-            ? PairingSupport.tag(connectionSettings.pairingCode()) : null;
+        // The code that delivered the rules: a re-pairing's new one, before it
+        // is saved as the pairing.
+        TrackerConnectionController controller = connectionController;
+        String pairingTag = source != RulesSource.RELAY ? null : PairingSupport.tag(
+            controller != null ? controller.activeCode() : connectionSettings.pairingCode());
         SavedRules rules = new SavedRules(text, source, Instant.now(), relayVersion, pairingTag);
         fileWriter.submit(() -> {
             try
@@ -2006,6 +2009,55 @@ MenuEntry entry = event.getMenuEntry();
         return img;
     }
 
+    /** The connect button, on the Swing thread: its job depends on the state shown. */
+    private void connectTracker()
+    {
+        switch (panel.connectAction())
+        {
+            case TURN_ON_SYNC:
+                turnOnOnlineSync();
+                break;
+            case REPAIR:
+                if (panel.confirmRepair())
+                {
+                    beginTrackerPairing();
+                }
+                break;
+            case CANCEL_REPAIR:
+                TrackerConnectionController controller = connectionController;
+                if (controller != null)
+                {
+                    controller.cancelRepair();
+                }
+                break;
+            default:
+                beginTrackerPairing();
+                break;
+        }
+    }
+
+    /**
+     * Paired with online sync off: ask for consent, then turn sync on. The
+     * saved pairing is picked up again; no new code is made.
+     */
+    private void turnOnOnlineSync()
+    {
+        if (!panel.confirmNetworkConnection())
+        {
+            return;
+        }
+        gate.run(() -> {
+            try
+            {
+                connectionSettings.allowNetworkAccess();
+            }
+            catch (RuntimeException error)
+            {
+                panel.flashStatus("couldn't enable online sync", false);
+            }
+        });
+    }
+
     private void beginTrackerPairing()
     {
         boolean needsConsent = !connectionSettings.networkAccessAllowed();
@@ -2029,7 +2081,7 @@ MenuEntry entry = event.getMenuEntry();
             }
             if (!connectionSettings.networkAccessAllowed()) return;
             String url = connectionController.beginPairing();
-            String code = connectionSettings.pairingCode();
+            String code = connectionController.activeCode();
             SwingUtilities.invokeLater(onClient.guard(
                 () -> openTrackerPairing(url, code)));
         });
@@ -2043,7 +2095,7 @@ MenuEntry entry = event.getMenuEntry();
     private void openTrackerPairing(String url, String code)
     {
         if (connectionSettings.networkAccessAllowed()
-            && samePairing(code, connectionSettings.pairingCode()))
+            && samePairing(code, connectionController.activeCode()))
         {
             launchTrackerBrowser(url);
         }

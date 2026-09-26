@@ -47,9 +47,31 @@ final class SyncView
     final String lastSync;
     /** Whether Check now has anything to check: a pairing, with online sync on. */
     final boolean canCheckNow;
+    /** What the connect button says and does. */
+    final Connect connect;
 
-    private SyncView(
-        String status, Tone tone, String detail, Action action, String lastSync, boolean canCheckNow)
+    /** The connect button's job in each state. */
+    enum Connect
+    {
+        /** No working pairing: pair, asking for consent first if need be. */
+        CONNECT("Connect tracker"),
+        /** Paired with online sync off: turn it on and use that pairing. */
+        TURN_ON_SYNC("Turn on online sync"),
+        /** A working pairing: ask, then pair again, keeping it until the new one delivers. */
+        REPAIR("Re-pair tracker\u2026"),
+        /** A re-pairing is waiting: go back to the working pairing. */
+        CANCEL_REPAIR("Cancel re-pairing");
+
+        final String label;
+
+        Connect(String label)
+        {
+            this.label = label;
+        }
+    }
+
+    private SyncView(String status, Tone tone, String detail, Action action,
+        String lastSync, boolean canCheckNow, Connect connect)
     {
         this.status = status;
         this.tone = tone;
@@ -57,6 +79,7 @@ final class SyncView
         this.action = action;
         this.lastSync = lastSync;
         this.canCheckNow = canCheckNow;
+        this.connect = connect;
     }
 
     static SyncView of(TrackerConnectionSnapshot snapshot, Instant now, ZoneId zone)
@@ -78,9 +101,17 @@ final class SyncView
                 action = Action.CONNECT;
                 break;
             case SYNC_OFF:
-                detail = "Your pairing is kept. Tick Enable online sync, under Bundle,"
-                    + " to pick it up again.";
+                detail = "Your pairing is kept. Press Turn on online sync to pick it"
+                    + " up again.";
                 action = Action.ENABLE_SYNC;
+                break;
+            case CONFIRM_REPAIR:
+                detail = "Confirm the profile in the browser tab RuneLite opened."
+                    + " Until it arrives, RuneLite keeps your current pairing.";
+                break;
+            case REPAIR_ABANDONED:
+                detail = "No new profile arrived within 10 minutes, so RuneLite kept"
+                    + " your current pairing.";
                 break;
             case CONFIRM_IN_BROWSER:
                 detail = "Confirm the profile in the browser tab RuneLite opened."
@@ -138,7 +169,26 @@ final class SyncView
         }
         boolean canCheckNow = snapshot.getReason() != SyncReason.NOT_PAIRED
             && snapshot.getReason() != SyncReason.SYNC_OFF;
-        return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow);
+        return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow,
+            connect(snapshot.getReason()));
+    }
+
+    private static Connect connect(SyncReason reason)
+    {
+        switch (reason)
+        {
+            case NOT_PAIRED:
+            case CONFIRM_IN_BROWSER:
+            case NO_PROFILE:
+                // Nothing that works to keep: a first pairing starts over.
+                return Connect.CONNECT;
+            case SYNC_OFF:
+                return Connect.TURN_ON_SYNC;
+            case CONFIRM_REPAIR:
+                return Connect.CANCEL_REPAIR;
+            default:
+                return Connect.REPAIR;
+        }
     }
 
     private static Tone tone(TrackerConnectionState state)

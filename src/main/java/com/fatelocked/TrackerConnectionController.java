@@ -99,6 +99,11 @@ final class TrackerConnectionController
     private long generation;
     private RelayPollToken activePoll;
     private String currentIdentityCode;
+    /**
+     * A re-pairing's new code, checked instead of the saved one until it
+     * delivers rules and replaces it; null otherwise.
+     */
+    private String pendingCode;
     private boolean stopped;
     private volatile TrackerConnectionSnapshot snapshot =
         TrackerConnectionSnapshot.disconnected();
@@ -154,13 +159,52 @@ final class TrackerConnectionController
             {
                 throw new IllegalStateException("The tracker connection has stopped");
             }
-            settings.replacePairingCode(code);
-            settings.clearLegacySettings();
             abandonCheckLocked();
-            currentIdentityCode = code;
-            showLocked(machine.pairingStarted(clock.instant()));
+            if (settings.isPaired() && !machine.firstPairingWaiting())
+            {
+                // Keep the working pairing until the new one delivers.
+                pendingCode = code;
+                showLocked(machine.repairStarted(clock.instant()));
+            }
+            else
+            {
+                settings.replacePairingCode(code);
+                settings.clearLegacySettings();
+                pendingCode = null;
+                currentIdentityCode = code;
+                showLocked(machine.pairingStarted(clock.instant()));
+            }
         }
         return PairingSupport.trackerPairingUrl(code);
+    }
+
+    /** The player cancelled a re-pairing: back to the working pairing at once. */
+    void cancelRepair()
+    {
+        synchronized (pollLock)
+        {
+            if (stopped || pendingCode == null)
+            {
+                return;
+            }
+            abandonCheckLocked();
+            pendingCode = null;
+            showLocked(machine.repairCancelled());
+        }
+    }
+
+    /** The code checks go to: a re-pairing's new code, or the saved one. */
+    String activeCode()
+    {
+        synchronized (pollLock)
+        {
+            return activeCodeLocked();
+        }
+    }
+
+    private String activeCodeLocked()
+    {
+        return pendingCode != null ? pendingCode : settings.pairingCode();
     }
 
 
@@ -171,19 +215,23 @@ final class TrackerConnectionController
             networkAccessOff();
             return;
         }
-        String code = settings.pairingCode();
+        String saved = settings.pairingCode();
+        String code;
         String version;
         boolean clearLegacy = false;
         synchronized (pollLock)
         {
             if (stopped) return;
-            if (!equal(code, currentIdentityCode))
+            if (!equal(saved, currentIdentityCode))
             {
+                // Replaced underneath this session: a re-pairing was for the old one.
                 abandonCheckLocked();
-                currentIdentityCode = code;
-                clearLegacy = !code.isEmpty();
-                showLocked(machine.pairingReplaced(!code.isEmpty()));
+                pendingCode = null;
+                currentIdentityCode = saved;
+                clearLegacy = !saved.isEmpty();
+                showLocked(machine.pairingReplaced(!saved.isEmpty()));
             }
+            code = activeCodeLocked();
             if (code.isEmpty())
             {
                 showLocked(machine.unpaired(clock.instant()));
@@ -287,6 +335,7 @@ final class TrackerConnectionController
         synchronized (pollLock)
         {
             abandonCheckLocked();
+            pendingCode = null;
             showLocked(machine.networkAccessChanged(
                 settings.networkAccessAllowed(), settings.isPaired()));
         }
@@ -336,6 +385,7 @@ final class TrackerConnectionController
         {
             stopped = true;
             abandonCheckLocked();
+            pendingCode = null;
             showLocked(TrackerConnectionSnapshot.disconnected());
         }
     }
@@ -399,7 +449,7 @@ final class TrackerConnectionController
         synchronized (pollLock)
         {
             if (stopped || !settings.networkAccessAllowed() || activePoll != null
-                || !code.equals(settings.pairingCode())
+                || !code.equals(activeCodeLocked())
                 || !equal(version, machine.acceptedVersion()))
             {
                 return null;
@@ -609,6 +659,10 @@ final class TrackerConnectionController
                         {
                             return;
                         }
+                        if (token.code.equals(pendingCode))
+                        {
+                            commitPendingLocked();
+                        }
                         showLocked(machine.accepted(version, acceptedAt));
                     }
                 }
@@ -628,8 +682,25 @@ final class TrackerConnectionController
     /** The relay has no profile for this code; SyncMachine.notFound says what that means. */
     private void handleNotFound(RelayPollToken token)
     {
-        showIfCurrent(token, now -> machine.notFound(token.acceptedVersion != null, now));
+        showIfCurrent(token, now -> {
+            TrackerConnectionSnapshot next = machine.notFound(token.acceptedVersion != null, now);
+            if (pendingCode != null && !machine.repairing())
+            {
+                // The re-pairing timed out: checks go back to the working pairing.
+                pendingCode = null;
+            }
+            return next;
+        });
         clearPoll(token);
+    }
+
+    /** A re-pairing delivered: its code becomes the pairing, and the old one is dropped. */
+    private void commitPendingLocked()
+    {
+        settings.replacePairingCode(pendingCode);
+        settings.clearLegacySettings();
+        currentIdentityCode = pendingCode;
+        pendingCode = null;
     }
 
     /**
@@ -693,7 +764,7 @@ final class TrackerConnectionController
             && token != null
             && activePoll == token
             && token.generation == generation
-            && token.code.equals(settings.pairingCode());
+            && token.code.equals(activeCodeLocked());
     }
 
     private boolean acceptedStateUnchanged(RelayPollToken token)

@@ -51,8 +51,9 @@ public class SyncViewTest
         SyncView view = view(SyncMachine.idle(false, true));
 
         assertEquals("Online sync is off", view.status);
-        assertTrue(view.detail, view.detail.contains("Enable online sync"));
+        assertTrue(view.detail, view.detail.contains("Turn on online sync"));
         assertEquals(SyncView.Action.ENABLE_SYNC, view.action);
+        assertEquals(SyncView.Connect.TURN_ON_SYNC, view.connect);
         assertEquals("\u2014", view.lastSync);
     }
 
@@ -117,6 +118,31 @@ public class SyncViewTest
         assertTrue(view(TrackerConnectionSnapshot.connected(NOW, "41")).canCheckNow);
         assertTrue(view(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE,
             null, null, SyncReason.BUSY, NOW.plusSeconds(120))).canCheckNow);
+    }
+
+    @Test
+    public void theConnectButtonSaysWhatItWillDo()
+    {
+        assertEquals(SyncView.Connect.CONNECT, view(SyncMachine.idle(true, false)).connect);
+        assertEquals(SyncView.Connect.TURN_ON_SYNC, view(SyncMachine.idle(false, true)).connect);
+        // A first pairing that hasn't delivered has nothing to keep.
+        assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.WAITING,
+            SyncReason.CONFIRM_IN_BROWSER)).connect);
+        assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.EXPIRED,
+            SyncReason.NO_PROFILE)).connect);
+        // A working pairing is kept: re-pairing asks first.
+        assertEquals(SyncView.Connect.REPAIR,
+            view(TrackerConnectionSnapshot.connected(NOW, "41")).connect);
+        assertEquals(SyncView.Connect.REPAIR, view(of(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE)).connect);
+        assertEquals(SyncView.Connect.CANCEL_REPAIR, view(of(TrackerConnectionState.WAITING,
+            SyncReason.CONFIRM_REPAIR)).connect);
+        assertEquals("Re-pair tracker\u2026", SyncView.Connect.REPAIR.label);
+    }
+
+    private static TrackerConnectionSnapshot of(TrackerConnectionState state, SyncReason reason)
+    {
+        return TrackerConnectionSnapshot.of(state, null, null, reason, null);
     }
 
     @Test

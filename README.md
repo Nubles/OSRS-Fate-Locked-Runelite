@@ -37,6 +37,13 @@ fails, the line under the status says why and when the next check is,
 never more than 5 minutes away unless the relay asks RuneLite to wait
 longer.
 
+The same button pairs RuneLite with another tracker profile once it is
+connected: it reads **Re-pair tracker…** and asks first. RuneLite keeps
+your current pairing until the new one sends your rules; if none arrives
+within 10 minutes, or you press **Cancel re-pairing**, nothing changes. With
+online sync off, it reads **Turn on online sync** and picks up the pairing
+you already have.
+
 Online sync is off by default, including for existing pairings after this
 update. No relay requests are made until you accept the warning. Canceling
 leaves sync disabled. Disable **Enable online sync** in the Bundle section

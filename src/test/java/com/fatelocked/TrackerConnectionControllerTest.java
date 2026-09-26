@@ -219,20 +219,126 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
-    public void beginPairingReplacesTheCodeAndReturnsTheBrowserUrl()
+    public void aFirstPairingSavesItsCodeAtOnceAndReturnsTheBrowserUrl()
     {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+
         String url = controller.beginPairing();
 
         assertTrue(settings.pairingCode().matches("[0-9a-f]{32}"));
-        assertNotEquals(INITIAL_CODE, settings.pairingCode());
         assertEquals(PairingSupport.trackerPairingUrl(
             settings.pairingCode()), url);
-        assertEquals(TrackerConnectionState.WAITING,
-            listener.last().getState());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, listener.last().getReason());
         assertNull(listener.last().getAcceptedVersion());
         assertNull(listener.last().getLastSync());
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
+    }
+
+    @Test
+    public void connectingAgainDuringAFirstPairingStartsOver()
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        String first = settings.pairingCode();
+
+        // Its code has never worked, so there is nothing to keep.
+        controller.beginPairing();
+
+        assertNotEquals(first, settings.pairingCode());
+        assertEquals(settings.pairingCode(), controller.activeCode());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void rePairingKeepsTheWorkingPairingUntilTheNewOneDelivers() throws Exception
+    {
+        connect(5, "\"5\"");
+        Instant syncedAt = controller.snapshot().getLastSync();
+
+        String url = controller.beginPairing();
+        String newCode = controller.activeCode();
+
+        // The saved pairing, and the rules' sync time, stay until the new one delivers.
+        assertNotEquals(INITIAL_CODE, newCode);
+        assertEquals(PairingSupport.trackerPairingUrl(newCode), url);
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+        assertEquals(syncedAt, controller.snapshot().getLastSync());
+
+        // The browser hasn't published yet.
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + newCode, takeRelay().getPath());
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+
+        // Now it has.
+        clock.advanceSeconds(SyncMachine.WAITING_POLL_SECONDS);
+        server.enqueue(relayResponse(7, validV4Payload(), "\"7\""));
+        controller.pollIfDue();
+        assertEquals("/r/" + newCode, takeRelay().getPath());
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertEquals(newCode, settings.pairingCode());
+        assertEquals(newCode, controller.activeCode());
+    }
+
+    @Test
+    public void aRePairingThatNeverArrivesKeepsTheWorkingPairing() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String newCode = controller.activeCode();
+        clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
+
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + newCode, takeRelay().getPath());
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(SyncReason.REPAIR_ABANDONED, controller.snapshot().getReason());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(INITIAL_CODE, controller.activeCode());
+        // The working pairing is checked again from its next minute.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + INITIAL_CODE, takeRelay().getPath());
+    }
+
+    @Test
+    public void cancellingARePairingGoesBackToTheWorkingPairingAtOnce() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+
+        controller.cancelRepair();
+
+        assertEquals(INITIAL_CODE, controller.activeCode());
+        assertEquals(SyncReason.CHECKING, controller.snapshot().getReason());
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + INITIAL_CODE, takeRelay().getPath());
+    }
+
+    @Test
+    public void aPairingChangedElsewhereEndsARePairing() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String other = "fedcba9876543210fedcba9876543210";
+
+        // A RuneLite profile switch, say, brings another saved pairing.
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, other);
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.poll();
+
+        assertEquals("/r/" + other, takeRelay().getPath());
+        assertEquals(other, controller.activeCode());
     }
 
     @Test
@@ -482,7 +588,7 @@ public class TrackerConnectionControllerTest
         RecordedRequest oldRelay = takeRelay();
         String oldCode = settings.pairingCode();
         controller.beginPairing();
-        String newCode = settings.pairingCode();
+        String newCode = controller.activeCode();
         controller.poll();
         RecordedRequest newRelay = takeRelay();
         waitFor(() -> clientTasks.size() == 1);
@@ -496,6 +602,8 @@ public class TrackerConnectionControllerTest
             controller.snapshot().getState());
         assertEquals("2", controller.snapshot().getAcceptedVersion());
         assertEquals(1, importer.acceptedPayloads().size());
+        // The new pairing delivered, so it is now the saved one.
+        assertEquals(newCode, settings.pairingCode());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
     }
@@ -568,7 +676,9 @@ public class TrackerConnectionControllerTest
 
         runClientTasks();
 
-        assertNotEquals(INITIAL_CODE, settings.pairingCode());
+        // A re-pairing: the working pairing stays saved until the new one delivers.
+        assertNotEquals(INITIAL_CODE, controller.activeCode());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
         assertEquals(TrackerConnectionState.WAITING,
             controller.snapshot().getState());
         List<TrackerConnectionState> states = listener.states();
@@ -1080,6 +1190,7 @@ public class TrackerConnectionControllerTest
         throws Exception
     {
         connect(6, "\"6\"");
+        Instant acceptedAt = controller.snapshot().getLastSync();
         clock.advanceSeconds(30);
         server.enqueue(new MockResponse()
             .setResponseCode(304)
@@ -1094,7 +1205,8 @@ public class TrackerConnectionControllerTest
         assertEquals(TrackerConnectionState.WAITING,
             controller.snapshot().getState());
         assertNull(controller.snapshot().getAcceptedVersion());
-        assertNull(controller.snapshot().getLastSync());
+        // Still the working pairing's sync time, not the stale 304's.
+        assertEquals(acceptedAt, controller.snapshot().getLastSync());
         assertEquals(1, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
@@ -1312,13 +1424,14 @@ public class TrackerConnectionControllerTest
         assertEquals(0, unsetKeys.size());
 
         controller.beginPairing();
+        // A re-pairing touches nothing until the new pairing delivers.
+        assertEquals(0, unsetKeys.size());
+        connect(1, "\"1\"");
+
         assertEquals(3, unsetKeys.size());
         assertTrue(unsetKeys.contains("onlineSync"));
         assertTrue(unsetKeys.contains("syncCode"));
         assertTrue(unsetKeys.contains("relayUrl"));
-        connect(1, "\"1\"");
-
-        assertEquals(3, unsetKeys.size());
         assertEquals(3, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
     }
@@ -1361,6 +1474,7 @@ public class TrackerConnectionControllerTest
     @Test
     public void aNewPairingWaitsForTheBrowserInsteadOfExpiring() throws Exception
     {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
         controller.beginPairing();
         assertEquals(TrackerConnectionState.WAITING, controller.snapshot().getState());
         assertEquals(SyncReason.CONFIRM_IN_BROWSER.status,
@@ -1413,6 +1527,7 @@ public class TrackerConnectionControllerTest
     @Test
     public void aPairingWithNoProfileAfterTenMinutesSaysSo() throws Exception
     {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
         controller.beginPairing();
         clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
 

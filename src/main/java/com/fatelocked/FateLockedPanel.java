@@ -90,6 +90,8 @@ class FateLockedPanel extends PluginPanel
     private Runnable onLoadBackupFile = () -> {};
     private Runnable onConnect = () -> {};
     private Runnable onCheckNow = () -> {};
+    /** What the connect button does now; Swing thread only. */
+    private SyncView.Connect connectAction = SyncView.Connect.CONNECT;
 
     FateLockedPanel()
     {
@@ -262,6 +264,26 @@ class FateLockedPanel extends PluginPanel
                 configBinder.keybindSetting(
                     "reimportHotkey", "Re-import hotkey", config::reimportHotkey)));
         buildImportControls();
+    }
+
+    /** The connect button's job as last shown; read on the Swing thread, when it is pressed. */
+    SyncView.Connect connectAction()
+    {
+        return connectAction;
+    }
+
+    /** Ask before replacing a pairing that works. */
+    boolean confirmRepair()
+    {
+        Object[] options = {"Re-pair", "Cancel"};
+        return javax.swing.JOptionPane.showOptionDialog(
+            this,
+            "<html><body style='width: 320px'>Pair RuneLite with a tracker profile again?"
+                + "<br><br>RuneLite keeps using your current pairing until the new one"
+                + " sends your rules. If none arrives within 10 minutes, nothing"
+                + " changes.</body></html>",
+            "Fate Locked re-pairing", javax.swing.JOptionPane.YES_NO_OPTION,
+            javax.swing.JOptionPane.QUESTION_MESSAGE, null, options, options[1]) == 0;
     }
 
     boolean confirmNetworkConnection()
@@ -530,6 +552,8 @@ class FateLockedPanel extends PluginPanel
             ? "" : "<html>" + escapeHtml(view.detail) + "</html>");
         connectionDetail.setVisible(view.detail != null);
         checkNowButton.setVisible(view.canCheckNow);
+        connectAction = view.connect;
+        connectTrackerButton.setText(view.connect.label);
         lastSyncVal.setText(view.lastSync);
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);

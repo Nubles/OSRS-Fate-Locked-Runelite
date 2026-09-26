@@ -388,6 +388,27 @@ public class FateLockedPanelStatusTest
     }
 
     @Test
+    public void theConnectButtonIsLabelledByState() throws Exception
+    {
+        FateLockedPanel panel = panel();
+
+        panel.updateConnection(SyncMachine.idle(false, true));
+        flushSwing();
+        assertEquals("Turn on online sync", panel.connectButtonForTest().getText());
+        assertEquals(SyncView.Connect.TURN_ON_SYNC, panel.connectAction());
+
+        panel.updateConnection(TrackerConnectionSnapshot.connected(Instant.now(), "6"));
+        flushSwing();
+        assertEquals(SyncView.Connect.REPAIR.label, panel.connectButtonForTest().getText());
+
+        panel.updateConnection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING,
+            null, null, SyncReason.CONFIRM_REPAIR, null));
+        flushSwing();
+        assertEquals("Cancel re-pairing", panel.connectButtonForTest().getText());
+        assertEquals(SyncView.Connect.CANCEL_REPAIR, panel.connectAction());
+    }
+
+    @Test
     public void connectTrackerButtonInvokesItsCallbackExactlyOnce()
         throws Exception
     {

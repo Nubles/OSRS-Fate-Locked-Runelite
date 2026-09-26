@@ -44,6 +44,8 @@ final class SyncMachine
     private int consecutiveFailures;
     /** When this session began the current pairing; null once it imports. */
     private Instant pairingStartedAt;
+    /** Whether that pairing is a re-pairing, with another still in use until it delivers. */
+    private boolean repairing;
     /** When the player last pressed Check now and it counted. */
     private Instant lastCheckNow;
     /** Whether the player is in game; taken as so until the plugin says otherwise. */
@@ -110,6 +112,49 @@ final class SyncMachine
             nextCheck = retryAfterUntil != null && retryAfterUntil.isAfter(now)
                 ? retryAfterUntil : now;
         }
+    }
+
+    /** Whether a re-pairing is waiting for its new pairing to deliver. */
+    boolean repairing()
+    {
+        return repairing;
+    }
+
+    /**
+     * Whether this session started a first pairing that hasn't delivered:
+     * its code has never worked, so a new pairing replaces it without
+     * keeping it.
+     */
+    boolean firstPairingWaiting()
+    {
+        return pairingStartedAt != null && !repairing;
+    }
+
+    /**
+     * This session started a new pairing while another works. The rules stay
+     * in use, with their sync time, until the new pairing delivers; their
+     * version is dropped, so the new code's first check asks for everything.
+     */
+    TrackerConnectionSnapshot repairStarted(Instant now)
+    {
+        acceptedVersion = null;
+        rejectedVersion = null;
+        rejectedReason = null;
+        resetChecks();
+        pairingStartedAt = now;
+        repairing = true;
+        return TrackerConnectionSnapshot.of(
+            TrackerConnectionState.WAITING, lastSync, null, SyncReason.CONFIRM_REPAIR, null);
+    }
+
+    /** The player cancelled the re-pairing: back to the working pairing, checked at once. */
+    TrackerConnectionSnapshot repairCancelled()
+    {
+        repairing = false;
+        pairingStartedAt = null;
+        resetChecks();
+        return TrackerConnectionSnapshot.of(
+            TrackerConnectionState.WAITING, lastSync, null, SyncReason.CHECKING, null);
     }
 
     /** This session started a pairing and opened the browser. */
@@ -217,6 +262,7 @@ final class SyncMachine
         rejectedReason = null;
         lastSync = now;
         pairingStartedAt = null;
+        repairing = false;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, version);
     }
@@ -270,9 +316,17 @@ final class SyncMachine
             {
                 after(now, waited < PAIRING_FAST_POLL_WINDOW_SECONDS
                     ? WAITING_POLL_SECONDS : PAIRING_SLOW_POLL_SECONDS);
-                return show(TrackerConnectionState.WAITING, SyncReason.CONFIRM_IN_BROWSER);
+                return show(TrackerConnectionState.WAITING,
+                    repairing ? SyncReason.CONFIRM_REPAIR : SyncReason.CONFIRM_IN_BROWSER);
             }
             healthy(now);
+            if (repairing)
+            {
+                // The new pairing never arrived: the working one carries on.
+                repairing = false;
+                pairingStartedAt = null;
+                return show(TrackerConnectionState.WAITING, SyncReason.REPAIR_ABANDONED);
+            }
             return show(TrackerConnectionState.EXPIRED, SyncReason.NO_PROFILE);
         }
         healthy(now);
@@ -345,6 +399,7 @@ final class SyncMachine
         acceptedVersion = null;
         rejectedVersion = null;
         rejectedReason = null;
+        repairing = false;
         lastSync = null;
         resetChecks();
     }

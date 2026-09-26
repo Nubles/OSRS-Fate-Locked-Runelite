@@ -188,6 +188,63 @@ public class SyncMachineTest
     }
 
     @Test
+    public void aRePairingKeepsTheSyncTimeAndGivesUpAfterTenMinutes()
+    {
+        machine.accepted("41", START);
+        Instant repair = START.plusSeconds(60);
+
+        TrackerConnectionSnapshot waiting = machine.repairStarted(repair);
+        assertEquals(SyncReason.CONFIRM_REPAIR, waiting.getReason());
+        assertEquals(START, waiting.getLastSync());
+        assertNull(machine.acceptedVersion());
+        assertFalse(machine.firstPairingWaiting());
+
+        assertEquals(SyncReason.CONFIRM_REPAIR, machine.notFound(false, repair.plusSeconds(10)).getReason());
+        assertTrue(machine.repairing());
+
+        TrackerConnectionSnapshot kept = machine.notFound(false,
+            repair.plusSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS));
+        assertEquals(SyncReason.REPAIR_ABANDONED, kept.getReason());
+        assertEquals(START, kept.getLastSync());
+        assertFalse(machine.repairing());
+    }
+
+    @Test
+    public void aFirstPairingIsNotARePairing()
+    {
+        machine.pairingStarted(START);
+
+        assertTrue(machine.firstPairingWaiting());
+        assertEquals(SyncReason.NO_PROFILE, machine.notFound(false,
+            START.plusSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS)).getReason());
+        assertTrue(machine.firstPairingWaiting());
+    }
+
+    @Test
+    public void cancellingARePairingChecksTheWorkingPairingAtOnce()
+    {
+        machine.accepted("41", START);
+        machine.repairStarted(START.plusSeconds(60));
+
+        TrackerConnectionSnapshot back = machine.repairCancelled();
+
+        assertEquals(SyncReason.CHECKING, back.getReason());
+        assertFalse(machine.repairing());
+        assertTrue(machine.checkDue(START.plusSeconds(61)));
+    }
+
+    @Test
+    public void aRePairingThatDeliversIsOver()
+    {
+        machine.repairStarted(START);
+
+        machine.accepted("42", START.plusSeconds(30));
+
+        assertFalse(machine.repairing());
+        assertFalse(machine.firstPairingWaiting());
+    }
+
+    @Test
     public void aProfileThatLapsedSaysNoRecentUpdateAndForgetsItsVersion()
     {
         machine.accepted("41", START);

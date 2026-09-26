@@ -156,18 +156,21 @@ public class FateLockedRulesSourceTest
     }
 
     @Test
-    public void trackerRulesAreSavedWithTheirVersionAndPairing() throws Exception
+    public void trackerRulesAreSavedWithTheirVersionAndThePairingThatSentThem() throws Exception
     {
         File dir = folder.newFolder("save-relay");
         Harness h = new Harness(dir);
+        // A re-pairing's new code sent them; the old one is still the saved pairing.
+        String newCode = "fedcba9876543210fedcba9876543210";
         when(h.settings.pairingCode()).thenReturn(CODE);
+        when(h.controller.activeCode()).thenReturn(newCode);
 
         assertTrue(PluginTestSupport.importFromRelay(h.plugin, v4Json(Instant.now()), "41"));
 
         SavedRules saved = h.savedRules();
         assertEquals(FateLockedPlugin.RulesSource.RELAY, saved.getSource());
         assertEquals("41", saved.getRelayVersion());
-        assertEquals(PairingSupport.tag(CODE), saved.getPairingTag());
+        assertEquals(PairingSupport.tag(newCode), saved.getPairingTag());
         assertEquals("run-1",
             FateLockedBundle.loadFromJson(new Gson(), saved.getPayload()).getRunId());
     }
