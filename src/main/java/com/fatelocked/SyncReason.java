@@ -20,6 +20,8 @@ enum SyncReason
     NO_PROFILE("No profile received"),
     /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
     NO_RECENT_UPDATE("No recent update"),
+    /** The relay sent older rules than the plugin holds, which it keeps. */
+    OLDER_RULES("Tracker has older rules"),
     /** No reply at all: the network, or the relay's host, failed. */
     UNREACHABLE("Could not reach tracker"),
     /** A reply the plugin cannot use, such as a captive portal's page. */

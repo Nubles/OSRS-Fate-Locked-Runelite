@@ -234,9 +234,15 @@ go-ahead.
   timeout, 1 MiB body cap, cancel on stop, revoke and re-pair; the tick
   never dies on an exception.
 - [x] **C10. Show connection changes in the order they happen (S12).**
-- [ ] **C11. Give each connection state its reason, local time and one
+- [x] **C11. Give each connection state its reason, local time and one
   action (S8):** a pure `SyncView`; the importer reports OK, FUTURE_FORMAT
   or INVALID; every fixture outcome maps to a visible state.
+  *Done as* a typed `SyncReason` on each snapshot, a line under the
+  connection rows saying why and what to do, and times on the player's
+  clock (the chunk card too, which no longer goes stale).
+  `RelayFixtureStatesTest` replays every fixture reply through the
+  controller; "gone" shows as "No recent update" until C15. The action
+  is named in the line; Stage 3's status card turns it into a button.
 - [ ] **C12. Add Check now; retry within 5 minutes after a failure (S6);
   honour Retry-After exactly (30 s–1 h).**
 - [ ] **C13. Check every 5 minutes while logged out and at once on login

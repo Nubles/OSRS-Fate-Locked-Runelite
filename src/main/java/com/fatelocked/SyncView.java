@@ -87,6 +87,11 @@ final class SyncView
                     + " Open the web tracker to send them again.";
                 action = Action.OPEN_TRACKER;
                 break;
+            case OLDER_RULES:
+                detail = "The relay sent older rules than yours, so yours stay in use."
+                    + " Open the web tracker to send yours again." + nextCheck;
+                action = Action.OPEN_TRACKER;
+                break;
             case UNREACHABLE:
                 detail = "RuneLite couldn't reach the tracker." + nextCheck;
                 break;

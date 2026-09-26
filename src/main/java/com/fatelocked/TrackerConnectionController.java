@@ -445,8 +445,10 @@ final class TrackerConnectionController
                     return;
                 case STALE:
                 default:
-                    scheduleFailure(token, SyncMachine.FAILURE_BACKOFF_SECONDS);
-                    clearPoll(token);
+                    // Kept, but shown: after a relay restore it would last until the
+                    // tracker sends the rules again.
+                    failCheck(token, TrackerConnectionState.WAITING,
+                        SyncReason.OLDER_RULES, SyncMachine.FAILURE_BACKOFF_SECONDS);
             }
         }
         catch (Exception error)
@@ -647,17 +649,6 @@ final class TrackerConnectionController
     {
         showIfCurrent(token, now -> machine.failure(state, reason, now, minimumSeconds));
         clearPoll(token);
-    }
-
-    private void scheduleFailure(RelayPollToken token, long minimumSeconds)
-    {
-        synchronized (pollLock)
-        {
-            if (isPollCurrentLocked(token))
-            {
-                machine.failed(clock.instant(), minimumSeconds);
-            }
-        }
     }
 
     private boolean isPollCurrent(RelayPollToken token)
