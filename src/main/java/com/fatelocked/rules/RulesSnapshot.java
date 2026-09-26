@@ -91,6 +91,18 @@ public final class RulesSnapshot
         return mapped;
     }
 
+    /** The named areas the rules list (Falador, Draynor Village…), with their chunks. */
+    Map<String, Set<CanonicalChunk>> areas()
+    {
+        return bundle.getSubAreaChunks();
+    }
+
+    /** Whether a named area is unlocked; the golden bundles pin it to the tracker's answers. */
+    boolean isAreaUnlocked(String name)
+    {
+        return bundle.isUnlocked(name);
+    }
+
     /** In a Chunked run, a locked chunk next to an owned one. */
     boolean isFrontier(CanonicalChunk chunk)
     {

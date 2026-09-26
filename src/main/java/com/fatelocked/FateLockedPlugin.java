@@ -1861,6 +1861,8 @@ public class FateLockedPlugin extends Plugin
         decisions = DecisionService.create(current.getSnapshot(), bound, player);
         decisionsBound = bound;
         decisionsPlayer = player;
+        // The pins follow the decisions (B9): new rules, a login, another character.
+        showIsolated("world map pins", this::refreshWorldMapMarkers);
     }
 
     /** What rules not yet switched in will decide for the character logged in now. */
@@ -1900,8 +1902,7 @@ public class FateLockedPlugin extends Plugin
         return new RulesEffects(
             viewModelFor(ruleDecisions, current),
             overTierGear(rules),
-            lockedSlayerTask(rules),
-            lockedAreaPins(rules));
+            lockedSlayerTask(rules));
     }
 
     /** Show what the rules mean: the HUD fields, then each other change on its own. */
@@ -1913,7 +1914,6 @@ public class FateLockedPlugin extends Plugin
             panel.updateTrackerAccount(AccountBinding.boundAccount(rules));
             panel.update(rules, effects.view);
         });
-        showIsolated("world map pins", () -> placeLockedAreaPins(effects.pins));
         showIsolated("gear warning", () -> warnOverTierGear(effects.overTierGear));
         showIsolated("Slayer warning", () -> warnLockedSlayerTask(effects.lockedSlayerTask));
     }
@@ -1936,25 +1936,22 @@ public class FateLockedPlugin extends Plugin
         final ChunkPanelViewModel view;
         final List<OverTierItem> overTierGear;
         final String lockedSlayerTask;
-        final List<WorldMapPoint> pins;
 
         RulesEffects(
             ChunkPanelViewModel view,
             List<OverTierItem> overTierGear,
-            String lockedSlayerTask,
-            List<WorldMapPoint> pins)
+            String lockedSlayerTask)
         {
             this.view = view;
             this.overTierGear = overTierGear;
             this.lockedSlayerTask = lockedSlayerTask;
-            this.pins = pins;
         }
     }
 
-    /** Place a click-to-jump marker on each authored area you haven't unlocked yet. */
+    /** Place a click-to-jump marker on each area the tracker says you haven't unlocked yet. */
     private void refreshWorldMapMarkers()
     {
-        placeLockedAreaPins(lockedAreaPins(getBundle()));
+        placeLockedAreaPins(lockedAreaPins(decisions));
     }
 
     private void placeLockedAreaPins(List<WorldMapPoint> pins)
@@ -1967,15 +1964,16 @@ public class FateLockedPlugin extends Plugin
     }
 
     /** A pin for each authored area these rules leave locked, if pins are on. */
-    private List<WorldMapPoint> lockedAreaPins(FateLockedBundle rules)
+    /** The areas the tracker says are locked; none on another character. */
+    private List<WorldMapPoint> lockedAreaPins(DecisionService ruleDecisions)
     {
         if (!config.worldMapMarkers()) return Collections.emptyList();
 
         List<WorldMapPoint> pins = new ArrayList<>();
-        for (Map.Entry<String, Set<CanonicalChunk>> e : rules.getSubAreaChunks().entrySet())
+        for (Map.Entry<String, Set<CanonicalChunk>> e : ruleDecisions.areas().entrySet())
         {
             String area = e.getKey();
-            if (rules.isUnlocked(area)) continue; // only pin what's still locked
+            if (!ruleDecisions.area(area).isLocked()) continue; // only pin what's still locked
 
             Set<CanonicalChunk> chunks = e.getValue();
             if (chunks.isEmpty()) continue;

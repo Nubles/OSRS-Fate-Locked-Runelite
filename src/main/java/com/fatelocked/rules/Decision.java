@@ -21,6 +21,8 @@ public class Decision
         MOBILITY,
         /** Whether a bank is rolled, in a run that locks banks. */
         BANK_ROLL,
+        /** Whether a named area (Falador, Draynor Village…) is unlocked. */
+        AREA,
         /** The v1–3 root-field rules of an older export. */
         LEGACY,
         /** The rules don't apply to this character, or none are loaded. */

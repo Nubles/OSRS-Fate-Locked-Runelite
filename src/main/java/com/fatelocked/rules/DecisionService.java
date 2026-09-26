@@ -170,6 +170,26 @@ public final class DecisionService
         return rules.mappedChunks();
     }
 
+    /** The named areas the rules list, with their chunks, for the world map's pins; on any character. */
+    public Map<String, Set<CanonicalChunk>> areas()
+    {
+        return rules.areas();
+    }
+
+    /**
+     * Whether a named area the rules list is unlocked, as the tracker says;
+     * Unknown for a name they don't list or when the rules don't apply.
+     */
+    public Decision area(String name)
+    {
+        Decision gate = gate();
+        if (gate != null) return gate;
+        if (name == null || !rules.areas().containsKey(name)) return unmapped(name);
+        return rules.isAreaUnlocked(name)
+            ? new Decision(PermissionStatus.ALLOWED, name, null, Decision.Source.AREA)
+            : new Decision(PermissionStatus.LOCKED, name, name + " is not unlocked", Decision.Source.AREA);
+    }
+
     /**
      * Whether a chunk is on the frontier of a Chunked run: locked, next to an
      * owned chunk, so it can be rolled next. False unless the rules apply.

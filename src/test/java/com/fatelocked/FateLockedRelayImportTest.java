@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.runelite.api.Client;
+import net.runelite.api.Player;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Test;
 
@@ -190,6 +191,10 @@ public class FateLockedRelayImportTest
     {
         TestPlugin testPlugin = newPlugin();
         when(testPlugin.config.worldMapMarkers()).thenReturn(true);
+        // The pins follow the decisions, so the rules' own character is playing.
+        Player nubles = mock(Player.class);
+        when(nubles.getName()).thenReturn("Nubles");
+        when(((Client) field(testPlugin.plugin, "client")).getLocalPlayer()).thenReturn(nubles);
         setSource(testPlugin.plugin, FateLockedPlugin.RulesSource.FILE);
         doThrow(new IllegalStateException("panel failed"))
             .when(testPlugin.panel)
