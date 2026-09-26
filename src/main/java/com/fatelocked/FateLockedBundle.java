@@ -583,7 +583,7 @@ public class FateLockedBundle
         if (alwaysUnlocked.contains(name)) return true;
         if (unlockedRegions.contains(name)) return true;
         // Mirror the web map's isRegionUnlocked (utils/reachability.ts) —
-        // pinned by the app's runelitePluginParity test:
+        // GoldenBundleContractTest pins it to the app's own answers:
         // a sub-area is unlocked when its parent continent is free/rolled
         // directly, or when the continent is complete (every sibling
         // unlocked-or-free); a continent when all its children are.
