@@ -154,6 +154,30 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void checkNowRunsTheTrackerTickAtOnce() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("check-now"));
+        try
+        {
+            TrackerConnectionController controller = mock(TrackerConnectionController.class);
+            when(controller.checkNow()).thenReturn(true);
+            harness.set("connectionController", controller);
+            int queued = harness.backgroundTasks.size();
+
+            SwingUtilities.invokeAndWait(() -> harness.panel.checkNowButtonForTest().doClick());
+
+            verify(controller).checkNow();
+            assertEquals(queued + 1, harness.backgroundTasks.size());
+            harness.runBackgroundTasks();
+            verify(controller).pollIfDue();
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
     public void startupReadsTheGameOnlyOnTheClientThread() throws Exception
     {
         File dir = folder.newFolder("startup-on-client-thread");

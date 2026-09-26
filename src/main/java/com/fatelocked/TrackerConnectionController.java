@@ -354,6 +354,23 @@ final class TrackerConnectionController
         activePoll = null;
     }
 
+    /**
+     * The player pressed Check now: forget the back-off and make a check due
+     * at once, for the next tick to send. False when there is nothing to
+     * check, or when they pressed it under 10 seconds ago.
+     */
+    boolean checkNow()
+    {
+        if (!settings.networkAccessAllowed() || !settings.isPaired())
+        {
+            return false;
+        }
+        synchronized (pollLock)
+        {
+            return !stopped && machine.checkNow(clock.instant());
+        }
+    }
+
     TrackerConnectionSnapshot snapshot()
     {
         return snapshot;
@@ -410,8 +427,8 @@ final class TrackerConnectionController
                     handleNotFound(token);
                     return;
                 case BUSY:
-                    failCheck(token, TrackerConnectionState.OFFLINE, SyncReason.BUSY,
-                        Math.max(SyncMachine.FAILURE_BACKOFF_SECONDS, reply.retryAfterSeconds));
+                    showIfCurrent(token, now -> machine.busy(now, reply.retryAfterSeconds));
+                    clearPoll(token);
                     return;
                 case UNAVAILABLE:
                     failCheck(token, TrackerConnectionState.OFFLINE,

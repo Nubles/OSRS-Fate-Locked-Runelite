@@ -24,9 +24,9 @@ public class SyncMachineTest
     }
 
     @Test
-    public void failuresWaitTwiceAsLongEachTimeUpToFifteenMinutes()
+    public void failuresWaitTwiceAsLongEachTimeUpToFiveMinutes()
     {
-        long[] waits = {30, 60, 120, 240, 480, 900, 900};
+        long[] waits = {30, 60, 120, 240, 300, 300};
         Instant now = START;
         for (long wait : waits)
         {
@@ -59,6 +59,47 @@ public class SyncMachineTest
         assertEquals(START, failed.getLastSync());
         assertFalse(machine.checkDue(START.plusSeconds(89)));
         assertTrue(machine.checkDue(START.plusSeconds(90)));
+    }
+
+    @Test
+    public void aRetryAfterIsHonouredAsGivenFromThirtySecondsToAnHour()
+    {
+        Instant now = START;
+        // Asked twice for two minutes: two minutes each time, not doubled.
+        for (int time = 0; time < 2; time++)
+        {
+            TrackerConnectionSnapshot busy = machine.busy(now, 120);
+            assertEquals(SyncReason.BUSY, busy.getReason());
+            assertEquals(now.plusSeconds(120), busy.getNextCheck());
+            now = now.plusSeconds(120);
+        }
+        assertEquals(now.plusSeconds(30), machine.busy(now, 5).getNextCheck());
+        assertEquals(now.plusSeconds(3600), machine.busy(now, 7200).getNextCheck());
+    }
+
+    @Test
+    public void aBusyReplyWithoutRetryAfterBacksOffLikeAFailure()
+    {
+        assertEquals(START.plusSeconds(30), machine.busy(START, 0).getNextCheck());
+        assertEquals(START.plusSeconds(60), machine.busy(START, 0).getNextCheck());
+    }
+
+    @Test
+    public void checkNowForgetsTheBackOffAtMostEveryTenSeconds()
+    {
+        for (int failure = 0; failure < 4; failure++)
+        {
+            machine.failed(START, SyncMachine.FAILURE_BACKOFF_SECONDS);
+        }
+        assertFalse(machine.checkDue(START));
+
+        assertTrue(machine.checkNow(START));
+        assertTrue(machine.checkDue(START));
+        assertFalse(machine.checkNow(START.plusSeconds(SyncMachine.CHECK_NOW_SECONDS - 1)));
+        assertTrue(machine.checkNow(START.plusSeconds(SyncMachine.CHECK_NOW_SECONDS)));
+        // And the next failure waits the shortest time again.
+        machine.failed(START.plusSeconds(10), SyncMachine.FAILURE_BACKOFF_SECONDS);
+        assertTrue(machine.checkDue(START.plusSeconds(10 + SyncMachine.FAILURE_BACKOFF_SECONDS)));
     }
 
     @Test

@@ -36,6 +36,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -1145,6 +1146,56 @@ public class TrackerConnectionControllerTest
         assertEquals(0, importer.acceptedPayloads().size());
         assertEquals(0, clientTasks.size());
         assertNoFurtherRequest();
+    }
+
+    @Test
+    public void aRelayThatStaysBusyIsCheckedWhenItAsks() throws Exception
+    {
+        for (int reply = 0; reply < 2; reply++)
+        {
+            server.enqueue(new MockResponse().setResponseCode(429).addHeader("Retry-After", "120"));
+            controller.pollIfDue();
+            takeRelay();
+            waitFor(() -> !controller.pollInFlight());
+
+            // Two minutes each time, as asked, rather than doubled.
+            assertEquals(clock.instant().plusSeconds(120), controller.snapshot().getNextCheck());
+            clock.advanceSeconds(120);
+        }
+    }
+
+    @Test
+    public void checkNowChecksAtOnceAtMostEveryTenSeconds() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+
+        assertTrue(controller.checkNow());
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertFalse(controller.checkNow());
+        clock.advanceSeconds(SyncMachine.CHECK_NOW_SECONDS);
+        assertTrue(controller.checkNow());
+    }
+
+    @Test
+    public void checkNowNeedsAPairingWithOnlineSyncOn() throws Exception
+    {
+        configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+        assertFalse(controller.checkNow());
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        assertFalse(controller.checkNow());
+
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, INITIAL_CODE);
+        controller.stop();
+        assertFalse(controller.checkNow());
     }
 
     @Test

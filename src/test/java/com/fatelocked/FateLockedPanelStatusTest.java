@@ -367,6 +367,27 @@ public class FateLockedPanelStatusTest
     }
 
     @Test
+    public void checkNowShowsOnlyWhenThereIsSomethingToCheck() throws Exception
+    {
+        FateLockedPanel panel = panel();
+        AtomicInteger checks = new AtomicInteger();
+        panel.setCheckNowCallback(checks::incrementAndGet);
+
+        panel.updateConnection(TrackerConnectionSnapshot.connected(Instant.now(), "6"));
+        flushSwing();
+        assertTrue(panel.checkNowButtonForTest().isVisible());
+        SwingUtilities.invokeAndWait(() -> panel.checkNowButtonForTest().doClick());
+        assertEquals(1, checks.get());
+
+        panel.updateConnection(SyncMachine.idle(false, true));
+        flushSwing();
+        assertFalse(panel.checkNowButtonForTest().isVisible());
+        panel.updateConnection(TrackerConnectionSnapshot.disconnected());
+        flushSwing();
+        assertFalse(panel.checkNowButtonForTest().isVisible());
+    }
+
+    @Test
     public void connectTrackerButtonInvokesItsCallbackExactlyOnce()
         throws Exception
     {

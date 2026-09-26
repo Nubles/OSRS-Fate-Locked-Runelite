@@ -16,7 +16,16 @@ final class SyncMachine
     static final long CONNECTED_POLL_SECONDS = 60;
     static final long WAITING_POLL_SECONDS = 5;
     static final long FAILURE_BACKOFF_SECONDS = 30;
-    static final long MAX_FAILURE_BACKOFF_SECONDS = 15 * 60;
+    /**
+     * The longest a failure waits: well inside Strict Mode's 15-minute
+     * freshness window, so a relay that recovers is noticed before the
+     * rules count as old.
+     */
+    static final long MAX_FAILURE_BACKOFF_SECONDS = 5 * 60;
+    /** The longest wait a relay's Retry-After is honoured for. */
+    static final long MAX_RETRY_AFTER_SECONDS = 60 * 60;
+    /** Check now works at most this often. */
+    static final long CHECK_NOW_SECONDS = 10;
     /** How long a pairing started here waits for the browser to publish. */
     static final long PAIRING_CONFIRM_SECONDS = 10 * 60;
     /** Check every WAITING_POLL_SECONDS this long, then every PAIRING_SLOW_POLL_SECONDS. */
@@ -33,6 +42,8 @@ final class SyncMachine
     private int consecutiveFailures;
     /** When this session began the current pairing; null once it imports. */
     private Instant pairingStartedAt;
+    /** When the player last pressed Check now and it counted. */
+    private Instant lastCheckNow;
 
     /** The relay version of the rules the plugin holds, or null. */
     String acceptedVersion()
@@ -254,7 +265,41 @@ final class SyncMachine
         return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, reason, nextCheck);
     }
 
-    /** A check failed: wait longer each time, from minimumSeconds up to 15 minutes. */
+    /**
+     * The relay asked the plugin to slow down. A Retry-After is honoured as
+     * given, from 30 seconds to an hour, instead of being stretched like a
+     * failure's back-off; without one, it backs off like any failure.
+     */
+    TrackerConnectionSnapshot busy(Instant now, long retryAfterSeconds)
+    {
+        if (retryAfterSeconds <= 0)
+        {
+            return failure(TrackerConnectionState.OFFLINE, SyncReason.BUSY,
+                now, FAILURE_BACKOFF_SECONDS);
+        }
+        consecutiveFailures++;
+        nextCheck = now.plusSeconds(Math.max(FAILURE_BACKOFF_SECONDS,
+            Math.min(retryAfterSeconds, MAX_RETRY_AFTER_SECONDS)));
+        return TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE,
+            lastSync, acceptedVersion, SyncReason.BUSY, nextCheck);
+    }
+
+    /**
+     * The player pressed Check now: forget the back-off, and make a check due
+     * at once. False when they pressed it under 10 seconds ago.
+     */
+    boolean checkNow(Instant now)
+    {
+        if (lastCheckNow != null && now.isBefore(lastCheckNow.plusSeconds(CHECK_NOW_SECONDS)))
+        {
+            return false;
+        }
+        lastCheckNow = now;
+        resetChecks();
+        return true;
+    }
+
+    /** A check failed: wait longer each time, from minimumSeconds up to 5 minutes. */
     void failed(Instant now, long minimumSeconds)
     {
         int shift = Math.min(consecutiveFailures, 5);

@@ -243,8 +243,11 @@ go-ahead.
   `RelayFixtureStatesTest` replays every fixture reply through the
   controller; "gone" shows as "No recent update" until C15. The action
   is named in the line; Stage 3's status card turns it into a button.
-- [ ] **C12. Add Check now; retry within 5 minutes after a failure (S6);
+- [x] **C12. Add Check now; retry within 5 minutes after a failure (S6);
   honour Retry-After exactly (30 s–1 h).**
+  Check now works once every 10 seconds and shows only with a pairing
+  and online sync on. No jitter on the back-off: each client's failures
+  already start at its own point in the minute.
 - [ ] **C13. Check every 5 minutes while logged out and at once on login
   (S6).**
 - [ ] **C14. Ask before re-pairing and keep the working pairing until the

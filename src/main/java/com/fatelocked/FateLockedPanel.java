@@ -69,6 +69,7 @@ class FateLockedPanel extends PluginPanel
     private final JLabel strictModeReason = new JLabel();
     private final JButton strictModeButton = new JButton();
     private final JButton connectTrackerButton = new JButton("Connect tracker");
+    private final JButton checkNowButton = new JButton("Check now");
     private final JPanel strictIntro = card();
     private final JPanel recentPreventedBody = column();
     private final Map<String, CollapsiblePanelSection> sections =
@@ -88,6 +89,7 @@ class FateLockedPanel extends PluginPanel
     private Runnable onClipboardImport = () -> {};
     private Runnable onLoadBackupFile = () -> {};
     private Runnable onConnect = () -> {};
+    private Runnable onCheckNow = () -> {};
 
     FateLockedPanel()
     {
@@ -127,6 +129,11 @@ class FateLockedPanel extends PluginPanel
         connectionDetail.setAlignmentX(Component.LEFT_ALIGNMENT);
         connectionDetail.setVisible(false);
         col.add(connectionDetail);
+        fullWidth(checkNowButton);
+        checkNowButton.setToolTipText("Ask the tracker for your rules now");
+        checkNowButton.addActionListener(event -> onCheckNow.run());
+        checkNowButton.setVisible(false);
+        col.add(checkNowButton);
         col.add(Box.createVerticalStrut(4));
 
         importVal.setVisible(false);
@@ -463,6 +470,12 @@ class FateLockedPanel extends PluginPanel
         this.onConnect = onConnect;
     }
 
+    /** Check now: a check at once, whatever the back-off. */
+    void setCheckNowCallback(Runnable onCheckNow)
+    {
+        this.onCheckNow = onCheckNow;
+    }
+
     void setRollInboxLink(String trackerUrl)
     {
         rollInboxUrl = rollInboxUrl(trackerUrl);
@@ -516,6 +529,7 @@ class FateLockedPanel extends PluginPanel
         connectionDetail.setText(view.detail == null
             ? "" : "<html>" + escapeHtml(view.detail) + "</html>");
         connectionDetail.setVisible(view.detail != null);
+        checkNowButton.setVisible(view.canCheckNow);
         lastSyncVal.setText(view.lastSync);
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);
@@ -562,6 +576,7 @@ class FateLockedPanel extends PluginPanel
     String lastSyncTextForTest() { return lastSyncVal.getText(); }
     String connectionTextForTest() { return connectionVal.getText(); }
     String connectionDetailForTest() { return connectionDetailText; }
+    JButton checkNowButtonForTest() { return checkNowButton; }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }
     JButton buttonForTest(String text) { return findButton(this, text); }

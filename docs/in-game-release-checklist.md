@@ -43,6 +43,7 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 11 | Remove any bundle file, then click **Load newest backup file**. | "no backup file in .runelite/fate-locked — rules unchanged", and the overlays keep working. | |
 | 12 | Turn off **Enable online sync**, then import a rules export made more than 15 minutes ago from the clipboard. (While paired, the tracker's copy replaces an import on its next check.) | The connection reads "Online sync is off" and says your pairing is kept. The import works; Strict Mode reads Inactive ("the rules are more than 15 minutes old"). | |
 | 13 | Log out and back in. | The chunk you are in is announced once. | |
+| 14 | Change something in the web tracker (unlock an area, say), then press **Check now** in the sidebar. | The change shows within a few seconds and Last sync updates. | |
 
 Record the commit, the RuneLite version, the date, and a pass or fail (with a
 note for any fail) in each row. Any fail blocks the release until it is fixed

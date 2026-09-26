@@ -458,6 +458,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             () -> started.run(() -> { strictPause.resume(); updateStrictModePanel(); }),
             () -> configManager.setConfiguration(
                 FateLockedConfig.GROUP, "strictModeIntroSeen", true));
+        panel.setCheckNowCallback(this::checkTrackerNow);
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
@@ -2113,6 +2114,19 @@ MenuEntry entry = event.getMenuEntry();
     {
         return connectionController == null
             ? null : connectionController.snapshot().getLastSync();
+    }
+
+    /**
+     * The sidebar's Check now, on the Swing thread: make a check due, then
+     * run the tracker tick at once rather than waiting up to 4 seconds.
+     */
+    private void checkTrackerNow()
+    {
+        TrackerConnectionController controller = connectionController;
+        if (controller != null && controller.checkNow())
+        {
+            executor.execute(gate.guard(this::pollTrackerConnection));
+        }
     }
 
     private void pollTrackerConnection()

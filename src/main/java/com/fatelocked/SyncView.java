@@ -24,8 +24,10 @@ final class SyncView
     /** The one thing the player can do about the state. */
     enum Action
     {
-        /** Nothing: it sorts itself out, or already has. */
+        /** Nothing: it sorts itself out. */
         NONE,
+        /** Press Check now. */
+        CHECK_NOW,
         /** Press Connect tracker. */
         CONNECT,
         /** Tick "Enable online sync"; the pairing is kept. */
@@ -43,14 +45,18 @@ final class SyncView
     final Action action;
     /** When the relay last delivered or confirmed the rules, or a dash. */
     final String lastSync;
+    /** Whether Check now has anything to check: a pairing, with online sync on. */
+    final boolean canCheckNow;
 
-    private SyncView(String status, Tone tone, String detail, Action action, String lastSync)
+    private SyncView(
+        String status, Tone tone, String detail, Action action, String lastSync, boolean canCheckNow)
     {
         this.status = status;
         this.tone = tone;
         this.detail = detail;
         this.action = action;
         this.lastSync = lastSync;
+        this.canCheckNow = canCheckNow;
     }
 
     static SyncView of(TrackerConnectionSnapshot snapshot, Instant now, ZoneId zone)
@@ -60,7 +66,10 @@ final class SyncView
         String nextCheck = snapshot.getNextCheck() == null
             ? "" : " Next check at " + LocalTimeText.of(snapshot.getNextCheck(), now, zone) + ".";
         Tone tone = tone(snapshot.getState());
-        Action action = Action.NONE;
+        TrackerConnectionState state = snapshot.getState();
+        Action action = state == TrackerConnectionState.CONNECTED
+            || state == TrackerConnectionState.OFFLINE
+            ? Action.CHECK_NOW : Action.NONE;
         String detail;
         switch (snapshot.getReason())
         {
@@ -116,11 +125,20 @@ final class SyncView
                 action = Action.OPEN_TRACKER;
                 break;
             default:
-                detail = snapshot.getState() == TrackerConnectionState.IMPORT_FAILED
-                    ? "RuneLite couldn't apply the tracker's rules." + nextCheck : null;
+                if (state == TrackerConnectionState.IMPORT_FAILED)
+                {
+                    detail = "RuneLite couldn't apply the tracker's rules." + nextCheck;
+                    action = Action.CHECK_NOW;
+                }
+                else
+                {
+                    detail = null;
+                }
                 break;
         }
-        return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync);
+        boolean canCheckNow = snapshot.getReason() != SyncReason.NOT_PAIRED
+            && snapshot.getReason() != SyncReason.SYNC_OFF;
+        return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow);
     }
 
     private static Tone tone(TrackerConnectionState state)
