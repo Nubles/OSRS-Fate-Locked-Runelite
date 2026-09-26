@@ -712,8 +712,8 @@ String m = raw.toLowerCase();
         // (onVarbitChanged), quests via the reward widget — both more reliable.
         if (m.contains("combat task:"))
         {
-            String plain = Text.removeTags(raw);
-            DetectedEvent detected = combatAchievementDetector.detect(plain);
+            // The raw line: its closing tag marks where the task's name ends.
+            DetectedEvent detected = combatAchievementDetector.detect(raw);
             record(detected);
             if (config.rollNudges())
             {
