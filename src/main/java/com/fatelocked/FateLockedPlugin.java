@@ -173,6 +173,8 @@ public class FateLockedPlugin extends Plugin
     private FateEventHistory eventHistory;
     private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
+    /** The account the history, audit log and Slayer task files belong to. */
+    private long accountFilesHash;
     private final FateEventFactory eventFactory = new FateEventFactory();
     private final SkillLevelDetector skillLevelDetector = new SkillLevelDetector();
     private final QuestDetector questDetector = new QuestDetector();
@@ -354,43 +356,9 @@ public class FateLockedPlugin extends Plugin
         connectionSettings.clearLegacySettings();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
-        // Local state is optional: a store that can't be opened leaves its
-        // feature off for this session, and never stops the plugin starting.
-        try
-        {
-            slayerTaskDetector = new SlayerTaskDetector(gson,
-                dataDirectory.toPath().resolve("slayer-assignment.json"));
-        }
-        catch (IOException | RuntimeException ex)
-        {
-            log.warn("Could not open Slayer assignment state", ex);
-            slayerTaskDetector = null;
-        }
-        try
-        {
-            Path dataPath = dataDirectory.toPath();
-            eventHistory = new FateEventHistory(
-                gson,
-                dataPath.resolve("event-history.json"),
-                dataPath.resolve("event-" + "outbox.json"));
-            historySaveFailed = false;
-        }
-        catch (IOException | RuntimeException ex)
-        {
-            log.warn("Could not open local Fate event history", ex);
-            eventHistory = null;
-            historySaveFailed = true;
-        }
-        try
-        {
-            strictAuditLog = new StrictModeAuditLog(gson,
-                dataDirectory.toPath().resolve("strict-mode-events.json"));
-        }
-        catch (IOException | RuntimeException ex)
-        {
-            log.warn("Could not open Strict Mode audit log", ex);
-            strictAuditLog = null;
-        }
+        // Each account's history, audit log and Slayer task open when it logs
+        // in (openAccountFiles); a file that can't be opened leaves its
+        // feature off, and never stops the plugin starting.
         savedRules = new SavedRulesStore(gson,
             dataDirectory.toPath().resolve(SavedRulesStore.FILE_NAME));
         connectionController = new TrackerConnectionController(
@@ -582,6 +550,10 @@ public class FateLockedPlugin extends Plugin
         }
         if (state != GameState.LOGGED_IN) return;
         trackerLoggedIn(true);
+        if (client.getAccountHash() != loggedInAccountHash)
+        {
+            openAccountFiles();
+        }
 
         // RuneLite also reports LOGGED_IN after every loading screen. Only a
         // login, a hop, a reconnect or a different account starts a new
@@ -610,6 +582,49 @@ public class FateLockedPlugin extends Plugin
         forgetLoginWarnings();
         resetBaselines();
         trackerLoggedIn(loggedIn);
+        if (loggedIn)
+        {
+            openAccountFiles();
+        }
+    }
+
+    /**
+     * Open the logged-in account's files off the client thread, and use them
+     * once open. Until then, that account's detections are dropped rather
+     * than written into another account's files.
+     */
+    private void openAccountFiles()
+    {
+        long accountHash = client.getAccountHash();
+        if (accountHash == -1) return;
+        String name = loggedInName();
+        boolean boundCharacter = AccountBinding.sameAccount(
+            AccountBinding.boundAccount(getBundle()), name);
+        Path dataPath = dataDirectory().toPath();
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(() -> {
+            AccountFiles files = AccountFiles.open(gson, dataPath, accountHash, name, boundCharacter);
+            onClient.run(() -> useAccountFiles(files));
+        });
+    }
+
+    private void useAccountFiles(AccountFiles files)
+    {
+        // Another account logged in while these opened: its own are coming.
+        if (client.getAccountHash() != files.accountHash) return;
+        accountFilesHash = files.accountHash;
+        eventHistory = files.history;
+        historySaveFailed = files.history == null;
+        strictAuditLog = files.auditLog;
+        slayerTaskDetector = files.slayer;
+        updatePanelRollInbox();
+        updateStrictAuditPanel();
+    }
+
+    /** Whether the open files are the logged-in account's own. */
+    private boolean accountFilesInUse()
+    {
+        return accountFilesHash == client.getAccountHash();
     }
 
     /**
@@ -676,7 +691,7 @@ public class FateLockedPlugin extends Plugin
 
         petDropDetector.detect(Text.removeTags(raw), System.currentTimeMillis())
             .ifPresent(this::record);
-        if (slayerTaskDetector != null
+        if (slayerTaskDetector != null && accountFilesInUse()
             && (m.contains("completed your task") || m.contains("return to a slayer master")))
         {
             SlayerTaskDetector detector = slayerTaskDetector;
@@ -735,7 +750,7 @@ public class FateLockedPlugin extends Plugin
             if (mat.find())
             {
                 slayerTask = mat.group(1).trim();
-                if (slayerTaskDetector != null)
+                if (slayerTaskDetector != null && accountFilesInUse())
                 {
                     SlayerTaskDetector detector = slayerTaskDetector;
                     String task = slayerTask;
@@ -975,7 +990,8 @@ public class FateLockedPlugin extends Plugin
 
     private void record(DetectedEvent detected)
     {
-        if (detected == null || eventHistory == null || !detectionCounts()) return;
+        if (detected == null || eventHistory == null || !accountFilesInUse()
+            || !detectionCounts()) return;
         FateLockedBundle currentBundle = getBundle();
         String account = loggedInName();
         FateEvent event = eventFactory.create(
@@ -1266,7 +1282,7 @@ public class FateLockedPlugin extends Plugin
     private void writeTravelAudit(StrictModeAuditEntry entry)
     {
         StrictModeAuditLog auditLog = strictAuditLog;
-        if (auditLog == null) return;
+        if (auditLog == null || !accountFilesInUse()) return;
         ClientThreadGate onClient = gate;
         fileWriter.submit(() -> {
             try

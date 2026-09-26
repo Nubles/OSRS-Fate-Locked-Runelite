@@ -83,6 +83,57 @@ public final class FateEventHistory
         return Collections.unmodifiableList(new ArrayList<>(events));
     }
 
+    /** Add events from elsewhere, such as an older shared history, merged as any write is. */
+    public synchronized void adopt(List<FateEvent> adopted) throws IOException
+    {
+        List<FateEvent> candidate = new ArrayList<>(events);
+        candidate.addAll(adopted);
+        List<FateEvent> merged = persist(candidate);
+        events.clear();
+        events.addAll(merged);
+    }
+
+    /**
+     * The events in a history file, or in the older outbox file when there
+     * is no history, without writing, moving or repairing either. None when
+     * neither can be read.
+     */
+    public static List<FateEvent> readOnly(Gson gson, Path historyPath, Path legacyOutboxPath)
+    {
+        try
+        {
+            if (Files.exists(historyPath))
+            {
+                State state = gson.fromJson(new String(
+                    Files.readAllBytes(historyPath), StandardCharsets.UTF_8), State.class);
+                return state == null || state.events == null
+                    ? Collections.emptyList() : withoutNulls(state.events);
+            }
+            if (legacyOutboxPath != null && Files.exists(legacyOutboxPath))
+            {
+                LegacyState legacy = gson.fromJson(new String(
+                    Files.readAllBytes(legacyOutboxPath), StandardCharsets.UTF_8), LegacyState.class);
+                return legacy == null || legacy.pending == null
+                    ? Collections.emptyList() : withoutNulls(legacy.pending);
+            }
+        }
+        catch (IOException | RuntimeException error)
+        {
+            // Unreadable: nothing comes from it, and it is left as it is.
+        }
+        return Collections.emptyList();
+    }
+
+    private static List<FateEvent> withoutNulls(List<FateEvent> source)
+    {
+        List<FateEvent> valid = new ArrayList<>();
+        for (FateEvent event : source)
+        {
+            if (event != null) valid.add(event);
+        }
+        return valid;
+    }
+
     private boolean contains(String eventId)
     {
         for (FateEvent event : events)

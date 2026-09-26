@@ -256,9 +256,13 @@ public class FateLockedPluginStartupContractTest
             assertEquals(1, harness.navigationAdds.get());
             assertNotNull(harness.panel.sectionForTest("Guardian"));
             assertNotNull(harness.panel.connectButtonForTest());
-            File[] kept = dir.listFiles((parent, name) ->
-                name.startsWith("slayer-assignment.json.corrupt-"));
-            assertEquals(1, kept == null ? 0 : kept.length);
+            // The shared files are only read, when an account's own files
+            // start from them: left exactly as they were.
+            assertEquals("{\"name\":\"Abyssal demons\",",
+                new String(java.nio.file.Files.readAllBytes(new File(dir, "slayer-assignment.json").toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            File[] moved = dir.listFiles((parent, name) -> name.contains(".corrupt-"));
+            assertEquals(0, moved == null ? 0 : moved.length);
         }
         finally
         {

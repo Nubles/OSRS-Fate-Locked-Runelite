@@ -77,6 +77,31 @@ public class FateLockedPluginLocalHistoryTest
     }
 
     @Test
+    public void theLoggedInAccountsOwnFilesAreOpenedAndUsed() throws Exception
+    {
+        Harness harness = harness("per-account");
+        when(harness.client.getAccountHash()).thenReturn(7L);
+
+        invokeNoArg(harness.plugin, "openAccountFiles");
+        invokeRecord(harness.plugin, detected("Dragon Slayer"));
+
+        assertTrue(Files.exists(harness.dataDirectory.resolve("accounts/7/event-history.json")));
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void aDetectionBeforeTheAccountsOwnFilesOpenIsDropped() throws Exception
+    {
+        // Another account's files are open, and this account's aren't yet.
+        Harness harness = harness("before-files");
+        when(harness.client.getAccountHash()).thenReturn(7L);
+
+        invokeRecord(harness.plugin, detected("Dragon Slayer"));
+
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
     public void nothingIsRecordedOnALeaguesWorld() throws Exception
     {
         Harness harness = harness("leagues");

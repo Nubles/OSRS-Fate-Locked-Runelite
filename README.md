@@ -92,24 +92,30 @@ including the single Strict Mode toggle.
 
 ## Roll Inbox ownership and privacy
 
-The Roll Inbox section counts the observations saved in RuneLite's local
-Fate Locked data directory, which keeps the newest 250. Ambiguous
-observations are counted under **Needs review**. Only the character your
-tracker profile is bound to is tracked, and only on worlds that save to
-that account, so not Leagues, Deadman or speedrunning worlds. A profile
-bound to no character gets no roll reminders. Detection never rolls and
-never changes the tracker; the player still reviews the result and presses
-Roll in the web app.
+The Roll Inbox section counts the observations saved for the logged-in
+account, in its own folder of RuneLite's local Fate Locked data directory,
+which keeps the newest 250. Ambiguous observations are counted under
+**Needs review**. Only the character your tracker profile is bound to is
+tracked, and only on worlds that save to that account, so not Leagues,
+Deadman or speedrunning worlds. A profile bound to no character gets no
+roll reminders. Detection never rolls and never changes the tracker; the
+player still reviews the result and presses Roll in the web app.
 
 **Local only — RuneLite does not upload gameplay data.**
 
 **Open web Roll Inbox** opens a separate browser view. It does not transfer
 RuneLite's local history to that view.
 
-If the new history file is absent, the plugin can migrate the newest 250
-pending entries from the former local queue. The old file is left unchanged.
-A malformed history file is preserved with a corruption suffix and the
-plugin begins a new local history.
+Each account's history, Strict Mode log and Slayer task live in
+`accounts/<account id>/` in the data directory, so a main account and an
+ironman played in one RuneLite keep them apart, and two RuneLites on one
+account merge their writes rather than overwrite each other. The first
+time an account is used, its history starts from the shared history (or
+the older queue) that earlier versions kept, taking only that character's
+observations; the Strict Mode log and Slayer task come along only for the
+character the rules are bound to. The shared files are left unchanged. A
+malformed file is preserved with a corruption suffix and a new one is
+started.
 
 ## Clipboard and file recovery
 
