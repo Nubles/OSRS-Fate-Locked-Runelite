@@ -130,18 +130,21 @@ re-pins to a web `main` commit that has C and D (E1). Each phase leaves
 
 ### Phase A: plugin core (no visible change)
 
-- [ ] **A1. Keep the rules core free of RuneLite.** Move
+- [x] **A1. Keep the rules core free of RuneLite.** Move
   `CanonicalChunk.of(WorldPoint)` to the adapter; delete the unused
   `southWestTile` and `northEastTile`. Pinned by a new
   `RulesCoreBoundaryTest`: no `net.runelite` import in `rules/`,
   `FateLockedBundle` or `CanonicalChunk`.
-- [ ] **A2. `Decision`, `Trust`, `RulesSnapshot` and `DecisionService`**
+  *Done as* `03af23a`: a `WorldChunks` adapter and `CanonicalChunk.ofTile`.
+- [x] **A2. `Decision`, `Trust`, `RulesSnapshot` and `DecisionService`**
   over `rules.chunks`, `itemRules`, `knownMobility` and the BANKS rows;
   `LegacyRules` wraps v1–3. Pinned by `DecisionServiceGoldenTest`
   (every `rules.chunks` entry for all 938 keys; land equals the golden
   expectation; a wrong character gives TRUST; an unbound profile is trusted
   for display) and `LegacyRulesTest` (v1 and v3 fixtures keep today's
   answers).
+  *Done as* `e2aadb0`, with `chunk`, `details`, `target`, `bankAt`,
+  `mobility` and `item`; nothing reads it yet.
 - [ ] **A3. Fix R10:** with `rules` present, a bundle is Chunked only when
   `rules.gameModeId` is `chunked`. Pinned by
   `GoldenBundleMutationTest.strayRootUnlockedChunksChangeNothing` over every
