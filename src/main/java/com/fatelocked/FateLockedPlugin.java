@@ -28,12 +28,12 @@ import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
-import com.fatelocked.detectors.BossRaidDetector;
 import com.fatelocked.detectors.CollectionLogDetector;
 import com.fatelocked.detectors.ClueCasketDetector;
 import com.fatelocked.detectors.CombatAchievementDetector;
 import com.fatelocked.detectors.DetectedEvent;
 import com.fatelocked.detectors.QuestDetector;
+import com.fatelocked.detectors.RaidDetector;
 import com.fatelocked.detectors.SkillLevelDetector;
 import com.fatelocked.detectors.SlayerTaskDetector;
 import com.fatelocked.detectors.DiaryTierReviewDetector;
@@ -180,7 +180,7 @@ public class FateLockedPlugin extends Plugin
     private final CombatAchievementDetector combatAchievementDetector = new CombatAchievementDetector();
     private final CollectionLogDetector collectionLogDetector = new CollectionLogDetector();
     private final ClueCasketDetector clueCasketDetector = new ClueCasketDetector();
-private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
+    private final RaidDetector raidDetector = new RaidDetector();
     private final BossKillDetectorV2 bossKillDetectorV2 = new BossKillDetectorV2();
     private final DiaryTierReviewDetector diaryTierReviewDetector = new DiaryTierReviewDetector();
     private final PetDropDetector petDropDetector = new PetDropDetector();
@@ -935,7 +935,7 @@ java.util.Optional<DetectedEvent> detected =
             bossKillDetectorV2.detect(type, ev.getName(), client.getGameCycle());
         if (!detected.isPresent())
         {
-            detected = bossRaidDetector.detect(type, ev.getName(), ev.getCombatLevel());
+            detected = raidDetector.detect(type, ev.getName(), ev.getCombatLevel());
         }
         if (detected.isPresent())
         {
