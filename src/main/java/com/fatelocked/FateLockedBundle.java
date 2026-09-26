@@ -163,12 +163,15 @@ public class FateLockedBundle
                 ? Collections.<String>emptySet() : new HashSet<>(raw.unlockedRegions);
 
         // Chunked mode: unlockedChunks' mere presence (even as an empty list)
-        // marks this as a Chunked bundle — see the class javadoc. Offsets are
-        // applied the same way index() applies them to chunks/subAreaChunks,
-        // for consistency, even though current exports always use {0,0}.
+        // marks a legacy bundle as Chunked — see the class javadoc. A v4
+        // bundle is Chunked only when its rules say so: a stray root field
+        // must not turn another mode's run into a Chunked one (R10). Offsets
+        // are applied the same way index() applies them to chunks and
+        // subAreaChunks, for consistency, even though current exports always
+        // use {0,0}.
         List<String> manifestChunks = rules != null && "chunked".equals(rules.getGameModeId())
             ? rules.getUnlocks().getChunks() : null;
-        List<String> wireChunks = manifestChunks != null
+        List<String> wireChunks = rules != null
             ? manifestChunks : (raw == null ? null : raw.unlockedChunks);
         if (wireChunks != null)
         {
