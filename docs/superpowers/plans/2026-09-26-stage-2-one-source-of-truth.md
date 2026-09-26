@@ -201,17 +201,28 @@ Surfaces that already use the v4 engine move first, with no change in
 their answers; then the legacy surfaces, each commit naming the change
 players will see.
 
-- [ ] **B1. Sidebar and content overlay**, carrying the trust reason (U4).
+- [x] **B1. Sidebar and content overlay**, carrying the trust reason (U4).
   `ChunkPanelViewModelFactoryTest` plus the goldens.
-- [ ] **B2. Menu tags.** `MenuTagTest`: a golden NPC in a locked chunk, an
+  *Done as* `82fafff`: the card says "Unknown · Wrong account" (or "No
+  tracker rules are loaded"), names the place on any character, and shows
+  an older export's lock state as the HUD does. `ChunkPanelGoldenTest`.
+- [x] **B2. Menu tags.** `MenuTagTest`: a golden NPC in a locked chunk, an
   ocean chunk, none on a wrong character, and a v3 fixture as today.
-- [ ] **B3. Bank warning.** `BankWarningTest`: custom-none-banks-on warns at
+  *Done as* `beb5de0`; an older export now tags only for its own
+  character.
+- [x] **B3. Bank warning.** `BankWarningTest`: custom-none-banks-on warns at
   a locked bank and never at rolled 13105; banks off never warns.
-- [ ] **B4. Strict Mode on `DecisionService`; delete `FateRuleEngine`.**
+  *Done as* `dda744c`: the warning needs a locked bank row and
+  `DecisionService.bankRoll` (the roll alone, from the root fields the
+  goldens pin) saying it isn't rolled. No row, no warning, until E4.
+- [x] **B4. Strict Mode on `DecisionService`; delete `FateRuleEngine`.**
   Readiness comes from `Trust`. Existing TravelGuardian*, StrictMode* and
   `FateLockedPluginTravelAccountBindingTest`, plus a golden check: every
   LOCKED destination blocks when fresh and bound, and none on a wrong
   character.
+  *Done as* `d30b902`, with `StrictModeGoldenTest` and
+  `rules/DecisionServiceTest` (FateRuleEngineTest's cases). The evaluator
+  counts only the tracker's chunk decisions; a click refreshes the service.
 - [ ] **B5. HUD "Here" and "Status"** (visible: NOT_READY, wrong character,
   ocean). `HudStatusTest`.
 - [ ] **B6. Chunk chat, locked alerts and the warnings count.**
