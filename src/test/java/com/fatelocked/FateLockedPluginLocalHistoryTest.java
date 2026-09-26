@@ -194,8 +194,11 @@ public class FateLockedPluginLocalHistoryTest
         Harness harness = harness("write-failure");
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
         FateLockedBundle bundleBefore = harness.plugin.getBundle();
+        // A directory where the write's lock file goes: the write fails, and
+        // the file already there stays readable.
         Path temporary = harness.historyPath.resolveSibling(
-            harness.historyPath.getFileName() + ".tmp");
+            harness.historyPath.getFileName() + ".lock");
+        Files.deleteIfExists(temporary);
         Files.createDirectory(temporary);
 
         invokeRecord(harness.plugin, detected("Cook's Assistant"));

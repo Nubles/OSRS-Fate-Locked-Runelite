@@ -28,6 +28,21 @@ public class ExpandedDetectorsTest
     }
 
     @Test
+    public void aTaskIsCompletedOnceAcrossClients() throws Exception
+    {
+        java.nio.file.Path path = Files.createTempDirectory("slayer-clients").resolve("slayer.json");
+        // Both RuneLites load before either writes.
+        SlayerTaskDetector main = new SlayerTaskDetector(new Gson(), path);
+        SlayerTaskDetector second = new SlayerTaskDetector(new Gson(), path);
+
+        main.assignment("Kurask", null, 120, false);
+
+        assertEquals("Kurask", second.completion("task complete")
+            .map(DetectedEvent::getCanonicalLabel).orElse(null));
+        assertFalse(main.completion("task complete").isPresent());
+    }
+
+    @Test
     public void damagedSlayerFileIsMovedAsideInsteadOfFailing() throws Exception
     {
         for (String damaged : new String[] {
