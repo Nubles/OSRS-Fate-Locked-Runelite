@@ -151,12 +151,12 @@ public class FateLockedHudOverlay extends OverlayPanel
             }
         }
 
-        if (bundle.getTotalChunks() > 0)
+        String progress = ProgressText.hudLine(plugin.decisions().progress());
+        if (progress != null)
         {
-            int pct = (int) Math.round(100.0 * bundle.getUnlockedChunks() / bundle.getTotalChunks());
             panelComponent.getChildren().add(LineComponent.builder()
                 .left("Unlocked")
-                .right(bundle.getUnlockedAreas() + "/" + bundle.getTotalAreas() + " · " + pct + "%")
+                .right(progress)
                 .rightColor(GOLD)
                 .build());
         }

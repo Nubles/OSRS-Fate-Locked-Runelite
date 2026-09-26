@@ -2047,16 +2047,8 @@ public class FateLockedPlugin extends Plugin
 
         infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(52, 211, 153)), this,
             new Color(52, 211, 153),
-            () -> {
-                FateLockedBundle b = getBundle();
-                if (b.getTotalChunks() <= 0) return "—";
-                return Math.round(100.0 * b.getUnlockedChunks() / b.getTotalChunks()) + "%";
-            },
-            () -> {
-                FateLockedBundle b = getBundle();
-                return "Unlock progress: " + b.getUnlockedAreas() + "/" + b.getTotalAreas()
-                    + " areas · " + b.getUnlockedChunks() + "/" + b.getTotalChunks() + " chunks";
-            }));
+            () -> ProgressText.infoBoxText(decisions.progress()),
+            () -> ProgressText.infoBoxTooltip(decisions.progress())));
     }
 
     /** A small filled-disc infobox icon in the given colour. */

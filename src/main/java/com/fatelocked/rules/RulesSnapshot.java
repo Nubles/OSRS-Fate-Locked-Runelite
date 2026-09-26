@@ -20,12 +20,15 @@ public final class RulesSnapshot
     private final FateLockedBundle bundle;
     private final LegacyRules legacy;
     private final Set<CanonicalChunk> mapped;
+    private final Progress progress;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
         this.bundle = bundle;
         this.legacy = bundle.isLegacyRules() ? new LegacyRules(bundle) : null;
         this.mapped = Collections.unmodifiableSet(mapped(bundle));
+        this.progress = new Progress(bundle.getUnlockedAreas(), bundle.getTotalAreas(),
+            bundle.getUnlockedChunks(), bundle.getTotalChunks());
     }
 
     /** The tracker's chunk keys ("cx,cy"), or an older export's area chunks. */
@@ -83,6 +86,12 @@ public final class RulesSnapshot
     LegacyRules legacy()
     {
         return legacy;
+    }
+
+    /** Today's unlock counts from the rules' area lists, fixed when they load. */
+    Progress progress()
+    {
+        return progress;
     }
 
     /** Every chunk the rules decide, fixed when they load. */

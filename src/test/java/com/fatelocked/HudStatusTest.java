@@ -122,7 +122,7 @@ public class HudStatusTest
     }
 
     /** Draw the HUD once; its lines, left text to right text. */
-    private static Map<String, String> drawn(FateLockedHudOverlay hud) throws Exception
+    static Map<String, String> drawn(FateLockedHudOverlay hud) throws Exception
     {
         hud.render(new BufferedImage(400, 600, BufferedImage.TYPE_INT_ARGB).createGraphics());
         Field left = LineComponent.class.getDeclaredField("left");

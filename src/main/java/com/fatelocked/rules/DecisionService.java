@@ -170,6 +170,12 @@ public final class DecisionService
         return rules.mappedChunks();
     }
 
+    /** How much of the run is unlocked; null unless the rules apply to this character. */
+    public Progress progress()
+    {
+        return trust == Trust.TRUSTED ? rules.progress() : null;
+    }
+
     /** The named areas the rules list, with their chunks, for the world map's pins; on any character. */
     public Map<String, Set<CanonicalChunk>> areas()
     {
