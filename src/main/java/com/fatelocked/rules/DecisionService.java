@@ -169,6 +169,22 @@ public final class DecisionService
         return target(chunk, "BANK", "");
     }
 
+    /**
+     * Whether the bank at a chunk is rolled under Banks in the tracker:
+     * ALLOWED when it is, or when the run doesn't lock banks. Unlike
+     * {@link #bankAt}, which also locks a rolled bank whose area or quest is
+     * locked, this is only the roll.
+     */
+    public Decision bankRoll(CanonicalChunk chunk)
+    {
+        Decision gate = gate();
+        if (gate != null) return gate;
+        if (chunk == null) return unmapped(null);
+        return rules.bankRolled(chunk)
+            ? new Decision(PermissionStatus.ALLOWED, null, null, Decision.Source.BANK_ROLL)
+            : new Decision(PermissionStatus.LOCKED, null, "Not rolled under Banks", Decision.Source.BANK_ROLL);
+    }
+
     /** A mobility unlock, such as Fairy Rings, by its tracker name. */
     public Decision mobility(String unlockId)
     {

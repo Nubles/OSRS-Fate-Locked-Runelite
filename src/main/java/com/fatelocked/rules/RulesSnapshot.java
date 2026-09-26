@@ -67,6 +67,16 @@ public final class RulesSnapshot
         return bundle.regionAt(chunk);
     }
 
+    /**
+     * Whether the bank at a chunk is rolled, or the run doesn't lock banks.
+     * Every export carries this in its root fields, and the golden bundles
+     * pin it to the tracker's own bank answers.
+     */
+    boolean bankRolled(CanonicalChunk chunk)
+    {
+        return bundle.isBankUnlocked(chunk);
+    }
+
     /** An older export's content lists for a chunk ("mon", "shop", "farm", "poi"). */
     Map<String, List<String>> legacyContent(CanonicalChunk chunk)
     {

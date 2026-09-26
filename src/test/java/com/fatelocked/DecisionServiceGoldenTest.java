@@ -118,6 +118,7 @@ public class DecisionServiceGoldenTest
             assertEquals(id + " " + key, Decision.Source.TRUST, decision.getSource());
             assertFalse(id + " " + key, service.details(chunk).isPresent());
             assertEquals(id + " " + key, Decision.Source.TRUST, service.bankAt(chunk).getSource());
+            assertEquals(id + " " + key, Decision.Source.TRUST, service.bankRoll(chunk).getSource());
         }
         assertEquals(Trust.LOGGED_OUT, DecisionService.create(rules, account, null).trust());
         assertEquals(Trust.TRUSTED, DecisionService.create(rules, account, account).trust());
@@ -151,6 +152,26 @@ public class DecisionServiceGoldenTest
             assertEquals(id + " " + entry.getKey(), Decision.Source.ROW, got.getSource());
         }
         assertTrue(id + " has bank rows", banks > 50);
+    }
+
+    /** B3: whether each bank is rolled, as the tracker says, apart from its area. */
+    @Test
+    public void everyBankIsRolledAsTheTrackerSays()
+    {
+        DecisionService service = trusted();
+        List<String> mismatches = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : expected.getAsJsonObject("banks").entrySet())
+        {
+            int bankId = Integer.parseInt(entry.getKey());
+            Decision roll = service.bankRoll(new CanonicalChunk(bankId / 256, bankId % 256));
+            PermissionStatus want = entry.getValue().getAsBoolean() ? PermissionStatus.ALLOWED : PermissionStatus.LOCKED;
+            if (roll.getStatus() != want || roll.getSource() != Decision.Source.BANK_ROLL)
+            {
+                mismatches.add(entry.getKey() + " want " + want + " got " + roll);
+            }
+        }
+        assertTrue(id + " has banks", expected.getAsJsonObject("banks").size() > 100);
+        assertEquals(id + " bank rolls", List.of(), mismatches);
     }
 
     /** The tracker's rows already agree; this pins the rule for rows that don't. */

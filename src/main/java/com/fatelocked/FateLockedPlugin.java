@@ -5,10 +5,9 @@ import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
+import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.FateRuleEngine;
-import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.panel.ChunkPanelViewModel;
@@ -839,7 +838,7 @@ public class FateLockedPlugin extends Plugin
     {
         // Locked-bank warning is independent of the roll-nudge toggle.
         if ((ev.getGroupId() == BANK_GROUP_ID || ev.getGroupId() == DEPOSIT_BOX_GROUP_ID)
-            && config.warnLockedBank() && getBundle().banksLocked())
+            && config.warnLockedBank())
         {
             warnLockedBankIfNeeded();
         }
@@ -871,17 +870,6 @@ public class FateLockedPlugin extends Plugin
             chunk,
             trackerPaired() ? trackerLastSync() : null);
     }
-    private FateRuleEngine ruleEngine(FateLockedBundle source)
-    {
-        return new FateRuleEngine(source, currentAccountMatches(source), false);
-    }
-
-    /** For the rules and the sidebar, a profile bound to no one matches every character. */
-    private boolean currentAccountMatches(FateLockedBundle source)
-    {
-        String bound = AccountBinding.boundAccount(source);
-        return bound == null || AccountBinding.sameAccount(bound, loggedInName());
-    }
 
     /** Strict Mode needs current rules bound to the logged-in character. */
     private boolean strictTravelAccountMatches(FateLockedBundle source)
@@ -896,27 +884,21 @@ public class FateLockedPlugin extends Plugin
         return local == null ? null : local.getName();
     }
 
-    /** Advisory when a bank is explicitly locked by the shared rules. */
+    /**
+     * Advisory when the bank just opened still needs rolling: the rules lock
+     * it (B3) and it isn't rolled. A rolled bank in a locked area gets no
+     * "roll it" line; the area's own alerts cover it.
+     */
     private void warnLockedBankIfNeeded()
     {
         Player local = client.getLocalPlayer();
         WorldPoint wp = local == null ? null : local.getWorldLocation();
         if (wp == null) return;
         CanonicalChunk chunk = WorldChunks.of(wp);
-        FateLockedBundle rules = getBundle();
-        String where;
-        if (rules.isLegacyRules())
-        {
-            if (rules.isBankUnlocked(chunk)) return;
-            String label = rules.labelAt(chunk);
-            where = label == null ? "This bank" : label + " bank";
-        }
-        else
-        {
-            RuleDecision decision = ruleEngine(rules).target(chunk, "BANK", "");
-            if (decision.getStatus() != PermissionStatus.LOCKED) return;
-            where = decision.getLabel();
-        }
+        DecisionService ruleDecisions = decisions;
+        Decision bank = ruleDecisions.bankAt(chunk);
+        if (!bank.isLocked() || !ruleDecisions.bankRoll(chunk).isLocked()) return;
+        String where = bank.getLabel() == null ? "This bank" : bank.getLabel();
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append(where)
