@@ -20,9 +20,21 @@ public class StrictModeReadinessTest
     {
         assertEquals(StrictModeReadiness.State.OFF,
             evaluate(false, false, false, null, null, false, false).getState());
-        StrictModeReadiness paused = evaluate(true, true, false, null, null, false, false);
+        assertEquals(StrictModeReadiness.State.OFF,
+            evaluate(false, true, true, "Nubles", "Nubles", true, true).getState());
+        StrictModeReadiness paused = evaluate(true, true, true, "Nubles", "Nubles", true, true);
         assertEquals(StrictModeReadiness.State.PAUSED, paused.getState());
         assertNull(paused.getReason());
+    }
+
+    /** Paused means it would block otherwise, so a pause never hides why it couldn't. */
+    @Test
+    public void aPauseDoesNotHideWhyStrictModeCannotAct()
+    {
+        assertInactive("no tracker rules are loaded",
+            evaluate(true, true, false, null, null, false, false));
+        assertInactive("the rules are more than 15 minutes old",
+            evaluate(true, true, true, "Nubles", "Nubles", true, false));
     }
 
     @Test

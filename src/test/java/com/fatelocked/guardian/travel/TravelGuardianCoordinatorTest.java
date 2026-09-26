@@ -2,9 +2,9 @@ package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
-import com.fatelocked.guardian.GuardContext;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
+import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.rules.FateRuleEngine;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RuleDecision;
@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,12 +47,45 @@ public class TravelGuardianCoordinatorTest
     private final TravelBlockNoticeStore noticeStore = new TravelBlockNoticeStore(
         Clock.fixed(Instant.parse("2026-07-24T10:00:00Z"), ZoneOffset.UTC));
     private final TravelAlternativeFinder finder = mock(TravelAlternativeFinder.class);
+    private final StrictModeClickHandler clickHandler =
+        spy(new StrictModeClickHandler(new StrictModeGuard()));
     private final TravelGuardianCoordinator coordinator = new TravelGuardianCoordinator(
         new TravelActionResolver(),
         new TravelRuleEvaluator(),
         finder,
         noticeStore,
-        new StrictModeClickHandler(new StrictModeGuard()));
+        clickHandler);
+
+    /** A7: the click handler is called for a proven block and for nothing else. */
+    @Test
+    public void onlyAProvenBlockReachesTheClickHandler()
+    {
+        FateRuleEngine locked = rules(PermissionStatus.LOCKED);
+        FateRuleEngine allowed = rules(PermissionStatus.ALLOWED);
+        FateRuleEngine notReady = rules(PermissionStatus.NOT_READY);
+        handleTravel(context(true, true, true, true, locked), locked);
+        handleTravel(context(true, false, true, true, allowed), allowed);
+        handleTravel(context(true, false, true, true, notReady), notReady);
+        handleTravel(context(false, false, true, true, locked), locked);
+        handleTravel(context(true, false, true, false, locked), locked);
+        handleTravel(context(true, false, false, true, locked), locked);
+        MenuOptionClicked unknown = namedTeleportClick("Continue", "");
+        coordinator.handle(unknown, unknown.getMenuEntry(), client, ORIGIN,
+            context(true, false, true, true, locked), locked, availability);
+
+        verify(clickHandler, never()).handleTravel(any(), any(), any(), any());
+
+        MenuOptionClicked proven = handleTravel(context(true, false, true, true, locked), locked);
+        verify(clickHandler, times(1)).handleTravel(any(), any(), any(), any());
+        verify(proven).consume();
+    }
+
+    private MenuOptionClicked handleTravel(StrictModeReadiness readiness, FateRuleEngine rules)
+    {
+        MenuOptionClicked click = travelClick();
+        coordinator.handle(click, click.getMenuEntry(), client, ORIGIN, readiness, rules, availability);
+        return click;
+    }
 
     @Test
     public void provenLockedTravelIsConsumedEachTimeButExplainedAndRecordedOnce()
@@ -381,15 +415,17 @@ public class TravelGuardianCoordinatorTest
         return points;
     }
 
-    private static GuardContext context(
+    /** The readiness the plugin would show for these facts, on rules bound to Nubles. */
+    private static StrictModeReadiness context(
         boolean enabled,
         boolean paused,
         boolean accountMatches,
         boolean freshRules,
         FateRuleEngine rules)
     {
-        return new GuardContext(
-            enabled, paused, accountMatches, freshRules, rules);
+        return StrictModeReadiness.evaluate(
+            enabled, paused, rules != null, "Nubles",
+            accountMatches ? "Nubles" : "Zezima", accountMatches, freshRules);
     }
 
     private static FateRuleEngine rules(PermissionStatus status)

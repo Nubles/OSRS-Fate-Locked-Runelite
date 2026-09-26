@@ -18,13 +18,23 @@ public final class StrictModeClickHandler
         this.guard = guard;
     }
 
+    /** What the gate says about a trip, without touching the click. */
+    public GuardResult decide(
+        TravelAction action,
+        TravelDecision decision,
+        StrictModeReadiness readiness)
+    {
+        return guard.decideTravel(action, decision, readiness);
+    }
+
+    /** Asks the gate again, so nothing but its own BLOCK can consume the click. */
     public GuardResult handleTravel(
         MenuOptionClicked event,
         TravelAction action,
         TravelDecision decision,
-        GuardContext context)
+        StrictModeReadiness readiness)
     {
-        GuardResult result = guard.decideTravel(action, decision, context);
+        GuardResult result = guard.decideTravel(action, decision, readiness);
         if (result.getOutcome() == GuardResult.Outcome.BLOCK)
         {
             event.consume();

@@ -1,11 +1,10 @@
 package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
-import com.fatelocked.guardian.GuardContext;
 import com.fatelocked.guardian.GuardResult;
 import com.fatelocked.guardian.StrictModeClickHandler;
+import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.rules.FateRuleEngine;
-import com.fatelocked.rules.PermissionStatus;
 import net.runelite.api.Client;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.events.MenuOptionClicked;
@@ -13,8 +12,9 @@ import net.runelite.api.events.MenuOptionClicked;
 import java.util.Optional;
 
 /**
- * Owns the complete recognised-travel flow. The click handler is deliberately
- * invoked only after every presentation decision has been staged.
+ * Owns the complete recognised-travel flow. One verdict from the Strict Mode
+ * gate routes the click; the click handler is invoked only for a proven
+ * block, and only after every presentation decision has been staged.
  */
 public final class TravelGuardianCoordinator
 {
@@ -43,34 +43,32 @@ public final class TravelGuardianCoordinator
         MenuEntry entry,
         Client client,
         CanonicalChunk origin,
-        GuardContext context,
+        StrictModeReadiness readiness,
         FateRuleEngine rules,
         TravelAvailability availability)
     {
         TravelAction action = resolver.resolve(entry, client, origin);
         TravelDecision decision = withDisplayLabel(
             evaluator.evaluate(action, rules));
+        GuardResult verdict = clickHandler.decide(action, decision, readiness);
 
-        if (isTrustedExact(action, decision, context) && context.isPaused())
+        if (verdict.getOutcome() == GuardResult.Outcome.ALLOW_PAUSED)
         {
             // Only locked travel is let through by the pause; travel the
             // rules allow anyway is not worth recording. A repeated trip is
             // recorded once per chat window.
-            boolean recordPaused = decision.getStatus() == PermissionStatus.LOCKED
-                && noticeStore.shouldWriteChat("paused:" + fingerprint(action));
-            GuardResult guardResult =
-                clickHandler.handleTravel(event, action, decision, context);
+            boolean recordPaused =
+                noticeStore.shouldWriteChat("paused:" + fingerprint(action));
             return new TravelGuardianResult(
-                action, decision, null, guardResult,
+                action, decision, null, verdict,
                 false, false, recordPaused);
         }
 
-        if (!isProvenBlock(action, decision, context))
+        if (verdict.getOutcome() != GuardResult.Outcome.BLOCK)
         {
-            GuardResult guardResult =
-                clickHandler.handleTravel(event, action, decision, context);
+            // Not proven locked: the click is not Strict Mode's to touch.
             return new TravelGuardianResult(
-                action, decision, null, guardResult,
+                action, decision, null, verdict,
                 false, false, false);
         }
 
@@ -85,7 +83,7 @@ public final class TravelGuardianCoordinator
 
         // Final enforcement operation: all fallible coordinator work is above.
         GuardResult guardResult =
-            clickHandler.handleTravel(event, action, decision, context);
+            clickHandler.handleTravel(event, action, decision, readiness);
         // Every click on a blocked trip is consumed, but a repeat inside the
         // chat window is neither announced nor recorded again.
         return new TravelGuardianResult(
@@ -108,37 +106,6 @@ public final class TravelGuardianCoordinator
         {
             return null;
         }
-    }
-
-    private static boolean isProvenBlock(
-        TravelAction action,
-        TravelDecision decision,
-        GuardContext context)
-    {
-        return isTrustedExact(action, decision, context)
-            && !context.isPaused()
-            && decision.getStatus() == PermissionStatus.LOCKED;
-    }
-
-    private static boolean isTrustedExact(
-        TravelAction action,
-        TravelDecision decision,
-        GuardContext context)
-    {
-        if (action == null
-            || decision == null
-            || context == null
-            || !context.isEnabled()
-            || !context.isAccountMatches()
-            || !context.isFreshRules()
-            || context.getRules() == null
-            || action.getConfidence() != TravelAction.Confidence.EXACT
-            || action.getDestination() == null)
-        {
-            return false;
-        }
-        return decision.getStatus() == PermissionStatus.ALLOWED
-            || decision.getStatus() == PermissionStatus.LOCKED;
     }
 
     private static TravelDecision withDisplayLabel(TravelDecision decision)

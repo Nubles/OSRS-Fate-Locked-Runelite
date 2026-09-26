@@ -1,7 +1,7 @@
 package com.fatelocked;
 
-import com.fatelocked.guardian.GuardContext;
 import com.fatelocked.guardian.StrictModeAuditEntry;
+import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.guardian.travel.TravelAction;
 import com.fatelocked.guardian.travel.TravelAlternative;
 import com.fatelocked.guardian.travel.TravelAvailability;
@@ -72,7 +72,7 @@ final class TravelGuardianPluginShell
         MenuOptionClicked event,
         Client client,
         CanonicalChunk origin,
-        GuardContext travelContext,
+        StrictModeReadiness readiness,
         FateRuleEngine travelRules)
     {
         TravelGuardianResult result;
@@ -80,7 +80,7 @@ final class TravelGuardianPluginShell
         {
             result = coordinator.handle(
                 event, event.getMenuEntry(), client, origin,
-                travelContext, travelRules, availability);
+                readiness, travelRules, availability);
         }
         catch (RuntimeException ex)
         {

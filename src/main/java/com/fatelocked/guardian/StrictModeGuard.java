@@ -12,33 +12,40 @@ import com.fatelocked.rules.RuleDecision;
  */
 public final class StrictModeGuard
 {
+    /**
+     * A trip is stopped only when the readiness the sidebar shows is ACTIVE,
+     * the travel is exactly matched to a destination, and the rules prove it
+     * LOCKED. The same trip while Strict Mode is paused is let through as
+     * {@link GuardResult.Outcome#ALLOW_PAUSED}, so it can be recorded.
+     */
     public GuardResult decideTravel(
         TravelAction action,
         TravelDecision decision,
-        GuardContext context)
+        StrictModeReadiness readiness)
     {
-        if (action == null || decision == null || context == null
-            || !context.isEnabled() || context.isPaused()
-            || !context.isAccountMatches() || !context.isFreshRules()
-            || action.getConfidence() != TravelAction.Confidence.EXACT)
+        RuleDecision rule = decision == null ? null
+            : new RuleDecision(decision.getStatus(), decision.getLabel(), decision.getReason());
+        if (readiness == null || !provesLocked(action, decision))
         {
-            return allow();
+            return new GuardResult(GuardResult.Outcome.ALLOW, rule);
         }
-
-        RuleDecision rule = new RuleDecision(
-            decision.getStatus(), decision.getLabel(), decision.getReason());
-        return decision.getStatus() == PermissionStatus.LOCKED
-            ? new GuardResult(GuardResult.Outcome.BLOCK, rule)
-            : allow(rule);
+        switch (readiness.getState())
+        {
+            case ACTIVE:
+                return new GuardResult(GuardResult.Outcome.BLOCK, rule);
+            case PAUSED:
+                return new GuardResult(GuardResult.Outcome.ALLOW_PAUSED, rule);
+            default:
+                return new GuardResult(GuardResult.Outcome.ALLOW, rule);
+        }
     }
 
-    private static GuardResult allow()
+    /** Exactly matched travel to a known destination that the rules prove locked. */
+    private static boolean provesLocked(TravelAction action, TravelDecision decision)
     {
-        return new GuardResult(GuardResult.Outcome.ALLOW, null);
-    }
-
-    private static GuardResult allow(RuleDecision decision)
-    {
-        return new GuardResult(GuardResult.Outcome.ALLOW, decision);
+        return action != null && decision != null
+            && action.getConfidence() == TravelAction.Confidence.EXACT
+            && action.getDestination() != null
+            && decision.getStatus() == PermissionStatus.LOCKED;
     }
 }

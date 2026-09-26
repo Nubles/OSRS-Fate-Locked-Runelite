@@ -15,7 +15,6 @@ import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.panel.LocalTimeText;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
-import com.fatelocked.guardian.GuardContext;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.StrictModePause;
@@ -1305,26 +1304,23 @@ public class FateLockedPlugin extends Plugin
 
     /**
      * Strict Mode: stop a click only when it is exactly matched travel and
-     * fresh rules bound to this character prove the destination locked. One
-     * trust gate covers the only click the plugin ever consumes; walking,
-     * NPCs, objects, banks and equipment are never blocked.
+     * fresh rules bound to this character prove the destination locked. The
+     * readiness the sidebar shows is the one gate for the only click the
+     * plugin ever consumes; walking, NPCs, objects, banks and equipment are
+     * never blocked.
      */
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
     {
         FateLockedBundle current = getBundle();
-        boolean accountMatch = strictTravelAccountMatches(current);
-        FateRuleEngine rules = new FateRuleEngine(current, accountMatch, false);
-        GuardContext context = new GuardContext(
-            config.strictMode(), strictPause.isPaused(), accountMatch,
-            rulesAreFresh(), rules);
+        FateRuleEngine rules = new FateRuleEngine(current, strictTravelAccountMatches(current), false);
         CanonicalChunk origin = null;
         Player local = client.getLocalPlayer();
         if (local != null && local.getWorldLocation() != null)
         {
             origin = WorldChunks.of(local.getWorldLocation());
         }
-        travelGuardianShell.handle(event, client, origin, context, rules);
+        travelGuardianShell.handle(event, client, origin, strictModeReadiness(current), rules);
     }
 
     private void writeTravelChat(String text)
@@ -1379,10 +1375,14 @@ public class FateLockedPlugin extends Plugin
             strictModeReadiness().getReason());
     }
 
-    /** Whether Strict Mode can act right now, from the same facts as its trust gate. */
+    /** Whether Strict Mode can act right now: what the sidebar shows, and the gate for clicks. */
     StrictModeReadiness strictModeReadiness()
     {
-        FateLockedBundle current = getBundle();
+        return strictModeReadiness(getBundle());
+    }
+
+    private StrictModeReadiness strictModeReadiness(FateLockedBundle current)
+    {
         return StrictModeReadiness.evaluate(
             config.strictMode(),
             strictPause.isPaused(),
