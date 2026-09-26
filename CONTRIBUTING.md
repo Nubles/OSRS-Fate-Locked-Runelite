@@ -26,6 +26,20 @@ starts RuneLite in developer mode with the plugin loaded from source through
 `FateLockedPluginDevLauncher` (under `src/test`). From an IDE, run that
 class's `main` with the VM option `-ea`.
 
+To try it without touching your own RuneLite (its settings, its Hub plugins
+and `.runelite/fate-locked`), give the client an empty home folder:
+
+```powershell
+$env:GRADLE_USER_HOME = "$HOME\.gradle"
+$env:JAVA_TOOL_OPTIONS = "-Duser.home=C:\path\to\empty-folder"
+gradle runClient --no-daemon
+```
+
+Settings then live in that folder's `.runelite/profiles2`. Set
+`fatelocked.trackerNetworkAccess=true` and `fatelocked.trackerPairingCode` in
+the profile's `.properties` file, with the client closed, to pair it with a
+test code. The plugin's own lines appear in `.runelite/logs/client.log`.
+
 The unit tests run against mocks. Before every Plugin Hub update, run the
 [in-game release checklist](docs/in-game-release-checklist.md) on the commit
 you are releasing and paste the result into the release pull request.

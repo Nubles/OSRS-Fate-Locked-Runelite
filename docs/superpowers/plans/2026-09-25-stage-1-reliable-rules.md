@@ -307,9 +307,19 @@ go-ahead.
 - [ ] **E3. Release:** in-game checklist on the release commit; then, with
   the owner, the web release, the relay deploy and the Plugin Hub pull
   request.
-  The relay is deployed, and web PRs #49 and #48 are merged. What remains:
-  merging #47, whose head this branch is pinned to; the checklist; and the
-  Hub pull request.
+  The relay is deployed, and web PRs #49, #48 and #47 are merged. This
+  branch is pinned to #47's head, which is on web main.
+  The owner can't run the in-game checklist and chose to release without
+  it (decision 4). In its place, on 26 September, `gradle runClient` ran at
+  the login screen with an empty RuneLite home (`-Duser.home`), paired to a
+  throwaway code on the live relay:
+  - it started with no warnings or errors;
+  - it imported a golden bundle from the relay and saved it;
+  - after a restart it restored the saved rules and did not download them
+    again;
+  - after the code was marked gone, seven more minutes at the login screen,
+    which cover its next check, logged no warning or error.
+  What remains: merging this branch, then the Plugin Hub pull request.
 
 ## Owner decisions and pending steps
 
@@ -321,6 +331,9 @@ go-ahead.
    and go-ahead, as version `38a4c717`. It carries Phase C's relay changes,
    web PR #45's, and everything else since the 2 July deploy. That deploy,
    `5bc2ff14`, is the rollback target.
+4. **In-game checklist:** skipped for Stage 1 at the owner's decision
+   (26 September); issues players report will be fixed as they come in.
+   A login-screen client test stands in for it (E3).
 
 ## Test and file map (new files, as built)
 
