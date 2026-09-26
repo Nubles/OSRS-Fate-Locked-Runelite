@@ -204,6 +204,21 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
+    /** A Strict Mode pause belongs to one start: turning the plugin off ends it. */
+    @Test
+    public void aStrictModePauseEndsWhenThePluginStops() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("pause"));
+        com.fatelocked.guardian.StrictModePause pause =
+            (com.fatelocked.guardian.StrictModePause) PluginTestSupport.get(harness.plugin, "strictPause");
+        pause.pauseFor(java.time.Duration.ofSeconds(60));
+        org.junit.Assert.assertTrue(pause.isPaused());
+
+        harness.plugin.shutDown();
+
+        org.junit.Assert.assertFalse(pause.isPaused());
+    }
+
     private static GameStateChanged gameState(GameState state)
     {
         GameStateChanged event = new GameStateChanged();

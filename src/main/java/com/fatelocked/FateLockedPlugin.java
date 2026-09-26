@@ -221,7 +221,7 @@ public class FateLockedPlugin extends Plugin
     static final Duration FRESH_RULES_WINDOW = Duration.ofMinutes(15);
     /** How far in the future an export time may be before it is not trusted. */
     static final Duration EXPORT_CLOCK_SKEW = Duration.ofMinutes(5);
-    private final StrictModePause strictPause = new StrictModePause(Clock.systemUTC());
+    private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
     private TravelActionResolver travelActionResolver;
     private TravelRuleEvaluator travelRuleEvaluator;
     private TravelAvailability travelAvailability;
@@ -484,6 +484,8 @@ public class FateLockedPlugin extends Plugin
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         active = ActiveRules.NONE;
+        // A pause belongs to this start: turning the plugin off and on ends it.
+        strictPause.resume();
         decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
         decisionsBound = "";
         decisionsPlayer = "";
