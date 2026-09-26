@@ -7,6 +7,7 @@ import com.fatelocked.events.FateEventType;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.loottracker.LootReceived;
@@ -67,6 +68,31 @@ public class FateLockedPluginLocalHistoryTest
 
         assertEquals(1, harness.history.events().size());
         assertEquals("Clue Scroll (Hard)", harness.history.events().get(0).getCanonicalLabel());
+    }
+
+    @Test
+    public void aFinishedDiaryTierIsRecordedUnderTheTrackersId() throws Exception
+    {
+        Harness harness = harness("diary");
+
+        // The first change sets the baseline: every tier unfinished.
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 0));
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        assertEquals(1, harness.history.events().size());
+        // A diary event names its tier in the evidence; the tracker picks the task.
+        assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+    }
+
+    /** Lumbridge & Draynor Easy's varbit. */
+    private static final int LUMBRIDGE_EASY = 4495;
+
+    private static VarbitChanged varbit(int id, int value)
+    {
+        VarbitChanged event = new VarbitChanged();
+        event.setVarbitId(id);
+        event.setValue(value);
+        return event;
     }
 
     /** The item ids of a casket and of coins. */

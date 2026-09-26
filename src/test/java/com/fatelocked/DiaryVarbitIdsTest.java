@@ -3,7 +3,9 @@ package com.fatelocked;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -43,7 +45,35 @@ public class DiaryVarbitIdsTest
         assertEquals("Ardougne Easy", names.get(4458));
         assertEquals("Karamja Easy", names.get(3578));
         assertEquals("Karamja Elite", names.get(4566));
+        assertEquals("Lumbridge & Draynor Easy", names.get(4495));
         assertEquals("Wilderness Elite", names.get(4469));
+    }
+
+    /**
+     * Events name each tier by the tracker's id, the keys of DIARIES in the
+     * web app's data/diaryData.ts; three regions there are shorter than
+     * their full names. Tiers named otherwise matched no tracker task.
+     */
+    @Test
+    public void eventsUseTheTrackersTierIds() throws Exception
+    {
+        @SuppressWarnings("unchecked")
+        Map<Integer, String> ids = (Map<Integer, String>) staticField("DIARY_TIER_IDS");
+        Set<String> tracker = new HashSet<>();
+        for (String region : new String[] {"Ardougne", "Desert", "Falador", "Fremennik",
+            "Kandarin", "Karamja", "Kourend", "Lumbridge", "Morytania", "Varrock", "Western",
+            "Wilderness"})
+        {
+            for (String tier : new String[] {"Easy", "Medium", "Hard", "Elite"})
+            {
+                tracker.add(region + " " + tier);
+            }
+        }
+
+        assertEquals(tracker, new HashSet<>(ids.values()));
+        assertEquals("Lumbridge Easy", ids.get(4495));
+        assertEquals("Kourend Elite", ids.get(7928));
+        assertEquals("Western Hard", ids.get(4473));
     }
 
     private static Object staticField(String name) throws Exception

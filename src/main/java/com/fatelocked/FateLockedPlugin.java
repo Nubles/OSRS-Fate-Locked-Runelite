@@ -246,20 +246,29 @@ public class FateLockedPlugin extends Plugin
     };
     /** Last seen value per diary varbit; first observation per login is a baseline (no nudge). */
     private final Map<Integer, Integer> diaryState = new HashMap<>();
-    /** Diary region names, in DIARY_VARBITS order (4 tiers per region). */
-    private static final String[] DIARY_REGIONS = {
-        "Ardougne", "Desert", "Falador", "Fremennik", "Kandarin", "Karamja",
-        "Kourend & Kebos", "Lumbridge & Draynor", "Morytania", "Varrock",
-        "Western Provinces", "Wilderness",
+    /**
+     * Diary regions in DIARY_VARBITS order (4 tiers each): the name the
+     * tracker's tier ids use, then the region's full name.
+     */
+    private static final String[][] DIARY_REGIONS = {
+        {"Ardougne", "Ardougne"}, {"Desert", "Desert"}, {"Falador", "Falador"},
+        {"Fremennik", "Fremennik"}, {"Kandarin", "Kandarin"}, {"Karamja", "Karamja"},
+        {"Kourend", "Kourend & Kebos"}, {"Lumbridge", "Lumbridge & Draynor"},
+        {"Morytania", "Morytania"}, {"Varrock", "Varrock"},
+        {"Western", "Western Provinces"}, {"Wilderness", "Wilderness"},
     };
     private static final String[] DIARY_TIERS = { "Easy", "Medium", "Hard", "Elite" };
-    /** Varbit id → "Ardougne Elite"-style name; key set doubles as the per-event filter. */
+    /** Varbit id → the tracker's tier id ("Lumbridge Easy"); key set doubles as the per-event filter. */
+    private static final Map<Integer, String> DIARY_TIER_IDS = new HashMap<>();
+    /** Varbit id → the tier's full name ("Lumbridge & Draynor Easy"), for chat. */
     private static final Map<Integer, String> DIARY_VARBIT_NAMES = new HashMap<>();
     static
     {
         for (int i = 0; i < DIARY_VARBITS.length; i++)
         {
-            DIARY_VARBIT_NAMES.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4] + " " + DIARY_TIERS[i % 4]);
+            String tier = " " + DIARY_TIERS[i % 4];
+            DIARY_TIER_IDS.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4][0] + tier);
+            DIARY_VARBIT_NAMES.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4][1] + tier);
         }
     }
     /** Whether this login's diary baseline has been captured (see onVarbitChanged). */
@@ -952,16 +961,17 @@ public class FateLockedPlugin extends Plugin
             return;
         }
         int id = ev.getVarbitId();
-        String name = DIARY_VARBIT_NAMES.get(id);
-        if (name == null) return;
+        String tierId = DIARY_TIER_IDS.get(id);
+        if (tierId == null) return;
         int v = ev.getValue();
         Integer prev = diaryState.put(id, v);
         if (prev != null && prev == 0 && v == 1)
         {
-            diaryTierReviewDetector.onVarbit(name, prev, v).ifPresent(this::record);
+            diaryTierReviewDetector.onVarbit(tierId, prev, v).ifPresent(this::record);
             if (config.rollNudges())
             {
-                nudge("Diary complete: " + name + " — may be worth a roll; log it in the tracker.");
+                nudge("Diary complete: " + DIARY_VARBIT_NAMES.get(id)
+                    + " — may be worth a roll; log it in the tracker.");
             }
         }
     }
