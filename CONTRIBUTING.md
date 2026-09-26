@@ -72,7 +72,7 @@ invalidates pending imports and pauses polling without deleting the pairing.
 A relay result is dispatched to the client thread and replaces the current
 rules only after complete parsing, strict v4 validation, and panel refresh
 succeed. Malformed payloads, compressed payloads that inflate past 8 MiB (a
-full bundle is about 120 KiB), incompatible versions, ETag/body disagreement,
+full bundle is about 1.3 MiB), incompatible versions, ETag/body disagreement,
 stale callbacks, stopped sessions, offline requests, and failed UI refreshes
 retain the previous valid snapshot.
 

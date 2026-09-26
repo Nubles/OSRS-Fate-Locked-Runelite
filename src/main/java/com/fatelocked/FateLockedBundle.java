@@ -346,9 +346,10 @@ public class FateLockedBundle
 
     /**
      * Largest inflated bundle accepted, the same limit as the web app's stream
-     * overlay. A bundle for a fully unlocked account inflates to about 120 KiB,
-     * so only a corrupt or hostile payload (a gzip bomb) comes near it; it is
-     * refused before it can exhaust the client's memory.
+     * overlay. Real bundles inflate to about 1.3 MiB, almost all of it the
+     * per-chunk rules every account carries, so only a corrupt or hostile
+     * payload (a gzip bomb) comes near it; it is refused before it can exhaust
+     * the client's memory.
      */
     static final int MAX_INFLATED_BYTES = 8 * 1024 * 1024;
 
@@ -384,7 +385,7 @@ public class FateLockedBundle
     public static FateLockedBundle loadFromJson(Gson gson, String json) throws JsonSyntaxException
     {
         // The web app compresses the clipboard copy (gzip+base64, "FLGZ:" prefix)
-        // so it isn't dumping ~115 KB of mostly-static data onto the clipboard.
+        // so it isn't dumping about 1.3 MB of mostly-static data onto the clipboard.
         // The downloaded file stays plain JSON. Accept both.
         String text = json != null && json.trim().startsWith(GZ_PREFIX)
             ? inflate(json.trim().substring(GZ_PREFIX.length())) : json;
