@@ -7,7 +7,10 @@ import com.fatelocked.events.FateEventType;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
+import net.runelite.api.WorldType;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.plugins.loottracker.LootReceived;
@@ -25,13 +28,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.EnumSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +74,44 @@ public class FateLockedPluginLocalHistoryTest
 
         assertEquals(1, harness.history.events().size());
         assertEquals("Clue Scroll (Hard)", harness.history.events().get(0).getCanonicalLabel());
+    }
+
+    @Test
+    public void nothingIsRecordedOnALeaguesWorld() throws Exception
+    {
+        Harness harness = harness("leagues");
+        when(harness.client.getWorldType()).thenReturn(EnumSet.of(WorldType.SEASONAL));
+
+        invokeRecord(harness.plugin, detected("Dragon Slayer"));
+
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void anotherCharacterGetsNeitherRecordsNorReminders() throws Exception
+    {
+        Harness harness = harness("another-character");
+        FateLockedConfig config = (FateLockedConfig) PluginTestSupport.get(harness.plugin, "config");
+        when(config.rollNudges()).thenReturn(true);
+        ChatMessageManager chat = mock(ChatMessageManager.class);
+        setField(harness.plugin, "chatMessageManager", chat);
+        Player main = mock(Player.class);
+        when(main.getName()).thenReturn("Zezima");
+        when(harness.client.getLocalPlayer()).thenReturn(main);
+
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 0));
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        assertEquals(0, harness.history.events().size());
+        verify(chat, never()).queue(any(QueuedMessage.class));
+
+        // The rules' own character gets both.
+        Player bound = mock(Player.class);
+        when(bound.getName()).thenReturn("Nubles");
+        when(harness.client.getLocalPlayer()).thenReturn(bound);
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY + 1, 1));
+        assertEquals(1, harness.history.events().size());
+        verify(chat).queue(any(QueuedMessage.class));
     }
 
     @Test

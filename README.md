@@ -94,8 +94,12 @@ including the single Strict Mode toggle.
 
 The Roll Inbox section counts the observations saved in RuneLite's local
 Fate Locked data directory, which keeps the newest 250. Ambiguous
-observations are counted under **Needs review**. Detection never rolls and never changes the
-tracker; the player still reviews the result and presses Roll in the web app.
+observations are counted under **Needs review**. Only the character your
+tracker profile is bound to is tracked, and only on worlds that save to
+that account, so not Leagues, Deadman or speedrunning worlds. A profile
+bound to no character gets no roll reminders. Detection never rolls and
+never changes the tracker; the player still reviews the result and presses
+Roll in the web app.
 
 **Local only — RuneLite does not upload gameplay data.**
 

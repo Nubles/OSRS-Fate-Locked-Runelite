@@ -975,13 +975,9 @@ public class FateLockedPlugin extends Plugin
 
     private void record(DetectedEvent detected)
     {
-        if (detected == null || eventHistory == null) return;
+        if (detected == null || eventHistory == null || !detectionCounts()) return;
         FateLockedBundle currentBundle = getBundle();
-        if (currentBundle == null || currentBundle.getRunId() == null
-            || currentBundle.getRunId().trim().isEmpty()) return;
-        Player local = client.getLocalPlayer();
-        String account = local == null ? null : local.getName();
-        if (account == null || account.trim().isEmpty()) return;
+        String account = loggedInName();
         FateEvent event = eventFactory.create(
             detected.getType(), detected.getCanonicalLabel(), detected.getConfidence(),
             detected.getEvidence(), currentBundle, account,
@@ -1029,8 +1025,20 @@ public class FateLockedPlugin extends Plugin
     }
 
     /** Queue a one-line informational chat nudge (client-side only). */
+    /**
+     * Whether detections count here: the rules' bound character, logged in on
+     * a world whose progress is the account's own. Detections and reminders
+     * both go through it, so a main account or a Leagues world sharing this
+     * RuneLite gets neither.
+     */
+    private boolean detectionCounts()
+    {
+        return DetectionGate.allows(getBundle(), loggedInName(), client.getWorldType());
+    }
+
     private void nudge(String text)
     {
+        if (!detectionCounts()) return;
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append(text);
