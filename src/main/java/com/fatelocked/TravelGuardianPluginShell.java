@@ -7,7 +7,7 @@ import com.fatelocked.guardian.travel.TravelAlternative;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelGuardianResult;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.events.MenuOptionClicked;
 
@@ -73,7 +73,7 @@ final class TravelGuardianPluginShell
         Client client,
         CanonicalChunk origin,
         StrictModeReadiness readiness,
-        FateRuleEngine travelRules)
+        DecisionService travelRules)
     {
         TravelGuardianResult result;
         try

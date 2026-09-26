@@ -15,9 +15,9 @@ import com.fatelocked.guardian.travel.TravelDecision;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelGuardianResult;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
@@ -62,7 +62,7 @@ public class TravelGuardianPluginShellTest
     public void exactTravelShortCircuitsAndEverythingElseIsLeftAlone()
     {
         Harness harness = new Harness();
-        FateRuleEngine rules = rulesAt(FALADOR, PermissionStatus.ALLOWED);
+        DecisionService rules = rulesAt(FALADOR, PermissionStatus.ALLOWED);
         TravelGuardianPluginShell shell = harness.actualShell();
         MenuOptionClicked unresolvedClick =
             click("Continue", "", MenuAction.UNKNOWN);
@@ -90,7 +90,7 @@ public class TravelGuardianPluginShellTest
         TravelGuardianPluginShell shell = harness.shell(coordinator);
         MenuOptionClicked click =
             click("Teleport", "Falador", MenuAction.UNKNOWN);
-        FateRuleEngine rules = rulesAt(FALADOR, PermissionStatus.LOCKED);
+        DecisionService rules = rulesAt(FALADOR, PermissionStatus.LOCKED);
 
         TravelGuardianPluginShell.Route route = shell.handle(
             click, harness.client, ORIGIN, ACTIVE, rules);
@@ -108,7 +108,7 @@ public class TravelGuardianPluginShellTest
     {
         Harness chatFailure = new Harness();
         chatFailure.chatFailure = new IllegalStateException("chat");
-        FateRuleEngine locked = rulesAt(FALADOR, PermissionStatus.LOCKED);
+        DecisionService locked = rulesAt(FALADOR, PermissionStatus.LOCKED);
         MenuOptionClicked first = click("Teleport", "Falador", MenuAction.UNKNOWN);
         chatFailure.actualShell().handle(
             first, chatFailure.client, ORIGIN, ACTIVE, locked);
@@ -121,7 +121,7 @@ public class TravelGuardianPluginShellTest
 
         Harness auditFailure = new Harness();
         auditFailure.auditFailure = new IllegalStateException("audit");
-        FateRuleEngine secondLocked = rulesAt(FALADOR, PermissionStatus.LOCKED);
+        DecisionService secondLocked = rulesAt(FALADOR, PermissionStatus.LOCKED);
         MenuOptionClicked second = click("Teleport", "Falador", MenuAction.UNKNOWN);
         auditFailure.actualShell().handle(
             second, auditFailure.client, ORIGIN,
@@ -149,7 +149,7 @@ public class TravelGuardianPluginShellTest
             any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(blockedResult(alternative), blockedResult(null));
         TravelGuardianPluginShell shell = harness.shell(coordinator);
-        FateRuleEngine rules = rulesAt(DESTINATION, PermissionStatus.LOCKED);
+        DecisionService rules = rulesAt(DESTINATION, PermissionStatus.LOCKED);
 
         shell.handle(click("Cast", "Ectophial", MenuAction.UNKNOWN),
             harness.client, ORIGIN, ACTIVE, rules);
@@ -181,7 +181,7 @@ public class TravelGuardianPluginShellTest
             any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(blockedResult(alternative), pausedResult());
         TravelGuardianPluginShell shell = harness.shell(coordinator);
-        FateRuleEngine rules = rulesAt(DESTINATION, PermissionStatus.LOCKED);
+        DecisionService rules = rulesAt(DESTINATION, PermissionStatus.LOCKED);
 
         shell.handle(click("Cast", "Ectophial", MenuAction.UNKNOWN),
             harness.client, ORIGIN, ACTIVE, rules);
@@ -209,7 +209,7 @@ public class TravelGuardianPluginShellTest
     {
         Harness harness = new Harness();
         TravelGuardianPluginShell shell = harness.actualShell();
-        FateRuleEngine locked = rulesAt(
+        DecisionService locked = rulesAt(
             new CanonicalChunk(50, 53), PermissionStatus.LOCKED);
         String[] nonActivationOptions = {
             "Drop", "Examine", "Destroy", "Check", "Configure", "Cancel"
@@ -239,12 +239,12 @@ public class TravelGuardianPluginShellTest
         // bound rules that lock every target, these clicks are left alone.
         Harness harness = new Harness();
         TravelGuardianPluginShell shell = harness.actualShell();
-        FateRuleEngine rules = mock(FateRuleEngine.class);
-        RuleDecision locked = new RuleDecision(
-            PermissionStatus.LOCKED, "Locked target", "locked");
-        when(rules.equipment(anyInt())).thenReturn(locked);
+        DecisionService rules = mock(DecisionService.class);
+        Decision locked = new Decision(
+            PermissionStatus.LOCKED, "Locked target", "locked", Decision.Source.CHUNK);
+        when(rules.item(anyInt())).thenReturn(locked);
         when(rules.target(any(), anyString(), anyString())).thenReturn(locked);
-        when(rules.entry(any())).thenReturn(locked);
+        when(rules.chunk(any())).thenReturn(locked);
         StrictModeReadiness trusted = ACTIVE;
 
         MenuOptionClicked equipment = click(
@@ -289,9 +289,9 @@ public class TravelGuardianPluginShellTest
     {
         Harness harness = new Harness();
         TravelGuardianPluginShell shell = harness.actualShell();
-        FateRuleEngine locked = mock(FateRuleEngine.class);
-        when(locked.entry(any())).thenReturn(new RuleDecision(
-            PermissionStatus.LOCKED, "Morytania", null));
+        DecisionService locked = mock(DecisionService.class);
+        when(locked.chunk(any())).thenReturn(new Decision(
+            PermissionStatus.LOCKED, "Morytania", null, Decision.Source.CHUNK));
 
         MenuOptionClicked withOrigin = walkClick(harness.client);
         MenuOptionClicked withoutOrigin = walkClick(harness.client);
@@ -317,7 +317,7 @@ public class TravelGuardianPluginShellTest
         Harness harness = new Harness();
         TravelGuardianPluginShell shell = harness.actualShell();
 
-        FateRuleEngine jewelryRules = mobilityLocked(
+        DecisionService jewelryRules = mobilityLocked(
             new CanonicalChunk(48, 54), "Edgeville", "Jewelry Teleports");
         MenuOptionClicked jewelry = click(
             "Edgeville", "Amulet of glory(6)", MenuAction.UNKNOWN);
@@ -328,7 +328,7 @@ public class TravelGuardianPluginShellTest
         assertTrue(harness.noticeStore.current().isPresent());
         assertEquals("BLOCKED", harness.audit.get(0).getOutcome());
 
-        FateRuleEngine spiritTreeRules = mobilityLocked(
+        DecisionService spiritTreeRules = mobilityLocked(
             new CanonicalChunk(38, 53), "Tree Gnome Stronghold", "Spirit Trees");
         MenuOptionClicked spiritTree = click(
             "Tree Gnome Stronghold", "Spirit tree", MenuAction.UNKNOWN);
@@ -351,12 +351,7 @@ public class TravelGuardianPluginShellTest
             PermissionStatus.LOCKED, "Teleport to Morytania", "Morytania is locked");
         return new TravelGuardianResult(
             action, decision, alternative,
-            new GuardResult(
-                GuardResult.Outcome.BLOCK,
-                new RuleDecision(
-                    PermissionStatus.LOCKED,
-                    "Teleport to Morytania",
-                    "Morytania is locked")),
+            new GuardResult(GuardResult.Outcome.BLOCK, decision),
             true, true, false);
     }
 
@@ -378,24 +373,24 @@ public class TravelGuardianPluginShellTest
             ORIGIN, DESTINATION, null, TravelAction.Confidence.EXACT);
     }
 
-    private static FateRuleEngine mobilityLocked(
+    private static DecisionService mobilityLocked(
         CanonicalChunk destination, String label, String mobility)
     {
-        FateRuleEngine rules = mock(FateRuleEngine.class);
-        when(rules.entry(destination)).thenReturn(
-            new RuleDecision(PermissionStatus.ALLOWED, label, null));
+        DecisionService rules = mock(DecisionService.class);
+        when(rules.chunk(destination)).thenReturn(
+            new Decision(PermissionStatus.ALLOWED, label, null, Decision.Source.CHUNK));
         when(rules.mobility(mobility)).thenReturn(
-            new RuleDecision(PermissionStatus.LOCKED, mobility,
-                mobility + " is locked"));
+            new Decision(PermissionStatus.LOCKED, mobility,
+                mobility + " is locked", Decision.Source.MOBILITY));
         return rules;
     }
 
-    private static FateRuleEngine rulesAt(
+    private static DecisionService rulesAt(
         CanonicalChunk chunk, PermissionStatus status)
     {
-        FateRuleEngine rules = mock(FateRuleEngine.class);
-        when(rules.entry(chunk)).thenReturn(
-            new RuleDecision(status, "Morytania", null));
+        DecisionService rules = mock(DecisionService.class);
+        when(rules.chunk(chunk)).thenReturn(
+            new Decision(status, "Morytania", null, Decision.Source.CHUNK));
         return rules;
     }
 

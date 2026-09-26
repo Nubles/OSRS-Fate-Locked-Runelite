@@ -2,10 +2,13 @@ package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
+import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -25,78 +28,82 @@ public class TravelRuleEvaluatorTest
     public void onlyExactAuthoredLocksRemainLocked() throws Exception
     {
         TravelDecision destinationLocked = evaluator.evaluate(
-            exact(null), engine("LOCKED", "[\"Fairy Rings\"]", true, false));
+            exact(null), rules("LOCKED", "[\"Fairy Rings\"]", true));
         assertEquals(PermissionStatus.LOCKED, destinationLocked.getStatus());
         assertEquals("Lumbridge is locked", destinationLocked.getReason());
 
         TravelDecision mobilityLocked = evaluator.evaluate(
-            exact("Fairy Rings"), engine("ALLOWED", "[]", true, false));
+            exact("Fairy Rings"), rules("ALLOWED", "[]", true));
         assertEquals(PermissionStatus.LOCKED, mobilityLocked.getStatus());
         assertEquals("Fairy Rings is not unlocked", mobilityLocked.getReason());
 
         assertEquals(PermissionStatus.ALLOWED,
             evaluator.evaluate(exact("Fairy Rings"),
-                engine("ALLOWED", "[\"Fairy Rings\"]", true, false)).getStatus());
+                rules("ALLOWED", "[\"Fairy Rings\"]", true)).getStatus());
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(unknown(),
-                engine("ALLOWED", "[\"Fairy Rings\"]", true, false)).getStatus());
+                rules("ALLOWED", "[\"Fairy Rings\"]", true)).getStatus());
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(exact("Unmapped Network"),
-                engine("ALLOWED", "[\"Fairy Rings\"]", true, false)).getStatus());
+                rules("ALLOWED", "[\"Fairy Rings\"]", true)).getStatus());
     }
 
     @Test
     public void destinationUncertaintyTakesPrecedenceOverMobility() throws Exception
     {
-        FateRuleEngine lockedMobility = engine("ALLOWED", "[]", true, false);
+        DecisionService lockedMobility = rules("ALLOWED", "[]", true);
 
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(exactAt(new CanonicalChunk(1, 1), "Fairy Rings"),
                 lockedMobility).getStatus());
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(exact("Fairy Rings"),
-                engine("NOT_READY", "[]", true, false)).getStatus());
+                rules("NOT_READY", "[]", true)).getStatus());
         assertEquals(PermissionStatus.LOCKED,
             evaluator.evaluate(exact("Unmapped Network"),
-                engine("LOCKED", "[]", true, false)).getStatus());
+                rules("LOCKED", "[]", true)).getStatus());
     }
 
     @Test
     public void notReadyMobilityRemainsUnknown()
     {
-        FateRuleEngine notReady = mock(FateRuleEngine.class);
-        when(notReady.entry(destination)).thenReturn(
-            new RuleDecision(
-                PermissionStatus.ALLOWED, "Lumbridge", null));
+        DecisionService notReady = mock(DecisionService.class);
+        when(notReady.chunk(destination)).thenReturn(
+            new Decision(PermissionStatus.ALLOWED, "Lumbridge", null, Decision.Source.CHUNK));
         when(notReady.mobility("Fairy Rings")).thenReturn(
-            new RuleDecision(
-                PermissionStatus.NOT_READY, "Fairy Rings", null));
+            new Decision(PermissionStatus.NOT_READY, "Fairy Rings", null, Decision.Source.MOBILITY));
 
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(exact("Fairy Rings"), notReady).getStatus());
     }
 
+    /** Only the tracker's own chunk decisions count; an older export's never do. */
     @Test
-    public void untrustedAndLegacyRulesNeverBecomeLocked() throws Exception    {
+    public void untrustedAndLegacyRulesNeverBecomeLocked() throws Exception
+    {
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(exact(null),
-                engine("LOCKED", "[]", false, false)).getStatus());
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exact(null),
-                engine("LOCKED", "[]", true, true)).getStatus());
+                rules("LOCKED", "[]", false)).getStatus());
 
-        FateRuleEngine legacy = new FateRuleEngine(
-            fixture("bundles/v3-standard.json"), true, false);
+        // The v3 fixture with Seers' Village added and not unlocked.
+        JsonObject v3 = new Gson().fromJson(fixtureText("bundles/v3-standard.json"), JsonObject.class);
+        JsonArray seers = new Gson().fromJson("[{\"cx\":42,\"cy\":54}]", JsonArray.class);
+        v3.getAsJsonObject("chunks").add("Kandarin", seers);
+        v3.getAsJsonObject("subAreaChunks").add("Seers' Village", seers.deepCopy());
+        v3.getAsJsonObject("regionGroups").add("Kandarin",
+            new Gson().fromJson("[\"Seers' Village\"]", JsonArray.class));
+        DecisionService legacy = DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(new Gson(), v3.toString())), "nubles", "nubles");
+        CanonicalChunk seersVillage = new CanonicalChunk(42, 54);
+        assertEquals("the older export locks it", PermissionStatus.LOCKED, legacy.chunk(seersVillage).getStatus());
         assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exactAt(new CanonicalChunk(46, 52), null), legacy)
-                .getStatus());
+            evaluator.evaluate(exactAt(seersVillage, null), legacy).getStatus());
     }
 
     @Test
     public void nullAndUnresolvedActionsRemainUnknown() throws Exception
     {
-        FateRuleEngine allowed = engine(
-            "ALLOWED", "[\"Fairy Rings\"]", true, false);
+        DecisionService allowed = rules("ALLOWED", "[\"Fairy Rings\"]", true);
 
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(null, allowed).getStatus());
@@ -107,13 +114,14 @@ public class TravelRuleEvaluatorTest
         TravelDecision unknown = evaluator.evaluate(unknown(), allowed);
         assertEquals("Unknown travel", unknown.getLabel());
         assertNull(unknown.getReason());
+        assertEquals(PermissionStatus.UNKNOWN, evaluator.evaluate(exact(null), null).getStatus());
     }
 
     @Test
     public void unresolvedNamedMethodsRemainUnknownEvenWhenTheDestinationWouldLock()
         throws Exception
     {
-        FateRuleEngine locked = engine("LOCKED", "[\"Fairy Rings\"]", true, false);
+        DecisionService locked = rules("LOCKED", "[\"Fairy Rings\"]", true);
         TravelAction unresolved = new TravelAction(
             TravelAction.Family.SPELL_OR_ITEM, "named-teleport",
             "Teleport New destination", new CanonicalChunk(49, 50), null,
@@ -122,6 +130,7 @@ public class TravelRuleEvaluatorTest
         assertEquals(PermissionStatus.UNKNOWN,
             evaluator.evaluate(unresolved, locked).getStatus());
     }
+
     private TravelAction exact(String requiredUnlock)
     {
         return exactAt(destination, requiredUnlock);
@@ -143,20 +152,16 @@ public class TravelRuleEvaluatorTest
             TravelAction.Confidence.UNKNOWN);
     }
 
-    private FateRuleEngine engine(
-        String entry, String mobility, boolean accountMatches, boolean stale)
+    /** The v4 fixture (bound to Nubles) with this entry and rolled mobility, for Nubles or someone else. */
+    private DecisionService rules(String entry, String mobility, boolean boundCharacter)
         throws Exception
     {
         String json = fixtureText("bundles/v4-rules.json")
             .replace("\"entry\": \"ALLOWED\"", "\"entry\": \"" + entry + "\"")
             .replace("\"mobility\": [\"Fairy Rings\"]", "\"mobility\": " + mobility);
-        return new FateRuleEngine(
-            FateLockedBundle.loadFromJson(new Gson(), json), accountMatches, stale);
-    }
-
-    private FateLockedBundle fixture(String name) throws Exception
-    {
-        return FateLockedBundle.loadFromJson(new Gson(), fixtureText(name));
+        return DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(new Gson(), json)),
+            "nubles", boundCharacter ? "nubles" : "zezima");
     }
 
     private String fixtureText(String name) throws Exception

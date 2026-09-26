@@ -7,7 +7,6 @@ import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
-import com.fatelocked.rules.FateRuleEngine;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.panel.ChunkPanelViewModel;
@@ -871,13 +870,6 @@ public class FateLockedPlugin extends Plugin
             trackerPaired() ? trackerLastSync() : null);
     }
 
-    /** Strict Mode needs current rules bound to the logged-in character. */
-    private boolean strictTravelAccountMatches(FateLockedBundle source)
-    {
-        return source != null && source.getRules() != null
-            && AccountBinding.sameAccount(AccountBinding.boundAccount(source), loggedInName());
-    }
-
     private String loggedInName()
     {
         Player local = client.getLocalPlayer();
@@ -1294,15 +1286,15 @@ public class FateLockedPlugin extends Plugin
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
     {
-        FateLockedBundle current = getBundle();
-        FateRuleEngine rules = new FateRuleEngine(current, strictTravelAccountMatches(current), false);
+        // The character may have changed since the last tick.
+        refreshDecisions();
         CanonicalChunk origin = null;
         Player local = client.getLocalPlayer();
         if (local != null && local.getWorldLocation() != null)
         {
             origin = WorldChunks.of(local.getWorldLocation());
         }
-        travelGuardianShell.handle(event, client, origin, strictModeReadiness(current), rules);
+        travelGuardianShell.handle(event, client, origin, strictModeReadiness(), decisions);
     }
 
     private void writeTravelChat(String text)
@@ -1357,21 +1349,22 @@ public class FateLockedPlugin extends Plugin
             strictModeReadiness().getReason());
     }
 
-    /** Whether Strict Mode can act right now: what the sidebar shows, and the gate for clicks. */
+    /**
+     * Whether Strict Mode can act right now: what the sidebar shows, and the
+     * gate for clicks. The character check is the decision service's trust
+     * (B4): Strict Mode needs tracker rules bound to the character playing.
+     */
     StrictModeReadiness strictModeReadiness()
     {
-        return strictModeReadiness(getBundle());
-    }
-
-    private StrictModeReadiness strictModeReadiness(FateLockedBundle current)
-    {
+        DecisionService ruleDecisions = decisions;
+        RulesSnapshot rules = ruleDecisions.rules();
         return StrictModeReadiness.evaluate(
             config.strictMode(),
             strictPause.isPaused(),
-            current.getRules() != null && !current.isLegacyRules(),
-            current.getRules() == null ? null : AccountBinding.boundAccount(current),
+            !rules.isEmpty() && !rules.isLegacy(),
+            AccountBinding.boundAccount(getBundle()),
             loggedInName(),
-            strictTravelAccountMatches(current),
+            ruleDecisions.trust() == Trust.TRUSTED && ruleDecisions.isBound(),
             rulesAreFresh());
     }
     /**

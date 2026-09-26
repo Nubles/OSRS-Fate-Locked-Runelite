@@ -1,12 +1,18 @@
 package com.fatelocked.guardian.travel;
 
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 
 public class TravelRuleEvaluator
 {
-    public TravelDecision evaluate(TravelAction action, FateRuleEngine rules)
+    /**
+     * Whether an exactly matched trip is allowed: its destination's entry,
+     * then the unlock it needs. Only the tracker's own chunk decisions count,
+     * so another character, an unmapped place and an older export's areas
+     * all stay Unknown and Strict Mode never acts on them.
+     */
+    public TravelDecision evaluate(TravelAction action, DecisionService rules)
     {
         if (action == null
             || action.getConfidence() != TravelAction.Confidence.EXACT
@@ -16,7 +22,11 @@ public class TravelRuleEvaluator
             return unknown(action);
         }
 
-        RuleDecision destination = rules.entry(action.getDestination());
+        Decision destination = rules.chunk(action.getDestination());
+        if (destination.getSource() != Decision.Source.CHUNK)
+        {
+            return unknown(action);
+        }
         if (destination.getStatus() == PermissionStatus.LOCKED)
         {
             return new TravelDecision(
@@ -24,8 +34,7 @@ public class TravelRuleEvaluator
                 label(action),
                 destination.getLabel() + " is locked");
         }
-        if (destination.getStatus() == PermissionStatus.UNKNOWN
-            || destination.getStatus() == PermissionStatus.NOT_READY)
+        if (destination.getStatus() != PermissionStatus.ALLOWED)
         {
             return unknown(action);
         }
@@ -33,7 +42,7 @@ public class TravelRuleEvaluator
         String requiredUnlock = action.getRequiredUnlock();
         if (requiredUnlock != null && !requiredUnlock.trim().isEmpty())
         {
-            RuleDecision mobility = rules.mobility(requiredUnlock);
+            Decision mobility = rules.mobility(requiredUnlock);
             if (mobility.getStatus() == PermissionStatus.LOCKED)
             {
                 return new TravelDecision(
@@ -41,8 +50,7 @@ public class TravelRuleEvaluator
                     label(action),
                     mobility.getReason());
             }
-            if (mobility.getStatus() == PermissionStatus.UNKNOWN
-                || mobility.getStatus() == PermissionStatus.NOT_READY)
+            if (mobility.getStatus() != PermissionStatus.ALLOWED)
             {
                 return unknown(action);
             }

@@ -24,6 +24,7 @@ import org.junit.runners.Parameterized;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -223,6 +224,11 @@ public class StrictModeGateTest
                 audit::add,
                 (stage, error) -> { throw new AssertionError(stage, error); },
                 Clock.systemUTC()));
+
+            // As every tick does: the decision service for these rules and this character.
+            Method refresh = FateLockedPlugin.class.getDeclaredMethod("refreshDecisions");
+            refresh.setAccessible(true);
+            refresh.invoke(plugin);
         }
 
         private List<String> auditOutcomes()

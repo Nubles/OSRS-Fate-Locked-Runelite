@@ -4,7 +4,7 @@ import com.fatelocked.CanonicalChunk;
 import com.fatelocked.guardian.GuardResult;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeReadiness;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.events.MenuOptionClicked;
@@ -44,7 +44,7 @@ public final class TravelGuardianCoordinator
         Client client,
         CanonicalChunk origin,
         StrictModeReadiness readiness,
-        FateRuleEngine rules,
+        DecisionService rules,
         TravelAvailability availability)
     {
         TravelAction action = resolver.resolve(entry, client, origin);
@@ -93,7 +93,7 @@ public final class TravelGuardianCoordinator
 
     private TravelAlternative findAlternative(
         TravelAction action,
-        FateRuleEngine rules,
+        DecisionService rules,
         TravelAvailability availability)
     {
         try

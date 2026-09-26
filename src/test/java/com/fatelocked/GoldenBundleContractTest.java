@@ -1,6 +1,7 @@
 package com.fatelocked;
 
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -141,12 +142,12 @@ public class GoldenBundleContractTest
     {
         JsonObject rulesChunks = GSON.fromJson(gunzip(gzipped), JsonObject.class)
             .getAsJsonObject("rules").getAsJsonObject("chunks");
-        FateRuleEngine engine = new FateRuleEngine(bundle, true, false);
+        DecisionService engine = DecisionService.create(RulesSnapshot.of(bundle), null, null);
         List<String> mismatches = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : rulesChunks.entrySet())
         {
             String want = entry.getValue().getAsJsonObject().get("entry").getAsString();
-            String got = engine.entry(chunk(entry.getKey())).getStatus().name();
+            String got = engine.chunk(chunk(entry.getKey())).getStatus().name();
             if (!want.equals(got)) mismatches.add(entry.getKey() + " want " + want + " got " + got);
         }
         assertTrue(id + " has v4 rules", rulesChunks.size() > 0);

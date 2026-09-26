@@ -5,9 +5,10 @@ import com.fatelocked.FateLockedBundle;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.StrictModeReadiness;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
+import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
@@ -60,9 +61,9 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void onlyAProvenBlockReachesTheClickHandler()
     {
-        FateRuleEngine locked = rules(PermissionStatus.LOCKED);
-        FateRuleEngine allowed = rules(PermissionStatus.ALLOWED);
-        FateRuleEngine notReady = rules(PermissionStatus.NOT_READY);
+        DecisionService locked = rules(PermissionStatus.LOCKED);
+        DecisionService allowed = rules(PermissionStatus.ALLOWED);
+        DecisionService notReady = rules(PermissionStatus.NOT_READY);
         handleTravel(context(true, true, true, true, locked), locked);
         handleTravel(context(true, false, true, true, allowed), allowed);
         handleTravel(context(true, false, true, true, notReady), notReady);
@@ -80,7 +81,7 @@ public class TravelGuardianCoordinatorTest
         verify(proven).consume();
     }
 
-    private MenuOptionClicked handleTravel(StrictModeReadiness readiness, FateRuleEngine rules)
+    private MenuOptionClicked handleTravel(StrictModeReadiness readiness, DecisionService rules)
     {
         MenuOptionClicked click = travelClick();
         coordinator.handle(click, click.getMenuEntry(), client, ORIGIN, readiness, rules, availability);
@@ -91,7 +92,7 @@ public class TravelGuardianCoordinatorTest
     public void provenLockedTravelIsConsumedEachTimeButExplainedAndRecordedOnce()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult first = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -114,7 +115,7 @@ public class TravelGuardianCoordinatorTest
     public void pausedTravelIsAllowedAndRecordedOnceForLocalAudit()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -135,7 +136,7 @@ public class TravelGuardianCoordinatorTest
     public void pausedTravelTheRulesAllowIsNotRecorded()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.ALLOWED);
+        DecisionService rules = rules(PermissionStatus.ALLOWED);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -151,7 +152,7 @@ public class TravelGuardianCoordinatorTest
     public void strictModeOffLeavesTravelUnconsumedAndUnrecorded()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -164,7 +165,7 @@ public class TravelGuardianCoordinatorTest
     public void staleRulesLeaveTravelUnconsumedAndUnrecorded()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -177,7 +178,7 @@ public class TravelGuardianCoordinatorTest
     public void wrongAccountLeavesTravelUnconsumedAndUnrecorded()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -190,8 +191,9 @@ public class TravelGuardianCoordinatorTest
     public void legacyRulesLeaveTravelUnconsumedAndUnrecorded() throws Exception
     {
         MenuOptionClicked click = namedTeleportClick("Teleport", "Falador");
-        FateRuleEngine legacy = new FateRuleEngine(
-            fixture("bundles/v3-standard.json"), true, false);
+        // An older export, trusted for its own character: its areas still never block.
+        DecisionService legacy = DecisionService.create(
+            RulesSnapshot.of(fixture("bundles/v3-standard.json")), "nubles", "nubles");
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -204,7 +206,7 @@ public class TravelGuardianCoordinatorTest
     public void unknownTravelLeavesTheClickForTheGenericPath()
     {
         MenuOptionClicked click = namedTeleportClick("Continue", "");
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -218,7 +220,7 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void genericTravelWordsWithoutADestinationStayFailOpen()
     {
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
 
         assertGenericTravelWordFailsOpen("Travel", rules);
         assertGenericTravelWordFailsOpen("Enter", rules);
@@ -228,7 +230,7 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void mappedNonActivationActionsStayUnknownAndUnconsumed()
     {
-        FateRuleEngine rules = rulesAt(
+        DecisionService rules = rulesAt(
             new CanonicalChunk(50, 53), PermissionStatus.LOCKED);
 
         assertMappedNonActivationFailsOpen(
@@ -249,7 +251,7 @@ public class TravelGuardianCoordinatorTest
     public void notReadyDestinationLeavesTravelUnconsumedAndUnrecorded()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.NOT_READY);
+        DecisionService rules = rules(PermissionStatus.NOT_READY);
 
         TravelGuardianResult result = coordinator.handle(
             click, click.getMenuEntry(), client, ORIGIN,
@@ -263,7 +265,7 @@ public class TravelGuardianCoordinatorTest
     public void walkingIsNeverConsumedOrRecorded()
     {
         // Every chunk is locked, and walking is still left alone.
-        FateRuleEngine rules = lockedEverywhere();
+        DecisionService rules = lockedEverywhere();
         MenuOptionClicked click = walkClick();
 
         TravelGuardianResult result;
@@ -283,7 +285,7 @@ public class TravelGuardianCoordinatorTest
     @Test
     public void doorsAndLaddersAreNeverConsumedOrRecorded()
     {
-        FateRuleEngine rules = lockedEverywhere();
+        DecisionService rules = lockedEverywhere();
         MenuEntry entry = mock(MenuEntry.class);
         when(entry.getOption()).thenReturn("Climb-down");
         when(entry.getTarget()).thenReturn("Ladder");
@@ -310,7 +312,7 @@ public class TravelGuardianCoordinatorTest
     public void alternativeLookupFailureNeverCancelsAProvenBlock()
     {
         MenuOptionClicked click = travelClick();
-        FateRuleEngine rules = rules(PermissionStatus.LOCKED);
+        DecisionService rules = rules(PermissionStatus.LOCKED);
         when(finder.find(any(), any(), any()))
             .thenThrow(new IllegalStateException("inventory unavailable"));
 
@@ -354,11 +356,11 @@ public class TravelGuardianCoordinatorTest
         return namedTeleportClick("Teleport", "Falador");
     }
 
-    private static FateRuleEngine lockedEverywhere()
+    private static DecisionService lockedEverywhere()
     {
-        FateRuleEngine rules = mock(FateRuleEngine.class);
-        when(rules.entry(any())).thenReturn(
-            new RuleDecision(PermissionStatus.LOCKED, "Locked destination", null));
+        DecisionService rules = mock(DecisionService.class);
+        when(rules.chunk(any())).thenReturn(
+            new Decision(PermissionStatus.LOCKED, "Locked destination", null, Decision.Source.CHUNK));
         return rules;
     }
 
@@ -374,7 +376,7 @@ public class TravelGuardianCoordinatorTest
         return click;
     }
 
-    private void assertGenericTravelWordFailsOpen(String option, FateRuleEngine rules)
+    private void assertGenericTravelWordFailsOpen(String option, DecisionService rules)
     {
         MenuOptionClicked click = namedTeleportClick(option, "New destination");
         TravelGuardianResult result = coordinator.handle(
@@ -387,7 +389,7 @@ public class TravelGuardianCoordinatorTest
         assertNull(result.getAction().getDestination());
     }
     private void assertMappedNonActivationFailsOpen(
-        String option, String target, FateRuleEngine rules)
+        String option, String target, DecisionService rules)
     {
         MenuOptionClicked click = namedTeleportClick(option, target);
         TravelGuardianResult result = coordinator.handle(
@@ -421,24 +423,24 @@ public class TravelGuardianCoordinatorTest
         boolean paused,
         boolean accountMatches,
         boolean freshRules,
-        FateRuleEngine rules)
+        DecisionService rules)
     {
         return StrictModeReadiness.evaluate(
             enabled, paused, rules != null, "Nubles",
             accountMatches ? "Nubles" : "Zezima", accountMatches, freshRules);
     }
 
-    private static FateRuleEngine rules(PermissionStatus status)
+    private static DecisionService rules(PermissionStatus status)
     {
         return rulesAt(DESTINATION, status);
     }
 
-    private static FateRuleEngine rulesAt(
+    private static DecisionService rulesAt(
         CanonicalChunk destination, PermissionStatus status)
     {
-        FateRuleEngine rules = mock(FateRuleEngine.class);
-        when(rules.entry(destination)).thenReturn(
-            new RuleDecision(status, "Locked destination", null));
+        DecisionService rules = mock(DecisionService.class);
+        when(rules.chunk(destination)).thenReturn(
+            new Decision(status, "Locked destination", null, Decision.Source.CHUNK));
         return rules;
     }
 

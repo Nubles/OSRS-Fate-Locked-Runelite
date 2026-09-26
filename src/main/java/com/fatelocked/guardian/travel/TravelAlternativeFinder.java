@@ -1,9 +1,9 @@
 package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,7 +29,7 @@ public class TravelAlternativeFinder
 
     public Optional<TravelAlternative> find(
         TravelAction action,
-        FateRuleEngine rules,
+        DecisionService rules,
         TravelAvailability availability)
     {
         if (action == null
@@ -42,7 +42,7 @@ public class TravelAlternativeFinder
         }
 
         String intendedArea = normalizeArea(
-            rules.areaLabel(action.getDestination()));
+            rules.chunkName(action.getDestination()));
         TravelAlternative best = null;
         int bestRank = Integer.MAX_VALUE;
         long bestDistance = Long.MAX_VALUE;
@@ -56,7 +56,7 @@ public class TravelAlternativeFinder
             }
 
             String candidateArea = normalizeArea(
-                rules.areaLabel(candidate.getDestination()));
+                rules.chunkName(candidate.getDestination()));
             long candidateDistance = distance(
                 action.getDestination(), candidate.getDestination());
             int candidateRank = sameArea(intendedArea, candidateArea)
@@ -81,7 +81,7 @@ public class TravelAlternativeFinder
 
     private static boolean isVerified(
         TravelAlternative candidate,
-        FateRuleEngine rules,
+        DecisionService rules,
         TravelAvailability availability)
     {
         if (candidate == null
@@ -92,7 +92,7 @@ public class TravelAlternativeFinder
             return false;
         }
 
-        RuleDecision destination = rules.entry(candidate.getDestination());
+        Decision destination = rules.chunk(candidate.getDestination());
         if (destination == null
             || destination.getStatus() != PermissionStatus.ALLOWED)
         {
@@ -104,7 +104,7 @@ public class TravelAlternativeFinder
         {
             return false;
         }
-        RuleDecision mobility = rules.mobility(requiredUnlock);
+        Decision mobility = rules.mobility(requiredUnlock);
         if (mobility == null
             || mobility.getStatus() != PermissionStatus.ALLOWED)
         {

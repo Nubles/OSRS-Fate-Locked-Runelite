@@ -1,9 +1,9 @@
 package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import org.junit.Before;
@@ -31,7 +31,7 @@ public class TravelAlternativeFinderTest
     private static final CanonicalChunk VARROCK = new CanonicalChunk(50, 53);
     private static final CanonicalChunk FALADOR = new CanonicalChunk(46, 52);
 
-    private final FateRuleEngine rules = mock(FateRuleEngine.class);
+    private final DecisionService rules = mock(DecisionService.class);
     private final TravelAvailability availability = mock(TravelAvailability.class);
 
     @Before
@@ -44,11 +44,11 @@ public class TravelAlternativeFinderTest
     @Test
     public void prefersCarriedAllowedAlternativeInTheIntendedArea()
     {
-        when(rules.entry(VARROCK)).thenReturn(allowed("Varrock"));
-        when(rules.entry(FALADOR)).thenReturn(allowed("Falador"));
-        when(rules.areaLabel(new CanonicalChunk(49, 53))).thenReturn("  VARROCK ");
-        when(rules.areaLabel(VARROCK)).thenReturn("varrock");
-        when(rules.areaLabel(FALADOR)).thenReturn("Falador");
+        when(rules.chunk(VARROCK)).thenReturn(allowed("Varrock"));
+        when(rules.chunk(FALADOR)).thenReturn(allowed("Falador"));
+        when(rules.chunkName(new CanonicalChunk(49, 53))).thenReturn("  VARROCK ");
+        when(rules.chunkName(VARROCK)).thenReturn("varrock");
+        when(rules.chunkName(FALADOR)).thenReturn("Falador");
         when(availability.hasAnyItem(setOf(8007))).thenReturn(true);
         when(availability.hasAnyItem(setOf(8009))).thenReturn(true);
 
@@ -70,11 +70,15 @@ public class TravelAlternativeFinderTest
         CanonicalChunk unknown = new CanonicalChunk(50, 52);
         CanonicalChunk notReady = new CanonicalChunk(50, 51);
         CanonicalChunk absent = new CanonicalChunk(50, 50);
-        when(rules.entry(locked)).thenReturn(decision(PermissionStatus.LOCKED));
-        when(rules.entry(unknown)).thenReturn(decision(PermissionStatus.UNKNOWN));
-        when(rules.entry(notReady)).thenReturn(decision(PermissionStatus.NOT_READY));
-        when(rules.entry(absent)).thenReturn(allowed("Lumbridge"));
-        when(availability.hasAnyItem(any())).thenReturn(false);
+        when(rules.chunk(locked)).thenReturn(decision(PermissionStatus.LOCKED));
+        when(rules.chunk(unknown)).thenReturn(decision(PermissionStatus.UNKNOWN));
+        when(rules.chunk(notReady)).thenReturn(decision(PermissionStatus.NOT_READY));
+        when(rules.chunk(absent)).thenReturn(allowed("Lumbridge"));
+        // Carried, but landing somewhere locked, unknown or not ready; or allowed but not carried.
+        when(availability.hasAnyItem(setOf(8007))).thenReturn(true);
+        when(availability.hasAnyItem(setOf(8008))).thenReturn(true);
+        when(availability.hasAnyItem(setOf(8009))).thenReturn(true);
+        when(availability.hasAnyItem(setOf(8010))).thenReturn(false);
 
         List<TravelAlternative> catalog = Arrays.asList(
             tablet("locked", "Locked", locked, 8007),
@@ -97,7 +101,7 @@ public class TravelAlternativeFinderTest
         {
             assertEquals("Teleport Tablets", tablet.getRequiredUnlock());
         }
-        when(rules.entry(candidate.getDestination()))
+        when(rules.chunk(candidate.getDestination()))
             .thenReturn(allowed("Varrock"));
         when(availability.hasAnyItem(candidate.getRequiredItemIds()))
             .thenReturn(true);
@@ -134,7 +138,7 @@ public class TravelAlternativeFinderTest
             Skill.MAGIC, 45, 0);
         TravelAlternativeFinder finder = new TravelAlternativeFinder(
             Collections.singletonList(alternative));
-        when(rules.entry(VARROCK)).thenReturn(allowed("Varrock"));
+        when(rules.chunk(VARROCK)).thenReturn(allowed("Varrock"));
         when(availability.hasAnyItem(setOf(8007))).thenReturn(true);
 
         when(availability.realLevel(Skill.MAGIC)).thenReturn(44);
@@ -159,8 +163,8 @@ public class TravelAlternativeFinderTest
             "a-zero-distance", "Zero distance other", destination, 8008);
         TravelAlternative adjacentCandidate = tablet(
             "z-adjacent", "Adjacent", adjacent, 8007);
-        when(rules.entry(destination)).thenReturn(allowed("Destination"));
-        when(rules.entry(adjacent)).thenReturn(allowed("Adjacent"));
+        when(rules.chunk(destination)).thenReturn(allowed("Destination"));
+        when(rules.chunk(adjacent)).thenReturn(allowed("Adjacent"));
         when(availability.hasAnyItem(any())).thenReturn(true);
 
         Optional<TravelAlternative> result = new TravelAlternativeFinder(
@@ -180,8 +184,8 @@ public class TravelAlternativeFinderTest
             " Z-last-ID ", "Catalog first", east, 8008);
         TravelAlternative lexicographicFirst = tablet(
             "a-first-id", "Lexicographic first", north, 8007);
-        when(rules.entry(east)).thenReturn(allowed("East"));
-        when(rules.entry(north)).thenReturn(allowed("North"));
+        when(rules.chunk(east)).thenReturn(allowed("East"));
+        when(rules.chunk(north)).thenReturn(allowed("North"));
         when(availability.hasAnyItem(any())).thenReturn(true);
 
         Optional<TravelAlternative> result = new TravelAlternativeFinder(
@@ -214,7 +218,7 @@ public class TravelAlternativeFinderTest
     @Test
     public void unresolvedInputsAndEmptyItemRequirementsNeverProduceAGuess()
     {
-        when(rules.entry(VARROCK)).thenReturn(allowed("Varrock"));
+        when(rules.chunk(VARROCK)).thenReturn(allowed("Varrock"));
         when(availability.hasAnyItem(any())).thenReturn(true);
         TravelAlternativeFinder finder = new TravelAlternativeFinder(
             Collections.singletonList(new TravelAlternative(
@@ -274,13 +278,13 @@ public class TravelAlternativeFinderTest
             new LinkedHashSet<>(Arrays.asList(values)));
     }
 
-    private static RuleDecision allowed(String label)
+    private static Decision allowed(String label)
     {
-        return new RuleDecision(PermissionStatus.ALLOWED, label, null);
+        return new Decision(PermissionStatus.ALLOWED, label, null, Decision.Source.CHUNK);
     }
 
-    private static RuleDecision decision(PermissionStatus status)
+    private static Decision decision(PermissionStatus status)
     {
-        return new RuleDecision(status, status.name(), null);
+        return new Decision(status, status.name(), null, Decision.Source.CHUNK);
     }
 }

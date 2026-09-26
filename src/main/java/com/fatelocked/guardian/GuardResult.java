@@ -1,6 +1,6 @@
 package com.fatelocked.guardian;
 
-import com.fatelocked.rules.RuleDecision;
+import com.fatelocked.guardian.travel.TravelDecision;
 import lombok.Value;
 
 @Value
@@ -15,5 +15,5 @@ public class GuardResult
     }
 
     Outcome outcome;
-    RuleDecision decision;
+    TravelDecision decision;
 }

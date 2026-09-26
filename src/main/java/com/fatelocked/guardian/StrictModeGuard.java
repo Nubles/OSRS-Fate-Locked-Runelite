@@ -3,7 +3,6 @@ package com.fatelocked.guardian;
 import com.fatelocked.guardian.travel.TravelAction;
 import com.fatelocked.guardian.travel.TravelDecision;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 
 /**
  * Strict Mode decides only exactly matched travel. Walking, NPCs, objects,
@@ -23,20 +22,18 @@ public final class StrictModeGuard
         TravelDecision decision,
         StrictModeReadiness readiness)
     {
-        RuleDecision rule = decision == null ? null
-            : new RuleDecision(decision.getStatus(), decision.getLabel(), decision.getReason());
         if (readiness == null || !provesLocked(action, decision))
         {
-            return new GuardResult(GuardResult.Outcome.ALLOW, rule);
+            return new GuardResult(GuardResult.Outcome.ALLOW, decision);
         }
         switch (readiness.getState())
         {
             case ACTIVE:
-                return new GuardResult(GuardResult.Outcome.BLOCK, rule);
+                return new GuardResult(GuardResult.Outcome.BLOCK, decision);
             case PAUSED:
-                return new GuardResult(GuardResult.Outcome.ALLOW_PAUSED, rule);
+                return new GuardResult(GuardResult.Outcome.ALLOW_PAUSED, decision);
             default:
-                return new GuardResult(GuardResult.Outcome.ALLOW, rule);
+                return new GuardResult(GuardResult.Outcome.ALLOW, decision);
         }
     }
 
