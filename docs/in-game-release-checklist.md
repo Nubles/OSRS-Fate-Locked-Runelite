@@ -45,6 +45,7 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 13 | Log out and back in. | The chunk you are in is announced once. | |
 | 14 | Change something in the web tracker (unlock an area, say), then press **Check now** in the sidebar. | The change shows within a few seconds and Last sync updates. | |
 | 15 | Press **Re-pair tracker…**, confirm, then close the browser tab without confirming. Press **Cancel re-pairing**. | The sidebar says "Confirm the new pairing" and the overlays keep working. After Cancel it is **Connected** again on the old pairing. | |
+| 16 | Note the last four characters in the sidebar's **Pairing** row, then press **Disconnect** in the web tracker. (Needs the relay deployed with the gone marker.) | The web tracker's pairing dialog showed the same four characters. Within a minute the sidebar says "Disconnected in the web tracker", and **Connect tracker** pairs afresh. | |
 
 Record the commit, the RuneLite version, the date, and a pass or fail (with a
 note for any fail) in each row. Any fail blocks the release until it is fixed

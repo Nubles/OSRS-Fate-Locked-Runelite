@@ -59,6 +59,7 @@ class FateLockedPanel extends PluginPanel
     private final JLabel connectionVal = value();
     private final JLabel trackerAccountVal = value();
     private final JLabel lastSyncVal = value();
+    private final JLabel pairingVal = value();
     /** Why the connection is as it is, and what to do: SyncView's detail. */
     private final JLabel connectionDetail = new JLabel();
     private String connectionDetailText;
@@ -125,8 +126,11 @@ class FateLockedPanel extends PluginPanel
         connectionVal.setText("Not connected");
         connectionVal.setForeground(GRAY);
         col.add(stats(
-            new String[]{"Connection", "Tracker account", "Last sync"},
-            new JLabel[]{connectionVal, trackerAccountVal, lastSyncVal}));
+            new String[]{"Connection", "Tracker account", "Last sync", "Pairing"},
+            new JLabel[]{connectionVal, trackerAccountVal, lastSyncVal, pairingVal}));
+        pairingVal.setText("\u2014");
+        pairingVal.setToolTipText("The end of the pairing code. The web tracker's pairing"
+            + " dialog shows the same four characters.");
         connectionDetail.setForeground(GRAY);
         connectionDetail.setAlignmentX(Component.LEFT_ALIGNMENT);
         connectionDetail.setVisible(false);
@@ -146,7 +150,8 @@ class FateLockedPanel extends PluginPanel
         JLabel disclosure = new JLabel(
             "<html>RuneLite retrieves rules from the Fate Locked relay. "
                 + "Your IP address is visible to the relay, but RuneLite "
-                + "does not upload gameplay data.</html>");
+                + "does not upload gameplay data. The rules the relay holds "
+                + "name your character, so it can link the two.</html>");
         disclosure.setForeground(GRAY);
         disclosure.setAlignmentX(Component.LEFT_ALIGNMENT);
         col.add(disclosure);
@@ -555,6 +560,7 @@ class FateLockedPanel extends PluginPanel
         connectAction = view.connect;
         connectTrackerButton.setText(view.connect.label);
         lastSyncVal.setText(view.lastSync);
+        pairingVal.setText(view.pairing);
         lastSyncVal.setForeground(
             copy.getLastSync() == null ? GRAY : GREEN);
     }
@@ -600,6 +606,7 @@ class FateLockedPanel extends PluginPanel
     String lastSyncTextForTest() { return lastSyncVal.getText(); }
     String connectionTextForTest() { return connectionVal.getText(); }
     String connectionDetailForTest() { return connectionDetailText; }
+    String pairingTextForTest() { return pairingVal.getText(); }
     JButton checkNowButtonForTest() { return checkNowButton; }
     String trackerAccountTextForTest() { return trackerAccountVal.getText(); }
     JButton connectButtonForTest() { return connectTrackerButton; }

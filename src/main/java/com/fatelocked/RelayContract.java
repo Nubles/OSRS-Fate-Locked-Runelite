@@ -26,6 +26,8 @@ final class RelayContract
         STILL_REJECTED,
         /** No profile for this code. */
         MISSING,
+        /** The owner disconnected this code in the web tracker. */
+        GONE,
         /** A reply the plugin cannot use. */
         UNREADABLE,
         /** The relay asks the plugin to slow down. */
@@ -78,7 +80,7 @@ final class RelayContract
      *     set, it was the request's validator
      * @param etag the reply's ETag header, or null
      * @param retryAfter the reply's Retry-After header, or null
-     * @param body the reply's body; read only for a 2xx reply
+     * @param body the reply's body; read only for a 2xx or 404 reply
      */
     static Reply classify(Gson gson, String held, String rejected,
         int status, String etag, String retryAfter, String body)
@@ -96,7 +98,7 @@ final class RelayContract
         }
         if (status == 404)
         {
-            return Reply.of(Outcome.MISSING);
+            return Reply.of(isGone(gson, body) ? Outcome.GONE : Outcome.MISSING);
         }
         if (status == 429)
         {
@@ -157,6 +159,21 @@ final class RelayContract
         return Reply.unreadable("a reply larger than any real bundle");
     }
 
+    /** Whether a 404's body is the relay's {"gone":true} marker; anything else is a plain 404. */
+    private static boolean isGone(Gson gson, String body)
+    {
+        if (body == null) return false;
+        try
+        {
+            Gone marker = gson.fromJson(body, Gone.class);
+            return marker != null && marker.gone;
+        }
+        catch (JsonParseException | IllegalStateException ex)
+        {
+            return false;
+        }
+    }
+
     /** A positive version from a bare, quoted or weak ETag, or null. */
     static Integer parseVersion(String raw)
     {
@@ -210,6 +227,11 @@ final class RelayContract
         {
             return 0;
         }
+    }
+
+    private static final class Gone
+    {
+        private boolean gone;
     }
 
     private static final class Envelope

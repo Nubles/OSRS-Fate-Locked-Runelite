@@ -46,6 +46,8 @@ final class SyncMachine
     private Instant pairingStartedAt;
     /** Whether that pairing is a re-pairing, with another still in use until it delivers. */
     private boolean repairing;
+    /** Whether the relay said the owner disconnected this pairing. */
+    private boolean pairingGone;
     /** When the player last pressed Check now and it counted. */
     private Instant lastCheckNow;
     /** Whether the player is in game; taken as so until the plugin says otherwise. */
@@ -114,6 +116,27 @@ final class SyncMachine
         }
     }
 
+    /** Whether the owner disconnected the pairing in the web tracker. */
+    boolean pairingGone()
+    {
+        return pairingGone;
+    }
+
+    /**
+     * The owner pressed Disconnect in the web tracker, which no longer sends
+     * rules to this code. The rules stay in use, but their version is
+     * dropped. Checked every 5 minutes, in case the code comes back.
+     */
+    TrackerConnectionSnapshot gone(Instant now)
+    {
+        acceptedVersion = null;
+        rejectedVersion = null;
+        rejectedReason = null;
+        pairingGone = true;
+        after(now, LOGGED_OUT_POLL_SECONDS);
+        return show(TrackerConnectionState.EXPIRED, SyncReason.GONE);
+    }
+
     /** Whether a re-pairing is waiting for its new pairing to deliver. */
     boolean repairing()
     {
@@ -143,6 +166,7 @@ final class SyncMachine
         resetChecks();
         pairingStartedAt = now;
         repairing = true;
+        pairingGone = false;
         return TrackerConnectionSnapshot.of(
             TrackerConnectionState.WAITING, lastSync, null, SyncReason.CONFIRM_REPAIR, null);
     }
@@ -263,6 +287,7 @@ final class SyncMachine
         lastSync = now;
         pairingStartedAt = null;
         repairing = false;
+        pairingGone = false;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, version);
     }
@@ -400,6 +425,7 @@ final class SyncMachine
         rejectedVersion = null;
         rejectedReason = null;
         repairing = false;
+        pairingGone = false;
         lastSync = null;
         resetChecks();
     }

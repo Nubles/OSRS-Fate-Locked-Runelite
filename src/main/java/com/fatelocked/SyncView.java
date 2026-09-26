@@ -49,6 +49,8 @@ final class SyncView
     final boolean canCheckNow;
     /** What the connect button says and does. */
     final Connect connect;
+    /** The code in use, as its last four characters, or a dash. */
+    final String pairing;
 
     /** The connect button's job in each state. */
     enum Connect
@@ -71,8 +73,9 @@ final class SyncView
     }
 
     private SyncView(String status, Tone tone, String detail, Action action,
-        String lastSync, boolean canCheckNow, Connect connect)
+        String lastSync, boolean canCheckNow, Connect connect, String pairing)
     {
+        this.pairing = pairing;
         this.status = status;
         this.tone = tone;
         this.detail = detail;
@@ -108,6 +111,12 @@ final class SyncView
             case CONFIRM_REPAIR:
                 detail = "Confirm the profile in the browser tab RuneLite opened."
                     + " Until it arrives, RuneLite keeps your current pairing.";
+                break;
+            case GONE:
+                detail = "The tracker's owner pressed Disconnect in the web tracker,"
+                    + " so it sends no more rules to this pairing. Press Connect"
+                    + " tracker to pair again.";
+                action = Action.CONNECT;
                 break;
             case REPAIR_ABANDONED:
                 detail = "No new profile arrived within 10 minutes, so RuneLite kept"
@@ -168,9 +177,12 @@ final class SyncView
                 break;
         }
         boolean canCheckNow = snapshot.getReason() != SyncReason.NOT_PAIRED
-            && snapshot.getReason() != SyncReason.SYNC_OFF;
+            && snapshot.getReason() != SyncReason.SYNC_OFF
+            && snapshot.getReason() != SyncReason.GONE;
+        String pairing = snapshot.getPairingEnding() == null
+            ? "\u2014" : "\u2026" + snapshot.getPairingEnding();
         return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow,
-            connect(snapshot.getReason()));
+            connect(snapshot.getReason()), pairing);
     }
 
     private static Connect connect(SyncReason reason)
@@ -180,7 +192,8 @@ final class SyncView
             case NOT_PAIRED:
             case CONFIRM_IN_BROWSER:
             case NO_PROFILE:
-                // Nothing that works to keep: a first pairing starts over.
+            case GONE:
+                // Nothing that works to keep: pair from scratch.
                 return Connect.CONNECT;
             case SYNC_OFF:
                 return Connect.TURN_ON_SYNC;

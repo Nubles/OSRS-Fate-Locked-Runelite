@@ -146,6 +146,25 @@ public class SyncViewTest
     }
 
     @Test
+    public void aCodeTheOwnerDisconnectedPointsToConnect()
+    {
+        SyncView view = view(of(TrackerConnectionState.EXPIRED, SyncReason.GONE));
+
+        assertEquals("Disconnected in the web tracker", view.status);
+        assertEquals(SyncView.Action.CONNECT, view.action);
+        assertEquals(SyncView.Connect.CONNECT, view.connect);
+        assertFalse(view.canCheckNow);
+    }
+
+    @Test
+    public void thePairingShowsOnlyTheLastFourCharactersOfItsCode()
+    {
+        assertEquals("\u2026cdef", view(TrackerConnectionSnapshot.connected(NOW, "41")
+            .forPairing("0123456789abcdef0123456789abcdef")).pairing);
+        assertEquals("\u2014", view(SyncMachine.idle(true, false)).pairing);
+    }
+
+    @Test
     public void everyReasonHasItsOwnStatusAndExplanation()
     {
         Set<String> statuses = new HashSet<>();

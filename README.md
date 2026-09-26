@@ -27,7 +27,8 @@ The normal same-PC setup is:
 
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
 relay. It does not upload player or gameplay data. The relay sees the IP
-address used for the HTTPS request.
+address used for the HTTPS request, and the rules it holds name your
+character, so it can link the two.
 
 Once connected, RuneLite checks the tracker every minute while you play,
 every 5 minutes at the login screen, and at once when you log in. To pick
@@ -43,6 +44,12 @@ your current pairing until the new one sends your rules; if none arrives
 within 10 minutes, or you press **Cancel re-pairing**, nothing changes. With
 online sync off, it reads **Turn on online sync** and picks up the pairing
 you already have.
+
+The sidebar's **Pairing** row shows only the last four characters of the
+code in use, as the web tracker's pairing dialog does, so the code stays
+off screen. If you press **Disconnect** in the web tracker, the sidebar
+says "Disconnected in the web tracker"; press **Connect tracker** to pair
+again.
 
 Online sync is off by default, including for existing pairings after this
 update. No relay requests are made until you accept the warning. Canceling

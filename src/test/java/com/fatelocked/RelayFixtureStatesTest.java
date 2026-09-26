@@ -45,17 +45,11 @@ public class RelayFixtureStatesTest
         "unchanged", new Shown(TrackerConnectionState.CONNECTED, SyncReason.NONE),
         "stale", new Shown(TrackerConnectionState.WAITING, SyncReason.OLDER_RULES),
         "missing", new Shown(TrackerConnectionState.WAITING, SyncReason.NO_RECENT_UPDATE),
+        "gone", new Shown(TrackerConnectionState.EXPIRED, SyncReason.GONE),
         "unreadable", new Shown(TrackerConnectionState.OFFLINE, SyncReason.UNREADABLE),
         "busy", new Shown(TrackerConnectionState.OFFLINE, SyncReason.BUSY),
         "unavailable", new Shown(TrackerConnectionState.OFFLINE, SyncReason.UNAVAILABLE),
         "unreachable", new Shown(TrackerConnectionState.OFFLINE, SyncReason.UNREACHABLE));
-    /**
-     * Outcomes the plugin does not show as their own state yet: what it
-     * shows today, until the task named gives them one.
-     */
-    private static final Map<String, Shown> KNOWN = Map.of(
-        "gone", new Shown(TrackerConnectionState.WAITING, SyncReason.NO_RECENT_UPDATE,
-            "review finding S11: Stage 1 task C15"));
 
     private final Gson gson = new Gson();
 
@@ -64,8 +58,8 @@ public class RelayFixtureStatesTest
     {
         for (String outcome : RelayContractFixtureTest.fixture().getAsJsonObject("outcomes").keySet())
         {
-            assertTrue(outcome + " has no state", SHOWS.containsKey(outcome)
-                || KNOWN.containsKey(outcome) || outcome.equals(NOTHING_CHANGES));
+            assertTrue(outcome + " has no state",
+                SHOWS.containsKey(outcome) || outcome.equals(NOTHING_CHANGES));
         }
     }
 
@@ -87,11 +81,10 @@ public class RelayFixtureStatesTest
                 if (!after.equals(beforeAndAfter[0])) mismatches.add(name + ": the status changed");
                 continue;
             }
-            Shown expected = KNOWN.containsKey(outcome) ? KNOWN.get(outcome) : SHOWS.get(outcome);
+            Shown expected = SHOWS.get(outcome);
             if (expected.state != after.getState() || expected.reason != after.getReason())
             {
-                mismatches.add(name + ": " + after.getState() + "/" + after.getReason()
-                    + (expected.fixedBy == null ? "" : " (known until " + expected.fixedBy + ")"));
+                mismatches.add(name + ": " + after.getState() + "/" + after.getReason());
             }
             SyncView view = SyncView.of(after, Instant.now(), ZoneId.of("UTC"));
             if (view.status == null || view.status.isEmpty())
@@ -196,18 +189,11 @@ public class RelayFixtureStatesTest
     {
         private final TrackerConnectionState state;
         private final SyncReason reason;
-        private final String fixedBy;
 
         private Shown(TrackerConnectionState state, SyncReason reason)
         {
-            this(state, reason, null);
-        }
-
-        private Shown(TrackerConnectionState state, SyncReason reason, String fixedBy)
-        {
             this.state = state;
             this.reason = reason;
-            this.fixedBy = fixedBy;
         }
     }
 }

@@ -251,6 +251,51 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void aCodeTheOwnerDisconnectedSaysSoAndConnectingPairsAfresh() throws Exception
+    {
+        connect(5, "\"5\"");
+        server.enqueue(new MockResponse().setResponseCode(404)
+            .addHeader("Content-Type", "application/json")
+            .setBody("{\"gone\":true}"));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(SyncReason.GONE, controller.snapshot().getReason());
+        assertNull(controller.snapshot().getAcceptedVersion());
+
+        // Nothing to keep: the new pairing replaces the gone one at once.
+        controller.beginPairing();
+        assertNotEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(settings.pairingCode(), controller.activeCode());
+    }
+
+    @Test
+    public void aPlain404IsNotGone() throws Exception
+    {
+        connect(5, "\"5\"");
+        server.enqueue(new MockResponse().setResponseCode(404).setBody("<html>Not Found</html>"));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+
+        assertEquals(SyncReason.NO_RECENT_UPDATE, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void theStatusCarriesOnlyTheEndOfTheCodeInUse() throws Exception
+    {
+        assertEquals("cdef", controller.snapshot().getPairingEnding());
+
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String newCode = controller.activeCode();
+
+        // A re-pairing shows the new code's end, as the browser's dialog does.
+        assertEquals(newCode.substring(28), controller.snapshot().getPairingEnding());
+    }
+
+    @Test
     public void rePairingKeepsTheWorkingPairingUntilTheNewOneDelivers() throws Exception
     {
         connect(5, "\"5\"");

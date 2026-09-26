@@ -335,7 +335,13 @@ public class FateLockedPanelStatusTest
         assertTrue(panel.hasTextForTest(
             "RuneLite retrieves rules from the Fate Locked relay. "
                 + "Your IP address is visible to the relay, but RuneLite "
-                + "does not upload gameplay data."));
+                + "does not upload gameplay data. The rules the relay holds "
+                + "name your character, so it can link the two."));
+
+        panel.updateConnection(TrackerConnectionSnapshot.connected(synced, "6")
+            .forPairing("0123456789abcdef0123456789abcdef"));
+        flushSwing();
+        assertEquals("\u2026cdef", panel.pairingTextForTest());
     }
 
     @Test

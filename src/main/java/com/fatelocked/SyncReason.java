@@ -24,6 +24,8 @@ enum SyncReason
     REPAIR_ABANDONED("Kept your pairing"),
     /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
     NO_RECENT_UPDATE("No recent update"),
+    /** The owner pressed Disconnect in the web tracker: this code will send nothing more. */
+    GONE("Disconnected in the web tracker"),
     /** The relay sent older rules than the plugin holds, which it keeps. */
     OLDER_RULES("Tracker has older rules"),
     /** No reply at all: the network, or the relay's host, failed. */

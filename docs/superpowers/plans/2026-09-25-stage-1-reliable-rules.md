@@ -255,8 +255,10 @@ go-ahead.
 - [x] **C14. Ask before re-pairing and keep the working pairing until the
   new one delivers (S7);** turning online sync back on resumes the saved
   pairing instead of replacing it.
-- [ ] **C15. Say "Disconnected in the web tracker" and show only the
-  code's last four characters (S11).**
+- [x] **C15. Say "Disconnected in the web tracker" and show only the
+  code's last four characters (S11).** The sidebar's new Pairing row shows
+  the last four characters, as the web's pairing dialog does; the
+  disclosure now says the relay can link the IP address to the character.
 
 ### Phase D: detectors and per-account files
 

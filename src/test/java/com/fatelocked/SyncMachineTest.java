@@ -245,6 +245,26 @@ public class SyncMachineTest
     }
 
     @Test
+    public void aCodeTheOwnerDisconnectedIsGoneUntilItDeliversAgain()
+    {
+        machine.accepted("41", START);
+        Instant gone = START.plusSeconds(60);
+
+        TrackerConnectionSnapshot shown = machine.gone(gone);
+
+        assertEquals(TrackerConnectionState.EXPIRED, shown.getState());
+        assertEquals(SyncReason.GONE, shown.getReason());
+        assertEquals(START, shown.getLastSync());
+        assertNull(machine.acceptedVersion());
+        assertTrue(machine.pairingGone());
+        assertFalse(machine.checkDue(gone.plusSeconds(SyncMachine.LOGGED_OUT_POLL_SECONDS - 1)));
+        assertTrue(machine.checkDue(gone.plusSeconds(SyncMachine.LOGGED_OUT_POLL_SECONDS)));
+
+        machine.accepted("42", gone.plusSeconds(600));
+        assertFalse(machine.pairingGone());
+    }
+
+    @Test
     public void aProfileThatLapsedSaysNoRecentUpdateAndForgetsItsVersion()
     {
         machine.accepted("41", START);

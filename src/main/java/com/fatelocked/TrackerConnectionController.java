@@ -140,7 +140,8 @@ final class TrackerConnectionController
         this.importer = importer;
         this.listener = listener;
         this.currentIdentityCode = settings.pairingCode();
-        snapshot = SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired());
+        snapshot = SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired())
+            .forPairing(settings.pairingCode());
         listener.accept(snapshot);
     }
 
@@ -160,7 +161,7 @@ final class TrackerConnectionController
                 throw new IllegalStateException("The tracker connection has stopped");
             }
             abandonCheckLocked();
-            if (settings.isPaired() && !machine.firstPairingWaiting())
+            if (settings.isPaired() && !machine.firstPairingWaiting() && !machine.pairingGone())
             {
                 // Keep the working pairing until the new one delivers.
                 pendingCode = code;
@@ -485,6 +486,10 @@ final class TrackerConnectionController
                 case MISSING:
                     handleNotFound(token);
                     return;
+                case GONE:
+                    showIfCurrent(token, now -> machine.gone(now));
+                    clearPoll(token);
+                    return;
                 case BUSY:
                     showIfCurrent(token, now -> machine.busy(now, reply.retryAfterSeconds));
                     clearPoll(token);
@@ -542,15 +547,23 @@ final class TrackerConnectionController
         int status = response.code();
         ResponseBody content = response.body();
         String body = null;
-        if (status >= 200 && status < 300 && content != null)
+        boolean success = status >= 200 && status < 300;
+        // A 404's body can be the relay's gone marker.
+        if ((success || status == 404) && content != null)
         {
             BufferedSource source = content.source();
             // Buffers at most one byte past the cap, however long the reply.
             if (source.request(MAX_REPLY_BYTES + 1))
             {
-                return RelayContract.oversized();
+                if (success)
+                {
+                    return RelayContract.oversized();
+                }
             }
-            body = content.string();
+            else
+            {
+                body = content.string();
+            }
         }
         return RelayContract.classify(gson, token.acceptedVersion, token.rejectedVersion,
             status, response.header("ETag"), response.header("Retry-After"), body);
@@ -730,8 +743,9 @@ final class TrackerConnectionController
      * one did. Being under the lock, the listener hears the snapshots in the
      * order they were made, whichever threads made them.
      */
-    private void showLocked(TrackerConnectionSnapshot next)
+    private void showLocked(TrackerConnectionSnapshot shown)
     {
+        TrackerConnectionSnapshot next = shown.forPairing(activeCodeLocked());
         if (next.equals(snapshot))
         {
             return;
