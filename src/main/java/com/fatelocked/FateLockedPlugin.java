@@ -23,6 +23,7 @@ import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
 import com.fatelocked.guardian.StrictModeAuditPresenter;
 import com.fatelocked.guardian.StrictModeReadiness;
+import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.guardian.travel.RuneLiteTravelAvailability;
 import com.fatelocked.guardian.travel.TravelActionResolver;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
@@ -188,6 +189,16 @@ public class FateLockedPlugin extends Plugin
     private final DiaryTierReviewDetector diaryTierReviewDetector = new DiaryTierReviewDetector();
     private final PetDropDetector petDropDetector = new PetDropDetector();
     private SlayerTaskDetector slayerTaskDetector;
+    /** Optional hotkey, unset by default: pause Strict Mode for 60 seconds (B16). */
+    private final HotkeyListener pauseStrictHotkey = new HotkeyListener(() -> config.pauseStrictModeHotkey())
+    {
+        @Override
+        public void hotkeyPressed()
+        {
+            ClientThreadGate onClient = gate;
+            if (onClient != null) onClient.run(FateLockedPlugin.this::pauseStrictModeFromHotkey);
+        }
+    };
     /** Configurable hotkey: re-import the bundle from the clipboard. */
     private final HotkeyListener reimportHotkey = new HotkeyListener(() -> config.reimportHotkey())
     {
@@ -224,6 +235,8 @@ public class FateLockedPlugin extends Plugin
     /** How far in the future an export time may be before it is not trusted. */
     static final Duration EXPORT_CLOCK_SKEW = Duration.ofMinutes(5);
     private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
+    /** Strict Mode's status as last worked out, for the HUD; null until then. */
+    @Getter private volatile StrictModeStatusView strictModeStatus;
     private TravelActionResolver travelActionResolver;
     private TravelRuleEvaluator travelRuleEvaluator;
     private TravelAvailability travelAvailability;
@@ -448,6 +461,7 @@ public class FateLockedPlugin extends Plugin
         });
         loadSavedRules();
         keyManager.registerKeyListener(reimportHotkey);
+        keyManager.registerKeyListener(pauseStrictHotkey);
         startTrackerPoll();
     }
 
@@ -481,6 +495,7 @@ public class FateLockedPlugin extends Plugin
             navButton = null;
         }
         keyManager.unregisterKeyListener(reimportHotkey);
+        keyManager.unregisterKeyListener(pauseStrictHotkey);
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         active = ActiveRules.NONE;
@@ -1338,11 +1353,23 @@ public class FateLockedPlugin extends Plugin
         updateStrictModePanel();
     }
 
+    /** A pause only means something while Strict Mode is on. */
+    private void pauseStrictModeFromHotkey()
+    {
+        if (config.strictMode()) pauseStrictModeForSixtySeconds();
+    }
+
+    /**
+     * Work out Strict Mode's status once (each tick and on each change) for
+     * the sidebar row and the HUD line, so they always agree (B16).
+     */
     private void updateStrictModePanel()
     {
-        panel.updateStrictMode(
+        StrictModeStatusView status = StrictModeStatusView.of(
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
             strictModeReadiness().getReason());
+        strictModeStatus = status;
+        panel.updateStrictMode(status);
     }
 
     /**

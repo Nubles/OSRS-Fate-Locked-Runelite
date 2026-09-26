@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
@@ -114,6 +115,16 @@ public class FateLockedHudOverlay extends OverlayPanel
                     .rightColor(match ? GREEN : RED)
                     .build());
             }
+        }
+
+        StrictModeStatusView strict = plugin.getStrictModeStatus();
+        if (strict != null && strict.isShownOnHud())
+        {
+            panelComponent.getChildren().add(LineComponent.builder()
+                .left("Strict")
+                .right(strict.getText())
+                .rightColor(strict.getTone() == StrictModeStatusView.Tone.ACTIVE ? GREEN : GOLD)
+                .build());
         }
 
         CanonicalChunk chunk = locator.player();

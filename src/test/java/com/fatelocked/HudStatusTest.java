@@ -136,6 +136,34 @@ public class HudStatusTest
         return lines;
     }
 
+    /** B16: the HUD's Strict Mode line, from the same status as the sidebar; none when off. */
+    @Test
+    public void theHudShowsStrictModesStatus() throws Exception
+    {
+        FateLockedPlugin plugin = mock(FateLockedPlugin.class);
+        when(plugin.getBundle()).thenReturn(FateLockedBundle.loadFromJson(GSON,
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz"))));
+        when(plugin.decisions()).thenReturn(DecisionService.create(RulesSnapshot.empty(), null, null));
+        FateLockedConfig config = mock(FateLockedConfig.class);
+        when(config.showHud()).thenReturn(true);
+        FateLockedHudOverlay hud = new FateLockedHudOverlay(mock(Client.class), plugin, config);
+        hud.setClearChildren(false);
+
+        when(plugin.getStrictModeStatus()).thenReturn(
+            com.fatelocked.guardian.StrictModeStatusView.of(true, true, 42, null));
+        assertEquals("Paused · 42s", drawn(hud).get("Strict"));
+        hud.getPanelComponent().getChildren().clear();
+
+        when(plugin.getStrictModeStatus()).thenReturn(
+            com.fatelocked.guardian.StrictModeStatusView.of(true, false, 0, "you are not logged in"));
+        assertEquals("Inactive", drawn(hud).get("Strict"));
+        hud.getPanelComponent().getChildren().clear();
+
+        when(plugin.getStrictModeStatus()).thenReturn(
+            com.fatelocked.guardian.StrictModeStatusView.of(false, false, 0, null));
+        assertEquals(null, drawn(hud).get("Strict"));
+    }
+
     /** An older export's Status is its own lock state, as before. */
     @Test
     public void anOlderExportShowsItsOwnLockState() throws Exception

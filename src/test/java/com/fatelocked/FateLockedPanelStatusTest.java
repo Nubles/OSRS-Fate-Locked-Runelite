@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.panel.LocalTimeText;
 import com.google.gson.Gson;
 import java.awt.BorderLayout;
@@ -69,14 +70,14 @@ public class FateLockedPanelStatusTest
     {
         FateLockedPanel panel = panel();
 
-        assertEquals(30, panel.settingKeysForTest().size());
+        assertEquals(31, panel.settingKeysForTest().size());
         assertEquals(new LinkedHashSet<>(Arrays.asList(
             "trackerNetworkAccess", "reimportHotkey",
             "chatOnEnter", "warnOnLocked", "warnLockedBank", "flashOnLocked",
             "warnAccountMismatch", "tagLockedMenus", "tagLockedTeleports",
             "showHud", "showNearest", "showChunkContentBox", "useNotifier",
             "warnLockedSlayer", "warnOverTierGear", "showInfoBoxes", "rollNudges",
-            "strictMode",
+            "strictMode", "pauseStrictModeHotkey",
             "drawWorldMap", "drawScene", "drawMinimap",
             "highlightLockedBorders", "shadeNearbyLocked", "worldMapMarkers",
             "worldMapTooltip", "worldMapTooltipContent",
@@ -95,7 +96,7 @@ public class FateLockedPanelStatusTest
         FateLockedPanel panel = panel();
 
         assertSectionSettings(panel, "Current chunk", keys());
-        assertSectionSettings(panel, "Guardian", keys("strictMode"));
+        assertSectionSettings(panel, "Guardian", keys("strictMode", "pauseStrictModeHotkey"));
         assertSectionSettings(panel, "Roll inbox", keys());
         assertSectionSettings(panel, "Run", keys());
         assertSectionSettings(panel, "Bundle",
@@ -217,12 +218,12 @@ public class FateLockedPanelStatusTest
             dismissals::incrementAndGet);
         Container guardian = sectionContent(panel, "Guardian");
 
-        panel.updateStrictMode(true, false, 0, null);
+        panel.updateStrictMode(StrictModeStatusView.of(true, false, 0, null));
         flushSwing();
         JButton pause = buttonWithText(
             guardian, "Pause Strict Mode for 60 seconds");
         SwingUtilities.invokeAndWait(pause::doClick);
-        panel.updateStrictMode(true, true, 60, null);
+        panel.updateStrictMode(StrictModeStatusView.of(true, true, 60, null));
         flushSwing();
         JButton resume = buttonWithText(
             guardian, "Resume Strict Mode \u00b7 60s");
@@ -490,11 +491,11 @@ public class FateLockedPanelStatusTest
         FateLockedPanel panel = panel();
         Container guardian = sectionContent(panel, "Guardian");
 
-        panel.updateStrictMode(true, false, 0, null);
+        panel.updateStrictMode(StrictModeStatusView.of(true, false, 0, null));
         flushSwing();
         assertEquals("Active", valueBesideLabel(guardian, "Guardian status"));
 
-        panel.updateStrictMode(true, false, 0, "the rules are more than 15 minutes old");
+        panel.updateStrictMode(StrictModeStatusView.of(true, false, 0, "the rules are more than 15 minutes old"));
         flushSwing();
         JLabel status = valueLabelBesideLabel(guardian, "Guardian status");
         assertEquals("Inactive", status.getText());
@@ -503,11 +504,11 @@ public class FateLockedPanelStatusTest
         assertEquals("<html>Not blocking anything: the rules are more than 15 minutes old.</html>",
             labelStartingWith(guardian, "<html>Not blocking").getText());
 
-        panel.updateStrictMode(true, true, 42, "the rules are more than 15 minutes old");
+        panel.updateStrictMode(StrictModeStatusView.of(true, true, 42, "the rules are more than 15 minutes old"));
         flushSwing();
-        assertEquals("Paused", valueBesideLabel(guardian, "Guardian status"));
+        assertEquals("Paused · 42s", valueBesideLabel(guardian, "Guardian status"));
 
-        panel.updateStrictMode(false, false, 0, "no tracker rules are loaded");
+        panel.updateStrictMode(StrictModeStatusView.of(false, false, 0, "no tracker rules are loaded"));
         flushSwing();
         assertEquals("Off", valueBesideLabel(guardian, "Guardian status"));
     }
@@ -518,7 +519,7 @@ public class FateLockedPanelStatusTest
     {
         FateLockedPanel panel = panel();
 
-        panel.updateStrictMode(true, true, 60, null);
+        panel.updateStrictMode(StrictModeStatusView.of(true, true, 60, null));
         flushSwing();
 
         assertEquals("Resume Strict Mode \u00b7 60s",
