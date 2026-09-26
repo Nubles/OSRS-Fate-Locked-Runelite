@@ -262,24 +262,30 @@ go-ahead.
 
 ### Phase D: detectors and per-account files
 
-- [ ] **D1. Read combat task names the way RuneLite does (D3).**
-- [ ] **D2. Keep "Quest" in quest names and read the other scroll titles
-  (D6).**
-- [ ] **D3. Stop calling every monster over level 250 a boss (D4).**
-- [ ] **D4. Stop treating caskets in loot as clue completions (D7).**
-- [ ] **D5. Stop guessing which pet dropped (D11).**
-- [ ] **D6. Remove the Pest Control detector, which could never fire
+- [x] **D1. Read combat task names the way RuneLite does (D3).** Tested
+  on RuneLite's own ScreenshotPluginTest lines; the tier is kept as evidence.
+- [x] **D2. Keep "Quest" in quest names and read the other scroll titles
+  (D6).** Recipe for Disaster's parts get the tracker's "RFD: ..." ids.
+- [x] **D3. Stop calling every monster over level 250 a boss (D4).**
+  BossRaidDetector is now RaidDetector.
+- [x] **D4. Stop treating caskets in loot as clue completions (D7).**
+  Clue completions come from the loot tracker's "Clue Scroll (<tier>)"
+  event instead.
+- [x] **D5. Stop guessing which pet dropped (D11).** The backpack line
+  counts; the duplicate-pet line doesn't.
+- [x] **D6. Remove the Pest Control detector, which could never fire
   (D15).**
-- [ ] **D7. Name diary tiers with the tracker's ids (D9).**
-- [ ] **D8. Delete dead detector code and unused resource files (D19).**
-- [ ] **D9. Record and nudge only for the bound character on a normal
+- [x] **D7. Name diary tiers with the tracker's ids (D9).**
+- [x] **D8. Delete dead detector code and unused resource files (D19).**
+- [x] **D9. Record and nudge only for the bound character on a normal
   world (D5).**
-- [ ] **D10. Merge local files on write so two clients keep each other's
+- [x] **D10. Merge local files on write so two clients keep each other's
   history:** a lock sidecar, re-read, merge, unique temp file, atomic move;
   the audit log moves a damaged file aside instead of overwriting it.
-- [ ] **D11. Keep history, audit log and Slayer state per account**
+- [x] **D11. Keep history, audit log and Slayer state per account**
   (`accounts/<hash>/`; read-only migration from the global files).
-- [ ] **D12. Remember completed diary tiers per account (D9 baseline).**
+- [x] **D12. Remember completed diary tiers per account (D9 baseline).**
+  The full reading comes with the session's first game tick.
 
 ### Phase E: finish
 
