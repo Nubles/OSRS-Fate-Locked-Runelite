@@ -86,16 +86,6 @@ public class ExpandedDetectorsTest
     }
 
     @Test
-    public void pestControlRequiresBothSignals()
-    {
-        MinigameCompletionDetector detector = new MinigameCompletionDetector();
-        assertFalse(detector.onMessage("You have won the game!", 1000).isPresent());
-        detector.onPestControlWidget(2000);
-        assertTrue(detector.onMessage("You have won the game!", 3000).isPresent());
-        assertFalse(detector.onMessage("You have completed a farming contract.", 3001).isPresent());
-    }
-
-    @Test
     public void bossV2UsesNamedMappingNotCombatLevel()
     {
         BossKillDetectorV2 detector = new BossKillDetectorV2();

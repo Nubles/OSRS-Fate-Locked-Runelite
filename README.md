@@ -88,7 +88,7 @@ including the single Strict Mode toggle.
   with fail-open safeguards, a status that says when it cannot act, a
   60-second pause, and a bounded local audit log.
 - Local detection of supported skill, quest, diary, collection, clue,
-  boss, raid, pet, minigame, and Slayer observations.
+  boss, raid, pet, and Slayer observations.
 
 ## Roll Inbox ownership and privacy
 

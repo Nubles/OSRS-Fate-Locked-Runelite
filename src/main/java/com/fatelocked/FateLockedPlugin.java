@@ -38,7 +38,6 @@ import com.fatelocked.detectors.SkillLevelDetector;
 import com.fatelocked.detectors.SlayerTaskDetector;
 import com.fatelocked.detectors.DiaryTierReviewDetector;
 import com.fatelocked.detectors.PetDropDetector;
-import com.fatelocked.detectors.MinigameCompletionDetector;
 import com.fatelocked.detectors.BossKillDetectorV2;
 import com.google.inject.Provides;
 import lombok.Getter;
@@ -184,7 +183,6 @@ public class FateLockedPlugin extends Plugin
     private final BossKillDetectorV2 bossKillDetectorV2 = new BossKillDetectorV2();
     private final DiaryTierReviewDetector diaryTierReviewDetector = new DiaryTierReviewDetector();
     private final PetDropDetector petDropDetector = new PetDropDetector();
-    private final MinigameCompletionDetector minigameCompletionDetector = new MinigameCompletionDetector();
     private SlayerTaskDetector slayerTaskDetector;
     /** Configurable hotkey: re-import the bundle from the clipboard. */
     private final HotkeyListener reimportHotkey = new HotkeyListener(() -> config.reimportHotkey())
@@ -668,10 +666,8 @@ public class FateLockedPlugin extends Plugin
     {
         if (ev.getType() != ChatMessageType.GAMEMESSAGE && ev.getType() != ChatMessageType.SPAM) return;
         String raw = ev.getMessage() == null ? "" : ev.getMessage();
-String m = raw.toLowerCase();
+        String m = raw.toLowerCase();
 
-        minigameCompletionDetector.onMessage(Text.removeTags(raw), System.currentTimeMillis())
-            .ifPresent(this::record);
         petDropDetector.detect(Text.removeTags(raw), System.currentTimeMillis())
             .ifPresent(this::record);
         if (slayerTaskDetector != null
@@ -799,7 +795,6 @@ String m = raw.toLowerCase();
     @Subscribe
     public void onWidgetLoaded(WidgetLoaded ev)
     {
-        if (ev.getGroupId() == 408) minigameCompletionDetector.onPestControlWidget(System.currentTimeMillis());
         // Locked-bank warning is independent of the roll-nudge toggle.
         if ((ev.getGroupId() == BANK_GROUP_ID || ev.getGroupId() == DEPOSIT_BOX_GROUP_ID)
             && config.warnLockedBank() && getBundle().banksLocked())
