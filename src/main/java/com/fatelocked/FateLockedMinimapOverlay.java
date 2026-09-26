@@ -2,12 +2,10 @@ package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
-import net.runelite.api.Constants;
 import net.runelite.api.Perspective;
-import net.runelite.api.Player;
 import net.runelite.api.Point;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
@@ -61,17 +59,17 @@ public class FateLockedMinimapOverlay extends Overlay
     public Dimension render(Graphics2D graphics)
     {
         if (!config.drawMinimap()) return null;
-        Player local = client.getLocalPlayer();
-        if (local == null) return null;
-        WorldPoint wp = local.getWorldLocation();
-        if (wp == null) return null;
-
         DecisionService decisions = plugin.decisions();
         if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
-        CanonicalChunk chunk = WorldChunks.of(wp);
-        Color color = TintPolicy.color(TintPolicy.at(decisions, chunk), config);
+        ChunkLocator locator = plugin.chunkLocator();
+        Located here = locator.playerInScene();
+        WorldView view = client.getTopLevelWorldView();
+        if (here == null || view == null) return null;
+        // Drawn where the player stands in the scene; tinted as the rules judge it (B14).
+        CanonicalChunk chunk = here.getScene();
+        Color color = TintPolicy.color(TintPolicy.at(decisions, here.getRules()), config);
 
-        Polygon poly = chunkMinimapPolygon(chunk);
+        Polygon poly = chunkMinimapPolygon(chunk, view);
 
         // A whole 64-tile chunk projects to a polygon much larger than the
         // minimap circle, so clip to the minimap draw area before filling —
@@ -83,7 +81,7 @@ public class FateLockedMinimapOverlay extends Overlay
         // Faint shading for surrounding locked chunks first, beneath the current.
         if (config.shadeNearbyLocked())
         {
-            drawSurroundingLocked(graphics, chunk, decisions);
+            drawSurroundingLocked(graphics, chunk, decisions, locator, view);
         }
 
         if (poly != null)
@@ -104,12 +102,13 @@ public class FateLockedMinimapOverlay extends Overlay
     }
 
     /** Lightly tint locked chunks overlapping the loaded scene around the player. */
-    private void drawSurroundingLocked(Graphics2D graphics, CanonicalChunk current, DecisionService decisions)
+    private void drawSurroundingLocked(Graphics2D graphics, CanonicalChunk current, DecisionService decisions,
+        ChunkLocator locator, WorldView view)
     {
-        int baseX = client.getBaseX();
-        int baseY = client.getBaseY();
-        int cxMin = baseX >> 6, cxMax = (baseX + Constants.SCENE_SIZE - 1) >> 6;
-        int cyMin = baseY >> 6, cyMax = (baseY + Constants.SCENE_SIZE - 1) >> 6;
+        int baseX = view.getBaseX();
+        int baseY = view.getBaseY();
+        int cxMin = baseX >> 6, cxMax = (baseX + view.getSizeX() - 1) >> 6;
+        int cyMin = baseY >> 6, cyMax = (baseY + view.getSizeY() - 1) >> 6;
 
         Color c = config.lockedColor();
         graphics.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(),
@@ -120,8 +119,8 @@ public class FateLockedMinimapOverlay extends Overlay
             {
                 if (cx == current.getCx() && cy == current.getCy()) continue;
                 CanonicalChunk ch = new CanonicalChunk(cx, cy);
-                if (!TintPolicy.isLocked(decisions, ch)) continue;
-                Polygon p = chunkMinimapPolygon(ch);
+                if (!TintPolicy.isLocked(decisions, locator.sceneChunk(ch))) continue;
+                Polygon p = chunkMinimapPolygon(ch, view);
                 if (p != null) graphics.fillPolygon(p);
             }
         }
@@ -148,10 +147,10 @@ public class FateLockedMinimapOverlay extends Overlay
      * are built directly from the scene base so they project even when the
      * corner tile lies outside the loaded scene.
      */
-    private Polygon chunkMinimapPolygon(CanonicalChunk chunk)
+    private Polygon chunkMinimapPolygon(CanonicalChunk chunk, WorldView view)
     {
-        int baseX = client.getBaseX();
-        int baseY = client.getBaseY();
+        int baseX = view.getBaseX();
+        int baseY = view.getBaseY();
 
         int x0 = chunk.getCx() << 6;
         int y0 = chunk.getCy() << 6;

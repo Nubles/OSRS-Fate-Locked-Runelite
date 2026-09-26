@@ -1,6 +1,7 @@
 package com.fatelocked.guardian;
 
 import com.fatelocked.CanonicalChunk;
+import com.fatelocked.ChunkLocator;
 import java.util.Arrays;
 import java.util.Collection;
 import net.runelite.api.Client;
@@ -61,7 +62,7 @@ public class GuardedActionFactoryTravelDestinationIsolationTest
         when(entry.getType()).thenReturn(MenuAction.UNKNOWN);
         when(entry.getItemId()).thenReturn(-1);
 
-        GuardedAction action = factory.from(entry, client);
+        GuardedAction action = factory.from(entry, new ChunkLocator(client));
 
         assertEquals(kind, action.getKind());
         if (destination == null)

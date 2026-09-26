@@ -152,10 +152,10 @@ public class MenuTagTest
         return entry.getTarget();
     }
 
-    private static MenuEntry npcEntry(CanonicalChunk chunk)
+    private MenuEntry npcEntry(CanonicalChunk chunk)
     {
         NPC guard = mock(NPC.class);
-        when(guard.getWorldLocation()).thenReturn(
+        TestWorld.standAt(client, guard,
             new WorldPoint((chunk.getCx() << 6) + 20, (chunk.getCy() << 6) + 20, 0));
         MenuEntry entry = entry("Talk-to", "Guard", MenuAction.NPC_FIRST_OPTION);
         when(entry.getNpc()).thenReturn(guard);

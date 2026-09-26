@@ -143,6 +143,64 @@ public class ChunkLocatorTest
         assertNull(locator.menuTarget(null));
     }
 
+    /** B14: overlays draw where the player stands and tint it as the rules judge it. */
+    @Test
+    public void inTheSceneThePlayerStandsInTheCopyButIsJudgedByTheOriginal()
+    {
+        instance(5, 5, template(400, 400));
+        when(main.getBaseX()).thenReturn(6400);
+        when(main.getBaseY()).thenReturn(6400);
+        standAt(main, 5 * 8 + 3, 5 * 8 + 6);
+
+        Located here = locator.playerInScene();
+
+        assertEquals(new CanonicalChunk(50, 50), here.getRules());
+        assertEquals(new CanonicalChunk((6400 + 43) >> 6, (6400 + 46) >> 6), here.getScene());
+        assertEquals(0, here.getPlane());
+    }
+
+    @Test
+    public void onABoatTheSceneIsTheSeaUnderTheShip()
+    {
+        when(main.getBaseX()).thenReturn(BASE);
+        when(main.getBaseY()).thenReturn(BASE);
+        WorldView deck = deck();
+        WorldEntity ship = mock(WorldEntity.class);
+        when(ship.getWorldView()).thenReturn(deck);
+        when(ship.transformToMainWorld(any(LocalPoint.class)))
+            .thenReturn(new LocalPoint(100 * 128 + 64, 10 * 128 + 64, WorldView.TOPLEVEL));
+        ships(ship);
+        standAt(deck, 2, 2);
+
+        Located here = locator.playerInScene();
+
+        CanonicalChunk sea = new CanonicalChunk((BASE + 100) >> 6, (BASE + 10) >> 6);
+        assertEquals(sea, here.getRules());
+        assertEquals(sea, here.getScene());
+        ships();
+        assertNull("a deck with no ship", locator.playerInScene());
+        when(client.getLocalPlayer()).thenReturn(null);
+        assertNull("nobody logged in", locator.playerInScene());
+    }
+
+    @Test
+    public void aSceneChunkIsJudgedByTheChunkItIsACopyOf()
+    {
+        when(main.getBaseX()).thenReturn(BASE);
+        when(main.getBaseY()).thenReturn(BASE);
+        assertEquals("on the surface, itself", new CanonicalChunk(49, 49), locator.sceneChunk(new CanonicalChunk(49, 49)));
+        assertEquals("partly loaded, judged by what is", new CanonicalChunk(50, 50),
+            locator.sceneChunk(new CanonicalChunk(50, 50)));
+        assertNull("not loaded", locator.sceneChunk(new CanonicalChunk(60, 60)));
+
+        // The scene chunk at 6400,6400 has its centre (scene tile 31) in zone 3,3, a copy of Lumbridge.
+        instance(3, 3, template(400, 400));
+        when(main.getBaseX()).thenReturn(6400);
+        when(main.getBaseY()).thenReturn(6400);
+        assertEquals(new CanonicalChunk(50, 50), locator.sceneChunk(new CanonicalChunk(100, 100)));
+        assertNull("its centre zone has no template", locator.sceneChunk(new CanonicalChunk(101, 100)));
+    }
+
     private void standAt(WorldView view, int sceneX, int sceneY)
     {
         // Read the view's id first: Mockito can't stub while another stub is half-made.

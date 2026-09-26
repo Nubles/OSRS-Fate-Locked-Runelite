@@ -3,7 +3,6 @@ package com.fatelocked;
 import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
@@ -30,6 +29,7 @@ public class FateLockedHudOverlay extends OverlayPanel
     private final Client client;
     private final FateLockedPlugin plugin;
     private final FateLockedConfig config;
+    private final ChunkLocator locator;
 
     // Nearest bank/shop cache — recomputed on chunk change or new decisions.
     private DecisionService cachedDecisions;
@@ -43,6 +43,7 @@ public class FateLockedHudOverlay extends OverlayPanel
         this.client = client;
         this.plugin = plugin;
         this.config = config;
+        this.locator = new ChunkLocator(client);
         setPosition(OverlayPosition.TOP_LEFT);
         setResizable(false);
     }
@@ -115,11 +116,9 @@ public class FateLockedHudOverlay extends OverlayPanel
             }
         }
 
-        Player local = client.getLocalPlayer();
-        WorldPoint wp = local == null ? null : local.getWorldLocation();
-        if (wp != null)
+        CanonicalChunk chunk = locator.player();
+        if (chunk != null)
         {
-            CanonicalChunk chunk = WorldChunks.of(wp);
             DecisionService decisions = plugin.decisions();
             String label = decisions.areaName(chunk);
             HudStatus status = HudStatus.of(decisions.chunk(chunk));

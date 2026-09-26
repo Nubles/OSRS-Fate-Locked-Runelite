@@ -4,6 +4,9 @@ import com.fatelocked.rules.PermissionStatus;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
+import net.runelite.api.Scene;
+import net.runelite.api.WorldView;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.Notifier;
 import net.runelite.client.chat.ChatMessageManager;
@@ -14,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -221,6 +225,59 @@ public class FateLockedChunkEntryTest
         verify(notifier).notify("Entered LOCKED chunk (16, 44)");
     }
 
+    /**
+     * B14: inside an instance the rules judge the chunk it is a copy of. From
+     * Lumbridge Castle the player enters an instance copied from Seers'
+     * Village (LOCKED in vanilla-mid): one alert, none while inside, and an
+     * instance zone with no template changes nothing.
+     */
+    @Test
+    public void anInstanceCopiedFromALockedChunkAlertsOnce() throws Exception
+    {
+        FateLockedBundle mid = playing("Iron Example");
+        CanonicalChunk seers = new CanonicalChunk(42, 54);
+        assertEquals(PermissionStatus.LOCKED, mid.permissionsAt(seers).get().getEntry());
+
+        walk(new CanonicalChunk(50, 50));
+        verify(client, never()).playSoundEffect(LOCKED_SOUND);
+
+        enterInstanceOf(seers, 5, 5);
+        enterInstanceOf(seers, 6, 7);
+        enterInstanceOf(null, 6, 7);
+
+        verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
+        verify(notifier).notify("Entered LOCKED chunk: " + mid.labelAt(seers));
+        List<String> lines = chatLines();
+        assertEquals(2, lines.size());
+        assertTrue(lines.get(1), lines.get(1).contains("(42, 54)") && lines.get(1).contains("⚠ LOCKED"));
+    }
+
+    /**
+     * Stand in an instance whose every zone is a copy of the source chunk's
+     * south-west zone (null: no template anywhere), at scene zone x, y.
+     */
+    private void enterInstanceOf(CanonicalChunk source, int zoneX, int zoneY)
+    {
+        int[][][] templates = new int[4][13][13];
+        for (int[][] plane : templates) for (int[] row : plane) Arrays.fill(row, -1);
+        if (source != null)
+        {
+            // RuneLite's encoding: the source zone in 8-tile units, plane 0, no rotation.
+            int template = ((source.getCx() << 3) << 14) | ((source.getCy() << 3) << 3);
+            for (int[] row : templates[0]) Arrays.fill(row, template);
+        }
+        Scene scene = mock(Scene.class);
+        when(scene.isInstance()).thenReturn(true);
+        when(scene.getInstanceTemplateChunks()).thenReturn(templates);
+        WorldView instance = mock(WorldView.class);
+        when(instance.isTopLevel()).thenReturn(true);
+        when(instance.getScene()).thenReturn(scene);
+        when(player.getWorldView()).thenReturn(instance);
+        when(player.getLocalLocation()).thenReturn(
+            new LocalPoint((zoneX * 8 + 3) * 128 + 64, (zoneY * 8 + 3) * 128 + 64, WorldView.TOPLEVEL));
+        plugin.onGameTick(null);
+    }
+
     /** vanilla-mid, with a character logged in. */
     private FateLockedBundle playing(String name) throws Exception
     {
@@ -256,8 +313,7 @@ public class FateLockedChunkEntryTest
     {
         for (CanonicalChunk chunk : chunks)
         {
-            when(player.getWorldLocation()).thenReturn(
-                new WorldPoint((chunk.getCx() << 6) + 8, (chunk.getCy() << 6) + 8, 0));
+            TestWorld.standAt(client, player, new WorldPoint((chunk.getCx() << 6) + 8, (chunk.getCy() << 6) + 8, 0));
             // The tick event carries nothing the plugin reads.
             plugin.onGameTick(null);
         }

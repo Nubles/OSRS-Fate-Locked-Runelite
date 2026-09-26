@@ -22,8 +22,11 @@ import net.runelite.api.coords.WorldPoint;
  * never a guessed lock. That covers a boat whose ship can't be found, an
  * instance zone with no template, and menu options with no tile, such as
  * Walk here, the minimap and a ship's own options.
+ *
+ * <p>It is the only class that reads where the player or a menu target is
+ * (B14); {@code LocationBoundaryTest} keeps it that way.
  */
-final class ChunkLocator
+public final class ChunkLocator
 {
     /** Instances are copied in 8-tile zones, 13 across. */
     private static final int ZONE_TILES = 8;
@@ -32,27 +35,75 @@ final class ChunkLocator
 
     private final Client client;
 
-    ChunkLocator(Client client)
+    public ChunkLocator(Client client)
     {
         this.client = client;
     }
 
+    Client client()
+    {
+        return client;
+    }
+
     /** The logged-in player's chunk. */
-    CanonicalChunk player()
+    public CanonicalChunk player()
     {
         Player local = client.getLocalPlayer();
         return local == null ? null : actor(local);
     }
 
     /** An actor's chunk: the player, or an NPC. */
-    CanonicalChunk actor(Actor actor)
+    public CanonicalChunk actor(Actor actor)
     {
         if (actor == null) return null;
         return locate(actor.getWorldView(), actor.getLocalLocation());
     }
 
+    /**
+     * Where the player stands, for overlays that draw: their rules chunk,
+     * and the top-level scene chunk and plane under them (the sea under a
+     * boat). Null when nobody is logged in or a boat's ship can't be found.
+     */
+    public Located playerInScene()
+    {
+        Player local = client.getLocalPlayer();
+        if (local == null) return null;
+        WorldView view = local.getWorldView();
+        LocalPoint point = local.getLocalLocation();
+        if (view == null || point == null) return null;
+        if (!view.isTopLevel())
+        {
+            WorldEntity boat = shipOf(view);
+            if (boat == null) return null;
+            point = boat.transformToMainWorld(point);
+            view = client.getTopLevelWorldView();
+            if (point == null || view == null) return null;
+        }
+        int plane = view.getPlane();
+        WorldPoint inScene = WorldPoint.fromLocal(view, point.getX(), point.getY(), plane);
+        return new Located(locate(view, point), WorldChunks.of(inScene), plane);
+    }
+
+    /**
+     * The rules chunk of a top-level scene chunk, judged by its centre (or
+     * the part of it that is loaded): its template chunk inside an instance,
+     * itself elsewhere. Null when it isn't loaded or can't be known.
+     */
+    public CanonicalChunk sceneChunk(CanonicalChunk sceneChunk)
+    {
+        WorldView view = client.getTopLevelWorldView();
+        if (view == null || sceneChunk == null) return null;
+        int x0 = Math.max(sceneChunk.getCx() << 6, view.getBaseX());
+        int y0 = Math.max(sceneChunk.getCy() << 6, view.getBaseY());
+        int x1 = Math.min((sceneChunk.getCx() << 6) + 63, view.getBaseX() + view.getSizeX() - 1);
+        int y1 = Math.min((sceneChunk.getCy() << 6) + 63, view.getBaseY() + view.getSizeY() - 1);
+        if (x0 > x1 || y0 > y1) return null;
+        return locate(view, LocalPoint.fromScene(
+            (x0 + x1) / 2 - view.getBaseX(), (y0 + y1) / 2 - view.getBaseY(), view));
+    }
+
     /** The chunk a menu option points at: its NPC, or its object's or ground item's tile. */
-    CanonicalChunk menuTarget(MenuEntry entry)
+    public CanonicalChunk menuTarget(MenuEntry entry)
     {
         if (entry == null) return null;
         NPC npc = entry.getNpc();
@@ -63,7 +114,7 @@ final class ChunkLocator
     }
 
     /** A scene tile in a world view, as object and ground-item menu entries give it. */
-    CanonicalChunk sceneTile(int worldViewId, int sceneX, int sceneY)
+    public CanonicalChunk sceneTile(int worldViewId, int sceneX, int sceneY)
     {
         WorldView view = client.getWorldView(worldViewId);
         if (view == null

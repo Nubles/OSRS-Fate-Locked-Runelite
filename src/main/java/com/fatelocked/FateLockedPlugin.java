@@ -215,6 +215,8 @@ public class FateLockedPlugin extends Plugin
     private final ChunkPanelViewModelFactory chunkPanelFactory =
         new ChunkPanelViewModelFactory();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
+    /** Where the player and menu targets are, for the client this plugin reads (B14). */
+    private volatile ChunkLocator chunkLocator;
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
     /** Strict Mode acts only on rules confirmed or exported within this window. */
@@ -894,10 +896,8 @@ public class FateLockedPlugin extends Plugin
      */
     private void warnLockedBankIfNeeded()
     {
-        Player local = client.getLocalPlayer();
-        WorldPoint wp = local == null ? null : local.getWorldLocation();
-        if (wp == null) return;
-        CanonicalChunk chunk = WorldChunks.of(wp);
+        CanonicalChunk chunk = chunkLocator().player();
+        if (chunk == null) return;
         DecisionService ruleDecisions = decisions;
         Decision bank = ruleDecisions.bankAt(chunk);
         if (!bank.isLocked() || !ruleDecisions.bankRoll(chunk).isLocked()) return;
@@ -1241,10 +1241,9 @@ public class FateLockedPlugin extends Plugin
         // Once per login, flag if the character doesn't match the bound account.
         checkBoundAccount();
 
-        WorldPoint wp = local.getWorldLocation();
-        if (wp == null) return;
+        CanonicalChunk current = chunkLocator().player();
+        if (current == null) return;
 
-        CanonicalChunk current = WorldChunks.of(wp);
         FateLockedBundle b = getBundle();
         PermissionStatus status = decisions.chunk(current).getStatus();
         String label = decisions.areaName(current);
@@ -1293,13 +1292,7 @@ public class FateLockedPlugin extends Plugin
     {
         // The character may have changed since the last tick.
         refreshDecisions();
-        CanonicalChunk origin = null;
-        Player local = client.getLocalPlayer();
-        if (local != null && local.getWorldLocation() != null)
-        {
-            origin = WorldChunks.of(local.getWorldLocation());
-        }
-        travelGuardianShell.handle(event, client, origin, strictModeReadiness(), decisions);
+        travelGuardianShell.handle(event, client, chunkLocator().player(), strictModeReadiness(), decisions);
     }
 
     private void writeTravelChat(String text)
@@ -1408,7 +1401,7 @@ public class FateLockedPlugin extends Plugin
         if (ruleDecisions.trust() != Trust.TRUSTED) return;
 
         MenuEntry entry = event.getMenuEntry();
-        GuardedAction action = guardedActionFactory.from(entry, client);
+        GuardedAction action = guardedActionFactory.from(entry, chunkLocator());
         if (action.getChunk() == null) return;
         boolean teleport = action.getKind() == GuardedAction.Kind.TELEPORT;
         if (teleport ? !config.tagLockedTeleports() : !config.tagLockedMenus()) return;
@@ -1881,6 +1874,18 @@ public class FateLockedPlugin extends Plugin
         return decisions;
     }
 
+    /** The one reader of where the player and menu targets are (B14). */
+    ChunkLocator chunkLocator()
+    {
+        ChunkLocator current = chunkLocator;
+        if (current == null || current.client() != client)
+        {
+            current = new ChunkLocator(client);
+            chunkLocator = current;
+        }
+        return current;
+    }
+
     /** Recompute the player's current chunk and show everything the active rules mean. */
     private void refreshPanel()
     {
@@ -1895,12 +1900,7 @@ public class FateLockedPlugin extends Plugin
      */
     private RulesEffects effectsOf(FateLockedBundle rules, DecisionService ruleDecisions)
     {
-        CanonicalChunk current = null;
-        Player local = client.getLocalPlayer();
-        if (local != null && local.getWorldLocation() != null)
-        {
-            current = WorldChunks.of(local.getWorldLocation());
-        }
+        CanonicalChunk current = chunkLocator().player();
         return new RulesEffects(
             viewModelFor(ruleDecisions, current),
             overTierGear(ruleDecisions),

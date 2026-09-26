@@ -2,12 +2,10 @@ package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
-import net.runelite.api.Constants;
 import net.runelite.api.Perspective;
-import net.runelite.api.Player;
 import net.runelite.api.Point;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -44,32 +42,32 @@ public class FateLockedSceneOverlay extends Overlay
     public Dimension render(Graphics2D graphics)
     {
         if (!config.drawScene() && !config.highlightLockedBorders() && !config.shadeNearbyLocked()) return null;
-        Player local = client.getLocalPlayer();
-        if (local == null) return null;
-        WorldPoint wp = local.getWorldLocation();
-        if (wp == null) return null;
-
         DecisionService decisions = plugin.decisions();
         if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
-        CanonicalChunk chunk = WorldChunks.of(wp);
-        int plane = wp.getPlane();
+        ChunkLocator locator = plugin.chunkLocator();
+        Located here = locator.playerInScene();
+        WorldView view = client.getTopLevelWorldView();
+        if (here == null || view == null) return null;
+        // Drawn where the player stands in the scene; tinted as the rules judge it (B14).
+        CanonicalChunk chunk = here.getScene();
+        int plane = here.getPlane();
 
         // Light shading for surrounding locked chunks goes first, under the
         // current-chunk tint and borders.
         if (config.shadeNearbyLocked())
         {
-            drawSurroundingLocked(graphics, chunk, plane, decisions);
+            drawSurroundingLocked(graphics, chunk, plane, decisions, locator, view);
         }
 
         if (config.drawScene())
         {
-            drawChunkOutline(graphics, chunk, plane,
-                TintPolicy.color(TintPolicy.at(decisions, chunk), config));
+            drawChunkOutline(graphics, chunk, plane, view,
+                TintPolicy.color(TintPolicy.at(decisions, here.getRules()), config));
         }
 
         if (config.highlightLockedBorders())
         {
-            drawLockedBorders(graphics, chunk, plane, decisions);
+            drawLockedBorders(graphics, chunk, plane, decisions, locator, view);
         }
         return null;
     }
@@ -78,7 +76,8 @@ public class FateLockedSceneOverlay extends Overlay
      * Trace a bright line along any edge of the current chunk that borders a
      * locked chunk — the "danger here" cue right where you'd cross over.
      */
-    private void drawLockedBorders(Graphics2D g, CanonicalChunk chunk, int plane, DecisionService decisions)
+    private void drawLockedBorders(Graphics2D g, CanonicalChunk chunk, int plane, DecisionService decisions,
+        ChunkLocator locator, WorldView view)
     {
         int cx = chunk.getCx();
         int cy = chunk.getCy();
@@ -89,27 +88,29 @@ public class FateLockedSceneOverlay extends Overlay
         g.setStroke(BORDER_STROKE);
         g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 255));
 
-        if (isLocked(decisions, cx + 1, cy)) drawEdge(g, bx + 63, by, bx + 63, by + 63, plane); // east
-        if (isLocked(decisions, cx - 1, cy)) drawEdge(g, bx, by, bx, by + 63, plane);           // west
-        if (isLocked(decisions, cx, cy + 1)) drawEdge(g, bx, by + 63, bx + 63, by + 63, plane); // north
-        if (isLocked(decisions, cx, cy - 1)) drawEdge(g, bx, by, bx + 63, by, plane);           // south
+        if (isLocked(decisions, locator, cx + 1, cy)) drawEdge(g, bx + 63, by, bx + 63, by + 63, plane, view); // east
+        if (isLocked(decisions, locator, cx - 1, cy)) drawEdge(g, bx, by, bx, by + 63, plane, view);           // west
+        if (isLocked(decisions, locator, cx, cy + 1)) drawEdge(g, bx, by + 63, bx + 63, by + 63, plane, view); // north
+        if (isLocked(decisions, locator, cx, cy - 1)) drawEdge(g, bx, by, bx + 63, by, plane, view);           // south
     }
 
-    private static boolean isLocked(DecisionService decisions, int cx, int cy)
+    /** A neighbouring scene chunk, judged by the rules chunk it is a copy of. */
+    private static boolean isLocked(DecisionService decisions, ChunkLocator locator, int cx, int cy)
     {
-        return TintPolicy.isLocked(decisions, new CanonicalChunk(cx, cy));
+        return TintPolicy.isLocked(decisions, locator.sceneChunk(new CanonicalChunk(cx, cy)));
     }
 
     /**
      * Lightly tint every locked chunk overlapping the loaded scene (except the
      * one the player is standing in, which gets the full treatment elsewhere).
      */
-    private void drawSurroundingLocked(Graphics2D g, CanonicalChunk current, int plane, DecisionService decisions)
+    private void drawSurroundingLocked(Graphics2D g, CanonicalChunk current, int plane, DecisionService decisions,
+        ChunkLocator locator, WorldView view)
     {
-        int baseX = client.getBaseX();
-        int baseY = client.getBaseY();
-        int cxMin = baseX >> 6, cxMax = (baseX + Constants.SCENE_SIZE - 1) >> 6;
-        int cyMin = baseY >> 6, cyMax = (baseY + Constants.SCENE_SIZE - 1) >> 6;
+        int baseX = view.getBaseX();
+        int baseY = view.getBaseY();
+        int cxMin = baseX >> 6, cxMax = (baseX + view.getSizeX() - 1) >> 6;
+        int cyMin = baseY >> 6, cyMax = (baseY + view.getSizeY() - 1) >> 6;
 
         Color light = faint(config.lockedColor());
         g.setColor(light);
@@ -119,18 +120,18 @@ public class FateLockedSceneOverlay extends Overlay
             {
                 if (cx == current.getCx() && cy == current.getCy()) continue;
                 CanonicalChunk c = new CanonicalChunk(cx, cy);
-                if (!TintPolicy.isLocked(decisions, c)) continue;
-                Polygon p = chunkScenePolyClamped(c, plane);
+                if (!TintPolicy.isLocked(decisions, locator.sceneChunk(c))) continue;
+                Polygon p = chunkScenePolyClamped(c, plane, view);
                 if (p != null) g.fillPolygon(p);
             }
         }
     }
 
     /** Chunk outline polygon clipped to the loaded scene, so partly-visible chunks still draw. */
-    private Polygon chunkScenePolyClamped(CanonicalChunk chunk, int plane)
+    private Polygon chunkScenePolyClamped(CanonicalChunk chunk, int plane, WorldView view)
     {
-        int minX = client.getBaseX(), minY = client.getBaseY();
-        int maxX = minX + Constants.SCENE_SIZE - 1, maxY = minY + Constants.SCENE_SIZE - 1;
+        int minX = view.getBaseX(), minY = view.getBaseY();
+        int maxX = minX + view.getSizeX() - 1, maxY = minY + view.getSizeY() - 1;
         int x0 = Math.max(chunk.getCx() << 6, minX);
         int y0 = Math.max(chunk.getCy() << 6, minY);
         int x1 = Math.min((chunk.getCx() << 6) + 63, maxX);
@@ -141,7 +142,7 @@ public class FateLockedSceneOverlay extends Overlay
         Polygon p = new Polygon();
         for (int[] c : cs)
         {
-            LocalPoint lp = LocalPoint.fromWorld(client, c[0], c[1]);
+            LocalPoint lp = LocalPoint.fromWorld(view, c[0], c[1]);
             if (lp == null) return null;
             Point cv = Perspective.localToCanvas(client, lp, plane);
             if (cv == null) return null;
@@ -156,10 +157,10 @@ public class FateLockedSceneOverlay extends Overlay
         return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(20, Math.min(c.getAlpha(), 110) / 3));
     }
 
-    private void drawEdge(Graphics2D g, int x0, int y0, int x1, int y1, int plane)
+    private void drawEdge(Graphics2D g, int x0, int y0, int x1, int y1, int plane, WorldView view)
     {
-        LocalPoint a = LocalPoint.fromWorld(client, x0, y0);
-        LocalPoint b = LocalPoint.fromWorld(client, x1, y1);
+        LocalPoint a = LocalPoint.fromWorld(view, x0, y0);
+        LocalPoint b = LocalPoint.fromWorld(view, x1, y1);
         if (a == null || b == null) return; // edge off-scene
         Point ca = Perspective.localToCanvas(client, a, plane);
         Point cb = Perspective.localToCanvas(client, b, plane);
@@ -167,7 +168,7 @@ public class FateLockedSceneOverlay extends Overlay
         g.drawLine(ca.getX(), ca.getY(), cb.getX(), cb.getY());
     }
 
-    private void drawChunkOutline(Graphics2D g, CanonicalChunk chunk, int plane, Color color)
+    private void drawChunkOutline(Graphics2D g, CanonicalChunk chunk, int plane, WorldView view, Color color)
     {
         int baseX = chunk.getCx() << 6;
         int baseY = chunk.getCy() << 6;
@@ -175,10 +176,10 @@ public class FateLockedSceneOverlay extends Overlay
         // Build a polygon around the chunk's perimeter — draw the four corner
         // tiles and let Perspective do the projection.
         LocalPoint[] corners = new LocalPoint[] {
-            LocalPoint.fromWorld(client, baseX, baseY),
-            LocalPoint.fromWorld(client, baseX + 63, baseY),
-            LocalPoint.fromWorld(client, baseX + 63, baseY + 63),
-            LocalPoint.fromWorld(client, baseX, baseY + 63)
+            LocalPoint.fromWorld(view, baseX, baseY),
+            LocalPoint.fromWorld(view, baseX + 63, baseY),
+            LocalPoint.fromWorld(view, baseX + 63, baseY + 63),
+            LocalPoint.fromWorld(view, baseX, baseY + 63)
         };
 
         Polygon p = new Polygon();

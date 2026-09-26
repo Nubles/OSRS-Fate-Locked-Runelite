@@ -151,8 +151,7 @@ public class BankWarningTest
     private List<String> openBankAt(CanonicalChunk chunk, int group)
     {
         clearInvocations(chat);
-        when(player.getWorldLocation()).thenReturn(
-            new WorldPoint((chunk.getCx() << 6) + 30, (chunk.getCy() << 6) + 30, 0));
+        TestWorld.standAt(client, player, new WorldPoint((chunk.getCx() << 6) + 30, (chunk.getCy() << 6) + 30, 0));
         WidgetLoaded loaded = new WidgetLoaded();
         loaded.setGroupId(group);
         plugin.onWidgetLoaded(loaded);

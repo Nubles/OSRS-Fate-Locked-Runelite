@@ -1,5 +1,6 @@
 package com.fatelocked.guardian;
 
+import com.fatelocked.ChunkLocator;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
@@ -16,6 +17,7 @@ public class GuardedActionFactoryTest
 {
     private final GuardedActionFactory factory = new GuardedActionFactory();
     private final Client client = mock(Client.class);
+    private final ChunkLocator locator = new ChunkLocator(client);
 
     @Test
     public void normalizesNpcAndBankActors()
@@ -25,13 +27,13 @@ public class GuardedActionFactoryTest
         MenuEntry attack = entry("Attack", "<col=ffff00>Goblin</col>");
         when(attack.getNpc()).thenReturn(npc);
         assertEquals(GuardedAction.Kind.NPC,
-            factory.from(attack, client).getKind());
-        assertEquals("goblin", factory.from(attack, client).getTarget());
+            factory.from(attack, locator).getKind());
+        assertEquals("goblin", factory.from(attack, locator).getTarget());
 
         MenuEntry bank = entry("Bank", "Banker");
         when(bank.getNpc()).thenReturn(npc);
         assertEquals(GuardedAction.Kind.BANK,
-            factory.from(bank, client).getKind());
+            factory.from(bank, locator).getKind());
     }
 
     @Test
@@ -44,28 +46,28 @@ public class GuardedActionFactoryTest
         when(walk.getParam0()).thenReturn(10);
         when(walk.getParam1()).thenReturn(20);
         assertEquals(GuardedAction.Kind.UNKNOWN,
-            factory.from(walk, client).getKind());
-        assertNull(factory.from(walk, client).getChunk());
+            factory.from(walk, locator).getKind());
+        assertNull(factory.from(walk, locator).getChunk());
 
         MenuEntry teleport = entry("Teleport", "Falador");
         assertEquals(GuardedAction.Kind.TELEPORT,
-            factory.from(teleport, client).getKind());
+            factory.from(teleport, locator).getKind());
 
         MenuEntry wield = entry("Wield", "Abyssal whip");
         when(wield.getItemId()).thenReturn(4151);
         assertEquals(GuardedAction.Kind.EQUIPMENT,
-            factory.from(wield, client).getKind());
+            factory.from(wield, locator).getKind());
         assertEquals(Integer.valueOf(4151),
-            factory.from(wield, client).getItemId());
+            factory.from(wield, locator).getItemId());
     }
 
     @Test
     public void examineAndUnrelatedWidgetsStayUnknown()
     {
         assertEquals(GuardedAction.Kind.UNKNOWN,
-            factory.from(entry("Examine", "Goblin"), client).getKind());
+            factory.from(entry("Examine", "Goblin"), locator).getKind());
         assertEquals(GuardedAction.Kind.UNKNOWN,
-            factory.from(entry("Continue", ""), client).getKind());
+            factory.from(entry("Continue", ""), locator).getKind());
     }
 
     @Test
@@ -77,7 +79,7 @@ public class GuardedActionFactoryTest
         for (String transport : transports)
         {
             assertEquals(GuardedAction.Kind.UNKNOWN,
-                factory.from(entry("Travel via " + transport, "Falador"), client).getKind());
+                factory.from(entry("Travel via " + transport, "Falador"), locator).getKind());
         }
     }
 
@@ -85,7 +87,7 @@ public class GuardedActionFactoryTest
     public void minigameTeleportRetainsLegacyTeleportClassification()
     {
         assertEquals(GuardedAction.Kind.TELEPORT,
-            factory.from(entry("Travel via minigame teleport", "Falador"), client).getKind());
+            factory.from(entry("Travel via minigame teleport", "Falador"), locator).getKind());
     }
 
     private static MenuEntry entry(String option, String target)

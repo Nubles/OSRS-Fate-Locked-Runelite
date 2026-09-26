@@ -4,8 +4,6 @@ import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
 import net.runelite.api.Client;
-import net.runelite.api.Player;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
@@ -46,13 +44,10 @@ public class FateLockedContentOverlay extends OverlayPanel
     public Dimension render(Graphics2D graphics)
     {
         if (!config.showChunkContentBox()) return null;
-        Player local = client.getLocalPlayer();
-        WorldPoint point = local == null ? null : local.getWorldLocation();
-        if (point == null) return null;
-
         DecisionService decisions = plugin.decisions();
         if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to list
-        CanonicalChunk chunk = WorldChunks.of(point);
+        CanonicalChunk chunk = plugin.chunkLocator().player();
+        if (chunk == null) return null;
         ChunkPanelViewModel view = plugin.viewModelFor(decisions, chunk);
         if (view == null) return null;
 

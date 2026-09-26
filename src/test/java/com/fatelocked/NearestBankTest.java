@@ -106,13 +106,13 @@ public class NearestBankTest
         FateLockedHudOverlay hud = new FateLockedHudOverlay(client, plugin, config);
         hud.setClearChildren(false);
 
-        org.mockito.Mockito.when(player.getWorldLocation()).thenReturn(new net.runelite.api.coords.WorldPoint(48 * 64 + 5, 50 * 64 + 5, 0));
+        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(48 * 64 + 5, 50 * 64 + 5, 0));
         Map<String, String> atDraynor = HudStatusTest.drawn(hud);
         assertEquals("here ✓", atDraynor.get("Bank"));
         assertEquals("none unlocked", atDraynor.get("Shop"));
         hud.getPanelComponent().getChildren().clear();
 
-        org.mockito.Mockito.when(player.getWorldLocation()).thenReturn(new net.runelite.api.coords.WorldPoint(46 * 64 + 5, 50 * 64 + 5, 0));
+        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(46 * 64 + 5, 50 * 64 + 5, 0));
         assertEquals("Draynor Vill… · 2 E", HudStatusTest.drawn(hud).get("Bank"));
         hud.getPanelComponent().getChildren().clear();
 
@@ -122,7 +122,7 @@ public class NearestBankTest
         FateLockedBundle lockedRules = FateLockedBundle.loadFromJson(GSON, locked.toString());
         org.mockito.Mockito.when(plugin.decisions()).thenReturn(
             DecisionService.create(RulesSnapshot.of(lockedRules), "iron example", "iron example"));
-        org.mockito.Mockito.when(player.getWorldLocation()).thenReturn(new net.runelite.api.coords.WorldPoint(48 * 64 + 5, 50 * 64 + 5, 0));
+        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(48 * 64 + 5, 50 * 64 + 5, 0));
         assertEquals("Lumbridge · 2 E", HudStatusTest.drawn(hud).get("Bank"));
     }
 

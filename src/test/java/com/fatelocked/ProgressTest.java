@@ -76,7 +76,7 @@ public class ProgressTest
         Client client = mock(Client.class);
         Player player = mock(Player.class);
         when(player.getName()).thenReturn("Iron Example");
-        when(player.getWorldLocation()).thenReturn(new WorldPoint(3200, 3200, 0));
+        TestWorld.standAt(client, player, new WorldPoint(3200, 3200, 0));
         when(client.getLocalPlayer()).thenReturn(player);
         FateLockedHudOverlay hud = new FateLockedHudOverlay(client, plugin, config);
         hud.setClearChildren(false);

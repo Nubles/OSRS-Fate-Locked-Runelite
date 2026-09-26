@@ -105,8 +105,7 @@ public class HudStatusTest
         Client client = mock(Client.class);
         Player player = mock(Player.class);
         when(player.getName()).thenReturn("Someone Else");
-        when(player.getWorldLocation()).thenReturn(
-            new WorldPoint((SEERS.getCx() << 6) + 10, (SEERS.getCy() << 6) + 10, 0));
+        TestWorld.standAt(client, player, new WorldPoint((SEERS.getCx() << 6) + 10, (SEERS.getCy() << 6) + 10, 0));
         when(client.getLocalPlayer()).thenReturn(player);
         FateLockedHudOverlay hud = new FateLockedHudOverlay(client, plugin, config);
         hud.setClearChildren(false);

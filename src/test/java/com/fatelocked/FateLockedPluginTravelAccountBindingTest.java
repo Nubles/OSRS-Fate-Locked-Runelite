@@ -164,8 +164,7 @@ public class FateLockedPluginTravelAccountBindingTest
                 Player player = mock(Player.class);
                 when(client.getLocalPlayer()).thenReturn(player);
                 when(player.getName()).thenReturn(playerName);
-                when(player.getWorldLocation()).thenReturn(
-                    new WorldPoint(49 << 6, 50 << 6, 0));
+                TestWorld.standAt(client, player, new WorldPoint(49 << 6, 50 << 6, 0));
             }
 
             TravelAvailability availability = mock(TravelAvailability.class);

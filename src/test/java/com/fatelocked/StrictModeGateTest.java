@@ -171,7 +171,7 @@ public class StrictModeGateTest
             {
                 Player player = mock(Player.class);
                 when(player.getName()).thenReturn(playing == Playing.OWNER ? "Nubles" : "Zezima");
-                when(player.getWorldLocation()).thenReturn(new WorldPoint(49 << 6, 50 << 6, 0));
+                TestWorld.standAt(client, player, new WorldPoint(49 << 6, 50 << 6, 0));
                 when(client.getLocalPlayer()).thenReturn(player);
             }
             set("client", client);
