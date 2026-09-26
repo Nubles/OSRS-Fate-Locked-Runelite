@@ -39,8 +39,8 @@ public class ProgressTest
                 bundle.getUnlockedChunks(), bundle.getTotalChunks()), progress);
         }
         Progress mid = trusted(golden("vanilla-mid")).progress();
-        assertEquals(13, mid.getUnlockedAreas());
-        assertEquals(177, mid.getTotalAreas());
+        assertEquals(13, mid.getAreasUnlocked());
+        assertEquals(177, mid.getAreasTotal());
     }
 
     @Test
@@ -52,8 +52,8 @@ public class ProgressTest
 
         assertEquals("13/177 · " + percent, ProgressText.hudLine(progress));
         assertEquals(percent, ProgressText.infoBoxText(progress));
-        assertEquals("Unlock progress: 13/177 areas · " + progress.getUnlockedChunks() + "/"
-            + progress.getTotalChunks() + " chunks", ProgressText.infoBoxTooltip(progress));
+        assertEquals("Unlock progress: 13/177 areas · " + progress.getChunksUnlocked() + "/"
+            + progress.getChunksTotal() + " chunks", ProgressText.infoBoxTooltip(progress));
 
         DecisionService other = DecisionService.create(RulesSnapshot.of(mid), "iron example", "someone else");
         assertNull(other.progress());

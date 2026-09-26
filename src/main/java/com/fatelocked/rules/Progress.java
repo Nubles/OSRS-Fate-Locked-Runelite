@@ -9,14 +9,14 @@ import lombok.Value;
 @Value
 public class Progress
 {
-    int unlockedAreas;
-    int totalAreas;
-    int unlockedChunks;
-    int totalChunks;
+    int areasUnlocked;
+    int areasTotal;
+    int chunksUnlocked;
+    int chunksTotal;
 
     /** Percent of chunks unlocked, rounded; -1 when there are none. */
     public int percent()
     {
-        return totalChunks <= 0 ? -1 : (int) Math.round(100.0 * unlockedChunks / totalChunks);
+        return chunksTotal <= 0 ? -1 : (int) Math.round(100.0 * chunksUnlocked / chunksTotal);
     }
 }
