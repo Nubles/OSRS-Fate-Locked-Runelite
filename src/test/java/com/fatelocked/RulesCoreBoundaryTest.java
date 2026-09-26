@@ -52,6 +52,8 @@ public class RulesCoreBoundaryTest
         }
         sources.add(MAIN.resolve("FateLockedBundle.java"));
         sources.add(MAIN.resolve("CanonicalChunk.java"));
+        // Travel matching reads these facts, not the menu entry (A9).
+        sources.add(MAIN.resolve("MenuFacts.java"));
         return sources;
     }
 }
