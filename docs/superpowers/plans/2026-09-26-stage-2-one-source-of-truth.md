@@ -223,51 +223,77 @@ players will see.
   *Done as* `d30b902`, with `StrictModeGoldenTest` and
   `rules/DecisionServiceTest` (FateRuleEngineTest's cases). The evaluator
   counts only the tracker's chunk decisions; a click refreshes the service.
-- [ ] **B5. HUD "Here" and "Status"** (visible: NOT_READY, wrong character,
+- [x] **B5. HUD "Here" and "Status"** (visible: NOT_READY, wrong character,
   ocean). `HudStatusTest`.
-- [ ] **B6. Chunk chat, locked alerts and the warnings count.**
+  *Done as* `9f014d5`: a pure `HudStatus`; "Not ready", "Wrong account" and
+  the tracker's locks show, and "Here" keeps the area name.
+- [x] **B6. Chunk chat, locked alerts and the warnings count.**
   `FateLockedChunkEntryTest` and a golden walk from Lumbridge to Falador; a
   wrong character is silent and NOT_READY never alerts.
-- [ ] **B7. Scene and minimap tints** through a pure `TintPolicy`.
+  *Done as* `90050ed`: another character is silent; chunks only the tracker
+  maps are announced by coordinates.
+- [x] **B7. Scene and minimap tints** through a pure `TintPolicy`.
   `TintPolicyTest` over the golden entries.
-- [ ] **B8. World map tint, tooltip and frontier** (land only, as the web
+  *Done as* `be1b8ce`: a pure `TintPolicy`; the overlays tint through it.
+- [x] **B8. World map tint, tooltip and frontier** (land only, as the web
   map). Golden frontier and `WorldMapTooltipTest`.
-- [ ] **B9. World map pins.** `LockedAreaPinsTest`: the pins are the areas
+  *Done as* `41dda69`: a pure `WorldMapChunks` over `mappedChunks` and
+  `isFrontier`; the golden frontier matches exactly.
+- [x] **B9. World map pins.** `LockedAreaPinsTest`: the pins are the areas
   the tracker says are locked.
-- [ ] **B10. Progress** in the HUD and the infobox, with today's counts as
+  *Done as* `6da5839`: the pins are placed again whenever the decision
+  service changes (a login, another character).
+- [x] **B10. Progress** in the HUD and the infobox, with today's counts as
   the fallback. `ProgressTest` (vanilla-mid stays 13/177 until E5).
-- [ ] **B11. Slayer** through `DecisionService.slayerTask`: master keys when
+  *Done as* `2fc13d7`: `Progress` and a shared `ProgressText`; hidden on
+  another character.
+- [x] **B11. Slayer** through `DecisionService.slayerTask`: master keys when
   the varbit value is known, Konar's " in <place>" suffix kept.
   `SlayerDecisionTest` and `SlayerChatTest`.
-- [ ] **B12. Over-tier gear** from `itemRules` and `unlocks.equipment`.
+  *Done as* `66e80d1`: `SlayerAssignment` keeps Konar's place; a known
+  master's own list, or a named place, decides alone. A new account forgets
+  the task.
+- [x] **B12. Over-tier gear** from `itemRules` and `unlocks.equipment`.
   `GearDecisionTest`: every `itemRules` id in vanilla-mid agrees with
   today's `itemTiers` answer.
-- [ ] **B13. Nearest bank and shop** from the BANKS and SHOPS rows (R5, part
+  *Done as* `57f7848`: `ItemTier`, with older exports rated through
+  `LegacyRules`; cb6301a fixed the startup test it broke.
+- [x] **B13. Nearest bank and shop** from the BANKS and SHOPS rows (R5, part
   one). `NearestBankTest`: all 127 banks are candidates, the 19 the poi list
   misses are found, and an unusable bank is never chosen.
-- [ ] **B14. `ChunkLocator` everywhere:** player, menu targets, bank
+  *Done as* `9eeaa7a`: every BANKS and SHOPS row is a candidate, usable only
+  when ALLOWED; shops now need their type rolled, as the tracker says.
+- [x] **B14. `ChunkLocator` everywhere:** player, menu targets, bank
   warning, the Strict Mode origin and the overlays. Retires the deprecated
   `WorldPoint.fromScene(Client…)`, `client.getPlane()` and
   `getBaseX/Y` calls. A plugin test walks into a mocked instance whose
   template is LOCKED and alerts once; a source test forbids those calls and
   raw `getWorldLocation()` outside `ChunkLocator`.
-- [ ] **B15. Strict Mode presentation (G10).** A pure `BlockNotice` and
+  *Done as* `a6ca51a`: `Located` for the overlays' geometry,
+  `LocationBoundaryTest`, and `TestWorld` for tests.
+- [x] **B15. Strict Mode presentation (G10).** A pure `BlockNotice` and
   `EnforcementPresenter`: the label from the rules in its own case with no
   "(locked)"; the banner reads "Strict Mode blocked Varrock Teleport" with
   a "Pause Strict Mode for 60s" button; the chat line names Strict Mode and
   how to pause. The notice is staged before the consume, and a presenter
   failure means no consume. `EnforcementPresenterTest` and coordinator
   tests.
-- [ ] **B16. Strict Mode status everywhere (G10).** A pure
+  *Done as* `ac34985`: labels keep the game's case; the notice is staged
+  before the consume.
+- [x] **B16. Strict Mode status everywhere (G10).** A pure
   `StrictModeStatusView` feeds the sidebar row and a new HUD line ("Strict:
   Active", "Paused · 42s", "Inactive"; hidden when off). An optional pause
   hotkey, unset by default. `StrictModeStatusViewTest`, a HUD render test
   and a hotkey test.
-- [ ] **B17. No legacy-engine callers remain.** `DecisionBoundaryTest`: no
+  *Done as* `b2eb078`: the view is worked out once per tick for both; the
+  hotkey is `pauseStrictModeHotkey`.
+- [x] **B17. No legacy-engine callers remain.** `DecisionBoundaryTest`: no
   production class outside `LegacyRules` and `RulesSnapshot` calls
   `lockStateAt`, `isUnlocked`, `isFrontierChunk`, `monsterReach`,
   `nearestUsable*`, `isBankUnlocked`, `getItemTiers`, `labelAt` or the
   progress getters.
+  *Done as* `3013d53`: `Progress` fields renamed so the scan can tell them
+  from the bundle's getters.
 
 ### Phase C: web, additive bundle fields (ships before the plugin)
 
