@@ -314,9 +314,6 @@ public class FateLockedPlugin extends Plugin
     /** The client's own broadcast on a new Collection Log entry: "New item added to your collection log: X". */
     private static final Pattern COLLECTION_LOG_ITEM =
         Pattern.compile("new item added to your collection log:\\s*(.+)", Pattern.CASE_INSENSITIVE);
-    /** CA completion broadcast: the task name follows "combat task:". */
-    private static final Pattern COMBAT_TASK =
-        Pattern.compile("combat task:\\s*(.+?)\\.?$", Pattern.CASE_INSENSITIVE);
     /** Current slayer task monster name (raw), or null. */
     private String slayerTask;
     /** The locked slayer task to show on the HUD, or null. */

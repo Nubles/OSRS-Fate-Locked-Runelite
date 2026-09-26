@@ -87,14 +87,14 @@ including the single Strict Mode toggle.
 - Strict Mode, which blocks only exactly matched travel into locked areas,
   with fail-open safeguards, a status that says when it cannot act, a
   60-second pause, and a bounded local audit log.
-- Local detection of supported skill, quest, diary, collection, clue,
-  boss, raid, pet, and Slayer observations.
+- Local detection of supported skill, quest, diary, combat achievement,
+  collection, clue, boss, raid, pet, and Slayer observations.
 
 ## Roll Inbox ownership and privacy
 
-The Roll Inbox section shows the newest 250 unique observations saved in
-RuneLite's local Fate Locked data directory. Ambiguous observations are
-counted under **Needs review**. Detection never rolls and never changes the
+The Roll Inbox section counts the observations saved in RuneLite's local
+Fate Locked data directory, which keeps the newest 250. Ambiguous
+observations are counted under **Needs review**. Detection never rolls and never changes the
 tracker; the player still reviews the result and presses Roll in the web app.
 
 **Local only — RuneLite does not upload gameplay data.**
