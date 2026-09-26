@@ -21,6 +21,9 @@ public final class RulesSnapshot
     private final LegacyRules legacy;
     private final Set<CanonicalChunk> mapped;
     private final Progress progress;
+    /** The tracker's chunks with a BANK row, and with SHOPS rows. */
+    private final Set<CanonicalChunk> bankChunks;
+    private final Set<CanonicalChunk> shopChunks;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
@@ -29,6 +32,31 @@ public final class RulesSnapshot
         this.mapped = Collections.unmodifiableSet(mapped(bundle));
         this.progress = new Progress(bundle.getUnlockedAreas(), bundle.getTotalAreas(),
             bundle.getUnlockedChunks(), bundle.getTotalChunks());
+        this.bankChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "BANKS", "BANK"));
+        this.shopChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "SHOPS", null));
+    }
+
+    /** The mapped chunks with a row in a category (of one target kind, when given). */
+    private static Set<CanonicalChunk> withRows(
+        FateLockedBundle bundle, Set<CanonicalChunk> mapped, String category, String targetKind)
+    {
+        Set<CanonicalChunk> chunks = new LinkedHashSet<>();
+        if (bundle.isLegacyRules()) return chunks;
+        for (CanonicalChunk chunk : mapped)
+        {
+            ChunkPermissionSnapshot snapshot = bundle.permissionsAt(chunk).orElse(null);
+            List<ChunkPermissionRow> rows = snapshot == null ? null : snapshot.getCategories().get(category);
+            if (rows == null) continue;
+            for (ChunkPermissionRow row : rows)
+            {
+                if (targetKind == null || targetKind.equalsIgnoreCase(row.getTargetKind()))
+                {
+                    chunks.add(chunk);
+                    break;
+                }
+            }
+        }
+        return chunks;
     }
 
     /** The tracker's chunk keys ("cx,cy"), or an older export's area chunks. */
@@ -86,6 +114,18 @@ public final class RulesSnapshot
     LegacyRules legacy()
     {
         return legacy;
+    }
+
+    /** The tracker's chunks with a bank, fixed when the rules load (all its banks, R5). */
+    Set<CanonicalChunk> bankChunks()
+    {
+        return bankChunks;
+    }
+
+    /** The tracker's chunks with a shop, fixed when the rules load. */
+    Set<CanonicalChunk> shopChunks()
+    {
+        return shopChunks;
     }
 
     /** Today's unlock counts from the rules' area lists, fixed when they load. */

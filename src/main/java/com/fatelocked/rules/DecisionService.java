@@ -285,6 +285,68 @@ public final class DecisionService
             : new Decision(PermissionStatus.LOCKED, null, "Not rolled under Banks", Decision.Source.BANK_ROLL);
     }
 
+    /**
+     * The nearest bank this character can use (B13, R5): every chunk the
+     * tracker lists a bank in, where its answer is ALLOWED; for an older
+     * export, its points of interest as before. Distance is in chunks (the
+     * longer axis); ties go to the smaller cx, then cy. Null when none is
+     * usable or the rules don't apply.
+     */
+    public FateLockedBundle.Nearest nearestBank(CanonicalChunk from)
+    {
+        if (trust != Trust.TRUSTED || from == null) return null;
+        if (rules.isLegacy()) return rules.legacy().nearestBank(from);
+        return nearest(from, rules.bankChunks(), "BANKS");
+    }
+
+    /** The nearest shop this character can use: a SHOPS row the tracker allows. */
+    public FateLockedBundle.Nearest nearestShop(CanonicalChunk from)
+    {
+        if (trust != Trust.TRUSTED || from == null) return null;
+        if (rules.isLegacy()) return rules.legacy().nearestShop(from);
+        return nearest(from, rules.shopChunks(), "SHOPS");
+    }
+
+    /** Whether the rules know where banks or shops are, for the HUD's nearest lines. */
+    public boolean hasNearestData()
+    {
+        if (trust != Trust.TRUSTED) return false;
+        if (rules.isLegacy()) return rules.legacy().hasNearestData();
+        return !rules.bankChunks().isEmpty() || !rules.shopChunks().isEmpty();
+    }
+
+    private FateLockedBundle.Nearest nearest(CanonicalChunk from, Set<CanonicalChunk> candidates, String category)
+    {
+        CanonicalChunk best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (CanonicalChunk chunk : candidates)
+        {
+            int distance = Math.max(Math.abs(chunk.getCx() - from.getCx()), Math.abs(chunk.getCy() - from.getCy()));
+            boolean closer = distance < bestDistance || (distance == bestDistance
+                && (chunk.getCx() < best.getCx() || (chunk.getCx() == best.getCx() && chunk.getCy() < best.getCy())));
+            if (closer && usable(chunk, category))
+            {
+                best = chunk;
+                bestDistance = distance;
+            }
+        }
+        return best == null ? null : new FateLockedBundle.Nearest(best, bestDistance);
+    }
+
+    /** Whether any row of a category in a chunk is ALLOWED; a locked chunk locks them all. */
+    private boolean usable(CanonicalChunk chunk, String category)
+    {
+        ChunkPermissionSnapshot snapshot = snapshotAt(chunk).orElse(null);
+        if (snapshot == null || snapshot.getEntry() == PermissionStatus.LOCKED) return false;
+        List<ChunkPermissionRow> rows = snapshot.getCategories().get(category);
+        if (rows == null) return false;
+        for (ChunkPermissionRow row : rows)
+        {
+            if (row.getStatus() == PermissionStatus.ALLOWED) return true;
+        }
+        return false;
+    }
+
     /** A mobility unlock, such as Fairy Rings, by its tracker name. */
     public Decision mobility(String unlockId)
     {

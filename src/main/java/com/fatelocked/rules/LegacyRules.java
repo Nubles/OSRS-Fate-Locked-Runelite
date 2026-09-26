@@ -44,6 +44,23 @@ final class LegacyRules
         return new ItemTier(wornSlot, tier, state.getEquipment().getOrDefault(wornSlot, 0));
     }
 
+    /** An older export's nearest usable bank, from its points of interest. */
+    FateLockedBundle.Nearest nearestBank(CanonicalChunk from)
+    {
+        return bundle.nearestUsableBank(from);
+    }
+
+    /** An older export's nearest shop in an unlocked area. */
+    FateLockedBundle.Nearest nearestShop(CanonicalChunk from)
+    {
+        return bundle.nearestUsableShop(from);
+    }
+
+    boolean hasNearestData()
+    {
+        return bundle.hasNearestData();
+    }
+
     /** The bank at a chunk: only bank-locked runs lock one, and only until it is rolled. */
     Decision bankAt(CanonicalChunk chunk)
     {

@@ -31,8 +31,8 @@ public class FateLockedHudOverlay extends OverlayPanel
     private final FateLockedPlugin plugin;
     private final FateLockedConfig config;
 
-    // Nearest bank/shop cache — recomputed on chunk change or bundle reload.
-    private FateLockedBundle cachedBundle;
+    // Nearest bank/shop cache — recomputed on chunk change or new decisions.
+    private DecisionService cachedDecisions;
     private CanonicalChunk cachedChunk;
     private FateLockedBundle.Nearest cachedBank;
     private FateLockedBundle.Nearest cachedShop;
@@ -135,19 +135,19 @@ public class FateLockedHudOverlay extends OverlayPanel
                 .rightColor(status.getColor())
                 .build());
 
-            if (config.showNearest() && bundle.hasNearestData())
+            if (config.showNearest() && decisions.hasNearestData())
             {
-                // Recompute only when the player crosses a chunk boundary or a
-                // new bundle is imported — render() runs per frame.
-                if (bundle != cachedBundle || !chunk.equals(cachedChunk))
+                // Recompute only when the player crosses a chunk boundary or the
+                // rules or character change — render() runs per frame.
+                if (decisions != cachedDecisions || !chunk.equals(cachedChunk))
                 {
-                    cachedBundle = bundle;
+                    cachedDecisions = decisions;
                     cachedChunk = chunk;
-                    cachedBank = bundle.nearestUsableBank(chunk);
-                    cachedShop = bundle.nearestUsableShop(chunk);
+                    cachedBank = decisions.nearestBank(chunk);
+                    cachedShop = decisions.nearestShop(chunk);
                 }
-                addNearestLine("Bank", cachedBank, chunk, bundle);
-                addNearestLine("Shop", cachedShop, chunk, bundle);
+                addNearestLine("Bank", cachedBank, chunk, decisions);
+                addNearestLine("Shop", cachedShop, chunk, decisions);
             }
         }
 
@@ -188,7 +188,7 @@ public class FateLockedHudOverlay extends OverlayPanel
 
     /** One "Bank:" / "Shop:" line: "here ✓", "<Area> · <dist> <dir>", or "none unlocked". */
     private void addNearestLine(String label, FateLockedBundle.Nearest near,
-                                CanonicalChunk from, FateLockedBundle bundle)
+                                CanonicalChunk from, DecisionService decisions)
     {
         if (near == null)
         {
@@ -208,7 +208,7 @@ public class FateLockedHudOverlay extends OverlayPanel
                 .build());
             return;
         }
-        String area = bundle.labelAt(near.getChunk());
+        String area = decisions.areaName(near.getChunk());
         String name = area == null
             ? "(" + near.getChunk().getCx() + ", " + near.getChunk().getCy() + ")"
             : area.split(" · ")[0];
