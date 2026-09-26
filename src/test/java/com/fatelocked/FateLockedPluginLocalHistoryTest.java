@@ -8,6 +8,7 @@ import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.WorldType;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
@@ -123,8 +124,9 @@ public class FateLockedPluginLocalHistoryTest
         Player main = mock(Player.class);
         when(main.getName()).thenReturn("Zezima");
         when(harness.client.getLocalPlayer()).thenReturn(main);
+        useDiaryMemory(harness);
+        readDiaryTiers(harness);
 
-        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 0));
         harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
 
         assertEquals(0, harness.history.events().size());
@@ -143,14 +145,72 @@ public class FateLockedPluginLocalHistoryTest
     public void aFinishedDiaryTierIsRecordedUnderTheTrackersId() throws Exception
     {
         Harness harness = harness("diary");
+        useDiaryMemory(harness);
+        // The session's full reading: every tier unfinished.
+        readDiaryTiers(harness);
 
-        // The first change sets the baseline: every tier unfinished.
-        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 0));
         harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
 
         assertEquals(1, harness.history.events().size());
         // A diary event names its tier in the evidence; the tracker picks the task.
         assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+    }
+
+    @Test
+    public void aTierFinishedWhileRuneLiteWasClosedCountsAtTheNextLogin() throws Exception
+    {
+        Harness harness = harness("diary-away");
+        new DiaryTierMemory(harness.gson, harness.dataDirectory.resolve(DiaryTierMemory.FILE))
+            .reading(Collections.<String>emptyList());
+        useDiaryMemory(harness);
+        when(harness.client.getVarbitValue(LUMBRIDGE_EASY)).thenReturn(1);
+
+        readDiaryTiers(harness);
+
+        assertEquals(1, harness.history.events().size());
+        assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+    }
+
+    @Test
+    public void tiersArrivingAtLoginAreNotNewCompletions() throws Exception
+    {
+        Harness harness = harness("diary-login");
+        useDiaryMemory(harness);
+        when(harness.client.getVarbitValue(LUMBRIDGE_EASY)).thenReturn(1);
+
+        // The login's own varbits, before this session's full reading...
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+        // ...and the reading itself, this account's first.
+        readDiaryTiers(harness);
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        assertEquals(0, harness.history.events().size());
+    }
+
+    @Test
+    public void theFullReadingComesWithTheSessionsFirstTick() throws Exception
+    {
+        Harness harness = harness("diary-tick");
+        new DiaryTierMemory(harness.gson, harness.dataDirectory.resolve(DiaryTierMemory.FILE))
+            .reading(Collections.<String>emptyList());
+        useDiaryMemory(harness);
+        when(harness.client.getVarbitValue(LUMBRIDGE_EASY)).thenReturn(1);
+
+        harness.plugin.onGameTick(new GameTick());
+
+        assertEquals(1, harness.history.events().size());
+    }
+
+    /** The account's diary memory in the harness's folder. */
+    private static void useDiaryMemory(Harness harness) throws Exception
+    {
+        setField(harness.plugin, "diaryTiers", new DiaryTierMemory(harness.gson,
+            harness.dataDirectory.resolve(DiaryTierMemory.FILE)));
+    }
+
+    private static void readDiaryTiers(Harness harness) throws Exception
+    {
+        invokeNoArg(harness.plugin, "readDiaryTiersIfDue");
     }
 
     /** Lumbridge & Draynor Easy's varbit. */

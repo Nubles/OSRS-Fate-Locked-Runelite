@@ -246,8 +246,10 @@ public class FateLockedPlugin extends Plugin
         VarbitID.WESTERN_DIARY_EASY_COMPLETE, VarbitID.WESTERN_DIARY_MEDIUM_COMPLETE, VarbitID.WESTERN_DIARY_HARD_COMPLETE, VarbitID.WESTERN_DIARY_ELITE_COMPLETE,
         VarbitID.WILDERNESS_DIARY_EASY_COMPLETE, VarbitID.WILDERNESS_DIARY_MEDIUM_COMPLETE, VarbitID.WILDERNESS_DIARY_HARD_COMPLETE, VarbitID.WILDERNESS_DIARY_ELITE_COMPLETE,
     };
-    /** Last seen value per diary varbit; first observation per login is a baseline (no nudge). */
-    private final Map<Integer, Integer> diaryState = new HashMap<>();
+    /** The logged-in account's finished diary tiers; null until its files open. */
+    private DiaryTierMemory diaryTiers;
+    /** Whether this session's full reading of the diary tiers is still to come. */
+    private boolean diaryReadingDue = true;
     /**
      * Diary regions in DIARY_VARBITS order (4 tiers each): the name the
      * tracker's tier ids use, then the region's full name.
@@ -264,6 +266,8 @@ public class FateLockedPlugin extends Plugin
     private static final Map<Integer, String> DIARY_TIER_IDS = new HashMap<>();
     /** Varbit id → the tier's full name ("Lumbridge & Draynor Easy"), for chat. */
     private static final Map<Integer, String> DIARY_VARBIT_NAMES = new HashMap<>();
+    /** The tracker's tier id → the tier's full name. */
+    private static final Map<String, String> DIARY_TIER_NAMES = new HashMap<>();
     static
     {
         for (int i = 0; i < DIARY_VARBITS.length; i++)
@@ -271,10 +275,9 @@ public class FateLockedPlugin extends Plugin
             String tier = " " + DIARY_TIERS[i % 4];
             DIARY_TIER_IDS.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4][0] + tier);
             DIARY_VARBIT_NAMES.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4][1] + tier);
+            DIARY_TIER_NAMES.put(DIARY_REGIONS[i / 4][0] + tier, DIARY_REGIONS[i / 4][1] + tier);
         }
     }
-    /** Whether this login's diary baseline has been captured (see onVarbitChanged). */
-    private boolean diaryBaselined = false;
     /** Widget group shown when a quest is completed (the reward scroll). */
     private static final int QUEST_COMPLETED_GROUP_ID = 153;
     /** Interface group ids for the bank (12) and deposit box (192) — stable
@@ -617,6 +620,7 @@ public class FateLockedPlugin extends Plugin
         historySaveFailed = files.history == null;
         strictAuditLog = files.auditLog;
         slayerTaskDetector = files.slayer;
+        diaryTiers = files.diaryTiers;
         updatePanelRollInbox();
         updateStrictAuditPanel();
     }
@@ -655,8 +659,7 @@ public class FateLockedPlugin extends Plugin
     private void resetBaselines()
     {
         skillLevelDetector.clear();
-        diaryState.clear();
-        diaryBaselined = false;
+        diaryReadingDue = true;
     }
 
     // ── Roll reminders ────────────────────────────────────────────────────────
@@ -958,33 +961,73 @@ public class FateLockedPlugin extends Plugin
     @Subscribe
     public void onVarbitChanged(VarbitChanged ev)
     {
-        // Reliable diary-tier detection: each varbit flips 0→1 when that tier is
-        // finished. VarbitChanged fires for EVERY varbit in the game — a very hot
-        // event — so the steady-state path is a set-lookup filter, not a scan.
-        // The one-time baseline still reads all 48: a tier varbit that's 0 at
-        // login never fires an event, so filtering alone would leave it with no
-        // baseline and its later completion would be missed. (The first event
-        // after LOGGED_IN arrives after the initial varp sync, so the values
-        // read here are the real ones, not pre-sync zeros.)
-        if (!diaryBaselined)
-        {
-            for (int id : DIARY_VARBITS) diaryState.put(id, client.getVarbitValue(id));
-            diaryBaselined = true;
-            return;
-        }
-        int id = ev.getVarbitId();
-        String tierId = DIARY_TIER_IDS.get(id);
-        if (tierId == null) return;
-        int v = ev.getValue();
-        Integer prev = diaryState.put(id, v);
-        if (prev != null && prev == 0 && v == 1)
-        {
-            diaryTierReviewDetector.onVarbit(tierId, prev, v).ifPresent(this::record);
-            if (config.rollNudges())
+        // A diary tier's varbit becomes 1 when the tier is finished.
+        // VarbitChanged fires for every varbit in the game, so this is a
+        // set-lookup filter.
+        String tierId = DIARY_TIER_IDS.get(ev.getVarbitId());
+        if (tierId == null || ev.getValue() != 1) return;
+        DiaryTierMemory memory = diaryTiers;
+        // Until this session's full reading, changes are the login's own
+        // tiers arriving from the server; the reading covers them.
+        if (diaryReadingDue || memory == null || !accountFilesInUse()) return;
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(() -> {
+            boolean fresh;
+            try
             {
-                nudge("Diary complete: " + DIARY_VARBIT_NAMES.get(id)
-                    + " — may be worth a roll; log it in the tracker.");
+                fresh = memory.finishedNow(tierId);
             }
+            catch (IOException ex)
+            {
+                log.debug("Could not save the finished diary tiers", ex);
+                return;
+            }
+            if (fresh) onClient.run(() -> diaryTierFinished(tierId));
+        });
+    }
+
+    /**
+     * At the first tick of a session once the account's files are open,
+     * when every tier has come from the server: read all 48 tiers. Tiers
+     * finished since the account was last seen, even with RuneLite closed,
+     * count now.
+     */
+    private void readDiaryTiersIfDue()
+    {
+        DiaryTierMemory memory = diaryTiers;
+        if (!diaryReadingDue || memory == null || !accountFilesInUse()) return;
+        diaryReadingDue = false;
+        List<String> finished = new ArrayList<>();
+        for (int id : DIARY_VARBITS)
+        {
+            if (client.getVarbitValue(id) == 1) finished.add(DIARY_TIER_IDS.get(id));
+        }
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(() -> {
+            List<String> fresh;
+            try
+            {
+                fresh = memory.reading(finished);
+            }
+            catch (IOException ex)
+            {
+                log.debug("Could not read the finished diary tiers", ex);
+                return;
+            }
+            for (String tier : fresh)
+            {
+                onClient.run(() -> diaryTierFinished(tier));
+            }
+        });
+    }
+
+    private void diaryTierFinished(String tierId)
+    {
+        diaryTierReviewDetector.onVarbit(tierId, 0, 1).ifPresent(this::record);
+        if (config.rollNudges())
+        {
+            nudge("Diary complete: " + DIARY_TIER_NAMES.get(tierId)
+                + " — may be worth a roll; log it in the tracker.");
         }
     }
 
@@ -1196,6 +1239,7 @@ public class FateLockedPlugin extends Plugin
         Player local = client.getLocalPlayer();
         if (local == null) return;
 
+        readDiaryTiersIfDue();
         updateStrictModePanel();
 
         // Once per login, flag if the character doesn't match the bound account.

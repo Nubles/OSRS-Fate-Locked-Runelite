@@ -15,8 +15,8 @@ import java.util.List;
 
 /**
  * The local files one OSRS account owns, in accounts/&lt;account hash&gt;/:
- * its detected-event history, its Strict Mode audit log and its Slayer
- * task. A main account and an ironman played in one RuneLite no longer
+ * its detected-event history, its Strict Mode audit log, its Slayer task
+ * and its finished diary tiers. A main account and an ironman played in one RuneLite no longer
  * share them. A file that fails to open leaves its feature off for that
  * account, and never stops the plugin.
  *
@@ -40,14 +40,17 @@ final class AccountFiles
     final StrictModeAuditLog auditLog;
     /** Null when it couldn't be opened. */
     final SlayerTaskDetector slayer;
+    /** The diary tiers the account has finished. */
+    final DiaryTierMemory diaryTiers;
 
     private AccountFiles(long accountHash, FateEventHistory history,
-        StrictModeAuditLog auditLog, SlayerTaskDetector slayer)
+        StrictModeAuditLog auditLog, SlayerTaskDetector slayer, DiaryTierMemory diaryTiers)
     {
         this.accountHash = accountHash;
         this.history = history;
         this.auditLog = auditLog;
         this.slayer = slayer;
+        this.diaryTiers = diaryTiers;
     }
 
     static Path folder(Path dataDirectory, long accountHash)
@@ -84,7 +87,8 @@ final class AccountFiles
         {
             log.warn("Could not open the Slayer task state", error);
         }
-        return new AccountFiles(accountHash, history, auditLog, slayer);
+        return new AccountFiles(accountHash, history, auditLog, slayer,
+            new DiaryTierMemory(gson, folder.resolve(DiaryTierMemory.FILE)));
     }
 
     private static FateEventHistory openHistory(

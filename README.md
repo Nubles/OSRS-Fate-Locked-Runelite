@@ -106,16 +106,17 @@ player still reviews the result and presses Roll in the web app.
 **Open web Roll Inbox** opens a separate browser view. It does not transfer
 RuneLite's local history to that view.
 
-Each account's history, Strict Mode log and Slayer task live in
-`accounts/<account id>/` in the data directory, so a main account and an
-ironman played in one RuneLite keep them apart, and two RuneLites on one
-account merge their writes rather than overwrite each other. The first
-time an account is used, its history starts from the shared history (or
-the older queue) that earlier versions kept, taking only that character's
-observations; the Strict Mode log and Slayer task come along only for the
-character the rules are bound to. The shared files are left unchanged. A
-malformed file is preserved with a corruption suffix and a new one is
-started.
+Each account's history, Strict Mode log, Slayer task and finished diary
+tiers live in `accounts/<account id>/` in the data directory, so a main
+account and an ironman played in one RuneLite keep them apart, and two
+RuneLites on one account merge their writes rather than overwrite each
+other. A diary tier finished while RuneLite was closed counts at the next
+login. The first time an account is used, its history starts from the
+shared history (or the older queue) that earlier versions kept, taking
+only that character's observations; the Strict Mode log and Slayer task
+come along only for the character the rules are bound to. The shared files
+are left unchanged. A malformed file is preserved with a corruption suffix
+and a new one is started.
 
 ## Clipboard and file recovery
 

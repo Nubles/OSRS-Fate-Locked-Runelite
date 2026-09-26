@@ -53,7 +53,7 @@ public class FateLockedLoginSessionTest
         }
 
         assertWarningsKept();
-        assertTrue("diary baseline kept", (Boolean) get("diaryBaselined"));
+        assertFalse("diary reading kept", (Boolean) get("diaryReadingDue"));
         assertTrue("a level-up after a teleport still counts",
             detector().detect("Attack", 51).isPresent());
     }
@@ -68,8 +68,8 @@ public class FateLockedLoginSessionTest
             fire(interruption, GameState.LOADING, GameState.LOGGED_IN);
 
             assertWarningsKept();
-            assertFalse(interruption + " re-baselines diaries",
-                (Boolean) get("diaryBaselined"));
+            assertTrue(interruption + " re-reads diaries",
+                (Boolean) get("diaryReadingDue"));
             // The client re-sends every skill, which must not read as a level-up.
             assertFalse(interruption + " re-baselines skills",
                 detector().detect("Attack", 51).isPresent());
@@ -85,7 +85,7 @@ public class FateLockedLoginSessionTest
         assertWarningsForgotten();
 
         fire(GameState.LOGGING_IN, GameState.LOGGED_IN);
-        assertFalse((Boolean) get("diaryBaselined"));
+        assertTrue((Boolean) get("diaryReadingDue"));
         assertFalse(detector().detect("Attack", 51).isPresent());
     }
 
@@ -98,7 +98,7 @@ public class FateLockedLoginSessionTest
         fire(GameState.LOADING, GameState.LOGGED_IN);
 
         assertWarningsForgotten();
-        assertFalse((Boolean) get("diaryBaselined"));
+        assertTrue((Boolean) get("diaryReadingDue"));
         assertFalse(detector().detect("Attack", 51).isPresent());
     }
 
@@ -110,7 +110,7 @@ public class FateLockedLoginSessionTest
 
         startSessionTracking();
         assertWarningsForgotten();
-        assertFalse((Boolean) get("diaryBaselined"));
+        assertTrue((Boolean) get("diaryReadingDue"));
         assertFalse(detector().detect("Attack", 50).isPresent());
 
         // Already logged in, so its next loading screen is not a new login.
@@ -125,7 +125,7 @@ public class FateLockedLoginSessionTest
     {
         detector().clear();
         detector().detect("Attack", 50);
-        set("diaryBaselined", true);
+        set("diaryReadingDue", false);
         set("lastAccountWarned", "zezima");
         set("lastChunk", LUMBRIDGE);
         warnedOverTier().clear();
