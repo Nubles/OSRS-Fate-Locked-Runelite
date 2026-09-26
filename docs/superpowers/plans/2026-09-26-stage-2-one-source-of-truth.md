@@ -175,17 +175,25 @@ re-pins to a web `main` commit that has C and D (E1). Each phase leaves
   tasks delete or rewrite (`FateRuleEngine`, `TravelActionResolver`,
   `TravelAction`, `Teleports`), so trimming them now would edit about fifty
   call sites twice.
-- [ ] **A7. One Strict Mode gate (G14).** `StrictModeReadiness` becomes the
+- [x] **A7. One Strict Mode gate (G14).** `StrictModeReadiness` becomes the
   only gate; `isTrustedExact` goes, and the not-proven path no longer calls
   the click handler. Pinned by a parameterised `StrictModeGateTest` (a
   consume happens only when readiness is ACTIVE, the match is exact and the
   decision is LOCKED) and `PluginHubClickBoundaryTest` (still one consume).
-- [ ] **A8. Pause on a monotonic clock, cleared at shutdown (G14).** Pinned
+  *Done as* `0b8485f`: `GuardContext` is gone and the guard takes the
+  readiness the sidebar shows. The pause is checked last, so PAUSED means
+  "would block, but paused" (`ALLOW_PAUSED`). `StrictModeGateTest` runs 96
+  mixes of facts through the plugin.
+- [x] **A8. Pause on a monotonic clock, cleared at shutdown (G14).** Pinned
   by `StrictModePauseTest` with a fake `nanoTime` and a lifecycle test.
-- [ ] **A9. `MenuFacts` adapter:** option and target with tags and
+  *Done as* `e1b7ec4`.
+- [x] **A9. `MenuFacts` adapter:** option and target with tags and
   "(LOCKED)" stripped and case kept; item id with the worn-slot fallback;
   spellbook varbit; interface group; NPC and object ids; world view. Pinned
   by `MenuFactsTest`.
+  *Done as* `a01dd95`: `MenuFacts` holds plain values (kept RuneLite-free by
+  `RulesCoreBoundaryTest`) and `MenuFactsReader` reads them. A worn slot's
+  item comes from its second child, as RuneLite's menu swapper reads it.
 
 ### Phase B: every surface reads `DecisionService` (plugin only)
 
