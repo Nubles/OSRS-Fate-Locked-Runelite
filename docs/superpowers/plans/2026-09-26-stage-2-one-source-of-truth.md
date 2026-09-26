@@ -300,20 +300,23 @@ players will see.
 Web `main` deploys on every push and only the owner merges. Each field
 commit carries its builder, the field and its golden answer together.
 
-- [ ] **C1. `contracts/golden-bundles/bundle-contract.json`** and its test:
+- [x] **C1. `contracts/golden-bundles/bundle-contract.json`** and its test:
   bundle version 4, the installed builds, every frozen root, `rules` and
   overlay field with its JSON type, the required fields, and the fields that
   are parsed but unread. Mutation checks: bumping the version and dropping
   `freeAreas` both fail.
-- [ ] **C2. Slim the exported `rules.chunks`:** drop snapshot `chunkKey`
+  *Done as* web `aef22e0`: the contract is listed in the golden manifest, so the pin script copies it.
+- [x] **C2. Slim the exported `rules.chunks`:** drop snapshot `chunkKey`
   and `counts` and row `key` at the wire step only; the app's own snapshot
   is unchanged. Regenerated goldens keep every `.expect.json` answer, which
   shows nothing a plugin reads changed. Before the web PR merges, a plugin
   worktree at 4e37895 pins the web branch's goldens and its `GoldenBundle*`
   tests pass.
-- [ ] **C3. The size check covers every golden run**, each relay body under
+  *Done as* web `bc90ff0`: `wireChunks`; relay bodies 199 to 155 KiB. With the slimmed goldens, 4e37895 passed its whole suite (590) and the Stage 2 branch its (932).
+- [x] **C3. The size check covers every golden run**, each relay body under
   240 KiB.
-- [ ] **C4. Pure functions, no wire change:** `freeAreasFor(gameModeId,
+  *Done as* web `65543c6`: against the relay's own `MAX_REQUEST_BYTES` less 16 KiB.
+- [x] **C4. Pure functions, no wire change:** `freeAreasFor(gameModeId,
   customMode)` with an export guard that refuses (and retries) when the
   global disagrees with the run; `chunkEntry` extracted from the snapshot
   and manifest code; `runProgress`, shared with RunCard; Slayer
@@ -323,29 +326,40 @@ commit carries its builder, the field and its golden answer together.
   with unit tests (Keldagrim; an interior with no entrance; an area lock
   beats an open entrance; bank 11066's physical chunks; all 127 bank
   statuses equal their rows).
-- [ ] **C5. Golden generator, schema 2:** the frontier with the account;
+  *Done as* web `f17605f`: `freeAreasFor` with `RunChangedError`; 30e2d92 `chunkEntry`; 9ef4880 `runProgress`; 3252f0a and 7e8bb29 `slayerDecisions` (merged keys rank UNKNOWN above NOT_READY); 52bda1c `interiorEntry` with `data/interiorAreas.ts`, and 3fceeba makes the app's own content checks use the same owners (Mor Ul Rek and eight more areas' interiors now need their area); 08fd0e9 `bankDecisions` with the shared `bankAccess`.
+- [x] **C5. Golden generator, schema 2:** the frontier with the account;
   new runs `chunked-sailing`, `vanilla-sailing` and `vanilla-interiors`
   (with Slayer levels, so masters differ); a self-consistency test that the
   bundle's fields equal the pinned answers. Existing answers stay; new
   answers are additive keys.
-- [ ] **C6. `rules.chunkEntries` and `rules.places`** (R1, R4), with a test
+  *Done as* web `8399abb`: with these goldens 4e37895 and the Stage 2 branch fail only the chunked-sailing frontier.
+- [x] **C6. `rules.chunkEntries` and `rules.places`** (R1, R4), with a test
   that every `chunkEntries` value equals the `rules.chunks` entry where both
   exist.
-- [ ] **C7. `rules.frontier`**, Chunked runs only (R4).
-- [ ] **C8. `rules.banks`**: `{name, status, reason, at, physical}` per
+  *Done as* web `b75e632`: `places.json` pins the places once. With Sailing only 7 of 548 ocean chunks are reached (the route walk crosses the sea only between neighbouring ocean chunks), so the rest read NOT_READY: an owner question.
+- [x] **C7. `rules.frontier`**, Chunked runs only (R4).
+  *Done as* web `7ff5b54`: sent whenever the run is Chunked; it needs no chunk data.
+- [x] **C8. `rules.banks`**: `{name, status, reason, at, physical}` per
   bank id, with `bankStatus` and `bankAt` answers (R5).
-- [ ] **C9. `rules.freeAreas`**, and the root `freeAreas` from the same pure
+  *Done as* web `d857989`: `banks.json` pins `bankAt` (138 chunks, none shared).
+- [x] **C9. `rules.freeAreas`**, and the root `freeAreas` from the same pure
   function (R6).
-- [ ] **C10. `rules.progress`** `{unit, unlocked, total, chunks}` (R9).
-- [ ] **C11. `rules.slayerTasks`**, keyed like `slayerChunks`, `{status,
+  *Done as* web `e7f933b`: the root falls back to the global only without rules.
+- [x] **C10. `rules.progress`** `{unit, unlocked, total, chunks}` (R9).
+  *Done as* web `ccd409c`: `progress.chunks` gives the land chunks owned, for the plugin's percentage.
+- [x] **C11. `rules.slayerTasks`**, keyed like `slayerChunks`, `{status,
   reason}` (R16).
-- [ ] **C12. Snapshot `kind`, `area` and `entryReason`** inside
+  *Done as* web `33008a5`: reasons follow the Slayer panel's badge.
+- [x] **C12. Snapshot `kind`, `area` and `entryReason`** inside
   `rules.chunks` (Gson ignores them in installed builds).
-- [ ] **C13. `rules.capabilities`** listing only the sections present, and
+  *Done as* web `6d92976`: `chunkEntryReason` beside `chunkEntry`.
+- [x] **C13. `rules.capabilities`** listing only the sections present, and
   new `cases.json` entries: without the Stage 2 sections, an unknown
   capability, a stray root `unlockedChunks`, no root `freeAreas`.
-- [ ] **C14. Docs:** `docs/online-relay.md` (the v4 section) and ROADMAP
+  *Done as* web `705a07b`: the two cases installed builds can't pass (stray `unlockedChunks`, no root `freeAreas`) are in `stage2SameAnswers`, which they don't read.
+- [x] **C14. Docs:** `docs/online-relay.md` (the v4 section) and ROADMAP
   3b: new answers, frozen fields, capabilities and real sizes.
+  *Done as* web `4f807d3`: relay requests are 187-191 KiB.
 
 ### Phase D: web, the travel table (ships before the plugin)
 
@@ -450,7 +464,16 @@ Each has a default the plan follows unless the owner says otherwise.
    Slayer-, quest- or combat-locked and access-blocked → NOT_READY;
    access-unknown and no-location → UNKNOWN.
 5. **The 24 banks with no located facility, including 10810,** are
-   mirrored as the web has them and listed for review later.
+   mirrored as the web has them and listed for review later. (With the
+   reviewed facilities and interiors counted, 20 remain; C4f.)
+6. **The ocean with Sailing.** The route walk crosses the sea only between
+   neighbouring ocean chunks, and the ocean data near Port Sarim is a small
+   patch of its own, so a Sailing run reaches 7 of the 548 ocean chunks and
+   the rest read NOT_READY (no alerts, but "Not ready" at sea). The export
+   mirrors the app; changing the sea model is a web decision for later.
+7. **Interior owners in the app's own checks** (web 3fceeba): content in
+   interiors of Mor Ul Rek and eight more areas' basements and dungeons now
+   needs its area, as their interior entries do. Default: keep.
 
 ## Test and file map (new files)
 
