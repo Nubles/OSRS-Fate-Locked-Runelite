@@ -32,6 +32,18 @@ final class LegacyRules
         }
     }
 
+    /**
+     * An item's tier from an older export's item tiers, against the tier the
+     * slot it is worn in is unlocked to; null when the export doesn't rate it.
+     */
+    ItemTier itemTier(int itemId, String wornSlot)
+    {
+        Integer tier = bundle.getItemTiers().get(String.valueOf(itemId));
+        FateLockedBundle.RunState state = bundle.getState();
+        if (tier == null || wornSlot == null || state == null || state.getEquipment() == null) return null;
+        return new ItemTier(wornSlot, tier, state.getEquipment().getOrDefault(wornSlot, 0));
+    }
+
     /** The bank at a chunk: only bank-locked runs lock one, and only until it is rolled. */
     Decision bankAt(CanonicalChunk chunk)
     {

@@ -300,6 +300,25 @@ public final class DecisionService
                 Decision.Source.MOBILITY);
     }
 
+    /**
+     * An item's tier and its slot's unlocked tier (B12): the tracker's
+     * itemRules and unlocks, or an older export's item tiers against the
+     * slot it is worn in. Null when the rules don't rate the item, or don't
+     * apply to this character.
+     *
+     * @param wornSlot where the item is worn ("Weapon"), for older exports
+     */
+    public ItemTier itemTier(int itemId, String wornSlot)
+    {
+        if (trust != Trust.TRUSTED) return null;
+        if (rules.isLegacy()) return rules.legacy().itemTier(itemId, wornSlot);
+        RuneliteRulesManifest manifest = rules.bundle().getRules();
+        RuneliteRulesManifest.ItemRule item = manifest.getItemRules().get(String.valueOf(itemId));
+        if (item == null || isBlank(item.getSlot())) return null;
+        Integer unlocked = manifest.getUnlocks().getEquipment().get(item.getSlot());
+        return unlocked == null ? null : new ItemTier(item.getSlot(), item.getTier(), unlocked);
+    }
+
     /** Whether an item's equipment tier is unlocked for its slot. */
     public Decision item(int itemId)
     {

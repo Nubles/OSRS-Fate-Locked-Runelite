@@ -7,6 +7,7 @@ import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.ItemTier;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
@@ -1124,21 +1125,15 @@ public class FateLockedPlugin extends Plugin
 
     private void recomputeOverTierGear()
     {
-        List<OverTierItem> over = overTierGear(getBundle());
+        List<OverTierItem> over = overTierGear(decisions);
         overTierSummary = overTierSummary(over);
         warnOverTierGear(over);
     }
 
     /** Worn items these rules put above their slot's unlocked tier. */
-    private List<OverTierItem> overTierGear(FateLockedBundle rules)
+    private List<OverTierItem> overTierGear(DecisionService ruleDecisions)
     {
         if (!config.warnOverTierGear()) return Collections.emptyList();
-        Map<String, Integer> tiers = rules.getItemTiers();
-        FateLockedBundle.RunState st = rules.getState();
-        Map<String, Integer> equip = st == null ? null : st.getEquipment();
-        // A bundle without tier data leaves the feature dormant.
-        if (tiers.isEmpty() || equip == null) return Collections.emptyList();
-
         ItemContainer eq = client.getItemContainer(InventoryID.WORN);
         if (eq == null) return Collections.emptyList();
 
@@ -1147,11 +1142,10 @@ public class FateLockedPlugin extends Plugin
         {
             Item item = eq.getItem(e.getKey().getSlotIdx());
             if (item == null || item.getId() <= 0) continue;
-            Integer tier = tiers.get(String.valueOf(item.getId()));
-            if (tier == null) continue; // unknown item — don't flag
-            int unlocked = equip.getOrDefault(e.getValue(), 0);
-            if (tier <= unlocked) continue;
-            over.add(new OverTierItem(item.getId(), e.getValue(), tier, unlocked));
+            // Unrated items, and every item on another character, aren't flagged (B12).
+            ItemTier tier = ruleDecisions.itemTier(item.getId(), e.getValue());
+            if (tier == null || !tier.isOver()) continue;
+            over.add(new OverTierItem(item.getId(), e.getValue(), tier.getTier(), tier.getUnlocked()));
         }
         return over;
     }
@@ -1909,7 +1903,7 @@ public class FateLockedPlugin extends Plugin
         }
         return new RulesEffects(
             viewModelFor(ruleDecisions, current),
-            overTierGear(rules),
+            overTierGear(ruleDecisions),
             lockedSlayerTask(ruleDecisions));
     }
 
