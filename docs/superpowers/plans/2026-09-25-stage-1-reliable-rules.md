@@ -19,9 +19,9 @@ Cloudflare Worker relay.
 
 **Findings (29):** S1, A6, A12, G9, R11, R3, D3, D4, D5, D6, D7, D9, D11,
 D15, D19, A5, A8, A10, A14, A16, S4, S5, S6, S7, S8, S11, S12, S13, C1.
-Evidence for each is in [the review](../../reviews/2026-09-24-plugin-review.md)
-on the review branch; the briefs behind this plan re-checked every finding
-against `874b9d1` (Stage 0 merged).
+Evidence for each is in [the review](../../reviews/2026-09-24-plugin-review.md);
+the briefs behind this plan re-checked every finding against `874b9d1`
+(Stage 0 merged).
 
 ## Global constraints
 
@@ -289,13 +289,21 @@ go-ahead.
 
 ### Phase E: finish
 
-- [ ] **E1. Web: move the web-only export checks out of the plugin parity
+- [x] **E1. Web: move the web-only export checks out of the plugin parity
   test, then remove the simulation** once plugin CI is green at the pinned
   commit.
-- [ ] **E2. Docs:** README, CONTRIBUTING, review notes, the in-game
+  *Done in* web PR #47, after plugin CI passed against `b7f568d`: the
+  app's own export checks moved to `runeliteBundle.test.ts` and
+  `runeliteRulesManifest.test.ts`, and `runelitePluginParity.test.ts` is
+  gone. Every `pluginSim` scenario is a golden run.
+- [x] **E2. Docs:** README, CONTRIBUTING, review notes, the in-game
   checklist (new rows for saved rules, Check now, re-pairing and Load
   newest backup file), bundle-size wording, and the web ROADMAP contract
   section.
+  Checklist rows 14 to 17 are new (Check now, re-pairing, the gone state,
+  saved rules offline) and rows 3, 11 and 12 changed. The ROADMAP's new
+  contracts section is in web PR #47, with its diary gotcha brought up to
+  date.
 - [ ] **E3. Release:** in-game checklist on the release commit; then, with
   the owner, the web release, the relay deploy and the Plugin Hub pull
   request.
@@ -310,15 +318,18 @@ go-ahead.
    changes from web PR #45, need the owner's `wrangler login` and
    go-ahead.
 
-## Test and file map (new files)
+## Test and file map (new files, as built)
+
+Classes are in `com.fatelocked` unless a folder is given.
 
 | File | Purpose |
 |---|---|
 | `scripts/pin-web-contracts.sh` | Copy web contract files at a commit |
 | `src/test/resources/contracts/` | Golden bundles, cases, relay fixture, `PINNED` |
-| `GoldenBundleContractTest`, `RelayContractFixtureTest` | Contract checks |
-| `rules/RulesStore`, `rules/RulesPrecedence`, `rules/ActiveRules` | Rules owner |
-| `ClientThreadGate`, `PluginSession`, `SerialWorker` | Thread model |
-| `sync/RelayContract`, `sync/SyncMachine`, `sync/SyncView` | Connection |
-| `AccountBinding`, `detectors/DetectionGate` | Account and detection gates |
-| `LocalFileMerge` | Two-client-safe local files |
+| `GoldenBundleContractTest`, `GoldenBundleCasesTest`, `GoldenContractFilesTest`, `RelayContractFixtureTest`, `RelayTransportFixtureTest`, `RelayFixtureStatesTest` | Contract checks |
+| `ActiveRules`, `RulesPrecedence`, `SavedRules`, `SavedRulesStore` | Rules owner |
+| `ClientThreadGate`, `PluginSession`, `SerialFileWriter` | Thread model |
+| `RelayContract`, `SyncMachine`, `SyncReason`, `SyncView`, `panel/LocalTimeText` | Connection |
+| `AccountBinding`, `DetectionGate` | Account and detection gates |
+| `storage/LocalFileMerge`, `AccountFiles`, `DiaryTierMemory` | Per-account, two-client-safe local files |
+| `detectors/RaidDetector`, `detectors/ClueCompletionDetector` | Renamed from BossRaidDetector and ClueCasketDetector |
