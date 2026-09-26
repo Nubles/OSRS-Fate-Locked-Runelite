@@ -29,11 +29,13 @@ RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
 relay. It does not upload player or gameplay data. The relay sees the IP
 address used for the HTTPS request.
 
-Once connected, RuneLite checks the tracker every minute. To pick up a
-change you have just made in the web tracker, press **Check now** under the
-connection status; it works once every 10 seconds. When a check fails, the
-line under the status says why and when the next check is, never more than
-5 minutes away unless the relay asks RuneLite to wait longer.
+Once connected, RuneLite checks the tracker every minute while you play,
+every 5 minutes at the login screen, and at once when you log in. To pick
+up a change you have just made in the web tracker, press **Check now**
+under the connection status; it works once every 10 seconds. When a check
+fails, the line under the status says why and when the next check is,
+never more than 5 minutes away unless the relay asks RuneLite to wait
+longer.
 
 Online sync is off by default, including for existing pairings after this
 update. No relay requests are made until you accept the warning. Canceling

@@ -3,10 +3,12 @@ package com.fatelocked;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.client.Notifier;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
@@ -175,6 +177,38 @@ public class FateLockedPluginStartupContractTest
         {
             harness.plugin.shutDown();
         }
+    }
+
+    @Test
+    public void onlyTheLoginScreenCountsAsLoggedOutForTheTracker() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("login"));
+        try
+        {
+            TrackerConnectionController controller = mock(TrackerConnectionController.class);
+            harness.set("connectionController", controller);
+
+            harness.plugin.onGameStateChanged(gameState(GameState.LOGIN_SCREEN));
+            verify(controller).loggedIn(false);
+
+            // A hop and its loading screen are still in game.
+            harness.plugin.onGameStateChanged(gameState(GameState.HOPPING));
+            harness.plugin.onGameStateChanged(gameState(GameState.LOADING));
+            harness.plugin.onGameStateChanged(gameState(GameState.LOGGED_IN));
+            verify(controller, times(1)).loggedIn(false);
+            verify(controller).loggedIn(true);
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    private static GameStateChanged gameState(GameState state)
+    {
+        GameStateChanged event = new GameStateChanged();
+        event.setGameState(state);
+        return event;
     }
 
     @Test

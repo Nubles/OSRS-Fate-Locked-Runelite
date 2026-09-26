@@ -354,6 +354,15 @@ final class TrackerConnectionController
         activePoll = null;
     }
 
+    /** The player logged in or out; see SyncMachine.loggedIn. */
+    void loggedIn(boolean loggedIn)
+    {
+        synchronized (pollLock)
+        {
+            machine.loggedIn(loggedIn, clock.instant());
+        }
+    }
+
     /**
      * The player pressed Check now: forget the back-off and make a check due
      * at once, for the next tick to send. False when there is nothing to

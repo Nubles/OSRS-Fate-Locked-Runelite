@@ -248,8 +248,10 @@ go-ahead.
   Check now works once every 10 seconds and shows only with a pairing
   and online sync on. No jitter on the back-off: each client's failures
   already start at its own point in the minute.
-- [ ] **C13. Check every 5 minutes while logged out and at once on login
-  (S6).**
+- [x] **C13. Check every 5 minutes while logged out and at once on login
+  (S6).** Only the login screen counts as logged out; a hop, a lost
+  connection or a loading screen keeps the minute's checks. A login still
+  waits out a Retry-After.
 - [ ] **C14. Ask before re-pairing and keep the working pairing until the
   new one delivers (S7);** turning online sync back on resumes the saved
   pairing instead of replacing it.

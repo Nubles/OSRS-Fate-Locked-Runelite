@@ -1165,6 +1165,22 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void loggedOutTheTrackerIsCheckedLessOftenAndALoginChecksAtOnce() throws Exception
+    {
+        controller.loggedIn(false);
+        connect(5, "\"5\"");
+
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+
+        controller.loggedIn(true);
+        server.enqueue(new MockResponse().setResponseCode(304));
+        controller.pollIfDue();
+        assertEquals("5", takeRelay().getHeader("If-None-Match"));
+    }
+
+    @Test
     public void checkNowChecksAtOnceAtMostEveryTenSeconds() throws Exception
     {
         connect(5, "\"5\"");

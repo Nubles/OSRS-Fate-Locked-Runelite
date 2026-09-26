@@ -103,6 +103,45 @@ public class SyncMachineTest
     }
 
     @Test
+    public void loggedOutAHealthyConnectionIsCheckedEveryFiveMinutes()
+    {
+        machine.loggedIn(false, START);
+        machine.accepted("41", START);
+
+        assertFalse(machine.checkDue(START.plusSeconds(SyncMachine.CONNECTED_POLL_SECONDS)));
+        assertFalse(machine.checkDue(START.plusSeconds(SyncMachine.LOGGED_OUT_POLL_SECONDS - 1)));
+        assertTrue(machine.checkDue(START.plusSeconds(SyncMachine.LOGGED_OUT_POLL_SECONDS)));
+    }
+
+    @Test
+    public void aLoginMakesACheckDueAtOnceButALoadingScreenDoesNot()
+    {
+        machine.loggedIn(false, START);
+        machine.accepted("41", START);
+        Instant login = START.plusSeconds(30);
+
+        machine.loggedIn(true, login);
+        assertTrue(machine.checkDue(login));
+
+        machine.confirmed(login);
+        machine.loggedIn(true, login.plusSeconds(10));
+        assertFalse(machine.checkDue(login.plusSeconds(10)));
+        assertTrue(machine.checkDue(login.plusSeconds(SyncMachine.CONNECTED_POLL_SECONDS)));
+    }
+
+    @Test
+    public void aLoginStillWaitsForTheRelaysRetryAfter()
+    {
+        machine.loggedIn(false, START);
+        machine.busy(START, 600);
+
+        machine.loggedIn(true, START.plusSeconds(60));
+
+        assertFalse(machine.checkDue(START.plusSeconds(599)));
+        assertTrue(machine.checkDue(START.plusSeconds(600)));
+    }
+
+    @Test
     public void acceptedRulesAreConnectedAndCheckedEveryMinute()
     {
         machine.failed(START, SyncMachine.FAILURE_BACKOFF_SECONDS);

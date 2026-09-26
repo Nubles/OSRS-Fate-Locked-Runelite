@@ -577,6 +577,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             // Logged out: the next login warns and announces afresh.
             awaitingLogin = true;
             forgetLoginWarnings();
+            trackerLoggedIn(false);
             return;
         }
         if (state == GameState.LOGGING_IN || state == GameState.HOPPING
@@ -586,6 +587,7 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
             return;
         }
         if (state != GameState.LOGGED_IN) return;
+        trackerLoggedIn(true);
 
         // RuneLite also reports LOGGED_IN after every loading screen. Only a
         // login, a hop, a reconnect or a different account starts a new
@@ -613,6 +615,20 @@ private final BossRaidDetector bossRaidDetector = new BossRaidDetector();
         loggedInAccountHash = loggedIn ? client.getAccountHash() : -1;
         forgetLoginWarnings();
         resetBaselines();
+        trackerLoggedIn(loggedIn);
+    }
+
+    /**
+     * Only the login screen counts as logged out for the tracker: a hop, a
+     * lost connection or a loading screen keeps the minute's checks going.
+     */
+    private void trackerLoggedIn(boolean loggedIn)
+    {
+        TrackerConnectionController controller = connectionController;
+        if (controller != null)
+        {
+            controller.loggedIn(loggedIn);
+        }
     }
 
     /** Let the account and gear warnings, and the chunk announcement, show once more. */

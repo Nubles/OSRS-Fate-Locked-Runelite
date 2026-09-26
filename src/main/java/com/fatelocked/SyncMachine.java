@@ -14,6 +14,8 @@ import java.time.Instant;
 final class SyncMachine
 {
     static final long CONNECTED_POLL_SECONDS = 60;
+    /** How often a healthy connection is checked while the player is logged out. */
+    static final long LOGGED_OUT_POLL_SECONDS = 5 * 60;
     static final long WAITING_POLL_SECONDS = 5;
     static final long FAILURE_BACKOFF_SECONDS = 30;
     /**
@@ -44,6 +46,10 @@ final class SyncMachine
     private Instant pairingStartedAt;
     /** When the player last pressed Check now and it counted. */
     private Instant lastCheckNow;
+    /** Whether the player is in game; taken as so until the plugin says otherwise. */
+    private boolean loggedIn = true;
+    /** Until when the relay asked the plugin to wait, or null. */
+    private Instant retryAfterUntil;
 
     /** The relay version of the rules the plugin holds, or null. */
     String acceptedVersion()
@@ -85,6 +91,25 @@ final class SyncMachine
         }
         nextCheck = now.plusSeconds(WAITING_POLL_SECONDS);
         return true;
+    }
+
+    /**
+     * The player logged in or out. Logged out, the rules are not in use, so
+     * a healthy connection is checked every 5 minutes instead of every
+     * minute. A login makes a check due at once, so the rules are current
+     * when play starts, unless the relay has asked the plugin to wait. A
+     * loading screen or a hop is not a login: the plugin reports them as
+     * still logged in.
+     */
+    void loggedIn(boolean loggedIn, Instant now)
+    {
+        boolean login = loggedIn && !this.loggedIn;
+        this.loggedIn = loggedIn;
+        if (login && nextCheck.isAfter(now))
+        {
+            nextCheck = retryAfterUntil != null && retryAfterUntil.isAfter(now)
+                ? retryAfterUntil : now;
+        }
     }
 
     /** This session started a pairing and opened the browser. */
@@ -280,6 +305,7 @@ final class SyncMachine
         consecutiveFailures++;
         nextCheck = now.plusSeconds(Math.max(FAILURE_BACKOFF_SECONDS,
             Math.min(retryAfterSeconds, MAX_RETRY_AFTER_SECONDS)));
+        retryAfterUntil = nextCheck;
         return TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE,
             lastSync, acceptedVersion, SyncReason.BUSY, nextCheck);
     }
@@ -331,7 +357,7 @@ final class SyncMachine
 
     private void healthy(Instant now)
     {
-        after(now, CONNECTED_POLL_SECONDS);
+        after(now, loggedIn ? CONNECTED_POLL_SECONDS : LOGGED_OUT_POLL_SECONDS);
     }
 
     private void after(Instant now, long seconds)
