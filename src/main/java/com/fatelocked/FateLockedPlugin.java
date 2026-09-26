@@ -672,9 +672,7 @@ String m = raw.toLowerCase();
 
         minigameCompletionDetector.onMessage(Text.removeTags(raw), System.currentTimeMillis())
             .ifPresent(this::record);
-        Integer followerId = client.getFollower() == null
-            ? null : client.getFollower().getId();
-        petDropDetector.detect(Text.removeTags(raw), followerId, System.currentTimeMillis())
+        petDropDetector.detect(Text.removeTags(raw), System.currentTimeMillis())
             .ifPresent(this::record);
         if (slayerTaskDetector != null
             && (m.contains("completed your task") || m.contains("return to a slayer master")))
