@@ -1311,7 +1311,7 @@ public class FateLockedPlugin extends Plugin
     {
         // The character may have changed since the last tick.
         refreshDecisions();
-        travelGuardianShell.handle(event, client, chunkLocator().player(), strictModeReadiness(), decisions);
+        travelGuardianShell.handle(event, client, strictModeReadiness(), decisions);
     }
 
     /** Strict Mode's chat line, which names it and says how to pause (B15). */

@@ -1,6 +1,5 @@
 package com.fatelocked;
 
-import com.fatelocked.guardian.GuardResult;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
@@ -52,7 +51,6 @@ import static org.mockito.Mockito.when;
  */
 public class TravelGuardianPluginShellTest
 {
-    private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 51);
     private static final CanonicalChunk DESTINATION = new CanonicalChunk(51, 51);
     /** Strict Mode on, with fresh rules bound to the character playing. */
     private static final StrictModeReadiness ACTIVE =
@@ -71,9 +69,9 @@ public class TravelGuardianPluginShellTest
         MenuOptionClicked unresolved = TravelClicks.click(MenuAction.WIDGET_CONTINUE, "Continue", "");
 
         assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
-            shell.handle(allowed, harness.client, ORIGIN, ACTIVE, rules));
+            shell.handle(allowed, harness.client, ACTIVE, rules));
         assertEquals(TravelGuardianPluginShell.Route.NOT_TRAVEL,
-            shell.handle(unresolved, harness.client, ORIGIN, ACTIVE, rules));
+            shell.handle(unresolved, harness.client, ACTIVE, rules));
         verify(allowed, never()).consume();
         verify(unresolved, never()).consume();
     }
@@ -83,12 +81,12 @@ public class TravelGuardianPluginShellTest
     {
         Harness harness = new Harness();
         TravelGuardianCoordinator coordinator = mock(TravelGuardianCoordinator.class);
-        when(coordinator.handle(any(), any(), any(), any(), any(), any()))
+        when(coordinator.handle(any(), any(), any(), any(), any()))
             .thenThrow(new IllegalStateException("classifier failed"));
         TravelGuardianPluginShell shell = harness.shell(coordinator);
         MenuOptionClicked click = TravelClicks.cast("Falador Teleport");
 
-        TravelGuardianPluginShell.Route route = shell.handle(click, harness.client, ORIGIN, ACTIVE, rules);
+        TravelGuardianPluginShell.Route route = shell.handle(click, harness.client, ACTIVE, rules);
 
         assertEquals(TravelGuardianPluginShell.Route.FAIL_OPEN, route);
         verify(click, never()).consume();
@@ -106,7 +104,7 @@ public class TravelGuardianPluginShellTest
         when(harness.client.getVarbitValue(anyInt())).thenThrow(new IllegalStateException("no varbits"));
 
         assertEquals(TravelGuardianPluginShell.Route.FAIL_OPEN,
-            harness.actualShell().handle(click, harness.client, ORIGIN, ACTIVE, rules));
+            harness.actualShell().handle(click, harness.client, ACTIVE, rules));
         verify(click, never()).consume();
         assertEquals(Collections.singletonList("coordinator"), harness.diagnostics);
     }
@@ -117,7 +115,7 @@ public class TravelGuardianPluginShellTest
         Harness chatFailure = new Harness();
         chatFailure.chatFailure = new IllegalStateException("chat");
         MenuOptionClicked first = TravelClicks.cast("Falador Teleport");
-        chatFailure.actualShell().handle(first, chatFailure.client, ORIGIN, ACTIVE, rules);
+        chatFailure.actualShell().handle(first, chatFailure.client, ACTIVE, rules);
 
         verify(first).consume();
         assertTrue(chatFailure.noticeStore.current().isPresent());
@@ -127,7 +125,7 @@ public class TravelGuardianPluginShellTest
         Harness auditFailure = new Harness();
         auditFailure.auditFailure = new IllegalStateException("audit");
         MenuOptionClicked second = TravelClicks.cast("Falador Teleport");
-        auditFailure.actualShell().handle(second, auditFailure.client, ORIGIN, ACTIVE, rules);
+        auditFailure.actualShell().handle(second, auditFailure.client, ACTIVE, rules);
 
         verify(second).consume();
         assertTrue(auditFailure.noticeStore.current().isPresent());
@@ -142,12 +140,12 @@ public class TravelGuardianPluginShellTest
         TravelGuardianCoordinator coordinator = mock(TravelGuardianCoordinator.class);
         TravelAlternative alternative = new TravelAlternative(
             "tablet:varrock-teleport|Break", "Varrock teleport tablet", new CanonicalChunk(50, 53));
-        when(coordinator.handle(any(), any(), any(), any(), any(), any()))
+        when(coordinator.handle(any(), any(), any(), any(), any()))
             .thenReturn(blockedResult(alternative), blockedResult(null));
         TravelGuardianPluginShell shell = harness.shell(coordinator);
 
-        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ORIGIN, ACTIVE, rules);
-        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ORIGIN, ACTIVE, rules);
+        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ACTIVE, rules);
+        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ACTIVE, rules);
 
         assertEquals(
             "Strict Mode blocked Teleport to Morytania: Morytania is locked. "
@@ -168,12 +166,12 @@ public class TravelGuardianPluginShellTest
         TravelGuardianCoordinator coordinator = mock(TravelGuardianCoordinator.class);
         TravelAlternative alternative = new TravelAlternative(
             "tablet:varrock-teleport|Break", "Varrock teleport tablet", new CanonicalChunk(50, 53));
-        when(coordinator.handle(any(), any(), any(), any(), any(), any()))
+        when(coordinator.handle(any(), any(), any(), any(), any()))
             .thenReturn(blockedResult(alternative), pausedResult());
         TravelGuardianPluginShell shell = harness.shell(coordinator);
 
-        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ORIGIN, ACTIVE, rules);
-        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ORIGIN, ACTIVE, rules);
+        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ACTIVE, rules);
+        shell.handle(TravelClicks.item(4251, "Empty", "Ectophial"), harness.client, ACTIVE, rules);
 
         StrictModeAuditEntry blocked = harness.audit.get(0);
         assertEquals(CLOCK.millis(), blocked.getTimestamp());
@@ -202,7 +200,7 @@ public class TravelGuardianPluginShellTest
             MenuOptionClicked click = TravelClicks.item(FALADOR_TABLET, option, "Falador teleport");
 
             assertEquals(option, TravelGuardianPluginShell.Route.NOT_TRAVEL,
-                shell.handle(click, harness.client, ORIGIN, ACTIVE, rules));
+                shell.handle(click, harness.client, ACTIVE, rules));
             verify(click, never()).consume();
         }
 
@@ -225,7 +223,7 @@ public class TravelGuardianPluginShellTest
             TravelClicks.object(10820, "Chop down", "Oak tree") })
         {
             assertEquals(TravelGuardianPluginShell.Route.NOT_TRAVEL,
-                shell.handle(click, harness.client, ORIGIN, ACTIVE, rules));
+                shell.handle(click, harness.client, ACTIVE, rules));
             verify(click, never()).consume();
         }
         assertTrue(harness.chat.isEmpty());
@@ -237,16 +235,12 @@ public class TravelGuardianPluginShellTest
     {
         Harness harness = new Harness();
         TravelGuardianPluginShell shell = harness.actualShell();
-        MenuOptionClicked withOrigin = TravelClicks.click(MenuAction.WALK, "Walk here", "");
-        MenuOptionClicked withoutOrigin = TravelClicks.click(MenuAction.WALK, "Walk here", "");
+        MenuOptionClicked walk = TravelClicks.click(MenuAction.WALK, "Walk here", "");
 
         assertEquals(TravelGuardianPluginShell.Route.NOT_TRAVEL,
-            shell.handle(withOrigin, harness.client, ORIGIN, ACTIVE, rules));
-        assertEquals(TravelGuardianPluginShell.Route.NOT_TRAVEL,
-            shell.handle(withoutOrigin, harness.client, null, ACTIVE, rules));
+            shell.handle(walk, harness.client, ACTIVE, rules));
 
-        verify(withOrigin, never()).consume();
-        verify(withoutOrigin, never()).consume();
+        verify(walk, never()).consume();
         assertTrue(harness.chat.isEmpty());
         assertTrue(harness.audit.isEmpty());
         assertFalse(harness.noticeStore.current().isPresent());
@@ -261,7 +255,7 @@ public class TravelGuardianPluginShellTest
 
         MenuOptionClicked alKharid = TravelClicks.item(AMULET_OF_GLORY_4, "Al Kharid", "Amulet of glory(4)");
         assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
-            shell.handle(alKharid, harness.client, ORIGIN, ACTIVE, rules));
+            shell.handle(alKharid, harness.client, ACTIVE, rules));
         verify(alKharid).consume();
         assertEquals("Unlock Al Kharid", harness.noticeStore.current().get().getReason());
         assertEquals("BLOCKED", harness.audit.get(0).getOutcome());
@@ -269,7 +263,7 @@ public class TravelGuardianPluginShellTest
 
         MenuOptionClicked edgeville = TravelClicks.item(AMULET_OF_GLORY_4, "Edgeville", "Amulet of glory(4)");
         assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
-            shell.handle(edgeville, harness.client, ORIGIN, ACTIVE, rules));
+            shell.handle(edgeville, harness.client, ACTIVE, rules));
         verify(edgeville, never()).consume();
 
         assertEquals(1, harness.chat.size());
@@ -283,7 +277,7 @@ public class TravelGuardianPluginShellTest
         Harness harness = new Harness();
         when(harness.availability.hasAnyItem(Collections.singleton(TravelFixtures.LUMBRIDGE_TABLET))).thenReturn(true);
 
-        harness.actualShell().handle(TravelClicks.cast("Falador Teleport"), harness.client, ORIGIN, ACTIVE, rules);
+        harness.actualShell().handle(TravelClicks.cast("Falador Teleport"), harness.client, ACTIVE, rules);
 
         assertEquals("Lumbridge teleport", harness.noticeStore.current().get().getAlternative());
         assertTrue(harness.chat.get(0), harness.chat.get(0).contains("Try Lumbridge teleport instead."));
@@ -298,7 +292,7 @@ public class TravelGuardianPluginShellTest
         MenuOptionClicked zanaris = TravelClicks.object(FAIRY_RING, "Zanaris", "Fairy ring");
 
         assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
-            harness.actualShell().handle(zanaris, harness.client, ORIGIN, ACTIVE, rules));
+            harness.actualShell().handle(zanaris, harness.client, ACTIVE, rules));
         verify(zanaris, never()).consume();
         assertTrue(harness.chat.isEmpty());
         assertTrue(harness.audit.isEmpty());
@@ -311,7 +305,6 @@ public class TravelGuardianPluginShellTest
             PermissionStatus.LOCKED, "Teleport to Morytania", "Morytania is locked");
         return new TravelGuardianResult(
             action, decision, alternative,
-            new GuardResult(GuardResult.Outcome.BLOCK, decision),
             new EnforcementPresenter().present(action, decision, alternative),
             true, true, false);
     }
@@ -322,15 +315,14 @@ public class TravelGuardianPluginShellTest
         TravelDecision decision = new TravelDecision(
             PermissionStatus.LOCKED, "Teleport to Morytania", "Morytania is locked");
         return new TravelGuardianResult(
-            action, decision, null,
-            new GuardResult(GuardResult.Outcome.ALLOW_PAUSED, null), null,
+            action, decision, null, null,
             false, false, true);
     }
 
     private static TravelAction exactAction()
     {
         return new TravelAction("item:ectophial", "Empty", "Teleport to Morytania",
-            ORIGIN, Collections.singletonList(DESTINATION), false, TravelAction.Confidence.EXACT);
+            Collections.singletonList(DESTINATION), false, TravelAction.Confidence.EXACT);
     }
 
     private static final class Harness

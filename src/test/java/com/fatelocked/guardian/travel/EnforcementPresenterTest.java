@@ -68,6 +68,6 @@ public class EnforcementPresenterTest
     private static TravelAction action()
     {
         return new TravelAction("spell:standard:varrock-teleport", "Cast", "Varrock Teleport",
-            null, Collections.singletonList(new CanonicalChunk(50, 53)), false, TravelAction.Confidence.EXACT);
+            Collections.singletonList(new CanonicalChunk(50, 53)), false, TravelAction.Confidence.EXACT);
     }
 }

@@ -161,9 +161,9 @@ public class TravelAlternativeFinderTest
     public void unresolvedInputsNeverProduceAGuess()
     {
         carrying(LUMBRIDGE_TABLET);
-        TravelAction notTravel = new TravelAction(null, null, "Unknown", null,
+        TravelAction notTravel = new TravelAction(null, null, "Unknown",
             Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
-        TravelAction severalPlaces = new TravelAction("item:amulet-of-glory", "Rub", "Amulet of glory(4)", null,
+        TravelAction severalPlaces = new TravelAction("item:amulet-of-glory", "Rub", "Amulet of glory(4)",
             Arrays.asList(EDGEVILLE, FALADOR), false, TravelAction.Confidence.EXACT);
 
         assertFalse(finder.find(null, rules, availability).isPresent());
@@ -209,7 +209,7 @@ public class TravelAlternativeFinderTest
     private static TravelAction blocked(CanonicalChunk destination)
     {
         return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport",
-            new CanonicalChunk(50, 51), Collections.singletonList(destination), false, TravelAction.Confidence.EXACT);
+            Collections.singletonList(destination), false, TravelAction.Confidence.EXACT);
     }
 
     private FateLockedBundle fixture(String name) throws Exception

@@ -1,6 +1,5 @@
 package com.fatelocked.guardian.travel;
 
-import com.fatelocked.CanonicalChunk;
 import com.fatelocked.MenuFacts;
 import com.fatelocked.guardian.GuardResult;
 import com.fatelocked.guardian.StrictModeClickHandler;
@@ -55,14 +54,13 @@ public final class TravelGuardianCoordinator
     public TravelGuardianResult handle(
         MenuOptionClicked event,
         MenuFacts facts,
-        CanonicalChunk origin,
         StrictModeReadiness readiness,
         DecisionService rules,
         TravelAvailability availability)
     {
         TravelMatch match = rules == null ? null : classifier.classify(facts, rules.travelTable());
         TravelAction action = match == null
-            ? TravelAction.notTravel(facts, origin) : TravelAction.of(match, facts, origin);
+            ? TravelAction.notTravel(facts) : TravelAction.of(match, facts);
         TravelDecision decision = evaluator.evaluate(match, action, rules);
         GuardResult verdict = clickHandler.decide(action, decision, readiness);
 
@@ -74,7 +72,7 @@ public final class TravelGuardianCoordinator
             boolean recordPaused =
                 noticeStore.shouldWriteChat("paused:" + fingerprint(action));
             return new TravelGuardianResult(
-                action, decision, null, verdict, null,
+                action, decision, null, null,
                 false, false, recordPaused);
         }
 
@@ -82,7 +80,7 @@ public final class TravelGuardianCoordinator
         {
             // Not proven locked: the click is not Strict Mode's to touch.
             return new TravelGuardianResult(
-                action, decision, null, verdict, null,
+                action, decision, null, null,
                 false, false, false);
         }
 
@@ -95,12 +93,11 @@ public final class TravelGuardianCoordinator
         boolean writeChat = noticeStore.shouldWriteChat(fingerprint);
 
         // Final enforcement operation: all fallible coordinator work is above.
-        GuardResult guardResult =
-            clickHandler.handleTravel(event, action, decision, readiness);
+        clickHandler.handleTravel(event, action, decision, readiness);
         // Every click on a blocked trip is consumed, but a repeat inside the
         // chat window is neither announced nor recorded again.
         return new TravelGuardianResult(
-            action, decision, alternative, guardResult, notice,
+            action, decision, alternative, notice,
             writeChat, writeChat, false);
     }
 

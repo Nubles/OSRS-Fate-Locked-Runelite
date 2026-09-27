@@ -49,7 +49,6 @@ import static org.mockito.Mockito.when;
 public class StrictModeGoldenTest
 {
     private static final Gson GSON = new Gson();
-    private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 50);
 
     @Parameterized.Parameters(name = "{0}")
     public static List<Object[]> scenarios() throws IOException
@@ -158,7 +157,7 @@ public class StrictModeGoldenTest
             {
                 MenuOptionClicked click = mock(MenuOptionClicked.class);
                 TravelGuardianResult result = coordinator.handle(click,
-                    GoldenBundleContractTest.clicks(method, option).get(0), ORIGIN, readiness, decisions, availability);
+                    GoldenBundleContractTest.clicks(method, option).get(0), readiness, decisions, availability);
                 assertEquals(method.getId() + "|" + option, TravelAction.Confidence.EXACT, result.getAction().getConfidence());
                 if (Mockito.mockingDetails(click).getInvocations().stream()
                     .anyMatch(call -> call.getMethod().getName().equals("consume")))

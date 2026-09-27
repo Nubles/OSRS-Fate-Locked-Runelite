@@ -107,31 +107,31 @@ public class StrictModeGuardTest
 
     private static TravelAction exactTravel()
     {
-        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport", null,
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport",
             Collections.singletonList(new CanonicalChunk(46, 52)), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction noDestination()
     {
-        return new TravelAction("item:somewhere", "Teleport", "Teleport", null,
+        return new TravelAction("item:somewhere", "Teleport", "Teleport",
             Collections.emptyList(), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction severalPlaces()
     {
-        return new TravelAction("item:digsite-pendant", "Rub", "Digsite pendant", null,
+        return new TravelAction("item:digsite-pendant", "Rub", "Digsite pendant",
             Arrays.asList(new CanonicalChunk(52, 53), new CanonicalChunk(58, 59)), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction advisory()
     {
-        return new TravelAction("network:fairy-ring", "Zanaris", "Fairy ring to Zanaris", null,
+        return new TravelAction("network:fairy-ring", "Zanaris", "Fairy ring to Zanaris",
             Collections.singletonList(new CanonicalChunk(37, 69)), true, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()
     {
-        return new TravelAction(null, null, "Unknown", null,
+        return new TravelAction(null, null, "Unknown",
             Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 

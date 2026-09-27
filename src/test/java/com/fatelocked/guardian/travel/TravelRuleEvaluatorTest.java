@@ -1,6 +1,5 @@
 package com.fatelocked.guardian.travel;
 
-import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 import com.fatelocked.MenuFacts;
 import com.fatelocked.rules.DecisionService;
@@ -35,8 +34,6 @@ import static org.junit.Assert.assertNull;
  */
 public class TravelRuleEvaluatorTest
 {
-    private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 51);
-
     private final TravelRuleEvaluator evaluator = new TravelRuleEvaluator();
     private final IntentClassifier classifier = new IntentClassifier();
     private final DecisionService rules = nubles();
@@ -100,7 +97,7 @@ public class TravelRuleEvaluatorTest
         assertEquals(new TravelDecision(PermissionStatus.UNKNOWN, "Continue", null), evaluate(other("Continue", ""), rules));
         assertEquals(new TravelDecision(PermissionStatus.UNKNOWN, "Unknown travel", null), evaluator.evaluate(null, null, rules));
         TravelMatch match = classifier.classify(cast("Falador Teleport"), rules.travelTable());
-        TravelAction action = TravelAction.of(match, cast("Falador Teleport"), ORIGIN);
+        TravelAction action = TravelAction.of(match, cast("Falador Teleport"));
         assertEquals(PermissionStatus.UNKNOWN, evaluator.evaluate(match, action, null).getStatus());
         assertEquals(PermissionStatus.UNKNOWN, evaluator.evaluate(null, action, rules).getStatus());
         assertNull(evaluator.evaluate(null, action, rules).getReason());
@@ -109,7 +106,7 @@ public class TravelRuleEvaluatorTest
     private TravelDecision evaluate(MenuFacts facts, DecisionService decisions)
     {
         TravelMatch match = classifier.classify(facts, decisions.travelTable());
-        TravelAction action = match == null ? TravelAction.notTravel(facts, ORIGIN) : TravelAction.of(match, facts, ORIGIN);
+        TravelAction action = match == null ? TravelAction.notTravel(facts) : TravelAction.of(match, facts);
         return evaluator.evaluate(match, action, decisions);
     }
 

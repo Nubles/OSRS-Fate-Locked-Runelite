@@ -31,7 +31,6 @@ public class TravelAction
     String option;
     /** The trip as the menu names it: "Falador Teleport", or "Amulet of glory(4) to Edgeville". */
     String label;
-    CanonicalChunk origin;
     /** Every chunk the option can go to; empty when the click isn't travel, or the table doesn't say. */
     List<CanonicalChunk> destinations;
     /** Tagged but never blocked: networks and boats in Stage 2. */
@@ -40,16 +39,16 @@ public class TravelAction
     Confidence confidence;
 
     /** The trip a table match is. */
-    public static TravelAction of(TravelMatch match, MenuFacts facts, CanonicalChunk origin)
+    public static TravelAction of(TravelMatch match, MenuFacts facts)
     {
-        return new TravelAction(match.getMethod().getId(), match.getOption().getText(), label(facts), origin,
+        return new TravelAction(match.getMethod().getId(), match.getOption().getText(), label(facts),
             match.getOption().getTo(), match.getMethod().isAdvisory(), Confidence.EXACT);
     }
 
     /** A click that isn't travel: Strict Mode leaves it alone. */
-    public static TravelAction notTravel(MenuFacts facts, CanonicalChunk origin)
+    public static TravelAction notTravel(MenuFacts facts)
     {
-        return new TravelAction(null, null, label(facts), origin, Collections.emptyList(), false, Confidence.UNKNOWN);
+        return new TravelAction(null, null, label(facts), Collections.emptyList(), false, Confidence.UNKNOWN);
     }
 
     /** Whether an option names no place itself, as Cast, Break and Rub don't. */

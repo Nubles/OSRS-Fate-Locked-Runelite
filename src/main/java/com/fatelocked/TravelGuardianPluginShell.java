@@ -71,7 +71,6 @@ final class TravelGuardianPluginShell
     Route handle(
         MenuOptionClicked event,
         Client client,
-        CanonicalChunk origin,
         StrictModeReadiness readiness,
         DecisionService travelRules)
     {
@@ -79,7 +78,7 @@ final class TravelGuardianPluginShell
         try
         {
             MenuFacts facts = new MenuFactsReader(client).read(event.getMenuEntry());
-            result = coordinator.handle(event, facts, origin, readiness, travelRules, availability);
+            result = coordinator.handle(event, facts, readiness, travelRules, availability);
         }
         catch (RuntimeException ex)
         {

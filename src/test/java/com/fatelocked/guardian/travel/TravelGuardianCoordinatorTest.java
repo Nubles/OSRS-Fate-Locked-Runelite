@@ -1,6 +1,5 @@
 package com.fatelocked.guardian.travel;
 
-import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 import com.fatelocked.MenuFacts;
 import com.fatelocked.guardian.StrictModeClickHandler;
@@ -53,7 +52,6 @@ import static org.mockito.Mockito.when;
  */
 public class TravelGuardianCoordinatorTest
 {
-    private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 51);
 
     private final TravelAvailability availability = mock(TravelAvailability.class);
     private final TravelBlockNoticeStore noticeStore = new TravelBlockNoticeStore(
@@ -93,8 +91,8 @@ public class TravelGuardianCoordinatorTest
     {
         MenuOptionClicked click = mock(MenuOptionClicked.class);
 
-        TravelGuardianResult first = coordinator.handle(click, cast("Falador Teleport"), ORIGIN, active(), rules, availability);
-        TravelGuardianResult repeated = coordinator.handle(click, cast("Falador Teleport"), ORIGIN, active(), rules, availability);
+        TravelGuardianResult first = coordinator.handle(click, cast("Falador Teleport"), active(), rules, availability);
+        TravelGuardianResult repeated = coordinator.handle(click, cast("Falador Teleport"), active(), rules, availability);
 
         verify(click, times(2)).consume();
         assertEquals("Strict Mode blocked Falador Teleport", noticeStore.current().get().getHeadline());
@@ -114,9 +112,9 @@ public class TravelGuardianCoordinatorTest
     public void eachLockedOptionIsExplainedOnItsOwn()
     {
         TravelGuardianResult alKharid = coordinator.handle(mock(MenuOptionClicked.class),
-            item(AMULET_OF_GLORY_4, "Al Kharid", "Amulet of glory(4)"), ORIGIN, active(), rules, availability);
+            item(AMULET_OF_GLORY_4, "Al Kharid", "Amulet of glory(4)"), active(), rules, availability);
         TravelGuardianResult karamja = coordinator.handle(mock(MenuOptionClicked.class),
-            item(AMULET_OF_GLORY_4, "Karamja", "Amulet of glory(4)"), ORIGIN, active(), rules, availability);
+            item(AMULET_OF_GLORY_4, "Karamja", "Amulet of glory(4)"), active(), rules, availability);
 
         assertTrue(alKharid.isWriteChat());
         assertTrue(karamja.isWriteChat());
@@ -176,7 +174,7 @@ public class TravelGuardianCoordinatorTest
 
         try
         {
-            failing.handle(click, cast("Falador Teleport"), ORIGIN, active(), rules, availability);
+            failing.handle(click, cast("Falador Teleport"), active(), rules, availability);
             org.junit.Assert.fail("the presenter's failure reaches the shell, which lets the click through");
         }
         catch (IllegalStateException expected)
@@ -197,7 +195,7 @@ public class TravelGuardianCoordinatorTest
             return null;
         }).when(click).consume();
 
-        TravelGuardianResult result = coordinator.handle(click, cast("Falador Teleport"), ORIGIN, active(), rules, availability);
+        TravelGuardianResult result = coordinator.handle(click, cast("Falador Teleport"), active(), rules, availability);
 
         verify(click).consume();
         assertTrue(noticeWasUp[0]);
@@ -211,9 +209,9 @@ public class TravelGuardianCoordinatorTest
         MenuOptionClicked click = mock(MenuOptionClicked.class);
 
         TravelGuardianResult result = coordinator.handle(
-            click, cast("Falador Teleport"), ORIGIN, context(true, true, true, true), rules, availability);
+            click, cast("Falador Teleport"), context(true, true, true, true), rules, availability);
         TravelGuardianResult repeated = coordinator.handle(
-            click, cast("Falador Teleport"), ORIGIN, context(true, true, true, true), rules, availability);
+            click, cast("Falador Teleport"), context(true, true, true, true), rules, availability);
 
         verify(click, never()).consume();
         assertFalse(noticeStore.current().isPresent());
@@ -229,7 +227,7 @@ public class TravelGuardianCoordinatorTest
         MenuOptionClicked click = mock(MenuOptionClicked.class);
 
         TravelGuardianResult result = coordinator.handle(
-            click, cast("Lumbridge Teleport"), ORIGIN, context(true, true, true, true), rules, availability);
+            click, cast("Lumbridge Teleport"), context(true, true, true, true), rules, availability);
 
         verify(click, never()).consume();
         assertFalse(result.isWriteChat());
@@ -329,7 +327,7 @@ public class TravelGuardianCoordinatorTest
         MenuOptionClicked click = mock(MenuOptionClicked.class);
         when(finder.find(any(), any(), any())).thenThrow(new IllegalStateException("inventory unavailable"));
 
-        TravelGuardianResult result = coordinator.handle(click, cast("Falador Teleport"), ORIGIN, active(), rules, availability);
+        TravelGuardianResult result = coordinator.handle(click, cast("Falador Teleport"), active(), rules, availability);
 
         verify(click).consume();
         assertTrue(result.isWriteBlockedAudit());
@@ -340,14 +338,14 @@ public class TravelGuardianCoordinatorTest
     private MenuOptionClicked handle(MenuFacts facts, StrictModeReadiness readiness)
     {
         MenuOptionClicked click = mock(MenuOptionClicked.class);
-        coordinator.handle(click, facts, ORIGIN, readiness, rules, availability);
+        coordinator.handle(click, facts, readiness, rules, availability);
         return click;
     }
 
     private void assertBlocked(MenuFacts facts, String reason)
     {
         MenuOptionClicked click = mock(MenuOptionClicked.class);
-        TravelGuardianResult result = coordinator.handle(click, facts, ORIGIN, active(), rules, availability);
+        TravelGuardianResult result = coordinator.handle(click, facts, active(), rules, availability);
         verify(click).consume();
         assertEquals(facts.toString(), PermissionStatus.LOCKED, result.getDecision().getStatus());
         assertEquals(facts.toString(), reason, result.getNotice().getReason());
@@ -356,7 +354,7 @@ public class TravelGuardianCoordinatorTest
     private TravelGuardianResult assertNotBlocked(MenuFacts facts, PermissionStatus status)
     {
         MenuOptionClicked click = mock(MenuOptionClicked.class);
-        TravelGuardianResult result = coordinator.handle(click, facts, ORIGIN, active(), rules, availability);
+        TravelGuardianResult result = coordinator.handle(click, facts, active(), rules, availability);
         verify(click, never()).consume();
         assertEquals(facts.toString(), TravelAction.Confidence.EXACT, result.getAction().getConfidence());
         assertEquals(facts.toString(), status, result.getDecision().getStatus());
@@ -367,7 +365,7 @@ public class TravelGuardianCoordinatorTest
     private TravelGuardianResult assertFailOpen(MenuFacts facts, StrictModeReadiness readiness, DecisionService decisions)
     {
         MenuOptionClicked click = mock(MenuOptionClicked.class);
-        TravelGuardianResult result = coordinator.handle(click, facts, ORIGIN, readiness, decisions, availability);
+        TravelGuardianResult result = coordinator.handle(click, facts, readiness, decisions, availability);
         verify(click, never()).consume();
         assertFalse(noticeStore.current().isPresent());
         assertFalse(result.isWriteChat());

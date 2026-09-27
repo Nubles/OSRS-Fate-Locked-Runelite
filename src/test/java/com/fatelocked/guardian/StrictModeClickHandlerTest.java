@@ -70,13 +70,13 @@ public class StrictModeClickHandlerTest
 
     private static TravelAction exactTravel()
     {
-        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport", null,
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport",
             Collections.singletonList(new CanonicalChunk(46, 52)), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()
     {
-        return new TravelAction(null, null, "Unknown", null,
+        return new TravelAction(null, null, "Unknown",
             Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 
