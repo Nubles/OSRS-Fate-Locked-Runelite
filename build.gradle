@@ -57,6 +57,19 @@ tasks.register('runClient', JavaExec) {
     args '--developer-mode'
 }
 
+// Renders the sidebar into PNGs in RuneLite's own theme, with no client and no
+// display, for design review and the web guide's screenshots. RuneLite's theme
+// is global to the JVM, so this is never part of `check`.
+tasks.register('previews', JavaExec) {
+    group = 'documentation'
+    description = 'Renders the sidebar into build/previews.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.fatelocked.Previews'
+    systemProperty 'java.awt.headless', 'true'
+    systemProperty 'user.timezone', 'UTC'
+    args layout.buildDirectory.dir('previews').get().asFile.absolutePath
+}
+
 // Checks the jar this build makes. With -PpluginHubJar=<path> it checks that
 // jar instead: CI passes the one the Plugin Hub's own packager built from the
 // same commit (the hub-standard-build job).
