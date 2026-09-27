@@ -36,7 +36,8 @@ import static org.mockito.Mockito.when;
 /**
  * What crossing into a chunk tells the player: nothing before rules are
  * loaded or in chunks the tracker hasn't mapped, and one locked warning on
- * the way into locked territory, whatever the chat setting.
+ * the way into locked territory, whatever the chat setting. A locked chunk's
+ * line says why, in the tracker's words (E8).
  */
 public class FateLockedChunkEntryTest
 {
@@ -174,7 +175,7 @@ public class FateLockedChunkEntryTest
         List<String> lines = chatLines();
         assertEquals(LUMBRIDGE_TO_FALADOR.length, lines.size());
         assertEquals(1, lines.stream().filter(line -> line.contains("⚠ LOCKED")).count());
-        assertTrue(lines.get(4), lines.get(4).contains("(46, 50)") && lines.get(4).contains("⚠ LOCKED"));
+        assertTrue(lines.get(4), lines.get(4).contains("(46, 50)") && lines.get(4).endsWith("⚠ LOCKED: Unlock Rimmington"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
         verify(notifier).notify("Entered LOCKED chunk: " + mid.labelAt(RIMMINGTON));
     }
@@ -190,7 +191,8 @@ public class FateLockedChunkEntryTest
         walk(FALADOR, SOUTH_TAVERLEY, EAST_CATHERBY);
 
         List<String> lines = chatLines();
-        assertTrue(lines.get(2), lines.get(2).contains("(44, 53)") && lines.get(2).contains("✓ unlocked"));
+        assertTrue(lines.get(2), lines.get(2).contains("(44, 53)") && lines.get(2).endsWith("✓ unlocked"));
+        assertTrue(lines.get(1), lines.get(1).endsWith("⚠ LOCKED: Unlock Taverley"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
         verify(panel, times(1)).updateRollInboxStatus(0, 0, 1, false);
         verify(panel, times(2)).updateRollInboxStatus(0, 0, 0, false);
@@ -220,7 +222,8 @@ public class FateLockedChunkEntryTest
         walk(LUMBRIDGE, ZEAH);
 
         List<String> lines = chatLines();
-        assertTrue(lines.get(1), lines.get(1).contains("Chunk (16, 44)") && lines.get(1).contains("⚠ LOCKED"));
+        assertTrue(lines.get(1), lines.get(1).contains("Chunk (16, 44)")
+            && lines.get(1).endsWith("⚠ LOCKED: Needs Sailing and Pandemonium"));
         assertFalse(lines.get(1), lines.get(1).contains("null"));
         verify(notifier).notify("Entered LOCKED chunk (16, 44)");
     }

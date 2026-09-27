@@ -144,6 +144,14 @@ public class FateLockedHudOverlay extends OverlayPanel
                 .right(truncate(status.getText(), 22))
                 .rightColor(status.getColor())
                 .build());
+            if (status.getWhy() != null)
+            {
+                panelComponent.getChildren().add(LineComponent.builder()
+                    .left("Why")
+                    .right(truncate(status.getWhy(), 22))
+                    .rightColor(status.getColor())
+                    .build());
+            }
 
             if (config.showNearest() && decisions.hasNearestData())
             {

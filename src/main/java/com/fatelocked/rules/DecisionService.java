@@ -80,7 +80,7 @@ public final class DecisionService
         return rules;
     }
 
-    /** Whether a chunk may be entered. */
+    /** Whether a chunk may be entered, and why not in the tracker's words (E8). */
     public Decision chunk(CanonicalChunk chunk)
     {
         Decision gate = gate();
@@ -92,7 +92,7 @@ public final class DecisionService
         ChunkPermissionSnapshot value = snapshot.get();
         return new Decision(value.getEntry(),
             value.getName() == null ? value.getChunkKey() : value.getName(),
-            null, Decision.Source.CHUNK);
+            value.getEntryReason(), Decision.Source.CHUNK);
     }
 
     /**
@@ -105,10 +105,14 @@ public final class DecisionService
         PermissionStatus entry = rules.entryAt(chunk);
         if (entry == null) return unmapped(null);
         RuneliteRulesManifest.Place place = rules.placeAt(chunk);
-        String label = place == null ? null
-            : place.isOcean() ? "Ocean"
-            : place.getName() != null ? place.getName() : place.getArea();
+        String label = place == null ? null : place.isOcean() ? "Ocean" : interiorName(place);
         return new Decision(entry, label, null, Decision.Source.CHUNK);
+    }
+
+    /** An interior's name, else the area it belongs to; null when the places give neither. */
+    private static String interiorName(RuneliteRulesManifest.Place place)
+    {
+        return place.getName() != null ? place.getName() : place.getArea();
     }
 
     /** The tracker's rows for a chunk, for the sidebar; empty unless the rules apply. */
@@ -160,13 +164,24 @@ public final class DecisionService
     }
 
     /**
-     * The area a chunk belongs to, as the rules' area lists name it
-     * ("Draynor Village · Misthalin"), on any character; null when unnamed.
-     * The HUD's "Here" line shows it.
+     * The area a chunk belongs to, on any character: the tracker's own, with
+     * its region ("Draynor Village · Misthalin") (E8); an interior's name
+     * from the rules' places; else as an older export's area lists name it.
+     * Null when unnamed, as the sea is. The HUD's "Here" line shows it.
      */
     public String areaName(CanonicalChunk chunk)
     {
-        return chunk == null ? null : rules.areaLabel(chunk);
+        if (chunk == null) return null;
+        Optional<ChunkPermissionSnapshot> snapshot = snapshotAt(chunk);
+        if (snapshot.isPresent() && snapshot.get().getArea() != null)
+        {
+            String area = snapshot.get().getArea();
+            String region = snapshot.get().getRegion();
+            return isBlank(region) || region.trim().equals(area) ? area : area + " · " + region.trim();
+        }
+        RuneliteRulesManifest.Place place = snapshot.isPresent() ? null : rules.placeAt(chunk);
+        if (place != null && !place.isOcean() && interiorName(place) != null) return interiorName(place);
+        return rules.areaLabel(chunk);
     }
 
     /** The region (continent) a chunk is in, on any character; null when the rules don't say. */

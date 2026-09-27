@@ -1262,7 +1262,8 @@ public class FateLockedPlugin extends Plugin
         if (current == null) return;
 
         FateLockedBundle b = getBundle();
-        PermissionStatus status = decisions.chunk(current).getStatus();
+        Decision entry = decisions.chunk(current);
+        PermissionStatus status = entry.getStatus();
         String label = decisions.areaName(current);
 
         boolean changed = !current.equals(lastChunk);
@@ -1275,7 +1276,7 @@ public class FateLockedPlugin extends Plugin
             // it reads as unlocked and never alerts.
             if (config.chatOnEnter() && status != PermissionStatus.UNKNOWN)
             {
-                announceEntry(current, label, status != PermissionStatus.LOCKED);
+                announceEntry(current, label, status != PermissionStatus.LOCKED ? null : entry);
             }
             // Flash, sound and notification once on the way INTO locked
             // territory, not at every chunk inside it, whatever the chat
@@ -1442,7 +1443,8 @@ public class FateLockedPlugin extends Plugin
     }
 
     /** Chat line for entering a mapped chunk; {@code region} is null for a chunk only the tracker names. */
-    private void announceEntry(CanonicalChunk chunk, String region, boolean unlocked)
+    /** One chat line per chunk entered; a locked one says why, in the tracker's words (E8). */
+    private void announceEntry(CanonicalChunk chunk, String region, Decision locked)
     {
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
@@ -1453,7 +1455,8 @@ public class FateLockedPlugin extends Plugin
             msg.append(ChatColorType.NORMAL).append(" · ")
                .append(ChatColorType.HIGHLIGHT).append(region);
         }
-        msg.append(ChatColorType.NORMAL).append(unlocked ? " ✓ unlocked" : " ⚠ LOCKED");
+        msg.append(ChatColorType.NORMAL).append(locked == null ? " ✓ unlocked"
+            : locked.getReason() == null ? " ⚠ LOCKED" : " ⚠ LOCKED: " + locked.getReason());
 
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
