@@ -6,6 +6,7 @@ import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.RunModel;
 import com.fatelocked.sidebar.StatusCardModel;
 import com.fatelocked.sidebar.StrictModeModel;
+import com.fatelocked.ui.Palette;
 import java.util.Objects;
 
 /**
@@ -21,10 +22,20 @@ final class SidebarPublisher
     private RunModel run;
     private ConnectionModel connection;
     private RollInboxModel rollInbox;
+    private Palette palette = Palette.defaults();
 
     SidebarPublisher(FateLockedPanel panel)
     {
         this.panel = panel;
+    }
+
+    void palette(Palette next)
+    {
+        if (next != palette)
+        {
+            palette = next;
+            panel.setPalette(next);
+        }
     }
 
     void status(StatusCardModel next)

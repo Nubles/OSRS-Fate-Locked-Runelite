@@ -683,6 +683,30 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
+    /** E1: the stored colours are drawn from the start, and a profile switch draws its own. */
+    @Test
+    public void theStoredColoursAreDrawnFromTheStartAndOnAProfileSwitch() throws Exception
+    {
+        Map<String, String> stored = new java.util.HashMap<>();
+        stored.put("colourPreset", "COLOUR_BLIND_SAFE");
+        Harness harness = new Harness(folder.newFolder("colours"), true, stored);
+        try
+        {
+            com.fatelocked.ui.Palette safe = com.fatelocked.ui.Palette.of(
+                com.fatelocked.ui.Palette.Preset.COLOUR_BLIND_SAFE, null, null, null);
+            assertSame(safe, harness.plugin.palette());
+
+            harness.configuration.put("colourPreset", "DEFAULT");
+            harness.plugin.onProfileChanged(new net.runelite.client.events.ProfileChanged());
+            harness.runClientTasks();
+            assertSame(com.fatelocked.ui.Palette.defaults(), harness.plugin.palette());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
     /** Settings that can't be carried over keep their defaults, and the plugin carries on. */
     @Test
     public void settingsThatCantBeReadDoNotStopThePlugin() throws Exception
@@ -835,7 +859,16 @@ public class FateLockedPluginStartupContractTest
 
             ConfigManager configManager = statefulConfigManager();
             settings = new TrackerConnectionSettings(configManager);
-            FateLockedConfig config = new FateLockedConfig() { };
+            // Defaults, but the colour preset is read from the stored settings.
+            FateLockedConfig config = new FateLockedConfig()
+            {
+                @Override
+                public ColourPreset colourPreset()
+                {
+                    String stored = configuration.get("colourPreset");
+                    return stored == null ? ColourPreset.DEFAULT : ColourPreset.valueOf(stored);
+                }
+            };
             panel = new FateLockedPanel(com.fatelocked.ui.IconSource.NONE)
             {
                 @Override

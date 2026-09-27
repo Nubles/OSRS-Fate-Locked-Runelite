@@ -19,6 +19,7 @@ import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.StrictModeSectionPresenter;
+import com.fatelocked.ui.Palette;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.StrictModeClickHandler;
@@ -122,6 +123,7 @@ import java.time.ZoneId;
 import java.time.Duration;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -230,6 +232,11 @@ public class FateLockedPlugin extends Plugin
      * overlays read it through this volatile field.
      */
     private volatile DecisionService decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
+    /** The colours the colour settings choose; overlays read it through this volatile field. */
+    private volatile Palette palette = Palette.defaults();
+    /** The settings that change the palette. */
+    private static final Set<String> PALETTE_KEYS = new HashSet<>(Arrays.asList(
+        "colourPreset", "unlockedColor", "frontierColor", "lockedColor"));
     /** The bound account and character the decision service was built for (client thread). */
     private String decisionsBound = "";
     private String decisionsPlayer = "";
@@ -465,6 +472,7 @@ public class FateLockedPlugin extends Plugin
         clientToolbar.addNavigation(navButton);
 
         started.run(() -> {
+            refreshPalette();
             startSessionTracking();
             updateStrictModePanel();
             updateStrictAuditPanel();
@@ -521,15 +529,38 @@ public class FateLockedPlugin extends Plugin
     }
 
     /**
-     * RuneLite posts ConfigChanged on the thread that changed the setting:
-     * the Swing thread for the sidebar and the config panel. The sidebar
-     * control updates there; everything else waits for the client thread.
+     * RuneLite writes each profile's defaults on a switch; its old settings are carried over
+     * too, and its colours are drawn.
      */
-    /** RuneLite writes each profile's defaults on a switch; its old settings are carried over too. */
     @Subscribe
     public void onProfileChanged(ProfileChanged ev)
     {
         migrateSettings();
+        gate.run(this::refreshPalette);
+    }
+
+    /** The colours everything is drawn in (U15): a preset, or the player's own. Client thread. */
+    Palette palette()
+    {
+        return palette;
+    }
+
+    /** The palette these settings choose. The custom colours count only under Custom. */
+    static Palette palette(FateLockedConfig config)
+    {
+        return Palette.of(Palette.Preset.valueOf(config.colourPreset().name()),
+            config.unlockedColor(), config.frontierColor(), config.lockedColor());
+    }
+
+    /** Work the palette out again from the settings, and hand it to the sidebar. */
+    private void refreshPalette()
+    {
+        palette = palette(config);
+        SidebarPublisher models = sidebarModels();
+        if (models != null)
+        {
+            models.palette(palette);
+        }
     }
 
     /** Carry each player's settings from before Stage 3 over to the merged ones (D2). */
@@ -559,6 +590,11 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
+    /**
+     * RuneLite posts ConfigChanged on the thread that changed the setting:
+     * the Swing thread for the sidebar and the config panel. The sidebar
+     * control updates there; everything else waits for the client thread.
+     */
     @Subscribe
     public void onConfigChanged(ConfigChanged ev)
     {
@@ -569,7 +605,11 @@ public class FateLockedPlugin extends Plugin
 
     private void applyConfigChange(String key)
     {
-        if ("ruleWarnings".equals(key))
+        if (PALETTE_KEYS.contains(key))
+        {
+            refreshPalette();
+        }
+        else if ("ruleWarnings".equals(key))
         {
             // One switch warns about both, so each is worked out again.
             recomputeOverTierGear();
