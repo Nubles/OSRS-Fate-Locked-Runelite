@@ -48,7 +48,8 @@ public class HudStatusTest
         assertEquals(new HudStatus("LOCKED", HudStatus.RED), status(mid, SEERS));
         assertEquals(new HudStatus("Unlocked", HudStatus.GREEN), status(mid, LUMBRIDGE));
         assertEquals(new HudStatus("Not ready", HudStatus.AMBER), status(mid, GLARIALS_TOMB));
-        assertEquals(new HudStatus("Unknown", HudStatus.GRAY), status(mid, OCEAN));
+        // The sea has no snapshot; the rules' chunk entries lock it without Sailing (R1).
+        assertEquals(new HudStatus("LOCKED", HudStatus.RED), status(mid, OCEAN));
     }
 
     @Test

@@ -88,11 +88,27 @@ public final class DecisionService
         if (chunk == null) return unmapped(null);
         if (rules.isLegacy()) return rules.legacy().chunk(chunk);
         Optional<ChunkPermissionSnapshot> snapshot = rules.bundle().permissionsAt(chunk);
-        if (!snapshot.isPresent()) return unmapped(null);
+        if (!snapshot.isPresent()) return place(chunk);
         ChunkPermissionSnapshot value = snapshot.get();
         return new Decision(value.getEntry(),
             value.getName() == null ? value.getChunkKey() : value.getName(),
             null, Decision.Source.CHUNK);
+    }
+
+    /**
+     * A chunk with no snapshot: the ocean or an interior, as the tracker's
+     * entries say (R1), named as its places name it. Unmapped when the rules
+     * send no entries, or none for this chunk.
+     */
+    private Decision place(CanonicalChunk chunk)
+    {
+        PermissionStatus entry = rules.entryAt(chunk);
+        if (entry == null) return unmapped(null);
+        RuneliteRulesManifest.Place place = rules.placeAt(chunk);
+        String label = place == null ? null
+            : place.isOcean() ? "Ocean"
+            : place.getName() != null ? place.getName() : place.getArea();
+        return new Decision(entry, label, null, Decision.Source.CHUNK);
     }
 
     /** The tracker's rows for a chunk, for the sidebar; empty unless the rules apply. */

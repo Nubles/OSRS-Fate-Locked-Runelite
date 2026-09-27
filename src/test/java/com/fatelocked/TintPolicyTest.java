@@ -56,11 +56,14 @@ public class TintPolicyTest
                 boolean otherQuiet = account == null || TintPolicy.at(other, chunk) == TintPolicy.Tint.UNKNOWN;
                 if (want != got || !otherQuiet) mismatches.add(entry.getKey() + " want " + want + " got " + got);
             }
+            // The sea without a snapshot tints as the rules' chunk entries say (R1).
+            JsonObject entries = GoldenBundleContractTest.json(id + ".expect.json").getAsJsonObject("entries");
             for (String key : GoldenBundleContractTest.json(id + ".expect.json").getAsJsonObject("chunks").keySet())
             {
                 if (chunks.has(key)) continue;
+                TintPolicy.Tint want = tint(entries.get(key).getAsString());
                 TintPolicy.Tint sea = TintPolicy.at(playing, GoldenBundleContractTest.chunk(key));
-                if (sea != TintPolicy.Tint.UNKNOWN) mismatches.add(key + " is not in the rules but tints " + sea);
+                if (sea != want) mismatches.add(key + " is not in the rules' chunks and tints " + sea + ", not " + want);
             }
             assertTrue(id, chunks.size() > 600);
             assertEquals(id, List.of(), mismatches);

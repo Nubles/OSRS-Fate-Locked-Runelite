@@ -73,25 +73,17 @@ public class DecisionServiceGoldenTest
         assertEquals(id + " entries", List.of(), mismatches);
     }
 
-    /** Owned or not, as the tracker says; NOT_READY is owned but not yet usable. */
+    /** Owned or not, as the tracker says, the sea included (R1); NOT_READY is owned but not yet usable. */
     @Test
-    public void everyTrackerChunkIsOwnedOrLockedOrUnmapped()
+    public void everyTrackerChunkIsOwnedOrLocked()
     {
         DecisionService service = trusted();
         List<String> mismatches = new ArrayList<>();
-        int unmapped = 0;
+        int sea = 0;
         for (Map.Entry<String, JsonElement> entry : expected.getAsJsonObject("chunks").entrySet())
         {
             Decision decision = service.chunk(GoldenBundleContractTest.chunk(entry.getKey()));
-            if (!rulesChunks().has(entry.getKey()))
-            {
-                unmapped++;
-                if (decision.getStatus() != PermissionStatus.UNKNOWN || decision.getSource() != Decision.Source.UNMAPPED)
-                {
-                    mismatches.add(entry.getKey() + " should be unmapped: " + decision);
-                }
-                continue;
-            }
+            if (!rulesChunks().has(entry.getKey())) sea++;
             boolean owned = decision.getStatus() == PermissionStatus.ALLOWED
                 || decision.getStatus() == PermissionStatus.NOT_READY;
             if (owned != entry.getValue().getAsBoolean() || decision.getStatus() == PermissionStatus.UNKNOWN)
@@ -100,8 +92,8 @@ public class DecisionServiceGoldenTest
             }
         }
         assertEquals(id + " tracker chunks", List.of(), mismatches);
-        // The ocean chunks the rules don't cover yet (R4); Stage 2's web fields fill them.
-        assertTrue(id + " has unmapped ocean", unmapped > 0);
+        // Ocean chunks without a snapshot, which only the rules' chunk entries decide.
+        assertTrue(id + " has sea without a snapshot", sea > 0);
     }
 
     @Test

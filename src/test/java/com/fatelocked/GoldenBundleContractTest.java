@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
 import java.util.zip.GZIPInputStream;
 
@@ -75,22 +77,41 @@ public class GoldenBundleContractTest
     }
 
     /**
-     * Ocean and interior chunks have no legacy mapping in the plugin, so it
-     * reads them as unauthored whatever the tracker decides (review findings
-     * R1 and R4). Stage 2 gives them lock states and must change this test.
+     * Every land, ocean and interior chunk reads the tracker's entry (R1), and
+     * a place without a snapshot is named as the tracker names it.
      */
     @Test
-    public void unmappedChunksReadUnauthoredUntilStage2()
+    public void everyPlaceMatchesTheTracker() throws IOException
     {
-        int unmapped = 0;
-        for (String key : expected.getAsJsonObject("chunks").keySet())
+        DecisionService engine = DecisionService.create(RulesSnapshot.of(bundle), null, null);
+        List<String> mismatches = new ArrayList<>();
+        int places = 0;
+        for (Map.Entry<String, JsonElement> entry : expected.getAsJsonObject("entries").entrySet())
         {
-            CanonicalChunk chunk = chunk(key);
-            if (isLand(chunk)) continue;
-            unmapped++;
-            assertEquals(id + " " + key, FateLockedBundle.LockState.UNAUTHORED, bundle.lockStateAt(chunk));
+            CanonicalChunk chunk = chunk(entry.getKey());
+            Decision decision = engine.chunk(chunk);
+            if (!entry.getValue().getAsString().equals(decision.getStatus().name()))
+            {
+                mismatches.add(entry.getKey() + " want " + entry.getValue().getAsString() + " got " + decision.getStatus());
+            }
+            if (!isLand(chunk)) places++;
         }
-        assertTrue(id + " has ocean or interior chunks", unmapped > 0);
+        assertEquals(id + " entries", List.of(), mismatches);
+        assertTrue(id + " has ocean or interior chunks", places > 0);
+
+        List<String> misnamed = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : json("places.json").getAsJsonObject("places").entrySet())
+        {
+            CanonicalChunk chunk = chunk(entry.getKey());
+            if (bundle.permissionsAt(chunk).isPresent()) continue;
+            JsonObject place = entry.getValue().getAsJsonObject();
+            String want = "ocean".equals(place.get("kind").getAsString()) ? "Ocean"
+                : place.has("name") ? place.get("name").getAsString()
+                : place.has("area") ? place.get("area").getAsString() : null;
+            String got = engine.chunk(chunk).getLabel();
+            if (!Objects.equals(want, got)) misnamed.add(entry.getKey() + " want " + want + " got " + got);
+        }
+        assertEquals(id + " place names", List.of(), misnamed);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.fatelocked.rules;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -19,6 +20,9 @@ public final class RuneliteRulesManifest
 {
     /** The capability that says a bundle sends the Chunked frontier (R4). */
     public static final String FRONTIER = "frontier";
+    /** The capabilities for every chunk's entry and what each non-land chunk is (R1). */
+    public static final String CHUNK_ENTRIES = "chunkEntries";
+    public static final String PLACES = "places";
 
     private String rulesVersion;
     private int contentVersion;
@@ -50,6 +54,16 @@ public final class RuneliteRulesManifest
     @SerializedName("frontier")
     private JsonElement frontierDeclaration;
     private transient List<String> frontier;
+    /** Stage 2: every land, ocean and interior chunk's entry, by "cx,cy"; null when the bundle doesn't send them. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("chunkEntries")
+    private JsonElement chunkEntriesDeclaration;
+    private transient Map<String, PermissionStatus> chunkEntries;
+    /** Stage 2: what each chunk that isn't land is, by "cx,cy"; null when the bundle doesn't send it. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("places")
+    private JsonElement placesDeclaration;
+    private transient Map<String, Place> places;
 
     public RuneliteRulesManifest normalized()
     {
@@ -97,7 +111,60 @@ public final class RuneliteRulesManifest
         copy.capabilities = capabilities == null ? strings(capabilitiesDeclaration) : capabilities;
         copy.frontier = !copy.capabilities.contains(FRONTIER) ? null
             : frontier != null ? frontier : stringItems(frontierDeclaration);
+        copy.chunkEntries = !copy.capabilities.contains(CHUNK_ENTRIES) ? null
+            : chunkEntries != null ? chunkEntries : statuses(chunkEntriesDeclaration);
+        copy.places = !copy.capabilities.contains(PLACES) ? null
+            : places != null ? places : places(placesDeclaration);
         return copy;
+    }
+
+    /** A JSON string's value; null for anything else. */
+    private static String string(JsonElement value)
+    {
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
+            ? value.getAsString() : null;
+    }
+
+    /**
+     * A JSON object's statuses by key: a status this build doesn't know reads
+     * UNKNOWN, and a value that isn't a string is skipped. Null when it isn't an object.
+     */
+    private static Map<String, PermissionStatus> statuses(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonObject()) return null;
+        Map<String, PermissionStatus> statuses = new TreeMap<>();
+        for (Map.Entry<String, JsonElement> entry : declaration.getAsJsonObject().entrySet())
+        {
+            String status = string(entry.getValue());
+            if (status == null) continue;
+            try
+            {
+                statuses.put(entry.getKey(), PermissionStatus.valueOf(status));
+            }
+            catch (IllegalArgumentException unknown)
+            {
+                statuses.put(entry.getKey(), PermissionStatus.UNKNOWN);
+            }
+        }
+        return Collections.unmodifiableMap(statuses);
+    }
+
+    /** Each place by key, skipping a value that isn't an object with a kind. Null when it isn't an object. */
+    private static Map<String, Place> places(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonObject()) return null;
+        Map<String, Place> places = new TreeMap<>();
+        for (Map.Entry<String, JsonElement> entry : declaration.getAsJsonObject().entrySet())
+        {
+            if (entry.getValue() == null || !entry.getValue().isJsonObject()) continue;
+            JsonObject value = entry.getValue().getAsJsonObject();
+            String kind = string(value.get("kind"));
+            if (kind == null) continue;
+            List<String> entrances = stringItems(value.get("entrances"));
+            places.put(entry.getKey(), new Place(kind, string(value.get("name")), string(value.get("area")),
+                entrances == null ? Collections.emptyList() : entrances));
+        }
+        return Collections.unmodifiableMap(places);
     }
 
     /** A JSON array's strings, skipping anything else; nothing when it isn't an array. */
@@ -148,6 +215,31 @@ public final class RuneliteRulesManifest
             && gameModeId != null && !gameModeId.trim().isEmpty()
             && exportedAt != null && !exportedAt.trim().isEmpty()
             && unlocks != null && chunks != null;
+    }
+
+    /** A chunk that isn't land: the ocean, or an interior with its name, area and the chunks it is entered from. */
+    @Getter
+    public static final class Place
+    {
+        private final String kind;
+        /** The interior's name, such as "Mor Ul Rek · Outer Area"; null when the tracker has none. */
+        private final String name;
+        /** The named area the interior belongs to; null when it has none. */
+        private final String area;
+        private final List<String> entrances;
+
+        public Place(String kind, String name, String area, List<String> entrances)
+        {
+            this.kind = kind;
+            this.name = name;
+            this.area = area;
+            this.entrances = entrances;
+        }
+
+        public boolean isOcean()
+        {
+            return "ocean".equals(kind);
+        }
     }
 
     @Getter

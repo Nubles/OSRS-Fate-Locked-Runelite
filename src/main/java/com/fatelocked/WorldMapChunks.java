@@ -19,9 +19,14 @@ final class WorldMapChunks
     {
     }
 
-    /** The chunk's fill, or null when the map draws nothing there. NOT_READY is owned. */
+    /**
+     * The chunk's fill, or null when the map draws nothing there: off the
+     * tracker's land, such as the sea, whose entries the HUD and tints use.
+     * NOT_READY is owned.
+     */
     static Fill fill(DecisionService decisions, CanonicalChunk chunk)
     {
+        if (!decisions.mappedChunks().contains(chunk)) return null;
         switch (decisions.chunk(chunk).getStatus())
         {
             case ALLOWED:

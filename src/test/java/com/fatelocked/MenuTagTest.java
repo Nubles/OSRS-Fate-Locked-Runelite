@@ -75,7 +75,7 @@ public class MenuTagTest
         assertEquals("the rules decide, not the old areas", "Guard" + TAG, npcTarget(ZEAH));
         assertEquals("NOT_READY never tags", "Guard", npcTarget(GLARIALS_TOMB));
         assertEquals("Guard", npcTarget(LUMBRIDGE));
-        assertEquals("Guard", npcTarget(OCEAN));
+        assertEquals("the sea is locked without Sailing (R1)", "Guard" + TAG, npcTarget(OCEAN));
     }
 
     @Test

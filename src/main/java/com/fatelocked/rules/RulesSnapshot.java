@@ -4,6 +4,7 @@ import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,10 @@ public final class RulesSnapshot
     private final Set<CanonicalChunk> shopChunks;
     /** The tracker's frontier for a Chunked run, when the rules send it; null otherwise. */
     private final Set<CanonicalChunk> frontier;
+    /** Every land, ocean and interior chunk's entry, when the rules send them; empty otherwise. */
+    private final Map<CanonicalChunk, PermissionStatus> entries;
+    /** What each chunk that isn't land is, when the rules send it; empty otherwise. */
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Place> places;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
@@ -38,6 +43,24 @@ public final class RulesSnapshot
         this.shopChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "SHOPS", null));
         List<String> frontierKeys = bundle.isLegacyRules() ? null : bundle.getRules().getFrontier();
         this.frontier = frontierKeys == null ? null : Collections.unmodifiableSet(chunks(frontierKeys));
+        RuneliteRulesManifest manifest = bundle.isLegacyRules() ? null : bundle.getRules();
+        this.entries = Collections.unmodifiableMap(byChunk(manifest == null ? null : manifest.getChunkEntries()));
+        this.places = Collections.unmodifiableMap(byChunk(manifest == null ? null : manifest.getPlaces()));
+    }
+
+    /** A map by "cx,cy" key, keyed by chunk instead, skipping keys that aren't one. */
+    private static <T> Map<CanonicalChunk, T> byChunk(Map<String, T> byKey)
+    {
+        Map<CanonicalChunk, T> byChunk = new HashMap<>();
+        if (byKey == null) return byChunk;
+        for (Map.Entry<String, T> entry : byKey.entrySet())
+        {
+            for (CanonicalChunk chunk : chunks(Collections.singletonList(entry.getKey())))
+            {
+                byChunk.put(chunk, entry.getValue());
+            }
+        }
+        return byChunk;
     }
 
     /** The chunks of "cx,cy" keys, skipping any that aren't one. */
@@ -184,6 +207,18 @@ public final class RulesSnapshot
     boolean isFrontier(CanonicalChunk chunk)
     {
         return frontier != null ? frontier.contains(chunk) : bundle.isFrontierChunk(chunk);
+    }
+
+    /** A chunk's entry as the tracker's chunkEntries give it, the ocean and interiors included; null when they don't. */
+    PermissionStatus entryAt(CanonicalChunk chunk)
+    {
+        return entries.get(chunk);
+    }
+
+    /** What a chunk that isn't land is, as the rules' places say; null for land or when they don't. */
+    RuneliteRulesManifest.Place placeAt(CanonicalChunk chunk)
+    {
+        return places.get(chunk);
     }
 
     /** The root-field area name ("Falador · Asgarnia") older exports and unmapped chunks fall back to. */

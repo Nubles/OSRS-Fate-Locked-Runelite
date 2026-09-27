@@ -159,6 +159,83 @@ public class DecisionServiceTest
         }
     }
 
+    /** The fixture with chunkEntries and places in its rules, and these capabilities (none when null). */
+    private static DecisionService withPlaces(JsonElement entries, JsonElement places, JsonArray capabilities)
+        throws Exception
+    {
+        JsonObject root = new Gson().fromJson(fixtureText("bundles/v4-rules.json"), JsonObject.class);
+        JsonObject rules = root.getAsJsonObject("rules");
+        rules.add("chunkEntries", entries);
+        rules.add("places", places);
+        if (capabilities != null) rules.add("capabilities", capabilities);
+        return playing(root.toString(), "nubles");
+    }
+
+    private static DecisionService withPlaces(JsonElement entries, JsonElement places, boolean named) throws Exception
+    {
+        return withPlaces(entries, places, named ? strings("chunkEntries", "places") : null);
+    }
+
+    private static JsonObject place(String kind, String name, String area)
+    {
+        JsonObject place = new JsonObject();
+        place.addProperty("kind", kind);
+        if (name != null) place.addProperty("name", name);
+        if (area != null) place.addProperty("area", area);
+        return place;
+    }
+
+    @Test
+    public void theOceanAndInteriorsReadTheTrackersEntries() throws Exception
+    {
+        JsonObject entries = new JsonObject();
+        entries.addProperty("45,45", "LOCKED");
+        entries.addProperty("48,150", "ALLOWED");
+        entries.addProperty("48,151", "NOT_READY");
+        entries.addProperty("48,152", "A_NEWER_STATUS");
+        entries.addProperty("48,153", 3);
+        JsonObject places = new JsonObject();
+        places.add("45,45", place("ocean", null, null));
+        places.add("48,150", place("interior", "Mor Ul Rek · Outer Area", "Mor Ul Rek (TzHaar City)"));
+        places.add("48,151", place("interior", null, "Keldagrim"));
+        places.add("48,152", new JsonPrimitive("not a place"));
+        DecisionService rules = withPlaces(entries, places, true);
+
+        assertEquals(new Decision(PermissionStatus.LOCKED, "Ocean", null, Decision.Source.CHUNK),
+            rules.chunk(new CanonicalChunk(45, 45)));
+        assertEquals(new Decision(PermissionStatus.ALLOWED, "Mor Ul Rek · Outer Area", null, Decision.Source.CHUNK),
+            rules.chunk(new CanonicalChunk(48, 150)));
+        assertEquals(new Decision(PermissionStatus.NOT_READY, "Keldagrim", null, Decision.Source.CHUNK),
+            rules.chunk(new CanonicalChunk(48, 151)));
+        // A status from a newer tracker reads UNKNOWN; a value that isn't one leaves the chunk unmapped.
+        assertEquals(new Decision(PermissionStatus.UNKNOWN, null, null, Decision.Source.CHUNK),
+            rules.chunk(new CanonicalChunk(48, 152)));
+        assertFalse(rules.chunk(new CanonicalChunk(48, 153)).isAuthored());
+        // Land keeps its snapshot's answer.
+        assertEquals(PermissionStatus.ALLOWED, rules.chunk(LUMBRIDGE).getStatus());
+    }
+
+    @Test
+    public void withoutTheirCapabilitiesOrAsAnythingButObjectsThePlacesAreUnmapped() throws Exception
+    {
+        JsonObject entries = new JsonObject();
+        entries.addProperty("45,45", "LOCKED");
+        JsonObject places = new JsonObject();
+        places.add("45,45", place("ocean", null, null));
+        for (DecisionService rules : Arrays.asList(
+            withPlaces(entries, places, false),
+            withPlaces(strings("45,45"), places, true),
+            withPlaces(new JsonPrimitive("LOCKED"), places, true)))
+        {
+            assertFalse(rules.chunk(new CanonicalChunk(45, 45)).isAuthored());
+        }
+        // Entries without places, or without the places capability, still decide, unnamed.
+        assertEquals(new Decision(PermissionStatus.LOCKED, null, null, Decision.Source.CHUNK),
+            withPlaces(entries, new JsonArray(), true).chunk(new CanonicalChunk(45, 45)));
+        assertEquals(new Decision(PermissionStatus.LOCKED, null, null, Decision.Source.CHUNK),
+            withPlaces(entries, places, strings("chunkEntries")).chunk(new CanonicalChunk(45, 45)));
+    }
+
     @Test
     public void anotherCharacterGetsNoRowsNorLocks() throws Exception
     {
