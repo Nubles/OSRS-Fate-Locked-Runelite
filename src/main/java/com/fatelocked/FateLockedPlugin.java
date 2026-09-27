@@ -357,6 +357,8 @@ public class FateLockedPlugin extends Plugin
     }
 
     private BufferedImage lockedPinImage;
+    /** The palette the pin image was drawn in. */
+    private Palette lockedPinPalette;
 
     /** Worn-gear slots currently above your unlocked tier, for the HUD (null = none). */
     @Getter private volatile String overTierSummary;
@@ -552,7 +554,7 @@ public class FateLockedPlugin extends Plugin
             config.unlockedColor(), config.frontierColor(), config.lockedColor());
     }
 
-    /** Work the palette out again from the settings, and hand it to the sidebar. */
+    /** Work the palette out again from the settings, hand it to the sidebar, and redraw the pins in it. */
     private void refreshPalette()
     {
         palette = palette(config);
@@ -560,6 +562,10 @@ public class FateLockedPlugin extends Plugin
         if (models != null)
         {
             models.palette(palette);
+        }
+        if (config.worldMapMarkers())
+        {
+            refreshWorldMapMarkers();
         }
     }
 
@@ -2115,23 +2121,25 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Small red lock-style pin, generated once. */
+    /** A small padlock pin in the palette's locked colour, drawn again only when the palette changes. */
     private BufferedImage lockedPinImage()
     {
-        if (lockedPinImage != null) return lockedPinImage;
+        Palette current = palette;
+        if (lockedPinImage != null && lockedPinPalette == current) return lockedPinImage;
         int s = 15;
         BufferedImage img = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(new Color(239, 68, 68, 235));
+        g.setColor(current.lockedEdge());
         g.fillOval(1, 1, s - 2, s - 2);
-        g.setColor(new Color(20, 20, 20, 200));
+        g.setColor(Palette.UNDERLAY);
         g.drawOval(1, 1, s - 2, s - 2);
         g.setColor(Color.WHITE);
         g.fillRect(s / 2 - 2, s / 2, 5, 4);          // lock body
         g.drawArc(s / 2 - 2, s / 2 - 3, 4, 5, 0, 180); // shackle
         g.dispose();
         lockedPinImage = img;
+        lockedPinPalette = current;
         return img;
     }
 

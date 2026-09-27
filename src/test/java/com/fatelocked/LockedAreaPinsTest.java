@@ -87,6 +87,34 @@ public class LockedAreaPinsTest
         assertEquals("the setting off", Set.of(), pinsFor(mid, "Iron Example"));
     }
 
+    /** E1: the pins are drawn in the palette's locked colour, and a colour change redraws them. */
+    @Test
+    public void thePinsTakeThePalettesLockedColour() throws Exception
+    {
+        FateLockedBundle mid = FateLockedBundle.loadFromJson(GSON,
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")));
+        pinsFor(mid, "Iron Example");
+        assertEquals(com.fatelocked.ui.Palette.defaults().lockedEdge(), pinColour());
+
+        when(config.colourPreset()).thenReturn(FateLockedConfig.ColourPreset.CUSTOM);
+        when(config.unlockedColor()).thenReturn(new java.awt.Color(0, 128, 255, 110));
+        when(config.frontierColor()).thenReturn(new java.awt.Color(255, 255, 0, 100));
+        when(config.lockedColor()).thenReturn(new java.awt.Color(128, 0, 128, 110));
+        clearInvocations(map);
+        GearDecisionTest.configChanged(plugin, "lockedColor");
+
+        assertEquals(new java.awt.Color(128, 0, 128), pinColour());
+    }
+
+    /** The colour inside the last pin placed, above its padlock. */
+    private java.awt.Color pinColour()
+    {
+        ArgumentCaptor<WorldMapPoint> added = ArgumentCaptor.forClass(WorldMapPoint.class);
+        verify(map, atLeast(1)).add(added.capture());
+        java.awt.image.BufferedImage image = added.getValue().getImage();
+        return new java.awt.Color(image.getRGB(7, 2), true);
+    }
+
     /** The pins placed when these rules are in force for this character (null: nobody logged in). */
     private Set<String> pinsFor(FateLockedBundle rules, String name) throws Exception
     {
