@@ -1,5 +1,5 @@
 {
- "schema": 1,
+ "schema": 2,
  "reject": [
   {
    "name": "empty",
@@ -102,6 +102,60 @@
    "name": "compressed",
    "scenario": "chunked-walk",
    "compress": true
+  },
+  {
+   "name": "without the Stage 2 sections",
+   "scenario": "vanilla-mid",
+   "remove": [
+    "rules.capabilities",
+    "rules.chunkEntries",
+    "rules.places",
+    "rules.banks",
+    "rules.freeAreas",
+    "rules.progress",
+    "rules.slayerTasks",
+    "rules.travel"
+   ]
+  },
+  {
+   "name": "Stage 2 sections without their capabilities",
+   "scenario": "vanilla-mid",
+   "remove": [
+    "rules.capabilities"
+   ]
+  },
+  {
+   "name": "an unknown capability",
+   "scenario": "vanilla-mid",
+   "set": {
+    "rules.capabilities": [
+     "banks",
+     "chunkDetails",
+     "chunkEntries",
+     "freeAreas",
+     "places",
+     "progress",
+     "slayerTasks",
+     "travel",
+     "futureSection"
+    ]
+   }
+  }
+ ],
+ "stage2SameAnswers": [
+  {
+   "name": "a stray root unlockedChunks",
+   "scenario": "vanilla-mid",
+   "set": {
+    "unlockedChunks": []
+   }
+  },
+  {
+   "name": "no root freeAreas",
+   "scenario": "xtreme-varrock",
+   "remove": [
+    "freeAreas"
+   ]
   }
  ]
 }

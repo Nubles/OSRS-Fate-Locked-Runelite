@@ -1,0 +1,6183 @@
+{
+ "schema": 2,
+ "places": {
+  "15,43": {
+   "kind": "ocean"
+  },
+  "15,44": {
+   "kind": "ocean"
+  },
+  "15,45": {
+   "kind": "ocean"
+  },
+  "15,46": {
+   "kind": "ocean"
+  },
+  "16,42": {
+   "kind": "ocean"
+  },
+  "16,43": {
+   "kind": "ocean"
+  },
+  "16,44": {
+   "kind": "ocean"
+  },
+  "16,45": {
+   "kind": "ocean"
+  },
+  "16,46": {
+   "kind": "ocean"
+  },
+  "17,41": {
+   "kind": "ocean"
+  },
+  "17,42": {
+   "kind": "ocean"
+  },
+  "17,44": {
+   "kind": "ocean"
+  },
+  "17,45": {
+   "kind": "ocean"
+  },
+  "17,46": {
+   "kind": "ocean"
+  },
+  "18,40": {
+   "kind": "ocean"
+  },
+  "18,41": {
+   "kind": "ocean"
+  },
+  "18,44": {
+   "kind": "ocean"
+  },
+  "18,45": {
+   "kind": "ocean"
+  },
+  "18,46": {
+   "kind": "ocean"
+  },
+  "18,143": {
+   "kind": "interior",
+   "name": "Kurask Lair",
+   "entrances": [
+    "18,43"
+   ]
+  },
+  "18,155": {
+   "kind": "interior",
+   "entrances": [
+    "18,55"
+   ]
+  },
+  "19,19": {
+   "kind": "interior",
+   "name": "Cerberus' Lair",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "19,39": {
+   "kind": "ocean"
+  },
+  "19,40": {
+   "kind": "ocean"
+  },
+  "19,41": {
+   "kind": "ocean"
+  },
+  "19,42": {
+   "kind": "ocean"
+  },
+  "19,44": {
+   "kind": "ocean"
+  },
+  "19,45": {
+   "kind": "ocean"
+  },
+  "19,157": {
+   "kind": "interior",
+   "name": "Hespori's Lair",
+   "entrances": [
+    "19,58"
+   ]
+  },
+  "19,158": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "19,159": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "20,19": {
+   "kind": "interior",
+   "name": "Cerberus' Lair",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "20,20": {
+   "kind": "interior",
+   "name": "Cerberus' Lair",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "20,39": {
+   "kind": "ocean"
+  },
+  "20,40": {
+   "kind": "ocean"
+  },
+  "20,41": {
+   "kind": "ocean"
+  },
+  "20,42": {
+   "kind": "ocean"
+  },
+  "20,43": {
+   "kind": "ocean"
+  },
+  "20,44": {
+   "kind": "ocean"
+  },
+  "20,147": {
+   "kind": "interior",
+   "name": "Tonali Cavern",
+   "entrances": [
+    "20,47",
+    "20,48"
+   ]
+  },
+  "20,148": {
+   "kind": "interior",
+   "name": "Dragon Nest",
+   "entrances": [
+    "20,49"
+   ]
+  },
+  "20,155": {
+   "kind": "interior",
+   "name": "Lizardman Caves",
+   "entrances": [
+    "20,55"
+   ]
+  },
+  "20,157": {
+   "kind": "interior",
+   "name": "Lizardman Temple",
+   "entrances": [
+    "20,57"
+   ]
+  },
+  "20,158": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "20,159": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "20,160": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon · Lobby",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "21,19": {
+   "kind": "interior",
+   "name": "Cerberus' Lair",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "21,39": {
+   "kind": "ocean"
+  },
+  "21,40": {
+   "kind": "ocean"
+  },
+  "21,41": {
+   "kind": "ocean"
+  },
+  "21,42": {
+   "kind": "ocean"
+  },
+  "21,43": {
+   "kind": "ocean"
+  },
+  "21,147": {
+   "kind": "interior",
+   "name": "Imp Basement",
+   "entrances": [
+    "21,47"
+   ]
+  },
+  "21,151": {
+   "kind": "interior",
+   "name": "Stalker Den",
+   "entrances": [
+    "20,52"
+   ]
+  },
+  "21,154": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "21,159": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "21,160": {
+   "kind": "interior",
+   "name": "Karuulm Slayer Dungeon",
+   "entrances": [
+    "20,59"
+   ]
+  },
+  "22,39": {
+   "kind": "ocean"
+  },
+  "22,40": {
+   "kind": "ocean"
+  },
+  "22,41": {
+   "kind": "ocean"
+  },
+  "22,42": {
+   "kind": "ocean"
+  },
+  "22,43": {
+   "kind": "ocean"
+  },
+  "22,53": {
+   "kind": "ocean"
+  },
+  "22,148": {
+   "kind": "interior",
+   "name": "Cam Torum",
+   "area": "Cam Torum",
+   "entrances": [
+    "22,48"
+   ]
+  },
+  "22,149": {
+   "kind": "interior",
+   "name": "Neypotzli",
+   "entrances": [
+    "22,48"
+   ]
+  },
+  "22,153": {
+   "kind": "interior",
+   "name": "Giants' Den",
+   "entrances": [
+    "22,56"
+   ]
+  },
+  "22,157": {
+   "kind": "interior",
+   "name": "Chasm of Fire",
+   "entrances": [
+    "22,57"
+   ]
+  },
+  "22,158": {
+   "kind": "interior",
+   "name": "Yama's Domain",
+   "entrances": [
+    "22,57"
+   ]
+  },
+  "23,39": {
+   "kind": "ocean"
+  },
+  "23,40": {
+   "kind": "ocean"
+  },
+  "23,41": {
+   "kind": "ocean"
+  },
+  "23,42": {
+   "kind": "ocean"
+  },
+  "23,43": {
+   "kind": "ocean"
+  },
+  "23,44": {
+   "kind": "ocean"
+  },
+  "23,148": {
+   "kind": "interior",
+   "name": "Wolf Den",
+   "entrances": [
+    "23,48"
+   ]
+  },
+  "23,153": {
+   "kind": "interior",
+   "name": "Shayzien Prison",
+   "entrances": [
+    "22,55"
+   ]
+  },
+  "23,155": {
+   "kind": "interior",
+   "name": "Shayzien Crypts",
+   "entrances": [
+    "23,55"
+   ]
+  },
+  "24,38": {
+   "kind": "ocean"
+  },
+  "24,39": {
+   "kind": "ocean"
+  },
+  "24,40": {
+   "kind": "ocean"
+  },
+  "24,41": {
+   "kind": "ocean"
+  },
+  "24,42": {
+   "kind": "ocean"
+  },
+  "24,44": {
+   "kind": "ocean"
+  },
+  "24,79": {
+   "kind": "interior",
+   "name": "Lithkren Vault",
+   "entrances": [
+    "55,62"
+   ]
+  },
+  "24,147": {
+   "kind": "interior",
+   "name": "Hunter Guild Basement",
+   "entrances": [
+    "24,47"
+   ]
+  },
+  "24,154": {
+   "kind": "interior",
+   "name": "Woodcutting Guild · Dungeon",
+   "area": "Woodcutting Guild",
+   "entrances": [
+    "25,54"
+   ]
+  },
+  "24,159": {
+   "kind": "interior",
+   "name": "Library Historical Archive",
+   "entrances": [
+    "25,59"
+   ]
+  },
+  "25,32": {
+   "kind": "ocean"
+  },
+  "25,33": {
+   "kind": "ocean"
+  },
+  "25,34": {
+   "kind": "ocean"
+  },
+  "25,35": {
+   "kind": "ocean"
+  },
+  "25,36": {
+   "kind": "ocean"
+  },
+  "25,37": {
+   "kind": "ocean"
+  },
+  "25,38": {
+   "kind": "ocean"
+  },
+  "25,39": {
+   "kind": "ocean"
+  },
+  "25,40": {
+   "kind": "ocean"
+  },
+  "25,41": {
+   "kind": "ocean"
+  },
+  "25,42": {
+   "kind": "ocean"
+  },
+  "25,43": {
+   "kind": "ocean"
+  },
+  "25,44": {
+   "kind": "ocean"
+  },
+  "25,52": {
+   "kind": "ocean"
+  },
+  "25,73": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "25,75": {
+   "kind": "interior",
+   "name": "Misthalin Manor",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "25,77": {
+   "kind": "interior",
+   "name": "Varrock Museum · Paleontology Floor",
+   "entrances": [
+    "50,53"
+   ]
+  },
+  "25,83": {
+   "kind": "interior",
+   "entrances": [
+    "39,54"
+   ]
+  },
+  "25,88": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "25,89": {
+   "kind": "interior",
+   "entrances": [
+    "41,57"
+   ]
+  },
+  "25,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "25,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "25,149": {
+   "kind": "interior",
+   "name": "Fortis Barracks",
+   "entrances": [
+    "25,49"
+   ]
+  },
+  "25,150": {
+   "kind": "interior",
+   "name": "Thief's Passageway",
+   "entrances": [
+    "25,49"
+   ]
+  },
+  "25,153": {
+   "kind": "interior",
+   "name": "Crabclaw Caves",
+   "entrances": [
+    "25,53"
+   ]
+  },
+  "25,156": {
+   "kind": "interior",
+   "name": "Catacombs of Kourend",
+   "area": "Catacombs of Kourend",
+   "entrances": [
+    "22,56",
+    "22,57",
+    "24,59",
+    "25,57",
+    "26,55",
+    "26,60"
+   ]
+  },
+  "25,157": {
+   "kind": "interior",
+   "name": "Catacombs of Kourend",
+   "area": "Catacombs of Kourend",
+   "entrances": [
+    "22,56",
+    "22,57",
+    "24,59",
+    "25,57",
+    "26,55",
+    "26,60"
+   ]
+  },
+  "26,32": {
+   "kind": "ocean"
+  },
+  "26,33": {
+   "kind": "ocean"
+  },
+  "26,34": {
+   "kind": "ocean"
+  },
+  "26,35": {
+   "kind": "ocean"
+  },
+  "26,36": {
+   "kind": "ocean"
+  },
+  "26,37": {
+   "kind": "ocean"
+  },
+  "26,38": {
+   "kind": "ocean"
+  },
+  "26,39": {
+   "kind": "ocean"
+  },
+  "26,40": {
+   "kind": "ocean"
+  },
+  "26,41": {
+   "kind": "ocean"
+  },
+  "26,42": {
+   "kind": "ocean"
+  },
+  "26,43": {
+   "kind": "ocean"
+  },
+  "26,44": {
+   "kind": "ocean"
+  },
+  "26,52": {
+   "kind": "ocean"
+  },
+  "26,66": {
+   "kind": "interior",
+   "entrances": [
+    "43,53"
+   ]
+  },
+  "26,71": {
+   "kind": "interior",
+   "name": "Grotesque Guardians' Lair",
+   "entrances": [
+    "53,55"
+   ]
+  },
+  "26,73": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,75": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,86": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,88": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,89": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "26,148": {
+   "kind": "interior",
+   "name": "Fortis Crypt",
+   "entrances": [
+    "26,48"
+   ]
+  },
+  "26,149": {
+   "kind": "interior",
+   "name": "Twilight Temple · Basement",
+   "entrances": [
+    "26,50"
+   ]
+  },
+  "26,152": {
+   "kind": "interior",
+   "name": "Crabclaw Caves",
+   "entrances": [
+    "25,53"
+   ]
+  },
+  "26,153": {
+   "kind": "interior",
+   "name": "Crabclaw Caves",
+   "entrances": [
+    "25,53"
+   ]
+  },
+  "26,154": {
+   "kind": "interior",
+   "name": "Skotizo's Lair",
+   "entrances": [
+    "22,56",
+    "22,57",
+    "24,59",
+    "25,57",
+    "26,55",
+    "26,60"
+   ]
+  },
+  "26,156": {
+   "kind": "interior",
+   "name": "Catacombs of Kourend",
+   "area": "Catacombs of Kourend",
+   "entrances": [
+    "22,56",
+    "22,57",
+    "24,59",
+    "25,57",
+    "26,55",
+    "26,60"
+   ]
+  },
+  "26,157": {
+   "kind": "interior",
+   "name": "Catacombs of Kourend",
+   "area": "Catacombs of Kourend",
+   "entrances": [
+    "22,56",
+    "22,57",
+    "24,59",
+    "25,57",
+    "26,55",
+    "26,60"
+   ]
+  },
+  "26,195": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "27,32": {
+   "kind": "ocean"
+  },
+  "27,33": {
+   "kind": "ocean"
+  },
+  "27,34": {
+   "kind": "ocean"
+  },
+  "27,35": {
+   "kind": "ocean"
+  },
+  "27,36": {
+   "kind": "ocean"
+  },
+  "27,37": {
+   "kind": "ocean"
+  },
+  "27,38": {
+   "kind": "ocean"
+  },
+  "27,39": {
+   "kind": "ocean"
+  },
+  "27,40": {
+   "kind": "ocean"
+  },
+  "27,42": {
+   "kind": "ocean"
+  },
+  "27,43": {
+   "kind": "ocean"
+  },
+  "27,44": {
+   "kind": "ocean"
+  },
+  "27,50": {
+   "kind": "ocean"
+  },
+  "27,51": {
+   "kind": "ocean"
+  },
+  "27,52": {
+   "kind": "ocean"
+  },
+  "27,62": {
+   "kind": "ocean"
+  },
+  "27,63": {
+   "kind": "ocean"
+  },
+  "27,64": {
+   "kind": "ocean"
+  },
+  "27,65": {
+   "kind": "ocean"
+  },
+  "27,73": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "27,77": {
+   "kind": "interior",
+   "name": "Varrock Museum · Natural History Exhibit",
+   "entrances": [
+    "50,53"
+   ]
+  },
+  "27,79": {
+   "kind": "interior",
+   "entrances": [
+    "32,61"
+   ]
+  },
+  "27,80": {
+   "kind": "interior",
+   "name": "Falador Mole Lair",
+   "entrances": [
+    "46,51"
+   ]
+  },
+  "27,81": {
+   "kind": "interior",
+   "name": "Falador Mole Lair",
+   "entrances": [
+    "46,51"
+   ]
+  },
+  "27,82": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "27,83": {
+   "kind": "interior",
+   "name": "Ancient Cavern",
+   "area": "Baxtorian Falls",
+   "entrances": [
+    "39,54"
+   ]
+  },
+  "27,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "27,158": {
+   "kind": "interior",
+   "name": "The Warrens",
+   "entrances": [
+    "28,58"
+   ]
+  },
+  "28,32": {
+   "kind": "ocean"
+  },
+  "28,33": {
+   "kind": "ocean"
+  },
+  "28,34": {
+   "kind": "ocean"
+  },
+  "28,35": {
+   "kind": "ocean"
+  },
+  "28,36": {
+   "kind": "ocean"
+  },
+  "28,37": {
+   "kind": "ocean"
+  },
+  "28,38": {
+   "kind": "ocean"
+  },
+  "28,39": {
+   "kind": "ocean"
+  },
+  "28,40": {
+   "kind": "ocean"
+  },
+  "28,41": {
+   "kind": "ocean"
+  },
+  "28,42": {
+   "kind": "ocean"
+  },
+  "28,43": {
+   "kind": "ocean"
+  },
+  "28,44": {
+   "kind": "ocean"
+  },
+  "28,45": {
+   "kind": "ocean"
+  },
+  "28,46": {
+   "kind": "ocean"
+  },
+  "28,50": {
+   "kind": "ocean"
+  },
+  "28,51": {
+   "kind": "ocean"
+  },
+  "28,52": {
+   "kind": "ocean"
+  },
+  "28,61": {
+   "kind": "ocean"
+  },
+  "28,62": {
+   "kind": "ocean"
+  },
+  "28,63": {
+   "kind": "ocean"
+  },
+  "28,64": {
+   "kind": "ocean"
+  },
+  "28,65": {
+   "kind": "ocean"
+  },
+  "28,66": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "28,68": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "28,74": {
+   "kind": "interior",
+   "entrances": [
+    "52,53"
+   ]
+  },
+  "28,75": {
+   "kind": "interior",
+   "entrances": [
+    "57,46"
+   ]
+  },
+  "28,76": {
+   "kind": "interior",
+   "entrances": [
+    "41,50",
+    "44,52",
+    "47,52"
+   ]
+  },
+  "28,79": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "28,80": {
+   "kind": "interior",
+   "entrances": [
+    "32,61"
+   ]
+  },
+  "28,81": {
+   "kind": "interior",
+   "entrances": [
+    "32,61"
+   ]
+  },
+  "28,148": {
+   "kind": "interior",
+   "name": "Fortis Colosseum Underground",
+   "entrances": [
+    "28,48"
+   ]
+  },
+  "28,154": {
+   "kind": "interior",
+   "name": "Forthos Dungeon",
+   "entrances": [
+    "26,55"
+   ]
+  },
+  "28,155": {
+   "kind": "interior",
+   "name": "Forthos Dungeon",
+   "entrances": [
+    "26,55"
+   ]
+  },
+  "28,158": {
+   "kind": "interior",
+   "name": "The Warrens",
+   "entrances": [
+    "28,58"
+   ]
+  },
+  "29,32": {
+   "kind": "ocean"
+  },
+  "29,33": {
+   "kind": "ocean"
+  },
+  "29,34": {
+   "kind": "ocean"
+  },
+  "29,35": {
+   "kind": "ocean"
+  },
+  "29,36": {
+   "kind": "ocean"
+  },
+  "29,37": {
+   "kind": "ocean"
+  },
+  "29,38": {
+   "kind": "ocean"
+  },
+  "29,39": {
+   "kind": "ocean"
+  },
+  "29,40": {
+   "kind": "ocean"
+  },
+  "29,41": {
+   "kind": "ocean"
+  },
+  "29,42": {
+   "kind": "ocean"
+  },
+  "29,43": {
+   "kind": "ocean"
+  },
+  "29,44": {
+   "kind": "ocean"
+  },
+  "29,45": {
+   "kind": "ocean"
+  },
+  "29,47": {
+   "kind": "ocean"
+  },
+  "29,49": {
+   "kind": "ocean"
+  },
+  "29,50": {
+   "kind": "ocean"
+  },
+  "29,52": {
+   "kind": "ocean"
+  },
+  "29,56": {
+   "kind": "ocean"
+  },
+  "29,57": {
+   "kind": "ocean"
+  },
+  "29,58": {
+   "kind": "ocean"
+  },
+  "29,59": {
+   "kind": "ocean"
+  },
+  "29,60": {
+   "kind": "ocean"
+  },
+  "29,61": {
+   "kind": "ocean"
+  },
+  "29,62": {
+   "kind": "ocean"
+  },
+  "29,63": {
+   "kind": "ocean"
+  },
+  "29,64": {
+   "kind": "ocean"
+  },
+  "29,65": {
+   "kind": "ocean"
+  },
+  "29,66": {
+   "kind": "interior",
+   "entrances": [
+    "47,54"
+   ]
+  },
+  "29,67": {
+   "kind": "interior",
+   "name": "Black Knights' Catacombs",
+   "entrances": [
+    "47,54"
+   ]
+  },
+  "29,68": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "29,70": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,72": {
+   "kind": "interior",
+   "name": "Mourner Tunnels & Temple of Light",
+   "entrances": [
+    "39,51"
+   ]
+  },
+  "29,75": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,76": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,80": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,81": {
+   "kind": "interior",
+   "name": "Stronghold of Security",
+   "entrances": [
+    "48,53"
+   ]
+  },
+  "29,83": {
+   "kind": "interior",
+   "name": "RFD Dining Room",
+   "entrances": [
+    "50,50"
+   ]
+  },
+  "29,84": {
+   "kind": "interior",
+   "entrances": [
+    "39,55"
+   ]
+  },
+  "29,85": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,88": {
+   "kind": "interior",
+   "entrances": [
+    "34,52"
+   ]
+  },
+  "29,89": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,90": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "29,140": {
+   "kind": "interior",
+   "name": "Myth's Guild · Basement",
+   "entrances": [
+    "38,44"
+   ]
+  },
+  "30,32": {
+   "kind": "ocean"
+  },
+  "30,33": {
+   "kind": "ocean"
+  },
+  "30,34": {
+   "kind": "ocean"
+  },
+  "30,35": {
+   "kind": "ocean"
+  },
+  "30,36": {
+   "kind": "ocean"
+  },
+  "30,37": {
+   "kind": "ocean"
+  },
+  "30,38": {
+   "kind": "ocean"
+  },
+  "30,39": {
+   "kind": "ocean"
+  },
+  "30,40": {
+   "kind": "ocean"
+  },
+  "30,41": {
+   "kind": "ocean"
+  },
+  "30,42": {
+   "kind": "ocean"
+  },
+  "30,44": {
+   "kind": "ocean"
+  },
+  "30,45": {
+   "kind": "ocean"
+  },
+  "30,46": {
+   "kind": "ocean"
+  },
+  "30,47": {
+   "kind": "ocean"
+  },
+  "30,49": {
+   "kind": "ocean"
+  },
+  "30,50": {
+   "kind": "ocean"
+  },
+  "30,51": {
+   "kind": "ocean"
+  },
+  "30,52": {
+   "kind": "ocean"
+  },
+  "30,53": {
+   "kind": "ocean"
+  },
+  "30,54": {
+   "kind": "ocean"
+  },
+  "30,55": {
+   "kind": "ocean"
+  },
+  "30,56": {
+   "kind": "ocean"
+  },
+  "30,57": {
+   "kind": "ocean"
+  },
+  "30,58": {
+   "kind": "ocean"
+  },
+  "30,59": {
+   "kind": "ocean"
+  },
+  "30,60": {
+   "kind": "ocean"
+  },
+  "30,61": {
+   "kind": "ocean"
+  },
+  "30,62": {
+   "kind": "ocean"
+  },
+  "30,64": {
+   "kind": "ocean"
+  },
+  "30,65": {
+   "kind": "ocean"
+  },
+  "30,68": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "30,69": {
+   "kind": "interior",
+   "name": "Pyramid Plunder",
+   "entrances": [
+    "51,43"
+   ]
+  },
+  "30,72": {
+   "kind": "interior",
+   "name": "Mourner Tunnels & Temple of Light",
+   "entrances": [
+    "39,51"
+   ]
+  },
+  "30,73": {
+   "kind": "interior",
+   "name": "Keldagrim Rat Pits",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "30,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "30,75": {
+   "kind": "interior",
+   "entrances": [
+    "41,50"
+   ]
+  },
+  "30,76": {
+   "kind": "interior",
+   "name": "Eagles' Peak Dungeon",
+   "entrances": [
+    "36,54"
+   ]
+  },
+  "30,77": {
+   "kind": "interior",
+   "name": "Blast Furnace",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "30,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "30,80": {
+   "kind": "interior",
+   "name": "Elemental Workshop",
+   "entrances": [
+    "42,54"
+   ]
+  },
+  "30,83": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "30,86": {
+   "kind": "interior",
+   "name": "Crash Site (MM2)",
+   "entrances": [
+    "38,54"
+   ]
+  },
+  "30,87": {
+   "kind": "interior",
+   "name": "Crash Site (MM2)",
+   "entrances": [
+    "38,54"
+   ]
+  },
+  "30,88": {
+   "kind": "interior",
+   "entrances": [
+    "34,52"
+   ]
+  },
+  "30,89": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "30,90": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "30,97": {
+   "kind": "interior",
+   "name": "Scrubfoot's cave",
+   "entrances": [
+    "46,54"
+   ]
+  },
+  "30,140": {
+   "kind": "interior",
+   "name": "Myth's Guild · Basement",
+   "entrances": [
+    "38,44"
+   ]
+  },
+  "30,141": {
+   "kind": "interior",
+   "name": "Corsair Cove Dungeon · North",
+   "entrances": [
+    "38,45"
+   ]
+  },
+  "30,148": {
+   "kind": "interior",
+   "name": "Here be minotaurs",
+   "entrances": [
+    "30,48"
+   ]
+  },
+  "31,32": {
+   "kind": "ocean"
+  },
+  "31,33": {
+   "kind": "ocean"
+  },
+  "31,34": {
+   "kind": "ocean"
+  },
+  "31,35": {
+   "kind": "ocean"
+  },
+  "31,36": {
+   "kind": "ocean"
+  },
+  "31,37": {
+   "kind": "ocean"
+  },
+  "31,38": {
+   "kind": "ocean"
+  },
+  "31,39": {
+   "kind": "ocean"
+  },
+  "31,40": {
+   "kind": "ocean"
+  },
+  "31,41": {
+   "kind": "ocean"
+  },
+  "31,42": {
+   "kind": "ocean"
+  },
+  "31,43": {
+   "kind": "ocean"
+  },
+  "31,44": {
+   "kind": "ocean"
+  },
+  "31,45": {
+   "kind": "ocean"
+  },
+  "31,46": {
+   "kind": "ocean"
+  },
+  "31,47": {
+   "kind": "ocean"
+  },
+  "31,48": {
+   "kind": "ocean"
+  },
+  "31,49": {
+   "kind": "ocean"
+  },
+  "31,50": {
+   "kind": "ocean"
+  },
+  "31,51": {
+   "kind": "ocean"
+  },
+  "31,52": {
+   "kind": "ocean"
+  },
+  "31,53": {
+   "kind": "ocean"
+  },
+  "31,54": {
+   "kind": "ocean"
+  },
+  "31,55": {
+   "kind": "ocean"
+  },
+  "31,56": {
+   "kind": "ocean"
+  },
+  "31,57": {
+   "kind": "ocean"
+  },
+  "31,58": {
+   "kind": "ocean"
+  },
+  "31,59": {
+   "kind": "ocean"
+  },
+  "31,60": {
+   "kind": "ocean"
+  },
+  "31,61": {
+   "kind": "ocean"
+  },
+  "31,62": {
+   "kind": "ocean"
+  },
+  "31,63": {
+   "kind": "ocean"
+  },
+  "31,64": {
+   "kind": "ocean"
+  },
+  "31,65": {
+   "kind": "ocean"
+  },
+  "31,71": {
+   "kind": "interior",
+   "name": "Mourner Headquarters",
+   "entrances": [
+    "39,51"
+   ]
+  },
+  "31,72": {
+   "kind": "interior",
+   "name": "Mourner Tunnels & Temple of Light",
+   "entrances": [
+    "39,51"
+   ]
+  },
+  "31,73": {
+   "kind": "interior",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "31,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "31,75": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "31,76": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "31,77": {
+   "kind": "interior",
+   "name": "Eagles' Peak Dungeon",
+   "entrances": [
+    "36,54"
+   ]
+  },
+  "31,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "31,79": {
+   "kind": "interior",
+   "entrances": [
+    "50,51"
+   ]
+  },
+  "31,81": {
+   "kind": "interior",
+   "name": "Stronghold of Security",
+   "entrances": [
+    "48,53"
+   ]
+  },
+  "31,86": {
+   "kind": "interior",
+   "name": "Crash Site (MM2)",
+   "entrances": [
+    "38,54"
+   ]
+  },
+  "31,87": {
+   "kind": "interior",
+   "name": "Crash Site (MM2)",
+   "entrances": [
+    "38,54"
+   ]
+  },
+  "31,89": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "31,90": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "31,100": {
+   "kind": "interior",
+   "name": "The Scar",
+   "entrances": [
+    "48,49"
+   ]
+  },
+  "31,101": {
+   "kind": "interior",
+   "name": "Scar essence mine",
+   "entrances": [
+    "48,49"
+   ]
+  },
+  "31,140": {
+   "kind": "interior",
+   "name": "Corsair Cove Dungeon · South",
+   "entrances": [
+    "39,44"
+   ]
+  },
+  "32,32": {
+   "kind": "ocean"
+  },
+  "32,33": {
+   "kind": "ocean"
+  },
+  "32,34": {
+   "kind": "ocean"
+  },
+  "32,35": {
+   "kind": "ocean"
+  },
+  "32,36": {
+   "kind": "ocean"
+  },
+  "32,37": {
+   "kind": "ocean"
+  },
+  "32,38": {
+   "kind": "ocean"
+  },
+  "32,39": {
+   "kind": "ocean"
+  },
+  "32,41": {
+   "kind": "ocean"
+  },
+  "32,43": {
+   "kind": "ocean"
+  },
+  "32,47": {
+   "kind": "ocean"
+  },
+  "32,48": {
+   "kind": "ocean"
+  },
+  "32,50": {
+   "kind": "ocean"
+  },
+  "32,51": {
+   "kind": "ocean"
+  },
+  "32,52": {
+   "kind": "ocean"
+  },
+  "32,53": {
+   "kind": "ocean"
+  },
+  "32,54": {
+   "kind": "ocean"
+  },
+  "32,55": {
+   "kind": "ocean"
+  },
+  "32,56": {
+   "kind": "ocean"
+  },
+  "32,58": {
+   "kind": "ocean"
+  },
+  "32,59": {
+   "kind": "ocean"
+  },
+  "32,62": {
+   "kind": "ocean"
+  },
+  "32,63": {
+   "kind": "ocean"
+  },
+  "32,64": {
+   "kind": "ocean"
+  },
+  "32,65": {
+   "kind": "ocean"
+  },
+  "32,69": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "32,75": {
+   "kind": "interior",
+   "name": "Cosmic entity's plane",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "32,76": {
+   "kind": "interior",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "32,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "32,78": {
+   "kind": "interior",
+   "entrances": [
+    "53,51",
+    "54,52",
+    "54,53"
+   ]
+  },
+  "32,84": {
+   "kind": "interior",
+   "entrances": [
+    "42,42"
+   ]
+  },
+  "32,86": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "32,88": {
+   "kind": "interior",
+   "name": "Crash Site Cavern",
+   "entrances": [
+    "38,55"
+   ]
+  },
+  "32,140": {
+   "kind": "interior",
+   "name": "Corsair Cove Dungeon · South",
+   "entrances": [
+    "39,44"
+   ]
+  },
+  "32,157": {
+   "kind": "interior",
+   "name": "Buccaneers' Laboratory",
+   "entrances": [
+    "32,57"
+   ]
+  },
+  "33,32": {
+   "kind": "ocean"
+  },
+  "33,33": {
+   "kind": "ocean"
+  },
+  "33,34": {
+   "kind": "ocean"
+  },
+  "33,35": {
+   "kind": "ocean"
+  },
+  "33,36": {
+   "kind": "ocean"
+  },
+  "33,37": {
+   "kind": "ocean"
+  },
+  "33,38": {
+   "kind": "ocean"
+  },
+  "33,39": {
+   "kind": "ocean"
+  },
+  "33,40": {
+   "kind": "ocean"
+  },
+  "33,41": {
+   "kind": "ocean"
+  },
+  "33,42": {
+   "kind": "ocean"
+  },
+  "33,54": {
+   "kind": "ocean"
+  },
+  "33,56": {
+   "kind": "ocean"
+  },
+  "33,57": {
+   "kind": "ocean"
+  },
+  "33,58": {
+   "kind": "ocean"
+  },
+  "33,59": {
+   "kind": "ocean"
+  },
+  "33,62": {
+   "kind": "ocean"
+  },
+  "33,63": {
+   "kind": "ocean"
+  },
+  "33,64": {
+   "kind": "ocean"
+  },
+  "33,65": {
+   "kind": "ocean"
+  },
+  "33,71": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "33,72": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "33,73": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "33,75": {
+   "kind": "interior",
+   "name": "Cosmic altar",
+   "area": "Zanaris",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "33,76": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "33,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "33,78": {
+   "kind": "interior",
+   "entrances": [
+    "54,51"
+   ]
+  },
+  "33,79": {
+   "kind": "interior",
+   "name": "Braindeath Island",
+   "area": "Braindeath Island",
+   "entrances": [
+    "57,55"
+   ]
+  },
+  "33,82": {
+   "kind": "interior",
+   "name": "Stronghold of Security",
+   "entrances": [
+    "48,53"
+   ]
+  },
+  "33,86": {
+   "kind": "interior",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "33,88": {
+   "kind": "interior",
+   "name": "Crash Site Cavern",
+   "entrances": [
+    "38,55"
+   ]
+  },
+  "34,19": {
+   "kind": "interior",
+   "name": "Deepfin Mine",
+   "entrances": [
+    "30,43"
+   ]
+  },
+  "34,32": {
+   "kind": "ocean"
+  },
+  "34,33": {
+   "kind": "ocean"
+  },
+  "34,34": {
+   "kind": "ocean"
+  },
+  "34,35": {
+   "kind": "ocean"
+  },
+  "34,37": {
+   "kind": "ocean"
+  },
+  "34,38": {
+   "kind": "ocean"
+  },
+  "34,39": {
+   "kind": "ocean"
+  },
+  "34,40": {
+   "kind": "ocean"
+  },
+  "34,41": {
+   "kind": "ocean"
+  },
+  "34,42": {
+   "kind": "ocean"
+  },
+  "34,55": {
+   "kind": "ocean"
+  },
+  "34,56": {
+   "kind": "ocean"
+  },
+  "34,57": {
+   "kind": "ocean"
+  },
+  "34,58": {
+   "kind": "ocean"
+  },
+  "34,60": {
+   "kind": "ocean"
+  },
+  "34,61": {
+   "kind": "ocean"
+  },
+  "34,62": {
+   "kind": "ocean"
+  },
+  "34,63": {
+   "kind": "ocean"
+  },
+  "34,64": {
+   "kind": "ocean"
+  },
+  "34,65": {
+   "kind": "ocean"
+  },
+  "34,75": {
+   "kind": "interior",
+   "name": "Death altar",
+   "entrances": [
+    "39,51"
+   ]
+  },
+  "34,77": {
+   "kind": "interior",
+   "name": "Burthorpe Games Room",
+   "entrances": [
+    "45,55"
+   ]
+  },
+  "34,78": {
+   "kind": "interior",
+   "name": "Temple Trekking Routes",
+   "entrances": [
+    "54,50"
+   ]
+  },
+  "34,85": {
+   "kind": "interior",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "34,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "34,136": {
+   "kind": "interior",
+   "name": "Sunbleak Cave",
+   "entrances": [
+    "34,36"
+   ]
+  },
+  "34,151": {
+   "kind": "interior",
+   "entrances": [
+    "34,50"
+   ]
+  },
+  "34,154": {
+   "kind": "interior",
+   "name": "Ynysdail Cavern",
+   "entrances": [
+    "34,54"
+   ]
+  },
+  "35,32": {
+   "kind": "ocean"
+  },
+  "35,33": {
+   "kind": "ocean"
+  },
+  "35,34": {
+   "kind": "ocean"
+  },
+  "35,35": {
+   "kind": "ocean"
+  },
+  "35,36": {
+   "kind": "ocean"
+  },
+  "35,37": {
+   "kind": "ocean"
+  },
+  "35,38": {
+   "kind": "ocean"
+  },
+  "35,39": {
+   "kind": "ocean"
+  },
+  "35,40": {
+   "kind": "ocean"
+  },
+  "35,41": {
+   "kind": "ocean"
+  },
+  "35,42": {
+   "kind": "ocean"
+  },
+  "35,57": {
+   "kind": "ocean"
+  },
+  "35,58": {
+   "kind": "ocean"
+  },
+  "35,59": {
+   "kind": "ocean"
+  },
+  "35,60": {
+   "kind": "ocean"
+  },
+  "35,61": {
+   "kind": "ocean"
+  },
+  "35,62": {
+   "kind": "ocean"
+  },
+  "35,64": {
+   "kind": "ocean"
+  },
+  "35,65": {
+   "kind": "ocean"
+  },
+  "35,73": {
+   "kind": "interior",
+   "name": "King Black Dragon's Lair",
+   "entrances": [
+    "47,60"
+   ]
+  },
+  "35,74": {
+   "kind": "interior",
+   "entrances": [
+    "44,55"
+   ]
+  },
+  "35,75": {
+   "kind": "interior",
+   "name": "Chaos altar",
+   "entrances": [
+    "51,54"
+   ]
+  },
+  "35,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "35,83": {
+   "kind": "interior",
+   "name": "Inferno",
+   "area": "Mor Ul Rek (TzHaar City)",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "35,86": {
+   "kind": "interior",
+   "name": "Mouse Hole",
+   "entrances": [
+    "45,54"
+   ]
+  },
+  "35,91": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "35,92": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "35,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "35,94": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "35,156": {
+   "kind": "interior",
+   "name": "Kraken Cove",
+   "entrances": [
+    "35,56"
+   ]
+  },
+  "35,163": {
+   "kind": "interior",
+   "name": "Ungael · Laboratory",
+   "entrances": [
+    "35,63"
+   ]
+  },
+  "36,32": {
+   "kind": "ocean"
+  },
+  "36,33": {
+   "kind": "ocean"
+  },
+  "36,34": {
+   "kind": "ocean"
+  },
+  "36,36": {
+   "kind": "ocean"
+  },
+  "36,37": {
+   "kind": "ocean"
+  },
+  "36,38": {
+   "kind": "ocean"
+  },
+  "36,39": {
+   "kind": "ocean"
+  },
+  "36,40": {
+   "kind": "ocean"
+  },
+  "36,41": {
+   "kind": "ocean"
+  },
+  "36,42": {
+   "kind": "ocean"
+  },
+  "36,61": {
+   "kind": "ocean"
+  },
+  "36,62": {
+   "kind": "ocean"
+  },
+  "36,63": {
+   "kind": "ocean"
+  },
+  "36,64": {
+   "kind": "ocean"
+  },
+  "36,65": {
+   "kind": "ocean"
+  },
+  "36,69": {
+   "kind": "interior",
+   "entrances": [
+    "39,60"
+   ]
+  },
+  "36,71": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "36,75": {
+   "kind": "interior",
+   "name": "Wrath altar",
+   "entrances": [
+    "38,44"
+   ]
+  },
+  "36,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "36,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "36,79": {
+   "kind": "interior",
+   "name": "Witchaven Dungeon · Secret section",
+   "entrances": [
+    "42,51"
+   ]
+  },
+  "36,81": {
+   "kind": "interior",
+   "name": "Stronghold of Security",
+   "entrances": [
+    "48,53"
+   ]
+  },
+  "36,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "36,95": {
+   "kind": "interior",
+   "name": "Poison Waste Dungeon",
+   "entrances": [
+    "36,48"
+   ]
+  },
+  "36,142": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "36,143": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "36,144": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "36,146": {
+   "kind": "interior",
+   "name": "Observatory Dungeon",
+   "entrances": [
+    "38,49"
+   ]
+  },
+  "36,147": {
+   "kind": "interior",
+   "name": "Smoke Devil Dungeon",
+   "entrances": [
+    "37,47"
+   ]
+  },
+  "36,149": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "36,150": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "36,153": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "36,154": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "36,161": {
+   "kind": "interior",
+   "name": "Lunar Isle mine",
+   "entrances": [
+    "33,61"
+   ]
+  },
+  "37,32": {
+   "kind": "ocean"
+  },
+  "37,33": {
+   "kind": "ocean"
+  },
+  "37,34": {
+   "kind": "ocean"
+  },
+  "37,35": {
+   "kind": "ocean"
+  },
+  "37,36": {
+   "kind": "ocean"
+  },
+  "37,37": {
+   "kind": "ocean"
+  },
+  "37,38": {
+   "kind": "ocean"
+  },
+  "37,39": {
+   "kind": "ocean"
+  },
+  "37,40": {
+   "kind": "ocean"
+  },
+  "37,41": {
+   "kind": "ocean"
+  },
+  "37,42": {
+   "kind": "ocean"
+  },
+  "37,43": {
+   "kind": "ocean"
+  },
+  "37,44": {
+   "kind": "ocean"
+  },
+  "37,45": {
+   "kind": "ocean"
+  },
+  "37,46": {
+   "kind": "ocean"
+  },
+  "37,50": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "37,57": {
+   "kind": "ocean"
+  },
+  "37,58": {
+   "kind": "ocean"
+  },
+  "37,61": {
+   "kind": "ocean"
+  },
+  "37,62": {
+   "kind": "ocean"
+  },
+  "37,63": {
+   "kind": "ocean"
+  },
+  "37,64": {
+   "kind": "ocean"
+  },
+  "37,65": {
+   "kind": "ocean"
+  },
+  "37,68": {
+   "kind": "interior",
+   "name": "Zanaris",
+   "area": "Zanaris",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "37,69": {
+   "kind": "interior",
+   "name": "Zanaris",
+   "area": "Zanaris",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "37,72": {
+   "kind": "interior",
+   "name": "Meiyerditch mine",
+   "entrances": [
+    "56,51"
+   ]
+  },
+  "37,73": {
+   "kind": "interior",
+   "name": "Viyeldi caves",
+   "entrances": [
+    "43,45"
+   ]
+  },
+  "37,75": {
+   "kind": "interior",
+   "name": "Nature altar",
+   "entrances": [
+    "44,47"
+   ]
+  },
+  "37,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "37,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "37,80": {
+   "kind": "interior",
+   "name": "Mor Ul Rek · Outer Area",
+   "area": "Mor Ul Rek (TzHaar City)",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "37,86": {
+   "kind": "interior",
+   "entrances": [
+    "49,49"
+   ]
+  },
+  "37,90": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "37,91": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "37,92": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "37,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "37,143": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "37,144": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "37,147": {
+   "kind": "interior",
+   "name": "Smoke Devil Dungeon",
+   "entrances": [
+    "37,47"
+   ]
+  },
+  "37,148": {
+   "kind": "interior",
+   "entrances": [
+    "37,48",
+    "38,48"
+   ]
+  },
+  "37,149": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "37,150": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "37,151": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "37,152": {
+   "kind": "interior",
+   "name": "Stronghold Slayer Cave",
+   "entrances": [
+    "37,53"
+   ]
+  },
+  "37,153": {
+   "kind": "interior",
+   "name": "Brimstail's cave",
+   "entrances": [
+    "37,53"
+   ]
+  },
+  "37,154": {
+   "kind": "interior",
+   "entrances": [
+    "37,54"
+   ]
+  },
+  "37,159": {
+   "kind": "interior",
+   "name": "Jatizso mine",
+   "entrances": [
+    "37,59"
+   ]
+  },
+  "37,160": {
+   "kind": "interior",
+   "name": "Ice Troll Caves",
+   "entrances": [
+    "36,60",
+    "37,60"
+   ]
+  },
+  "37,162": {
+   "kind": "interior",
+   "name": "Jormungand's Prison",
+   "entrances": [
+    "38,62"
+   ]
+  },
+  "37,163": {
+   "kind": "interior",
+   "name": "Jormungand's Prison",
+   "entrances": [
+    "38,62"
+   ]
+  },
+  "38,32": {
+   "kind": "ocean"
+  },
+  "38,33": {
+   "kind": "ocean"
+  },
+  "38,34": {
+   "kind": "ocean"
+  },
+  "38,35": {
+   "kind": "ocean"
+  },
+  "38,36": {
+   "kind": "ocean"
+  },
+  "38,37": {
+   "kind": "ocean"
+  },
+  "38,38": {
+   "kind": "ocean"
+  },
+  "38,39": {
+   "kind": "ocean"
+  },
+  "38,40": {
+   "kind": "ocean"
+  },
+  "38,41": {
+   "kind": "ocean"
+  },
+  "38,43": {
+   "kind": "ocean"
+  },
+  "38,56": {
+   "kind": "ocean"
+  },
+  "38,57": {
+   "kind": "ocean"
+  },
+  "38,58": {
+   "kind": "ocean"
+  },
+  "38,59": {
+   "kind": "ocean"
+  },
+  "38,60": {
+   "kind": "ocean"
+  },
+  "38,61": {
+   "kind": "ocean"
+  },
+  "38,63": {
+   "kind": "ocean"
+  },
+  "38,64": {
+   "kind": "ocean"
+  },
+  "38,65": {
+   "kind": "ocean"
+  },
+  "38,68": {
+   "kind": "interior",
+   "name": "Evil Chicken's Lair",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "38,69": {
+   "kind": "interior",
+   "name": "Zanaris",
+   "area": "Zanaris",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "38,71": {
+   "kind": "interior",
+   "entrances": [
+    "39,56"
+   ]
+  },
+  "38,72": {
+   "kind": "interior",
+   "entrances": [
+    "32,61"
+   ]
+  },
+  "38,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "38,75": {
+   "kind": "interior",
+   "name": "Law altar",
+   "entrances": [
+    "44,52"
+   ]
+  },
+  "38,77": {
+   "kind": "interior",
+   "entrances": [
+    "46,52"
+   ]
+  },
+  "38,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "38,79": {
+   "kind": "interior",
+   "name": "Mor Ul Rek · Outer Area",
+   "area": "Mor Ul Rek (TzHaar City)",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "38,80": {
+   "kind": "interior",
+   "name": "Mor Ul Rek · Outer Area",
+   "area": "Mor Ul Rek (TzHaar City)",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "38,84": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "38,86": {
+   "kind": "interior",
+   "name": "Dorgesh-Kaan-Keldagrim Train Platforms",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "38,91": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "38,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "38,95": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "38,96": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "38,143": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "38,146": {
+   "kind": "interior",
+   "name": "Jiggig crypts",
+   "entrances": [
+    "38,47"
+   ]
+  },
+  "38,147": {
+   "kind": "interior",
+   "name": "Jiggig crypts",
+   "entrances": [
+    "38,47"
+   ]
+  },
+  "38,150": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "38,151": {
+   "kind": "interior",
+   "name": "Underground Pass",
+   "entrances": [
+    "36,50",
+    "38,51"
+   ]
+  },
+  "38,152": {
+   "kind": "interior",
+   "name": "Stronghold Slayer Cave",
+   "entrances": [
+    "37,53"
+   ]
+  },
+  "38,153": {
+   "kind": "interior",
+   "name": "Stronghold Slayer Cave",
+   "entrances": [
+    "37,53"
+   ]
+  },
+  "38,154": {
+   "kind": "interior",
+   "name": "Grand Tree Tunnels",
+   "entrances": [
+    "38,54"
+   ]
+  },
+  "38,158": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "38,162": {
+   "kind": "interior",
+   "name": "Jormungand's Prison",
+   "entrances": [
+    "38,62"
+   ]
+  },
+  "38,163": {
+   "kind": "interior",
+   "name": "Jormungand's Prison",
+   "entrances": [
+    "38,62"
+   ]
+  },
+  "39,32": {
+   "kind": "ocean"
+  },
+  "39,33": {
+   "kind": "ocean"
+  },
+  "39,36": {
+   "kind": "ocean"
+  },
+  "39,37": {
+   "kind": "ocean"
+  },
+  "39,38": {
+   "kind": "ocean"
+  },
+  "39,40": {
+   "kind": "ocean"
+  },
+  "39,41": {
+   "kind": "ocean"
+  },
+  "39,42": {
+   "kind": "ocean"
+  },
+  "39,43": {
+   "kind": "ocean"
+  },
+  "39,57": {
+   "kind": "ocean"
+  },
+  "39,61": {
+   "kind": "ocean"
+  },
+  "39,62": {
+   "kind": "ocean"
+  },
+  "39,63": {
+   "kind": "ocean"
+  },
+  "39,64": {
+   "kind": "ocean"
+  },
+  "39,65": {
+   "kind": "ocean"
+  },
+  "39,71": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "39,72": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "39,73": {
+   "kind": "interior",
+   "name": "Mage Arena bank",
+   "entrances": [
+    "48,61"
+   ]
+  },
+  "39,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "39,75": {
+   "kind": "interior",
+   "name": "Body altar",
+   "entrances": [
+    "47,53"
+   ]
+  },
+  "39,77": {
+   "kind": "interior",
+   "name": "Dondakan's mine",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "39,79": {
+   "kind": "interior",
+   "name": "Mor Ul Rek · Inner Area",
+   "area": "Mor Ul Rek (TzHaar City)",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "39,80": {
+   "kind": "interior",
+   "name": "Mor Ul Rek · Outer Area",
+   "area": "Mor Ul Rek (TzHaar City)",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "39,86": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "39,90": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "39,91": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "39,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "39,94": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "39,95": {
+   "kind": "interior",
+   "name": "Movario's Base",
+   "entrances": [
+    "39,50"
+   ]
+  },
+  "39,121": {
+   "kind": "interior",
+   "name": "Castle Drakan",
+   "entrances": [
+    "56,52"
+   ]
+  },
+  "39,122": {
+   "kind": "interior",
+   "name": "Vampyrium",
+   "entrances": [
+    "56,52"
+   ]
+  },
+  "39,141": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "39,142": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "39,143": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "39,144": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "39,145": {
+   "kind": "interior",
+   "name": "Red chinchompa hunting ground",
+   "entrances": [
+    "39,45"
+   ]
+  },
+  "39,146": {
+   "kind": "interior",
+   "name": "Jungle eagle lair",
+   "entrances": [
+    "39,45"
+   ]
+  },
+  "39,147": {
+   "kind": "interior",
+   "name": "Skavid caves",
+   "entrances": [
+    "39,47",
+    "40,47",
+    "40,48"
+   ]
+  },
+  "39,149": {
+   "kind": "interior",
+   "name": "Tree Gnome Village dungeon",
+   "entrances": [
+    "39,49"
+   ]
+  },
+  "39,151": {
+   "kind": "interior",
+   "entrances": [
+    "39,51"
+   ]
+  },
+  "39,152": {
+   "kind": "interior",
+   "entrances": [
+    "39,51",
+    "39,52",
+    "40,52"
+   ]
+  },
+  "39,153": {
+   "kind": "interior",
+   "name": "Glarial's Tomb",
+   "entrances": [
+    "39,53"
+   ]
+  },
+  "39,154": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "39,156": {
+   "kind": "interior",
+   "name": "Lighthouse · Dungeon",
+   "area": "Lighthouse",
+   "entrances": [
+    "39,56"
+   ]
+  },
+  "39,158": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "39,160": {
+   "kind": "interior",
+   "name": "Miscellania and Etceteria Dungeon",
+   "entrances": [
+    "39,60"
+   ]
+  },
+  "40,32": {
+   "kind": "ocean"
+  },
+  "40,33": {
+   "kind": "ocean"
+  },
+  "40,36": {
+   "kind": "ocean"
+  },
+  "40,37": {
+   "kind": "ocean"
+  },
+  "40,38": {
+   "kind": "ocean"
+  },
+  "40,39": {
+   "kind": "ocean"
+  },
+  "40,40": {
+   "kind": "ocean"
+  },
+  "40,41": {
+   "kind": "ocean"
+  },
+  "40,42": {
+   "kind": "ocean"
+  },
+  "40,43": {
+   "kind": "ocean"
+  },
+  "40,58": {
+   "kind": "ocean"
+  },
+  "40,59": {
+   "kind": "ocean"
+  },
+  "40,61": {
+   "kind": "ocean"
+  },
+  "40,62": {
+   "kind": "ocean"
+  },
+  "40,63": {
+   "kind": "ocean"
+  },
+  "40,64": {
+   "kind": "ocean"
+  },
+  "40,65": {
+   "kind": "ocean"
+  },
+  "40,67": {
+   "kind": "interior",
+   "name": "Puro-Puro",
+   "entrances": [
+    "40,48"
+   ]
+  },
+  "40,69": {
+   "kind": "interior",
+   "name": "Tree Gnome Village dungeon",
+   "entrances": [
+    "39,49"
+   ]
+  },
+  "40,70": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "40,71": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "40,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "40,75": {
+   "kind": "interior",
+   "name": "Fire altar",
+   "entrances": [
+    "51,50"
+   ]
+  },
+  "40,77": {
+   "kind": "interior",
+   "name": "Dondakan's mine",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "40,81": {
+   "kind": "interior",
+   "name": "H.A.M. Store room",
+   "entrances": [
+    "49,50"
+   ]
+  },
+  "40,82": {
+   "kind": "interior",
+   "name": "Barbarian Assault · Basement",
+   "entrances": [
+    "39,55"
+   ]
+  },
+  "40,91": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "40,93": {
+   "kind": "interior",
+   "name": "Hallowed Sepulchre",
+   "entrances": [
+    "57,52"
+   ]
+  },
+  "40,95": {
+   "kind": "interior",
+   "entrances": [
+    "36,49"
+   ]
+  },
+  "40,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "40,100": {
+   "kind": "interior",
+   "name": "Lassar Undercity",
+   "entrances": [
+    "46,54"
+   ]
+  },
+  "40,141": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "40,142": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "40,143": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "40,144": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "40,147": {
+   "kind": "interior",
+   "name": "Ogre Enclave",
+   "entrances": [
+    "39,47"
+   ]
+  },
+  "40,148": {
+   "kind": "interior",
+   "name": "Wizards' Guild · Basement",
+   "entrances": [
+    "40,48"
+   ]
+  },
+  "40,149": {
+   "kind": "interior",
+   "name": "Yanille Agility Dungeon",
+   "entrances": [
+    "40,48"
+   ]
+  },
+  "40,150": {
+   "kind": "interior",
+   "name": "Clock Tower Dungeon",
+   "entrances": [
+    "40,50"
+   ]
+  },
+  "40,151": {
+   "kind": "interior",
+   "name": "Carnillean Mansion · Basement",
+   "entrances": [
+    "40,51"
+   ]
+  },
+  "40,152": {
+   "kind": "interior",
+   "name": "Chaos Druid Tower · Dungeon",
+   "entrances": [
+    "40,52"
+   ]
+  },
+  "40,153": {
+   "kind": "interior",
+   "name": "Goblin Cave",
+   "entrances": [
+    "40,52"
+   ]
+  },
+  "40,154": {
+   "kind": "interior",
+   "name": "Waterfall Dungeon",
+   "entrances": [
+    "39,54"
+   ]
+  },
+  "40,160": {
+   "kind": "interior",
+   "name": "Miscellania and Etceteria Dungeon",
+   "entrances": [
+    "40,60"
+   ]
+  },
+  "41,32": {
+   "kind": "ocean"
+  },
+  "41,33": {
+   "kind": "ocean"
+  },
+  "41,34": {
+   "kind": "ocean"
+  },
+  "41,35": {
+   "kind": "ocean"
+  },
+  "41,36": {
+   "kind": "ocean"
+  },
+  "41,38": {
+   "kind": "ocean"
+  },
+  "41,39": {
+   "kind": "ocean"
+  },
+  "41,42": {
+   "kind": "ocean"
+  },
+  "41,43": {
+   "kind": "ocean"
+  },
+  "41,44": {
+   "kind": "ocean"
+  },
+  "41,45": {
+   "kind": "ocean"
+  },
+  "41,59": {
+   "kind": "ocean"
+  },
+  "41,61": {
+   "kind": "ocean"
+  },
+  "41,64": {
+   "kind": "ocean"
+  },
+  "41,65": {
+   "kind": "ocean"
+  },
+  "41,70": {
+   "kind": "interior",
+   "entrances": [
+    "37,54"
+   ]
+  },
+  "41,71": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "41,73": {
+   "kind": "interior",
+   "name": "Fisher Realm",
+   "entrances": [
+    "42,50",
+    "50,49"
+   ]
+  },
+  "41,75": {
+   "kind": "interior",
+   "name": "Earth altar",
+   "entrances": [
+    "51,54"
+   ]
+  },
+  "41,79": {
+   "kind": "interior",
+   "name": "Shadow Dungeon",
+   "entrances": [
+    "39,53"
+   ]
+  },
+  "41,81": {
+   "kind": "interior",
+   "name": "Killerwatt plane",
+   "entrances": [
+    "48,52"
+   ]
+  },
+  "41,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "41,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "41,137": {
+   "kind": "interior",
+   "name": "Charred Dungeon",
+   "entrances": [
+    "41,37"
+   ]
+  },
+  "41,141": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "41,142": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "41,143": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "41,144": {
+   "kind": "interior",
+   "name": "Kruk's Dungeon",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "41,146": {
+   "kind": "interior",
+   "name": "Rantz's cave",
+   "entrances": [
+    "41,46"
+   ]
+  },
+  "41,147": {
+   "kind": "interior",
+   "name": "Brimhaven Dungeon Entrance",
+   "entrances": [
+    "42,49",
+    "43,47"
+   ]
+  },
+  "41,148": {
+   "kind": "interior",
+   "name": "Brimhaven Dungeon",
+   "entrances": [
+    "42,49",
+    "43,47"
+   ]
+  },
+  "41,149": {
+   "kind": "interior",
+   "name": "Brimhaven Dungeon",
+   "entrances": [
+    "42,49",
+    "43,47"
+   ]
+  },
+  "41,150": {
+   "kind": "interior",
+   "name": "Ardougne Rat Pits",
+   "entrances": [
+    "40,51"
+   ]
+  },
+  "41,151": {
+   "kind": "interior",
+   "name": "Ardougne Sewers",
+   "entrances": [
+    "41,51"
+   ]
+  },
+  "41,152": {
+   "kind": "interior",
+   "name": "Temple of Ikov · Basement",
+   "entrances": [
+    "41,53",
+    "41,54"
+   ]
+  },
+  "41,153": {
+   "kind": "interior",
+   "name": "Temple of Ikov",
+   "entrances": [
+    "41,53",
+    "41,54"
+   ]
+  },
+  "41,154": {
+   "kind": "interior",
+   "name": "Temple of Ikov",
+   "entrances": [
+    "41,53",
+    "41,54"
+   ]
+  },
+  "41,156": {
+   "kind": "interior",
+   "entrances": [
+    "41,57"
+   ]
+  },
+  "41,162": {
+   "kind": "interior",
+   "name": "Penguin Base",
+   "entrances": [
+    "41,62",
+    "41,63"
+   ]
+  },
+  "42,32": {
+   "kind": "ocean"
+  },
+  "42,33": {
+   "kind": "ocean"
+  },
+  "42,34": {
+   "kind": "ocean"
+  },
+  "42,35": {
+   "kind": "ocean"
+  },
+  "42,36": {
+   "kind": "ocean"
+  },
+  "42,37": {
+   "kind": "ocean"
+  },
+  "42,38": {
+   "kind": "ocean"
+  },
+  "42,39": {
+   "kind": "ocean"
+  },
+  "42,40": {
+   "kind": "ocean"
+  },
+  "42,41": {
+   "kind": "ocean"
+  },
+  "42,44": {
+   "kind": "ocean"
+  },
+  "42,45": {
+   "kind": "ocean"
+  },
+  "42,47": {
+   "kind": "ocean"
+  },
+  "42,48": {
+   "kind": "ocean"
+  },
+  "42,60": {
+   "kind": "ocean"
+  },
+  "42,61": {
+   "kind": "ocean"
+  },
+  "42,62": {
+   "kind": "ocean"
+  },
+  "42,63": {
+   "kind": "ocean"
+  },
+  "42,64": {
+   "kind": "ocean"
+  },
+  "42,65": {
+   "kind": "ocean"
+  },
+  "42,67": {
+   "kind": "interior",
+   "entrances": [
+    "25,55"
+   ]
+  },
+  "42,69": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "42,70": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "42,71": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "42,75": {
+   "kind": "interior",
+   "name": "Water altar",
+   "entrances": [
+    "49,49"
+   ]
+  },
+  "42,76": {
+   "kind": "interior",
+   "entrances": [
+    "54,48"
+   ]
+  },
+  "42,79": {
+   "kind": "interior",
+   "name": "Shadow Dungeon",
+   "entrances": [
+    "39,53"
+   ]
+  },
+  "42,81": {
+   "kind": "interior",
+   "name": "Dorgesh-Kaan South Dungeon",
+   "entrances": [
+    "50,48",
+    "50,50"
+   ]
+  },
+  "42,82": {
+   "kind": "interior",
+   "name": "Dorgesh-Kaan",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "42,83": {
+   "kind": "interior",
+   "name": "Dorgesh-Kaan",
+   "entrances": [
+    "50,50"
+   ]
+  },
+  "42,90": {
+   "kind": "interior",
+   "entrances": [
+    "44,61"
+   ]
+  },
+  "42,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "42,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "42,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "42,142": {
+   "kind": "interior",
+   "name": "Ape Atoll Dungeon",
+   "entrances": [
+    "43,42"
+   ]
+  },
+  "42,143": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "42,147": {
+   "kind": "interior",
+   "name": "Brimhaven Dungeon",
+   "entrances": [
+    "42,49",
+    "43,47"
+   ]
+  },
+  "42,148": {
+   "kind": "interior",
+   "name": "Brimhaven Dungeon",
+   "entrances": [
+    "42,49",
+    "43,47"
+   ]
+  },
+  "42,149": {
+   "kind": "interior",
+   "name": "Brimhaven Dungeon",
+   "entrances": [
+    "42,49",
+    "43,47"
+   ]
+  },
+  "42,151": {
+   "kind": "interior",
+   "name": "Witchaven Dungeon",
+   "entrances": [
+    "42,51"
+   ]
+  },
+  "42,152": {
+   "kind": "interior",
+   "name": "Legends' Guild · Dungeon",
+   "area": "Legends' Guild",
+   "entrances": [
+    "42,52"
+   ]
+  },
+  "42,153": {
+   "kind": "interior",
+   "name": "Temple of Ikov",
+   "entrances": [
+    "41,53",
+    "41,54"
+   ]
+  },
+  "42,154": {
+   "kind": "interior",
+   "name": "Elemental Workshop",
+   "entrances": [
+    "42,54"
+   ]
+  },
+  "42,155": {
+   "kind": "interior",
+   "name": "Rellekka Slayer Cave",
+   "entrances": [
+    "43,56"
+   ]
+  },
+  "42,156": {
+   "kind": "interior",
+   "name": "Rellekka Slayer Cave",
+   "entrances": [
+    "43,56"
+   ]
+  },
+  "42,158": {
+   "kind": "interior",
+   "name": "Brine Rat Cavern",
+   "entrances": [
+    "42,58"
+   ]
+  },
+  "42,159": {
+   "kind": "interior",
+   "name": "Polar eagle lair",
+   "entrances": [
+    "42,59"
+   ]
+  },
+  "43,32": {
+   "kind": "ocean"
+  },
+  "43,33": {
+   "kind": "ocean"
+  },
+  "43,34": {
+   "kind": "ocean"
+  },
+  "43,35": {
+   "kind": "ocean"
+  },
+  "43,36": {
+   "kind": "ocean"
+  },
+  "43,37": {
+   "kind": "ocean"
+  },
+  "43,38": {
+   "kind": "ocean"
+  },
+  "43,40": {
+   "kind": "ocean"
+  },
+  "43,41": {
+   "kind": "ocean"
+  },
+  "43,44": {
+   "kind": "ocean"
+  },
+  "43,61": {
+   "kind": "ocean"
+  },
+  "43,62": {
+   "kind": "ocean"
+  },
+  "43,63": {
+   "kind": "ocean"
+  },
+  "43,64": {
+   "kind": "ocean"
+  },
+  "43,65": {
+   "kind": "ocean"
+  },
+  "43,69": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "43,70": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "43,71": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "43,73": {
+   "kind": "interior",
+   "name": "Fisher Realm (during Holy Grail)",
+   "entrances": [
+    "42,50"
+   ]
+  },
+  "43,75": {
+   "kind": "interior",
+   "name": "Mind altar",
+   "entrances": [
+    "46,54"
+   ]
+  },
+  "43,77": {
+   "kind": "interior",
+   "name": "Jaldraocht Pyramid",
+   "entrances": [
+    "50,45"
+   ]
+  },
+  "43,80": {
+   "kind": "interior",
+   "name": "Sophanem Dungeon",
+   "entrances": [
+    "51,43"
+   ]
+  },
+  "43,81": {
+   "kind": "interior",
+   "name": "Yu'biusk",
+   "entrances": [
+    "50,48",
+    "50,49",
+    "50,50"
+   ]
+  },
+  "43,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "43,95": {
+   "kind": "interior",
+   "entrances": [
+    "36,49"
+   ]
+  },
+  "43,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "43,134": {
+   "kind": "interior",
+   "name": "Wyrmscraig Cavern",
+   "entrances": [
+    "39,34"
+   ]
+  },
+  "43,135": {
+   "kind": "interior",
+   "name": "Wyrmscraig Cavern · Water",
+   "entrances": [
+    "40,34"
+   ]
+  },
+  "43,142": {
+   "kind": "interior",
+   "name": "Ape Atoll Dungeon",
+   "entrances": [
+    "43,42"
+   ]
+  },
+  "43,143": {
+   "kind": "interior",
+   "name": "Temple of Marimbo Dungeon",
+   "entrances": [
+    "42,43",
+    "43,43"
+   ]
+  },
+  "43,145": {
+   "kind": "interior",
+   "name": "Viyeldi caves",
+   "entrances": [
+    "43,45"
+   ]
+  },
+  "43,146": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "43,149": {
+   "kind": "interior",
+   "name": "Brimhaven Agility Arena",
+   "entrances": [
+    "43,49"
+   ]
+  },
+  "43,153": {
+   "kind": "interior",
+   "name": "Taverley Dungeon",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "43,156": {
+   "kind": "interior",
+   "name": "Rellekka Slayer Cave",
+   "entrances": [
+    "43,56"
+   ]
+  },
+  "43,157": {
+   "kind": "interior",
+   "entrances": [
+    "43,57"
+   ]
+  },
+  "43,158": {
+   "kind": "interior",
+   "name": "Keldagrim",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "43,159": {
+   "kind": "interior",
+   "name": "Trollweiss Dungeon",
+   "entrances": [
+    "43,60",
+    "44,58"
+   ]
+  },
+  "43,160": {
+   "kind": "interior",
+   "name": "Zemouregal's Fortress · Basement",
+   "entrances": [
+    "44,60"
+   ]
+  },
+  "44,32": {
+   "kind": "ocean"
+  },
+  "44,33": {
+   "kind": "ocean"
+  },
+  "44,34": {
+   "kind": "ocean"
+  },
+  "44,35": {
+   "kind": "ocean"
+  },
+  "44,37": {
+   "kind": "ocean"
+  },
+  "44,38": {
+   "kind": "ocean"
+  },
+  "44,39": {
+   "kind": "ocean"
+  },
+  "44,40": {
+   "kind": "ocean"
+  },
+  "44,41": {
+   "kind": "ocean"
+  },
+  "44,42": {
+   "kind": "ocean"
+  },
+  "44,43": {
+   "kind": "ocean"
+  },
+  "44,44": {
+   "kind": "ocean"
+  },
+  "44,63": {
+   "kind": "ocean"
+  },
+  "44,64": {
+   "kind": "ocean"
+  },
+  "44,65": {
+   "kind": "ocean"
+  },
+  "44,71": {
+   "kind": "interior",
+   "entrances": [
+    "53,53",
+    "54,54"
+   ]
+  },
+  "44,74": {
+   "kind": "interior",
+   "name": "Blood altar",
+   "entrances": [
+    "56,51"
+   ]
+  },
+  "44,75": {
+   "kind": "interior",
+   "name": "Air altar",
+   "entrances": [
+    "46,51"
+   ]
+  },
+  "44,77": {
+   "kind": "interior",
+   "name": "Jaldraocht Pyramid",
+   "entrances": [
+    "50,45"
+   ]
+  },
+  "44,79": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "44,81": {
+   "kind": "interior",
+   "name": "Ancient Prison",
+   "entrances": [
+    "45,58"
+   ]
+  },
+  "44,82": {
+   "kind": "interior",
+   "name": "God Wars Entrance",
+   "entrances": [
+    "45,58"
+   ]
+  },
+  "44,83": {
+   "kind": "interior",
+   "name": "God Wars Dungeon",
+   "entrances": [
+    "45,58"
+   ]
+  },
+  "44,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "44,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "44,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "44,144": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "44,146": {
+   "kind": "interior",
+   "name": "Shilo Village mine · Underground",
+   "entrances": [
+    "44,46"
+   ]
+  },
+  "44,148": {
+   "kind": "interior",
+   "name": "Pothole Dungeon",
+   "entrances": [
+    "44,48"
+   ]
+  },
+  "44,149": {
+   "kind": "interior",
+   "name": "Crandor and Karamja Dungeon · South",
+   "entrances": [
+    "44,49"
+   ]
+  },
+  "44,150": {
+   "kind": "interior",
+   "name": "Crandor and Karamja Dungeon · North",
+   "entrances": [
+    "44,50"
+   ]
+  },
+  "44,151": {
+   "kind": "interior",
+   "entrances": [
+    "44,50"
+   ]
+  },
+  "44,152": {
+   "kind": "interior",
+   "name": "Entrana Dungeon",
+   "entrances": [
+    "50,58"
+   ]
+  },
+  "44,153": {
+   "kind": "interior",
+   "name": "Taverley Dungeon",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "44,154": {
+   "kind": "interior",
+   "name": "White Wolf Tunnel",
+   "entrances": [
+    "44,54"
+   ]
+  },
+  "44,155": {
+   "kind": "interior",
+   "name": "Ice Queen's Lair",
+   "entrances": [
+    "44,54"
+   ]
+  },
+  "44,157": {
+   "kind": "interior",
+   "name": "Troll Stronghold",
+   "entrances": [
+    "44,56",
+    "44,57"
+   ]
+  },
+  "44,158": {
+   "kind": "interior",
+   "name": "Keldagrim",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "44,159": {
+   "kind": "interior",
+   "name": "Keldagrim",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "44,160": {
+   "kind": "interior",
+   "name": "Ghorrock Dungeon",
+   "entrances": [
+    "44,61"
+   ]
+  },
+  "44,161": {
+   "kind": "interior",
+   "name": "Salt Mine",
+   "entrances": [
+    "44,61"
+   ]
+  },
+  "45,32": {
+   "kind": "ocean"
+  },
+  "45,33": {
+   "kind": "ocean"
+  },
+  "45,34": {
+   "kind": "ocean"
+  },
+  "45,35": {
+   "kind": "ocean"
+  },
+  "45,36": {
+   "kind": "ocean"
+  },
+  "45,37": {
+   "kind": "ocean"
+  },
+  "45,38": {
+   "kind": "ocean"
+  },
+  "45,39": {
+   "kind": "ocean"
+  },
+  "45,40": {
+   "kind": "ocean"
+  },
+  "45,41": {
+   "kind": "ocean"
+  },
+  "45,43": {
+   "kind": "ocean"
+  },
+  "45,62": {
+   "kind": "ocean"
+  },
+  "45,64": {
+   "kind": "ocean"
+  },
+  "45,65": {
+   "kind": "ocean"
+  },
+  "45,68": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "45,69": {
+   "kind": "interior",
+   "name": "Waterbirth Island Dungeon",
+   "entrances": [
+    "39,58"
+   ]
+  },
+  "45,71": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "45,73": {
+   "kind": "interior",
+   "entrances": [
+    "39,48"
+   ]
+  },
+  "45,75": {
+   "kind": "interior",
+   "name": "Rune essence mine",
+   "entrances": [
+    "41,51",
+    "48,49",
+    "50,53"
+   ]
+  },
+  "45,77": {
+   "kind": "interior",
+   "name": "Jaldraocht Pyramid",
+   "entrances": [
+    "50,45"
+   ]
+  },
+  "45,79": {
+   "kind": "interior",
+   "name": "Varrock Rat Pits",
+   "entrances": [
+    "51,53"
+   ]
+  },
+  "45,81": {
+   "kind": "interior",
+   "name": "Ancient Prison",
+   "entrances": [
+    "45,58"
+   ]
+  },
+  "45,82": {
+   "kind": "interior",
+   "name": "God Wars Dungeon",
+   "entrances": [
+    "45,58"
+   ]
+  },
+  "45,83": {
+   "kind": "interior",
+   "name": "God Wars Dungeon",
+   "entrances": [
+    "45,58"
+   ]
+  },
+  "45,85": {
+   "kind": "interior",
+   "name": "Sorceress's Garden",
+   "entrances": [
+    "51,49"
+   ]
+  },
+  "45,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "45,142": {
+   "kind": "interior",
+   "name": "Glough's Laboratory",
+   "entrances": [
+    "42,43"
+   ]
+  },
+  "45,145": {
+   "kind": "interior",
+   "name": "Ah Za Rhoon",
+   "entrances": [
+    "45,46"
+   ]
+  },
+  "45,146": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "45,148": {
+   "kind": "interior",
+   "name": "Rashiliyia's Tomb",
+   "entrances": [
+    "45,48"
+   ]
+  },
+  "45,150": {
+   "kind": "interior",
+   "name": "Melzar's Maze · Basement",
+   "entrances": [
+    "45,50"
+   ]
+  },
+  "45,151": {
+   "kind": "interior",
+   "name": "Taverley Dungeon",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "45,152": {
+   "kind": "interior",
+   "name": "Taverley Dungeon",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "45,153": {
+   "kind": "interior",
+   "name": "Taverley Dungeon",
+   "entrances": [
+    "45,53"
+   ]
+  },
+  "45,154": {
+   "kind": "interior",
+   "name": "Heroes' Guild · Basement",
+   "area": "Taverley",
+   "entrances": [
+    "45,54"
+   ]
+  },
+  "45,155": {
+   "kind": "interior",
+   "name": "Warriors' Guild · Basement",
+   "area": "Warriors' Guild",
+   "entrances": [
+    "44,55"
+   ]
+  },
+  "45,156": {
+   "kind": "interior",
+   "name": "Troll Tunnel",
+   "entrances": [
+    "45,56",
+    "45,57"
+   ]
+  },
+  "45,157": {
+   "kind": "interior",
+   "entrances": [
+    "45,57"
+   ]
+  },
+  "45,158": {
+   "kind": "interior",
+   "name": "Keldagrim",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "45,159": {
+   "kind": "interior",
+   "name": "Keldagrim",
+   "area": "Keldagrim",
+   "entrances": [
+    "43,58"
+   ]
+  },
+  "45,160": {
+   "kind": "interior",
+   "name": "Uzer Mastaba",
+   "entrances": [
+    "54,47"
+   ]
+  },
+  "45,163": {
+   "kind": "interior",
+   "name": "Grimstone Dungeon",
+   "entrances": [
+    "45,63"
+   ]
+  },
+  "46,32": {
+   "kind": "ocean"
+  },
+  "46,33": {
+   "kind": "ocean"
+  },
+  "46,34": {
+   "kind": "ocean"
+  },
+  "46,36": {
+   "kind": "ocean"
+  },
+  "46,37": {
+   "kind": "ocean"
+  },
+  "46,38": {
+   "kind": "ocean"
+  },
+  "46,39": {
+   "kind": "ocean"
+  },
+  "46,41": {
+   "kind": "ocean"
+  },
+  "46,42": {
+   "kind": "ocean"
+  },
+  "46,43": {
+   "kind": "ocean"
+  },
+  "46,44": {
+   "kind": "ocean"
+  },
+  "46,62": {
+   "kind": "ocean"
+  },
+  "46,63": {
+   "kind": "ocean"
+  },
+  "46,64": {
+   "kind": "ocean"
+  },
+  "46,66": {
+   "kind": "interior",
+   "name": "Corporeal Beast's Lair",
+   "entrances": [
+    "50,57"
+   ]
+  },
+  "46,68": {
+   "kind": "interior",
+   "name": "Corporeal Beast's Lair",
+   "entrances": [
+    "50,57"
+   ]
+  },
+  "46,74": {
+   "kind": "interior",
+   "name": "Abyssal Nexus",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "46,75": {
+   "kind": "interior",
+   "name": "Abyssal Nexus",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "46,78": {
+   "kind": "interior",
+   "name": "Rogues' Den",
+   "entrances": [
+    "45,55"
+   ]
+  },
+  "46,79": {
+   "kind": "interior",
+   "name": "Rogues' Den",
+   "entrances": [
+    "45,55"
+   ]
+  },
+  "46,81": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "46,148": {
+   "kind": "interior",
+   "name": "Mogre Camp",
+   "entrances": [
+    "41,49"
+   ]
+  },
+  "46,149": {
+   "kind": "interior",
+   "name": "Asgarnian Ice Dungeon",
+   "area": "Asgarnian Ice Dungeon",
+   "entrances": [
+    "47,49"
+   ]
+  },
+  "46,150": {
+   "kind": "interior",
+   "name": "Port Sarim Rat Pits",
+   "entrances": [
+    "47,50"
+   ]
+  },
+  "46,152": {
+   "kind": "interior",
+   "name": "White Knights' Castle · Crypt",
+   "entrances": [
+    "46,52"
+   ]
+  },
+  "46,153": {
+   "kind": "interior",
+   "name": "Dwarven Mine",
+   "area": "Dwarven Mine",
+   "entrances": [
+    "47,52",
+    "47,53"
+   ]
+  },
+  "46,154": {
+   "kind": "interior",
+   "entrances": [
+    "46,54"
+   ]
+  },
+  "46,155": {
+   "kind": "interior",
+   "name": "Witch's House · Basement",
+   "entrances": [
+    "45,54"
+   ]
+  },
+  "46,156": {
+   "kind": "interior",
+   "name": "Witch's House · Manhole",
+   "entrances": [
+    "45,54"
+   ]
+  },
+  "46,161": {
+   "kind": "interior",
+   "name": "Wilderness Agility Course · Dungeon",
+   "area": "Mage Arena",
+   "entrances": [
+    "46,61"
+   ]
+  },
+  "47,32": {
+   "kind": "ocean"
+  },
+  "47,33": {
+   "kind": "ocean"
+  },
+  "47,34": {
+   "kind": "ocean"
+  },
+  "47,35": {
+   "kind": "ocean"
+  },
+  "47,36": {
+   "kind": "ocean"
+  },
+  "47,37": {
+   "kind": "ocean"
+  },
+  "47,38": {
+   "kind": "ocean"
+  },
+  "47,39": {
+   "kind": "ocean"
+  },
+  "47,40": {
+   "kind": "ocean"
+  },
+  "47,42": {
+   "kind": "ocean"
+  },
+  "47,43": {
+   "kind": "ocean"
+  },
+  "47,45": {
+   "kind": "ocean"
+  },
+  "47,47": {
+   "kind": "ocean"
+  },
+  "47,48": {
+   "kind": "ocean"
+  },
+  "47,68": {
+   "kind": "interior",
+   "name": "Tower of Life · Basement",
+   "entrances": [
+    "41,50"
+   ]
+  },
+  "47,70": {
+   "kind": "interior",
+   "name": "Enchanted Valley",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "47,73": {
+   "kind": "interior",
+   "entrances": [
+    "52,44"
+   ]
+  },
+  "47,74": {
+   "kind": "interior",
+   "name": "Abyssal Nexus",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "47,75": {
+   "kind": "interior",
+   "name": "Abyss",
+   "entrances": [
+    "26,59",
+    "28,60"
+   ]
+  },
+  "47,76": {
+   "kind": "interior",
+   "name": "Abyssal Area",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "47,77": {
+   "kind": "interior",
+   "name": "Rogues' Den",
+   "entrances": [
+    "45,55"
+   ]
+  },
+  "47,78": {
+   "kind": "interior",
+   "name": "Rogues' Den",
+   "entrances": [
+    "45,55"
+   ]
+  },
+  "47,79": {
+   "kind": "interior",
+   "name": "Rogues' Den",
+   "entrances": [
+    "45,55"
+   ]
+  },
+  "47,81": {
+   "kind": "interior",
+   "entrances": [
+    "51,53"
+   ]
+  },
+  "47,83": {
+   "kind": "interior",
+   "name": "Gorak Plane",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "47,85": {
+   "kind": "interior",
+   "entrances": [
+    "43,42",
+    "45,42"
+   ]
+  },
+  "47,87": {
+   "kind": "interior",
+   "name": "Ourania Cave",
+   "entrances": [
+    "38,50"
+   ]
+  },
+  "47,94": {
+   "kind": "interior",
+   "name": "Zalcano's Lair",
+   "entrances": [
+    "35,51"
+   ]
+  },
+  "47,95": {
+   "kind": "interior",
+   "name": "Gauntlet Lobby",
+   "entrances": [
+    "34,52"
+   ]
+  },
+  "47,100": {
+   "kind": "interior",
+   "name": "Ghorrock Prison",
+   "entrances": [
+    "44,61"
+   ]
+  },
+  "47,146": {
+   "kind": "interior",
+   "name": "Pandemonium Cave",
+   "entrances": [
+    "47,46"
+   ]
+  },
+  "47,149": {
+   "kind": "interior",
+   "name": "Asgarnian Ice Dungeon",
+   "area": "Asgarnian Ice Dungeon",
+   "entrances": [
+    "47,49"
+   ]
+  },
+  "47,150": {
+   "kind": "interior",
+   "entrances": [
+    "47,50"
+   ]
+  },
+  "47,151": {
+   "kind": "interior",
+   "name": "Mining Guild",
+   "entrances": [
+    "47,52"
+   ]
+  },
+  "47,152": {
+   "kind": "interior",
+   "name": "Dwarven Mine",
+   "area": "Dwarven Mine",
+   "entrances": [
+    "47,52",
+    "47,53"
+   ]
+  },
+  "47,153": {
+   "kind": "interior",
+   "name": "Dwarven Mine",
+   "area": "Dwarven Mine",
+   "entrances": [
+    "47,52",
+    "47,53"
+   ]
+  },
+  "47,154": {
+   "kind": "interior",
+   "name": "Basement of Doom",
+   "entrances": [
+    "48,54"
+   ]
+  },
+  "47,155": {
+   "kind": "interior",
+   "name": "Old School Museum",
+   "entrances": [
+    "47,52"
+   ]
+  },
+  "47,156": {
+   "kind": "interior",
+   "name": "Black Knights' Fortress · Basement",
+   "entrances": [
+    "47,54"
+   ]
+  },
+  "47,158": {
+   "kind": "interior",
+   "name": "Wilderness God Wars Dungeon",
+   "area": "Wilderness God Wars Dungeon",
+   "entrances": [
+    "47,58"
+   ]
+  },
+  "47,160": {
+   "kind": "interior",
+   "name": "Lava Maze Dungeon",
+   "entrances": [
+    "47,60"
+   ]
+  },
+  "47,161": {
+   "kind": "interior",
+   "name": "Deep Wilderness Dungeon",
+   "entrances": [
+    "47,61"
+   ]
+  },
+  "48,32": {
+   "kind": "ocean"
+  },
+  "48,33": {
+   "kind": "ocean"
+  },
+  "48,34": {
+   "kind": "ocean"
+  },
+  "48,35": {
+   "kind": "ocean"
+  },
+  "48,36": {
+   "kind": "ocean"
+  },
+  "48,40": {
+   "kind": "ocean"
+  },
+  "48,41": {
+   "kind": "ocean"
+  },
+  "48,42": {
+   "kind": "ocean"
+  },
+  "48,43": {
+   "kind": "ocean"
+  },
+  "48,45": {
+   "kind": "ocean"
+  },
+  "48,46": {
+   "kind": "ocean"
+  },
+  "48,47": {
+   "kind": "ocean"
+  },
+  "48,74": {
+   "kind": "interior",
+   "name": "Abyssal Nexus",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "48,75": {
+   "kind": "interior",
+   "name": "Abyssal Nexus",
+   "entrances": [
+    "50,49"
+   ]
+  },
+  "48,81": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "48,138": {
+   "kind": "interior",
+   "name": "Gryphons (dungeon)",
+   "entrances": [
+    "48,38"
+   ]
+  },
+  "48,145": {
+   "kind": "interior",
+   "name": "Enakhra's Temple",
+   "entrances": [
+    "49,45"
+   ]
+  },
+  "48,147": {
+   "kind": "interior",
+   "name": "Temple of the Eye",
+   "entrances": [
+    "48,49"
+   ]
+  },
+  "48,148": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "48,149": {
+   "kind": "interior",
+   "name": "Wizards' Tower · Basement",
+   "entrances": [
+    "48,49"
+   ]
+  },
+  "48,150": {
+   "kind": "interior",
+   "name": "Draynor Sewers",
+   "entrances": [
+    "48,50"
+   ]
+  },
+  "48,151": {
+   "kind": "interior",
+   "name": "Draynor Sewers",
+   "entrances": [
+    "48,51"
+   ]
+  },
+  "48,152": {
+   "kind": "interior",
+   "entrances": [
+    "48,52"
+   ]
+  },
+  "48,153": {
+   "kind": "interior",
+   "name": "Edgeville Dungeon",
+   "entrances": [
+    "48,53",
+    "48,54"
+   ]
+  },
+  "48,154": {
+   "kind": "interior",
+   "name": "Edgeville Dungeon",
+   "entrances": [
+    "48,53",
+    "48,54"
+   ]
+  },
+  "48,155": {
+   "kind": "interior",
+   "name": "Edgeville Dungeon · Wilderness",
+   "entrances": [
+    "48,53",
+    "48,54"
+   ]
+  },
+  "48,156": {
+   "kind": "interior",
+   "name": "Edgeville Dungeon",
+   "entrances": [
+    "48,53",
+    "48,54"
+   ]
+  },
+  "48,160": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,32": {
+   "kind": "ocean"
+  },
+  "49,33": {
+   "kind": "ocean"
+  },
+  "49,34": {
+   "kind": "ocean"
+  },
+  "49,35": {
+   "kind": "ocean"
+  },
+  "49,40": {
+   "kind": "ocean"
+  },
+  "49,41": {
+   "kind": "ocean"
+  },
+  "49,42": {
+   "kind": "ocean"
+  },
+  "49,48": {
+   "kind": "ocean"
+  },
+  "49,67": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "49,68": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "49,69": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "49,71": {
+   "kind": "interior",
+   "name": "Tarn's Lair",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "49,72": {
+   "kind": "interior",
+   "name": "Tarn's Lair",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "49,75": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,79": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,81": {
+   "kind": "interior",
+   "name": "Tunnel of Chaos",
+   "entrances": [
+    "51,54"
+   ]
+  },
+  "49,89": {
+   "kind": "interior",
+   "name": "Death's Office",
+   "entrances": [
+    "25,48",
+    "42,54",
+    "48,54",
+    "48,56",
+    "50,49"
+   ]
+  },
+  "49,92": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,93": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "49,138": {
+   "kind": "interior",
+   "name": "Shellbane Gryphon Cave",
+   "entrances": [
+    "49,38"
+   ]
+  },
+  "49,146": {
+   "kind": "interior",
+   "name": "Kalphite Lair (potato cactus chamber)",
+   "entrances": [
+    "50,48"
+   ]
+  },
+  "49,148": {
+   "kind": "interior",
+   "name": "Ancient Guthix Temple",
+   "entrances": [
+    "49,49"
+   ]
+  },
+  "49,149": {
+   "kind": "interior",
+   "name": "Lumbridge Swamp Caves",
+   "entrances": [
+    "49,49"
+   ]
+  },
+  "49,150": {
+   "kind": "interior",
+   "name": "H.A.M. Hideout",
+   "entrances": [
+    "49,50"
+   ]
+  },
+  "49,151": {
+   "kind": "interior",
+   "name": "Sourhog Cave",
+   "entrances": [
+    "49,52"
+   ]
+  },
+  "49,152": {
+   "kind": "interior",
+   "entrances": [
+    "49,52"
+   ]
+  },
+  "49,153": {
+   "kind": "interior",
+   "name": "Varrock West Bank · Basement",
+   "entrances": [
+    "49,53"
+   ]
+  },
+  "49,154": {
+   "kind": "interior",
+   "name": "Edgeville Dungeon",
+   "entrances": [
+    "48,53",
+    "48,54"
+   ]
+  },
+  "49,156": {
+   "kind": "interior",
+   "name": "Ferox Enclave Dungeon",
+   "entrances": [
+    "49,56"
+   ]
+  },
+  "49,157": {
+   "kind": "interior",
+   "name": "Revenant Caves",
+   "entrances": [
+    "48,57"
+   ]
+  },
+  "49,158": {
+   "kind": "interior",
+   "name": "Revenant Caves",
+   "entrances": [
+    "48,57",
+    "48,59"
+   ]
+  },
+  "49,159": {
+   "kind": "interior",
+   "name": "Revenant Caves",
+   "entrances": [
+    "48,57",
+    "48,59"
+   ]
+  },
+  "49,160": {
+   "kind": "interior",
+   "name": "Clan Hall",
+   "entrances": [
+    "49,54"
+   ]
+  },
+  "49,193": {
+   "kind": "interior",
+   "name": "Iorwerth Dungeon",
+   "entrances": [
+    "34,51"
+   ]
+  },
+  "49,194": {
+   "kind": "interior",
+   "name": "Iorwerth Dungeon",
+   "entrances": [
+    "34,51"
+   ]
+  },
+  "50,32": {
+   "kind": "ocean"
+  },
+  "50,33": {
+   "kind": "ocean"
+  },
+  "50,34": {
+   "kind": "ocean"
+  },
+  "50,35": {
+   "kind": "ocean"
+  },
+  "50,40": {
+   "kind": "ocean"
+  },
+  "50,41": {
+   "kind": "ocean"
+  },
+  "50,42": {
+   "kind": "ocean"
+  },
+  "50,67": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "50,89": {
+   "kind": "interior",
+   "name": "Chambers of Xeric",
+   "entrances": [
+    "19,55"
+   ]
+  },
+  "50,93": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "50,94": {
+   "kind": "interior",
+   "name": "Prifddinas",
+   "area": "Prifddinas",
+   "entrances": [
+    "34,51"
+   ]
+  },
+  "50,95": {
+   "kind": "interior",
+   "name": "Prifddinas",
+   "area": "Prifddinas",
+   "entrances": [
+    "34,52"
+   ]
+  },
+  "50,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "50,137": {
+   "kind": "interior",
+   "name": "Gryphons (dungeon) · Task-only",
+   "entrances": [
+    "50,37"
+   ]
+  },
+  "50,144": {
+   "kind": "interior",
+   "name": "Sophanem Dungeon",
+   "entrances": [
+    "51,43"
+   ]
+  },
+  "50,145": {
+   "kind": "interior",
+   "name": "Jaldraocht Pyramid",
+   "entrances": [
+    "50,45"
+   ]
+  },
+  "50,146": {
+   "kind": "interior",
+   "name": "Smoke Dungeon",
+   "entrances": [
+    "51,46"
+   ]
+  },
+  "50,148": {
+   "kind": "interior",
+   "name": "Lumbridge Swamp Caves",
+   "entrances": [
+    "49,49"
+   ]
+  },
+  "50,149": {
+   "kind": "interior",
+   "name": "Lumbridge Swamp Caves",
+   "entrances": [
+    "49,49"
+   ]
+  },
+  "50,150": {
+   "kind": "interior",
+   "name": "Lumbridge Castle · Cellar",
+   "entrances": [
+    "50,50"
+   ]
+  },
+  "50,151": {
+   "kind": "interior",
+   "name": "Brutus' Arena",
+   "entrances": [
+    "50,51"
+   ]
+  },
+  "50,152": {
+   "kind": "interior",
+   "name": "Phoenix Gang Hideout",
+   "entrances": [
+    "50,52"
+   ]
+  },
+  "50,153": {
+   "kind": "interior",
+   "entrances": [
+    "50,53"
+   ]
+  },
+  "50,154": {
+   "kind": "interior",
+   "name": "Varrock Sewers",
+   "entrances": [
+    "50,54"
+   ]
+  },
+  "50,155": {
+   "kind": "interior",
+   "name": "Varrock Sewers",
+   "entrances": [
+    "50,54"
+   ]
+  },
+  "50,157": {
+   "kind": "interior",
+   "name": "Revenant Caves",
+   "entrances": [
+    "48,57",
+    "48,59"
+   ]
+  },
+  "50,158": {
+   "kind": "interior",
+   "name": "Revenant Caves",
+   "entrances": [
+    "48,57",
+    "48,59"
+   ]
+  },
+  "50,159": {
+   "kind": "interior",
+   "name": "Revenant Caves",
+   "entrances": [
+    "48,59"
+   ]
+  },
+  "50,161": {
+   "kind": "interior",
+   "name": "Scorpia's Lair",
+   "entrances": [
+    "50,61"
+   ]
+  },
+  "50,193": {
+   "kind": "interior",
+   "name": "Iorwerth Dungeon",
+   "entrances": [
+    "34,51"
+   ]
+  },
+  "50,194": {
+   "kind": "interior",
+   "name": "Iorwerth Dungeon",
+   "entrances": [
+    "34,51"
+   ]
+  },
+  "50,195": {
+   "kind": "interior",
+   "name": "Prifddinas Library",
+   "area": "Prifddinas",
+   "entrances": [
+    "34,52"
+   ]
+  },
+  "51,32": {
+   "kind": "ocean"
+  },
+  "51,33": {
+   "kind": "ocean"
+  },
+  "51,34": {
+   "kind": "ocean"
+  },
+  "51,35": {
+   "kind": "ocean"
+  },
+  "51,39": {
+   "kind": "ocean"
+  },
+  "51,40": {
+   "kind": "ocean"
+  },
+  "51,41": {
+   "kind": "ocean"
+  },
+  "51,66": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "51,67": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "51,69": {
+   "kind": "interior",
+   "name": "Theatre of Blood",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "51,72": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,74": {
+   "kind": "interior",
+   "entrances": [
+    "48,56",
+    "52,49"
+   ]
+  },
+  "51,77": {
+   "kind": "interior",
+   "entrances": [
+    "48,56",
+    "49,56"
+   ]
+  },
+  "51,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,79": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,80": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,81": {
+   "kind": "interior",
+   "entrances": [
+    "19,55"
+   ]
+  },
+  "51,82": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,83": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,84": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,85": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,89": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,92": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,93": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,94": {
+   "kind": "interior",
+   "name": "Prifddinas",
+   "area": "Prifddinas",
+   "entrances": [
+    "35,51"
+   ]
+  },
+  "51,95": {
+   "kind": "interior",
+   "name": "Prifddinas",
+   "area": "Prifddinas",
+   "entrances": [
+    "35,52"
+   ]
+  },
+  "51,96": {
+   "kind": "interior",
+   "entrances": [
+    "35,53"
+   ]
+  },
+  "51,100": {
+   "kind": "interior",
+   "name": "Ancient Vault",
+   "entrances": [
+    "54,46"
+   ]
+  },
+  "51,138": {
+   "kind": "interior",
+   "name": "Coral Nurseries",
+   "entrances": [
+    "51,38"
+   ]
+  },
+  "51,141": {
+   "kind": "interior",
+   "name": "Tombs of Amascut",
+   "entrances": [
+    "52,42"
+   ]
+  },
+  "51,142": {
+   "kind": "interior",
+   "name": "Tombs of Amascut Lobby",
+   "entrances": [
+    "52,42"
+   ]
+  },
+  "51,143": {
+   "kind": "interior",
+   "entrances": [
+    "51,43"
+   ]
+  },
+  "51,144": {
+   "kind": "interior",
+   "name": "Sophanem Dungeon",
+   "entrances": [
+    "51,43"
+   ]
+  },
+  "51,146": {
+   "kind": "interior",
+   "name": "Smoke Dungeon",
+   "entrances": [
+    "51,46"
+   ]
+  },
+  "51,147": {
+   "kind": "interior",
+   "name": "Desert Mining Camp · Underground Mines",
+   "entrances": [
+    "51,47"
+   ]
+  },
+  "51,148": {
+   "kind": "interior",
+   "name": "Kalphite Cave",
+   "entrances": [
+    "51,48"
+   ]
+  },
+  "51,149": {
+   "kind": "interior",
+   "name": "Kalphite Cave",
+   "entrances": [
+    "51,48"
+   ]
+  },
+  "51,150": {
+   "kind": "interior",
+   "name": "Dorgesh-Kaan mine",
+   "entrances": [
+    "50,50"
+   ]
+  },
+  "51,153": {
+   "kind": "interior",
+   "name": "Tolna's rift",
+   "entrances": [
+    "51,53"
+   ]
+  },
+  "51,154": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "51,155": {
+   "kind": "interior",
+   "name": "Zemouregal's Base",
+   "entrances": [
+    "52,54"
+   ]
+  },
+  "51,159": {
+   "kind": "interior",
+   "name": "Vet'ion's Rest",
+   "entrances": [
+    "50,59",
+    "51,58",
+    "51,59"
+   ]
+  },
+  "51,160": {
+   "kind": "interior",
+   "name": "Skeletal Tomb",
+   "entrances": [
+    "49,57"
+   ]
+  },
+  "51,194": {
+   "kind": "interior",
+   "name": "Trahaearn Mine",
+   "entrances": [
+    "35,51"
+   ]
+  },
+  "51,196": {
+   "kind": "interior",
+   "name": "Elven rabbit cave",
+   "entrances": [
+    "35,53"
+   ]
+  },
+  "52,32": {
+   "kind": "ocean"
+  },
+  "52,33": {
+   "kind": "ocean"
+  },
+  "52,35": {
+   "kind": "ocean"
+  },
+  "52,36": {
+   "kind": "ocean"
+  },
+  "52,37": {
+   "kind": "ocean"
+  },
+  "52,38": {
+   "kind": "ocean"
+  },
+  "52,39": {
+   "kind": "ocean"
+  },
+  "52,40": {
+   "kind": "ocean"
+  },
+  "52,41": {
+   "kind": "ocean"
+  },
+  "52,67": {
+   "kind": "interior",
+   "entrances": [
+    "57,50"
+   ]
+  },
+  "52,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,79": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,81": {
+   "kind": "interior",
+   "entrances": [
+    "19,55"
+   ]
+  },
+  "52,82": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,83": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,84": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,85": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,89": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,92": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,93": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,94": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,95": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,96": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "52,145": {
+   "kind": "interior",
+   "name": "Genie's Cave",
+   "entrances": [
+    "52,45"
+   ]
+  },
+  "52,148": {
+   "kind": "interior",
+   "name": "Kalphite Cave",
+   "entrances": [
+    "51,48"
+   ]
+  },
+  "52,149": {
+   "kind": "interior",
+   "name": "Water Ravine Dungeon",
+   "entrances": [
+    "52,48"
+   ]
+  },
+  "52,150": {
+   "kind": "interior",
+   "entrances": [
+    "52,51"
+   ]
+  },
+  "52,151": {
+   "kind": "interior",
+   "entrances": [
+    "52,51"
+   ]
+  },
+  "52,152": {
+   "kind": "interior",
+   "name": "Digsite Dungeon",
+   "entrances": [
+    "52,53"
+   ]
+  },
+  "52,153": {
+   "kind": "interior",
+   "name": "Digsite Dungeon",
+   "entrances": [
+    "52,53"
+   ]
+  },
+  "52,160": {
+   "kind": "interior",
+   "name": "Escape Caves",
+   "entrances": [
+    "50,59",
+    "51,58",
+    "51,59"
+   ]
+  },
+  "52,161": {
+   "kind": "interior",
+   "name": "Callisto's Den",
+   "entrances": [
+    "50,59",
+    "51,58",
+    "51,59"
+   ]
+  },
+  "52,162": {
+   "kind": "interior",
+   "name": "Hunter's End",
+   "entrances": [
+    "48,57"
+   ]
+  },
+  "52,179": {
+   "kind": "interior",
+   "name": "Giants' Foundry",
+   "entrances": [
+    "52,49"
+   ]
+  },
+  "53,32": {
+   "kind": "ocean"
+  },
+  "53,33": {
+   "kind": "ocean"
+  },
+  "53,34": {
+   "kind": "ocean"
+  },
+  "53,35": {
+   "kind": "ocean"
+  },
+  "53,36": {
+   "kind": "ocean"
+  },
+  "53,37": {
+   "kind": "ocean"
+  },
+  "53,38": {
+   "kind": "ocean"
+  },
+  "53,39": {
+   "kind": "ocean"
+  },
+  "53,73": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,75": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,76": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,77": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,78": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,79": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,90": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,91": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "53,149": {
+   "kind": "interior",
+   "name": "Desert eagle lair",
+   "entrances": [
+    "53,49"
+   ]
+  },
+  "53,150": {
+   "kind": "interior",
+   "name": "Abandoned Mine",
+   "entrances": [
+    "53,50"
+   ]
+  },
+  "53,152": {
+   "kind": "interior",
+   "name": "Nature Grotto Cave",
+   "entrances": [
+    "53,52"
+   ]
+  },
+  "53,153": {
+   "kind": "interior",
+   "name": "Myreque hideout · Canifis/Mort Myre Hideout",
+   "entrances": [
+    "54,53",
+    "54,54"
+   ]
+  },
+  "53,154": {
+   "kind": "interior",
+   "entrances": [
+    "53,54"
+   ]
+  },
+  "53,155": {
+   "kind": "interior",
+   "name": "Slayer Tower · Basement",
+   "area": "Slayer Tower",
+   "entrances": [
+    "53,55"
+   ]
+  },
+  "53,159": {
+   "kind": "interior",
+   "name": "Silk Chasm",
+   "entrances": [
+    "50,59",
+    "51,58",
+    "51,59"
+   ]
+  },
+  "53,160": {
+   "kind": "interior",
+   "name": "Web Chasm",
+   "entrances": [
+    "49,58"
+   ]
+  },
+  "54,75": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "54,76": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "54,90": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "54,91": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "54,148": {
+   "kind": "interior",
+   "name": "Kalphite Lair",
+   "area": "Kalphite Lair",
+   "entrances": [
+    "50,48"
+   ]
+  },
+  "54,149": {
+   "kind": "interior",
+   "name": "Kalphite Queen's Lair",
+   "entrances": [
+    "50,48"
+   ]
+  },
+  "54,150": {
+   "kind": "interior",
+   "name": "Myreque hideout · Burgh De Rott Hideout",
+   "entrances": [
+    "54,50"
+   ]
+  },
+  "54,151": {
+   "kind": "interior",
+   "name": "Shade Catacombs",
+   "entrances": [
+    "54,51"
+   ]
+  },
+  "54,152": {
+   "kind": "interior",
+   "name": "Burgh de Rott Brewery",
+   "entrances": [
+    "54,50"
+   ]
+  },
+  "54,153": {
+   "kind": "interior",
+   "name": "Myreque hideout · Canifis/Mort Myre Hideout",
+   "entrances": [
+    "54,53",
+    "54,54"
+   ]
+  },
+  "54,154": {
+   "kind": "interior",
+   "name": "Myreque hideout · Canifis/Mort Myre Hideout",
+   "entrances": [
+    "54,53",
+    "54,54"
+   ]
+  },
+  "54,155": {
+   "kind": "interior",
+   "name": "Experiment Cave",
+   "entrances": [
+    "54,55"
+   ]
+  },
+  "55,74": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "55,76": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "55,151": {
+   "kind": "interior",
+   "name": "Barrows Crypts",
+   "entrances": [
+    "55,51"
+   ]
+  },
+  "55,152": {
+   "kind": "interior",
+   "name": "Meiyerditch Laboratories",
+   "entrances": [
+    "56,51"
+   ]
+  },
+  "55,154": {
+   "kind": "interior",
+   "name": "Werewolf Agility Dungeon",
+   "entrances": [
+    "55,54"
+   ]
+  },
+  "55,155": {
+   "kind": "interior",
+   "name": "Experiment Cave",
+   "entrances": [
+    "55,55"
+   ]
+  },
+  "55,162": {
+   "kind": "interior",
+   "name": "Lithkren Vault",
+   "entrances": [
+    "55,62"
+   ]
+  },
+  "55,163": {
+   "kind": "interior",
+   "name": "Lithkren Vault",
+   "entrances": [
+    "55,62"
+   ]
+  },
+  "56,57": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "56,140": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "56,141": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "56,142": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "56,150": {
+   "kind": "interior",
+   "name": "Myreque hideout · Meiyerditch Hideout",
+   "entrances": [
+    "56,50"
+   ]
+  },
+  "56,151": {
+   "kind": "interior",
+   "name": "Meiyerditch Laboratories",
+   "entrances": [
+    "56,51"
+   ]
+  },
+  "56,152": {
+   "kind": "interior",
+   "name": "Meiyerditch Laboratories",
+   "entrances": [
+    "56,51"
+   ]
+  },
+  "56,159": {
+   "kind": "interior",
+   "name": "Wyvern Cave",
+   "entrances": [
+    "58,59"
+   ]
+  },
+  "56,160": {
+   "kind": "interior",
+   "name": "Task Only Wyvern Cave",
+   "entrances": [
+    "57,60"
+   ]
+  },
+  "57,61": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "57,140": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "57,141": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "57,142": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "57,152": {
+   "kind": "interior",
+   "name": "Daeyalt essence mine",
+   "entrances": [
+    "56,52"
+   ]
+  },
+  "57,153": {
+   "kind": "interior",
+   "name": "Morytania Spider Nest",
+   "entrances": [
+    "57,53"
+   ]
+  },
+  "57,154": {
+   "kind": "interior",
+   "entrances": [
+    "57,54"
+   ]
+  },
+  "57,155": {
+   "kind": "interior",
+   "name": "Port Phasmatys Brewery",
+   "entrances": [
+    "57,54"
+   ]
+  },
+  "58,61": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "58,88": {
+   "kind": "interior",
+   "name": "Motherlode Mine",
+   "area": "Motherlode Mine",
+   "entrances": [
+    "47,52"
+   ]
+  },
+  "58,146": {
+   "kind": "interior",
+   "name": "Mos Le'Harmless Cave",
+   "entrances": [
+    "58,46"
+   ]
+  },
+  "58,147": {
+   "kind": "interior",
+   "name": "Mos Le'Harmless Cave",
+   "entrances": [
+    "58,46",
+    "59,47"
+   ]
+  },
+  "58,151": {
+   "kind": "interior",
+   "name": "Sisterhood Sanctuary",
+   "entrances": [
+    "58,51"
+   ]
+  },
+  "58,152": {
+   "kind": "interior",
+   "name": "Sisterhood Sanctuary",
+   "entrances": [
+    "58,52"
+   ]
+  },
+  "58,160": {
+   "kind": "interior",
+   "name": "Underwater Fossil Island",
+   "entrances": [
+    "58,60"
+   ]
+  },
+  "59,144": {
+   "kind": "interior",
+   "name": "Harmony windmill · Basement",
+   "entrances": [
+    "59,44"
+   ]
+  },
+  "59,147": {
+   "kind": "interior",
+   "name": "Mos Le'Harmless Cave",
+   "entrances": [
+    "59,47"
+   ]
+  },
+  "59,152": {
+   "kind": "interior",
+   "name": "Sisterhood Sanctuary",
+   "entrances": [
+    "58,51",
+    "58,52"
+   ]
+  },
+  "59,153": {
+   "kind": "interior",
+   "name": "Sisterhood Sanctuary",
+   "entrances": [
+    "58,51",
+    "58,52"
+   ]
+  },
+  "59,158": {
+   "kind": "interior",
+   "name": "Volcanic Mine",
+   "entrances": [
+    "59,59"
+   ]
+  },
+  "59,159": {
+   "kind": "interior",
+   "name": "Volcanic Mine",
+   "entrances": [
+    "59,59"
+   ]
+  },
+  "59,160": {
+   "kind": "interior",
+   "name": "Underwater Fossil Island",
+   "entrances": [
+    "58,60"
+   ]
+  },
+  "60,151": {
+   "kind": "interior",
+   "name": "Sisterhood Sanctuary",
+   "entrances": [
+    "58,51",
+    "58,52"
+   ]
+  },
+  "60,152": {
+   "kind": "interior",
+   "name": "Sisterhood Sanctuary",
+   "entrances": [
+    "58,51",
+    "58,52"
+   ]
+  },
+  "60,155": {
+   "kind": "interior",
+   "entrances": [
+    "58,51",
+    "58,52"
+   ]
+  },
+  "62,141": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "62,142": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "63,141": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "63,142": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "65,142": {
+   "kind": "interior",
+   "entrances": []
+  },
+  "66,142": {
+   "kind": "interior",
+   "entrances": []
+  }
+ }
+}

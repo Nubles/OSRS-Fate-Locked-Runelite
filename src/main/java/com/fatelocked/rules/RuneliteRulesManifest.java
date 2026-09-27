@@ -8,13 +8,18 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 @Getter
 public final class RuneliteRulesManifest
 {
+    /** The capability that says a bundle sends the Chunked frontier (R4). */
+    public static final String FRONTIER = "frontier";
+
     private String rulesVersion;
     private int contentVersion;
     private int detectorContractVersion;
@@ -31,6 +36,20 @@ public final class RuneliteRulesManifest
     private Unlocks unlocks;
     private Map<String, ItemRule> itemRules;
     private Map<String, ChunkPermissionSnapshot> chunks;
+    /**
+     * Stage 2: the sections the bundle has, by capability (R15). A section is
+     * read only when this names it, and ids this build doesn't know are
+     * ignored. Read leniently: a malformed list names nothing.
+     */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("capabilities")
+    private JsonElement capabilitiesDeclaration;
+    private transient Set<String> capabilities;
+    /** Stage 2, Chunked runs: the chunks the run may roll next ("cx,cy"); null when the bundle doesn't send it. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("frontier")
+    private JsonElement frontierDeclaration;
+    private transient List<String> frontier;
 
     public RuneliteRulesManifest normalized()
     {
@@ -75,7 +94,32 @@ public final class RuneliteRulesManifest
             }
         }
         copy.chunks = Collections.unmodifiableMap(normalizedChunks);
+        copy.capabilities = capabilities == null ? strings(capabilitiesDeclaration) : capabilities;
+        copy.frontier = !copy.capabilities.contains(FRONTIER) ? null
+            : frontier != null ? frontier : stringItems(frontierDeclaration);
         return copy;
+    }
+
+    /** A JSON array's strings, skipping anything else; nothing when it isn't an array. */
+    private static Set<String> strings(JsonElement declaration)
+    {
+        List<String> items = stringItems(declaration);
+        return items == null ? Collections.emptySet() : Collections.unmodifiableSet(new LinkedHashSet<>(items));
+    }
+
+    /** A JSON array's strings, skipping anything else; null when it isn't an array. */
+    private static List<String> stringItems(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonArray()) return null;
+        List<String> values = new ArrayList<>();
+        for (JsonElement value : declaration.getAsJsonArray())
+        {
+            if (value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString())
+            {
+                values.add(value.getAsString());
+            }
+        }
+        return Collections.unmodifiableList(values);
     }
 
     private static List<String> immutableStringList(JsonElement declaration)

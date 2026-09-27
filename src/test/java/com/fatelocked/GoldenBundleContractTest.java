@@ -129,10 +129,11 @@ public class GoldenBundleContractTest
         TreeSet<String> want = new TreeSet<>();
         for (JsonElement key : expected.getAsJsonArray("frontier")) want.add(key.getAsString());
         TreeSet<String> got = new TreeSet<>();
+        DecisionService engine = DecisionService.create(RulesSnapshot.of(bundle), null, null);
         for (String key : expected.getAsJsonObject("chunks").keySet())
         {
             CanonicalChunk chunk = chunk(key);
-            if (isLand(chunk) && bundle.isFrontierChunk(chunk)) got.add(key);
+            if (isLand(chunk) && engine.isFrontier(chunk)) got.add(key);
         }
         assertEquals(id + " frontier", want, got);
     }

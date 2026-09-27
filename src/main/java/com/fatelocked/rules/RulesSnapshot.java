@@ -24,6 +24,8 @@ public final class RulesSnapshot
     /** The tracker's chunks with a BANK row, and with SHOPS rows. */
     private final Set<CanonicalChunk> bankChunks;
     private final Set<CanonicalChunk> shopChunks;
+    /** The tracker's frontier for a Chunked run, when the rules send it; null otherwise. */
+    private final Set<CanonicalChunk> frontier;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
@@ -34,6 +36,28 @@ public final class RulesSnapshot
             bundle.getUnlockedChunks(), bundle.getTotalChunks());
         this.bankChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "BANKS", "BANK"));
         this.shopChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "SHOPS", null));
+        List<String> frontierKeys = bundle.isLegacyRules() ? null : bundle.getRules().getFrontier();
+        this.frontier = frontierKeys == null ? null : Collections.unmodifiableSet(chunks(frontierKeys));
+    }
+
+    /** The chunks of "cx,cy" keys, skipping any that aren't one. */
+    private static Set<CanonicalChunk> chunks(Iterable<String> keys)
+    {
+        Set<CanonicalChunk> chunks = new LinkedHashSet<>();
+        for (String key : keys)
+        {
+            String[] xy = key.split(",");
+            if (xy.length != 2) continue;
+            try
+            {
+                chunks.add(new CanonicalChunk(Integer.parseInt(xy[0].trim()), Integer.parseInt(xy[1].trim())));
+            }
+            catch (NumberFormatException ignored)
+            {
+                // Not a chunk key: nothing to draw for it.
+            }
+        }
+        return chunks;
     }
 
     /** The mapped chunks with a row in a category (of one target kind, when given). */
@@ -68,19 +92,7 @@ public final class RulesSnapshot
             for (Set<CanonicalChunk> region : bundle.getRegionChunks().values()) chunks.addAll(region);
             return chunks;
         }
-        for (String key : bundle.getRules().getChunks().keySet())
-        {
-            String[] xy = key.split(",");
-            if (xy.length != 2) continue;
-            try
-            {
-                chunks.add(new CanonicalChunk(Integer.parseInt(xy[0].trim()), Integer.parseInt(xy[1].trim())));
-            }
-            catch (NumberFormatException ignored)
-            {
-                // Not a chunk key: nothing to draw for it.
-            }
-        }
+        chunks.addAll(chunks(bundle.getRules().getChunks().keySet()));
         return chunks;
     }
 
@@ -164,10 +176,14 @@ public final class RulesSnapshot
         return bundle.monsterChunks(name);
     }
 
-    /** In a Chunked run, a locked chunk next to an owned one. */
+    /**
+     * In a Chunked run, a chunk the run may roll next: the tracker's own
+     * frontier, which with Sailing reaches land across the sea (R4), or for
+     * older rules a locked chunk next to an owned one.
+     */
     boolean isFrontier(CanonicalChunk chunk)
     {
-        return bundle.isFrontierChunk(chunk);
+        return frontier != null ? frontier.contains(chunk) : bundle.isFrontierChunk(chunk);
     }
 
     /** The root-field area name ("Falador · Asgarnia") older exports and unmapped chunks fall back to. */

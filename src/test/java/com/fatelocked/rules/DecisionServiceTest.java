@@ -17,6 +17,7 @@ import java.util.Collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -108,6 +109,53 @@ public class DecisionServiceTest
             }
             assertEquals(PermissionStatus.UNKNOWN,
                 playing(root.toString(), "nubles").mobility("Fairy Rings").getStatus());
+        }
+    }
+
+    /** The fixture as a Chunked run that owns only the start chunk, with these Stage 2 fields in its rules. */
+    private static DecisionService chunked(JsonElement capabilities, JsonElement frontier) throws Exception
+    {
+        JsonObject root = new Gson().fromJson(fixtureText("bundles/v4-rules.json"), JsonObject.class);
+        JsonObject rules = root.getAsJsonObject("rules");
+        rules.addProperty("gameModeId", "chunked");
+        if (capabilities != null) rules.add("capabilities", capabilities);
+        if (frontier != null) rules.add("frontier", frontier);
+        return playing(root.toString(), "nubles");
+    }
+
+    private static JsonArray strings(String... values)
+    {
+        JsonArray array = new JsonArray();
+        for (String value : values) array.add(value);
+        return array;
+    }
+
+    @Test
+    public void theFrontierIsTheTrackersWhenTheRulesNameIt() throws Exception
+    {
+        JsonArray frontier = strings("60,60", "not a key", "50,51");
+        frontier.add(7);
+        DecisionService rules = chunked(strings("someFutureSection", "frontier"), frontier);
+
+        // Across the sea, as only the tracker knows; the bad items are skipped.
+        assertTrue(rules.isFrontier(new CanonicalChunk(60, 60)));
+        assertTrue(rules.isFrontier(new CanonicalChunk(50, 51)));
+        // Next to the start chunk, but not on the tracker's frontier.
+        assertFalse(rules.isFrontier(new CanonicalChunk(49, 50)));
+    }
+
+    @Test
+    public void withoutItsCapabilityOrAListTheFrontierIsTheOwnedChunksNeighbours() throws Exception
+    {
+        JsonObject notAList = new JsonObject();
+        for (DecisionService rules : Arrays.asList(
+            chunked(null, strings("60,60")),
+            chunked(strings("banks"), strings("60,60")),
+            chunked(new JsonPrimitive("frontier"), strings("60,60")),
+            chunked(strings("frontier"), notAList)))
+        {
+            assertTrue(rules.isFrontier(new CanonicalChunk(49, 50)));
+            assertFalse(rules.isFrontier(new CanonicalChunk(60, 60)));
         }
     }
 
