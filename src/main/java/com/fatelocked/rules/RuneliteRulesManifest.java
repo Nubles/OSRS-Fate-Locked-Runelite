@@ -29,6 +29,8 @@ public final class RuneliteRulesManifest
     public static final String PROGRESS = "progress";
     /** The capability for each Slayer task's decision, per master (R16). */
     public static final String SLAYER_TASKS = "slayerTasks";
+    /** The capability for the areas the run's mode frees, from the mode itself (R6). */
+    public static final String FREE_AREAS = "freeAreas";
 
     private String rulesVersion;
     private int contentVersion;
@@ -85,6 +87,11 @@ public final class RuneliteRulesManifest
     @SerializedName("slayerTasks")
     private JsonElement slayerTasksDeclaration;
     private transient Map<String, SlayerTask> slayerTasks;
+    /** Stage 2: the areas the run's mode frees; null when the bundle doesn't send them, or they aren't a list. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("freeAreas")
+    private JsonElement freeAreasDeclaration;
+    private transient List<String> freeAreas;
 
     public RuneliteRulesManifest normalized()
     {
@@ -142,6 +149,8 @@ public final class RuneliteRulesManifest
             : progress != null ? progress : progress(progressDeclaration);
         copy.slayerTasks = !copy.capabilities.contains(SLAYER_TASKS) ? null
             : slayerTasks != null ? slayerTasks : slayerTasks(slayerTasksDeclaration);
+        copy.freeAreas = !copy.capabilities.contains(FREE_AREAS) ? null
+            : freeAreas != null ? freeAreas : stringItems(freeAreasDeclaration);
         return copy;
     }
 

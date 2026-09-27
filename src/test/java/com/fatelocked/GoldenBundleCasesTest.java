@@ -24,7 +24,8 @@ import static org.junit.Assert.fail;
  * The web app's bundle cases (contracts/golden-bundles/cases.json): input
  * every import must refuse rather than load empty or partial rules, and
  * changes it must shrug off, keeping the same answers as the run they start
- * from.
+ * from. The Stage 2 cases need a reader of the rules' capabilities (E7): a
+ * stray root field, or a missing root copy of what the rules now name.
  */
 @RunWith(Parameterized.class)
 public class GoldenBundleCasesTest
@@ -41,6 +42,10 @@ public class GoldenBundleCasesTest
             cases.add(new Object[] {"refuses", name(element), element.getAsJsonObject()});
         }
         for (JsonElement element : file.getAsJsonArray("sameAnswers"))
+        {
+            cases.add(new Object[] {"keeps its answers for", name(element), element.getAsJsonObject()});
+        }
+        for (JsonElement element : file.getAsJsonArray("stage2SameAnswers"))
         {
             cases.add(new Object[] {"keeps its answers for", name(element), element.getAsJsonObject()});
         }

@@ -250,13 +250,16 @@ public class FateLockedBundle
         this.bankChunks = bankSet;
         this.shopChunks = shopSet;
 
-        // Free-at-start baseline. v3.1+ bundles carry the mode's actual free
-        // set (full Misthalin / Lumbridge-only / none); older bundles fall
-        // back to the historical full-Misthalin assumption.
+        // Free-at-start baseline. Stage 2 rules name it from the run's own mode
+        // (R6); v3.1+ bundles carry the mode's actual free set (full Misthalin /
+        // Lumbridge-only / none) at the root; older bundles fall back to the
+        // historical full-Misthalin assumption.
         Set<String> always = new HashSet<>();
-        if (raw != null && raw.freeAreas != null)
+        List<String> free = rules != null && rules.getFreeAreas() != null
+            ? rules.getFreeAreas() : raw == null ? null : raw.freeAreas;
+        if (free != null)
         {
-            for (String a : raw.freeAreas) if (a != null) always.add(a);
+            for (String a : free) if (a != null) always.add(a);
         }
         else
         {
