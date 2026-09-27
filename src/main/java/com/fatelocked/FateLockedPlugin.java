@@ -87,6 +87,7 @@ import net.runelite.client.task.Schedule;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.util.HotkeyListener;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
@@ -2377,29 +2378,20 @@ public class FateLockedPlugin extends Plugin
     {
         return NavigationButton.builder()
             .tooltip("Fate Locked Ironman")
-            .icon(createIcon())
+            .icon(navigationIcon())
             .priority(7)
             .panel(target)
             .build();
     }
 
-    private static BufferedImage createIcon()
+    /**
+     * The sidebar button's icon: the crystal key, the web app's own icon, drawn at the
+     * 16 px RuneLite shows it. RuneLite rescales a larger icon smoothly, which blurred the
+     * old 24 px key, and game art isn't loaded when the button is added.
+     */
+    static BufferedImage navigationIcon()
     {
-        BufferedImage img = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        // Key bow
-        g.setColor(new Color(245, 158, 11));
-        g.fillOval(2, 7, 11, 11);
-        g.setColor(new Color(15, 17, 21));
-        g.fillOval(5, 10, 5, 5);
-        // Shaft + teeth
-        g.setColor(new Color(245, 158, 11));
-        g.fillRect(12, 11, 10, 3);
-        g.fillRect(17, 14, 2, 4);
-        g.fillRect(20, 14, 2, 4);
-        g.dispose();
-        return img;
+        return ImageUtil.loadImageResource(FateLockedPlugin.class, "nav_icon.png");
     }
 
     private void startTrackerPoll()
