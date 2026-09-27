@@ -3,9 +3,7 @@ package com.fatelocked.guardian.travel;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
-import net.runelite.api.Skill;
 import net.runelite.api.gameval.InventoryID;
-import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -52,16 +50,6 @@ public class RuneLiteTravelAvailabilityTest
         assertFalse(availability.hasAnyItem(setOf(8007)));
         assertFalse(availability.hasAnyItem(new LinkedHashSet<>()));
         assertFalse(availability.hasAnyItem(null));
-    }
-
-    @Test
-    public void readsRealLevelsAndCurrentSpellbookDirectly()
-    {
-        when(client.getRealSkillLevel(Skill.MAGIC)).thenReturn(67);
-        when(client.getVarbitValue(VarbitID.SPELLBOOK)).thenReturn(2);
-
-        assertEquals(67, availability.realLevel(Skill.MAGIC));
-        assertEquals(2, availability.spellbook());
     }
 
     private static Set<Integer> setOf(Integer... values)

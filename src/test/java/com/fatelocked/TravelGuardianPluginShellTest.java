@@ -141,8 +141,7 @@ public class TravelGuardianPluginShellTest
         Harness harness = new Harness();
         TravelGuardianCoordinator coordinator = mock(TravelGuardianCoordinator.class);
         TravelAlternative alternative = new TravelAlternative(
-            "varrock-tablet", "Varrock teleport tablet", new CanonicalChunk(50, 53), "Teleport Tablets",
-            Collections.singleton(8007), null, 0, null);
+            "tablet:varrock-teleport|Break", "Varrock teleport tablet", new CanonicalChunk(50, 53));
         when(coordinator.handle(any(), any(), any(), any(), any(), any()))
             .thenReturn(blockedResult(alternative), blockedResult(null));
         TravelGuardianPluginShell shell = harness.shell(coordinator);
@@ -168,8 +167,7 @@ public class TravelGuardianPluginShellTest
         Harness harness = new Harness();
         TravelGuardianCoordinator coordinator = mock(TravelGuardianCoordinator.class);
         TravelAlternative alternative = new TravelAlternative(
-            "varrock-tablet", "Varrock teleport tablet", new CanonicalChunk(50, 53), "Teleport Tablets",
-            Collections.singleton(8007), null, 0, null);
+            "tablet:varrock-teleport|Break", "Varrock teleport tablet", new CanonicalChunk(50, 53));
         when(coordinator.handle(any(), any(), any(), any(), any(), any()))
             .thenReturn(blockedResult(alternative), pausedResult());
         TravelGuardianPluginShell shell = harness.shell(coordinator);
@@ -276,6 +274,20 @@ public class TravelGuardianPluginShellTest
 
         assertEquals(1, harness.chat.size());
         assertEquals(1, harness.audit.size());
+    }
+
+    /** F7: the notice suggests a trip the player carries that the tracker allows. */
+    @Test
+    public void aBlockedTripSuggestsACarriedTripTheTrackerAllows()
+    {
+        Harness harness = new Harness();
+        when(harness.availability.hasAnyItem(Collections.singleton(TravelFixtures.LUMBRIDGE_TABLET))).thenReturn(true);
+
+        harness.actualShell().handle(TravelClicks.cast("Falador Teleport"), harness.client, ORIGIN, ACTIVE, rules);
+
+        assertEquals("Lumbridge teleport", harness.noticeStore.current().get().getAlternative());
+        assertTrue(harness.chat.get(0), harness.chat.get(0).contains("Try Lumbridge teleport instead."));
+        assertTrue(harness.audit.get(0).isAlternativeAvailable());
     }
 
     /** Owner decision 2: a fairy ring is matched, and tagged, but never blocked in Stage 2. */

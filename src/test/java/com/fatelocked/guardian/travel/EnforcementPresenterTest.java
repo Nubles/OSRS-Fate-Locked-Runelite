@@ -28,8 +28,8 @@ public class EnforcementPresenterTest
         TravelDecision decision = new TravelDecision(PermissionStatus.LOCKED,
             TravelAction.label(TravelFixtures.cast("Varrock Teleport")),
             "Varrock is locked");
-        TravelAlternative tablet = new TravelAlternative("falador-tablet", "Falador teleport tablet",
-            new CanonicalChunk(46, 52), "Teleport Tablets", Collections.singleton(8009), null, 0, null);
+        TravelAlternative tablet = new TravelAlternative("tablet:falador-teleport|Break", "Falador teleport tablet",
+            new CanonicalChunk(46, 52));
 
         BlockNotice notice = presenter.present(action(), decision, tablet);
 

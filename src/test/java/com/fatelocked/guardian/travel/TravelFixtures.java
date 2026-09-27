@@ -16,8 +16,9 @@ import java.nio.charset.StandardCharsets;
  * The v4 test bundle with a small travel table (bundles/v4-travel.json),
  * bound to Nubles, and clicks on it as MenuFacts. In the table Falador is
  * locked, Lumbridge allowed, Camelot not ready, Varrock two places, and
- * Senntisten needs Ancient Magicks; the glory's Al Kharid is locked and
- * its Edgeville allowed; the Digsite pendant needs its own unlock; and the
+ * Senntisten needs Ancient Magicks; the glory's Al Kharid and Karamja are
+ * locked and its Edgeville allowed; the ring of dueling's Emir's Arena is
+ * allowed; the Digsite pendant needs its own unlock; and the
  * fairy ring and the Port Sarim ship are advisory.
  */
 public final class TravelFixtures
@@ -27,11 +28,13 @@ public final class TravelFixtures
     public static final CanonicalChunk AL_KHARID = new CanonicalChunk(51, 49);
     public static final CanonicalChunk EDGEVILLE = new CanonicalChunk(48, 54);
     public static final CanonicalChunk DIGSITE = new CanonicalChunk(52, 53);
+    public static final CanonicalChunk EMIRS_ARENA = new CanonicalChunk(51, 50);
     public static final int STANDARD = 0;
     public static final int ANCIENT = 1;
     public static final int LUMBRIDGE_TABLET = 8008;
     public static final int FALADOR_TABLET = 8009;
     public static final int AMULET_OF_GLORY_4 = 1712;
+    public static final int RING_OF_DUELING_8 = 2552;
     public static final int DIGSITE_PENDANT_5 = 11194;
     public static final int FAIRY_RING = 29495;
     public static final int PORT_SARIM_CREW = 14978;

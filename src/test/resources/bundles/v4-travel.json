@@ -319,6 +319,25 @@
           }
         }
       },
+      "item:ring-of-dueling": {
+        "label": "Ring of dueling",
+        "unlocks": [
+          "Jewelry Teleports"
+        ],
+        "match": {
+          "items": [
+            2552
+          ]
+        },
+        "options": {
+          "Emir's Arena": {
+            "to": [
+              "51,50"
+            ],
+            "status": "ALLOWED"
+          }
+        }
+      },
       "item:digsite-pendant": {
         "label": "Digsite pendant",
         "unlocks": [

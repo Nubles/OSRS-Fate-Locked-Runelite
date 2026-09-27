@@ -2,43 +2,14 @@ package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
 import lombok.Value;
-import net.runelite.api.Skill;
 
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
-
+/** Another way to go, which the notice suggests: display only (F7). */
 @Value
 public class TravelAlternative
 {
+    /** The table's method and option: "tablet:lumbridge-teleport|Break". */
     String id;
+    /** "Lumbridge teleport", or "Amulet of glory to Edgeville". */
     String label;
     CanonicalChunk destination;
-    String requiredUnlock;
-    Set<Integer> requiredItemIds;
-    Skill requiredSkill;
-    int requiredLevel;
-    Integer requiredSpellbook;
-
-    public TravelAlternative(
-        String id,
-        String label,
-        CanonicalChunk destination,
-        String requiredUnlock,
-        Set<Integer> requiredItemIds,
-        Skill requiredSkill,
-        int requiredLevel,
-        Integer requiredSpellbook)
-    {
-        this.id = id;
-        this.label = label;
-        this.destination = destination;
-        this.requiredUnlock = requiredUnlock;
-        this.requiredItemIds = requiredItemIds == null
-            ? Collections.emptySet()
-            : Collections.unmodifiableSet(new LinkedHashSet<>(requiredItemIds));
-        this.requiredSkill = requiredSkill;
-        this.requiredLevel = requiredLevel;
-        this.requiredSpellbook = requiredSpellbook;
-    }
 }

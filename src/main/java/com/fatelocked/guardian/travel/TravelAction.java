@@ -52,6 +52,12 @@ public class TravelAction
         return new TravelAction(null, null, label(facts), origin, Collections.emptyList(), false, Confidence.UNKNOWN);
     }
 
+    /** Whether an option names no place itself, as Cast, Break and Rub don't. */
+    static boolean isActivation(String option)
+    {
+        return option != null && ACTIVATIONS.contains(option.toLowerCase(Locale.ROOT));
+    }
+
     /** Its one destination; null when it can go to several places, or the table doesn't say where. */
     public CanonicalChunk getDestination()
     {
@@ -68,7 +74,7 @@ public class TravelAction
         String option = facts == null ? "" : facts.getOption();
         String target = facts == null ? "" : facts.getTarget();
         if (target.isEmpty()) return option;
-        if (option.isEmpty() || ACTIVATIONS.contains(option.toLowerCase(Locale.ROOT))) return target;
+        if (option.isEmpty() || isActivation(option)) return target;
         return target + " to " + option;
     }
 }
