@@ -36,7 +36,7 @@ public class PaletteTest
                 assertReadable(tone.name() + " on its pill", palette.text(tone), palette.pill(tone));
             }
         }
-        for (Color neutral : Arrays.asList(Palette.TEXT, Palette.TEXT_MUTED, Palette.ACCENT))
+        for (Color neutral : Arrays.asList(Palette.TITLE, Palette.TEXT, Palette.TEXT_MUTED, Palette.ACCENT))
         {
             assertReadable("neutral", neutral, Palette.PANEL);
             assertReadable("neutral", neutral, Palette.CARD);

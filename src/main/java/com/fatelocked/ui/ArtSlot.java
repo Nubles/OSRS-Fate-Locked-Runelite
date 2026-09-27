@@ -25,8 +25,35 @@ public class ArtSlot extends JComponent
 
     public void setImage(BufferedImage image)
     {
-        this.image = image;
+        this.image = image == null ? null : trim(image);
         repaint();
+    }
+
+    /** The image without its fully transparent margins, as item art has. */
+    static BufferedImage trim(BufferedImage image)
+    {
+        int left = image.getWidth();
+        int top = image.getHeight();
+        int right = -1;
+        int bottom = -1;
+        for (int y = 0; y < image.getHeight(); y++)
+        {
+            for (int x = 0; x < image.getWidth(); x++)
+            {
+                if ((image.getRGB(x, y) >>> 24) != 0)
+                {
+                    left = Math.min(left, x);
+                    top = Math.min(top, y);
+                    right = Math.max(right, x);
+                    bottom = Math.max(bottom, y);
+                }
+            }
+        }
+        if (right < 0 || left == 0 && top == 0 && right == image.getWidth() - 1 && bottom == image.getHeight() - 1)
+        {
+            return image;
+        }
+        return image.getSubimage(left, top, right - left + 1, bottom - top + 1);
     }
 
     public BufferedImage getImage()

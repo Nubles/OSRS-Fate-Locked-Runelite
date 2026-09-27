@@ -8,7 +8,6 @@ import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
-import net.runelite.client.ui.DynamicGridLayout;
 
 /**
  * A block of related content on the sidebar: the card colour, softly rounded, with an
@@ -24,7 +23,7 @@ public class Card extends JPanel
     /** A card that stacks its children, each at full width. */
     public Card()
     {
-        this(new DynamicGridLayout(0, 1, 0, Space.ROW));
+        this(new Stack(Space.ROW));
     }
 
     public Card(LayoutManager layout)

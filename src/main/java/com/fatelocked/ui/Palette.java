@@ -43,8 +43,10 @@ public final class Palette
     public static final Color PANEL = ColorScheme.DARK_GRAY_COLOR;
     /** A card on the sidebar. */
     public static final Color CARD = ColorScheme.DARKER_GRAY_COLOR;
-    /** A row or header under the mouse, on a card. */
-    public static final Color HOVER = new Color(38, 38, 38);
+    /** A header or row under the mouse, on a card: RuneLite's own card hover. */
+    public static final Color HOVER = ColorScheme.DARKER_GRAY_HOVER_COLOR;
+    /** A tile raised a little from its card. */
+    public static final Color RAISED = new Color(38, 38, 38);
     /** A line between groups inside a card. */
     public static final Color HAIRLINE = new Color(50, 50, 50);
     /** A track behind a progress bar. */
@@ -55,8 +57,10 @@ public final class Palette
     public static final Color CONTROL_HOVER = new Color(64, 64, 64);
     /** A switch that is off. */
     public static final Color SWITCH_OFF = new Color(76, 76, 76);
-    /** Titles and values. */
-    public static final Color TEXT = new Color(232, 232, 232);
+    /** Titles, in white as RuneLite's own panels have them. */
+    public static final Color TITLE = Color.WHITE;
+    /** Body text and values: RuneLite's own label colour. */
+    public static final Color TEXT = ColorScheme.TEXT_COLOR;
     /** Labels and secondary lines. */
     public static final Color TEXT_MUTED = ColorScheme.LIGHT_GRAY_COLOR;
     /** The one accent: the web app's gold. */

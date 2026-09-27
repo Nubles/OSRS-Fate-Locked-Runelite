@@ -16,7 +16,7 @@ public class ItemRow extends JPanel
     static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 2 * Space.EDGE - 2 * Space.PAD;
 
     private final ArtSlot art = new ArtSlot(Space.ICON);
-    private final TextBlock name = new TextBlock(Type.body(), Palette.TEXT, 1, TEXT_WIDTH);
+    private final TextBlock name = new TextBlock(Type.body(), Palette.TEXT, 2, TEXT_WIDTH);
     private final StatusPill pill = new StatusPill();
     private final TextBlock reason = new TextBlock(Type.small(), Palette.TEXT_MUTED, 2, TEXT_WIDTH);
 
@@ -28,7 +28,11 @@ public class ItemRow extends JPanel
         line.setOpaque(false);
         line.add(art, BorderLayout.WEST);
         line.add(name, BorderLayout.CENTER);
-        line.add(pill, BorderLayout.EAST);
+        // The pill keeps its own height when a long name wraps, beside the first line.
+        JPanel pillSlot = new JPanel(new BorderLayout());
+        pillSlot.setOpaque(false);
+        pillSlot.add(pill, BorderLayout.NORTH);
+        line.add(pillSlot, BorderLayout.EAST);
         add(line, BorderLayout.NORTH);
         add(reason, BorderLayout.CENTER);
         art.setVisible(false);

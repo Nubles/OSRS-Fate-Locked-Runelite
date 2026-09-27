@@ -40,7 +40,7 @@ public final class KitGallery
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         header.setBorder(new EmptyBorder(2, 2, 2, 2));
-        header.add(text("Fate Locked", Type.title(), Palette.TEXT, 1), BorderLayout.CENTER);
+        header.add(text("Fate Locked", Type.title(), Palette.TITLE, 1), BorderLayout.CENTER);
         header.add(new FlatButton("Open tracker", FlatButton.Kind.LINK), BorderLayout.EAST);
         root.add(header);
 
@@ -69,7 +69,7 @@ public final class KitGallery
         Section here = new Section("Here", true);
         JPanel title = new JPanel(new BorderLayout(Space.ICON_GAP, 0));
         title.setOpaque(false);
-        title.add(text("Falador", Type.title(), Palette.TEXT, 1), BorderLayout.CENTER);
+        title.add(text("Falador", Type.title(), Palette.TITLE, 1), BorderLayout.CENTER);
         title.add(new StatusPill("Locked", Tone.BAD), BorderLayout.EAST);
         here.body().add(title);
         here.body().add(text("Asgarnia · 46, 52", Type.small(), Palette.TEXT_MUTED, 1));

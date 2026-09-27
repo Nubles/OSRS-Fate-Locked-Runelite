@@ -53,7 +53,7 @@ public class ToggleSwitch extends JToggleButton
             g2.fillRoundRect(0, y, TRACK_WIDTH, TRACK_HEIGHT, TRACK_HEIGHT, TRACK_HEIGHT);
             int inset = (TRACK_HEIGHT - KNOB) / 2;
             int knobX = on ? TRACK_WIDTH - inset - KNOB : inset;
-            g2.setColor(on ? Palette.ON_ACCENT : Palette.TEXT);
+            g2.setColor(on ? Palette.ON_ACCENT : Palette.TITLE);
             g2.fillOval(knobX, y + inset, KNOB, KNOB);
         }
         finally

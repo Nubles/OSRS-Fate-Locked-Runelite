@@ -18,7 +18,6 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicGraphicsUtils;
-import net.runelite.client.ui.DynamicGridLayout;
 
 /**
  * The sidebar's one kind of section: a card that opens and closes under a one-line
@@ -28,7 +27,7 @@ public class Section extends JPanel
 {
     private final Header header;
     private final JPanel trailingSlot = new JPanel(new BorderLayout());
-    private final JPanel body = new JPanel(new DynamicGridLayout(0, 1, 0, Space.ROW));
+    private final JPanel body = new JPanel(new Stack(Space.ROW));
     private final List<Consumer<Boolean>> listeners = new ArrayList<>();
     private boolean expanded;
 
@@ -205,7 +204,7 @@ public class Section extends JPanel
                 int baseline = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
                 int textX = x + CHEVRON + Space.ICON_GAP;
                 g2.setFont(getFont());
-                g2.setColor(Palette.TEXT);
+                g2.setColor(Palette.TITLE);
                 BasicGraphicsUtils.drawString(this, g2, title, textX, baseline);
                 if (count != null && !count.isEmpty())
                 {
