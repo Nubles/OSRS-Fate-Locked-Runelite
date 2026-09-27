@@ -146,6 +146,25 @@ public class DecisionServiceGoldenTest
         assertTrue(id + " has bank rows", banks > 50);
     }
 
+    /** R5: the tracker's bank table decides each bank wherever its facilities are, as the goldens pin it. */
+    @Test
+    public void everyBankIsDecidedWhereItsFacilitiesAre() throws Exception
+    {
+        DecisionService service = trusted();
+        JsonObject status = expected.getAsJsonObject("bankStatus");
+        JsonObject bankAt = GoldenBundleContractTest.json("banks.json").getAsJsonObject("bankAt");
+        List<String> mismatches = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : bankAt.entrySet())
+        {
+            String bank = entry.getValue().getAsString();
+            String want = status.get(bank).getAsString();
+            Decision got = service.bankAt(GoldenBundleContractTest.chunk(entry.getKey()));
+            if (!want.equals(got.getStatus().name())) mismatches.add(entry.getKey() + " (" + bank + ") want " + want + " got " + got);
+        }
+        assertTrue(id + " has facility chunks", bankAt.size() > 120);
+        assertEquals(id + " banks where their facilities are", List.of(), mismatches);
+    }
+
     /** B3: whether each bank is rolled, as the tracker says, apart from its area. */
     @Test
     public void everyBankIsRolledAsTheTrackerSays()
@@ -166,11 +185,17 @@ public class DecisionServiceGoldenTest
         assertEquals(id + " bank rolls", List.of(), mismatches);
     }
 
-    /** The tracker's rows already agree; this pins the rule for rows that don't. */
+    /** The tracker's rows already agree; this pins the rule for rows that don't, without the bank table. */
     @Test
     public void aLockedChunkLocksEverythingInIt()
     {
         JsonObject copy = wire.deepCopy();
+        com.google.gson.JsonArray capabilities = new com.google.gson.JsonArray();
+        for (JsonElement capability : copy.getAsJsonObject("rules").getAsJsonArray("capabilities"))
+        {
+            if (!"banks".equals(capability.getAsString())) capabilities.add(capability);
+        }
+        copy.getAsJsonObject("rules").add("capabilities", capabilities);
         String key = null;
         for (Map.Entry<String, JsonElement> entry : copy.getAsJsonObject("rules").getAsJsonObject("chunks").entrySet())
         {

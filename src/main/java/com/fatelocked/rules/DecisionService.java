@@ -276,12 +276,18 @@ public final class DecisionService
         return rules.legacyContent(chunk);
     }
 
-    /** The bank at a chunk. */
+    /**
+     * The bank at a chunk: the tracker's bank table's decision wherever its
+     * facilities are, inside Keldagrim as well as at its entrance (R5); else
+     * the chunk's bank row.
+     */
     public Decision bankAt(CanonicalChunk chunk)
     {
         Decision gate = gate();
         if (gate != null) return gate;
         if (rules.isLegacy()) return chunk == null ? unmapped(null) : rules.legacy().bankAt(chunk);
+        RuneliteRulesManifest.Bank bank = chunk == null ? null : rules.bankIn(chunk);
+        if (bank != null) return new Decision(bank.getStatus(), bank.getName(), bank.getReason(), Decision.Source.ROW);
         return target(chunk, "BANK", "");
     }
 
@@ -296,7 +302,10 @@ public final class DecisionService
         Decision gate = gate();
         if (gate != null) return gate;
         if (chunk == null) return unmapped(null);
-        return rules.bankRolled(chunk)
+        // A bank is rolled by its own chunk, wherever its facilities are.
+        RuneliteRulesManifest.Bank bank = rules.bankIn(chunk);
+        CanonicalChunk rolled = bank == null ? chunk : chunkOf(bank.getAt());
+        return rolled != null && rules.bankRolled(rolled)
             ? new Decision(PermissionStatus.ALLOWED, null, null, Decision.Source.BANK_ROLL)
             : new Decision(PermissionStatus.LOCKED, null, "Not rolled under Banks", Decision.Source.BANK_ROLL);
     }
@@ -312,7 +321,63 @@ public final class DecisionService
     {
         if (trust != Trust.TRUSTED || from == null) return null;
         if (rules.isLegacy()) return rules.legacy().nearestBank(from);
+        if (rules.hasBankTable()) return nearestTrackedBank(from);
         return nearest(from, rules.bankChunks(), "BANKS");
+    }
+
+    /**
+     * Where a chunk is on the surface: an interior's first entrance, as the
+     * rules' places give it, or the chunk itself.
+     */
+    public CanonicalChunk surfaceOf(CanonicalChunk chunk)
+    {
+        RuneliteRulesManifest.Place place = chunk == null ? null : rules.placeAt(chunk);
+        CanonicalChunk entrance = place == null || place.getEntrances().isEmpty() ? null : chunkOf(place.getEntrances().get(0));
+        return entrance == null ? chunk : entrance;
+    }
+
+    /**
+     * The nearest bank the tracker's table allows (R5): here when its
+     * facilities are in this chunk, else by its own chunk. From inside an
+     * interior it is measured from the entrance, and leaving counts as a
+     * chunk, so a bank at the entrance is never "here".
+     */
+    private FateLockedBundle.Nearest nearestTrackedBank(CanonicalChunk from)
+    {
+        RuneliteRulesManifest.Bank here = rules.bankIn(from);
+        if (here != null && here.getStatus() == PermissionStatus.ALLOWED) return new FateLockedBundle.Nearest(from, 0);
+        CanonicalChunk origin = surfaceOf(from);
+        int leaving = origin.equals(from) ? 0 : 1;
+        CanonicalChunk best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (Map.Entry<CanonicalChunk, RuneliteRulesManifest.Bank> entry : rules.banksAt().entrySet())
+        {
+            if (entry.getValue().getStatus() != PermissionStatus.ALLOWED) continue;
+            CanonicalChunk chunk = entry.getKey();
+            int distance = Math.max(Math.abs(chunk.getCx() - origin.getCx()), Math.abs(chunk.getCy() - origin.getCy()));
+            if (best == null || distance < bestDistance || (distance == bestDistance
+                && (chunk.getCx() < best.getCx() || (chunk.getCx() == best.getCx() && chunk.getCy() < best.getCy()))))
+            {
+                best = chunk;
+                bestDistance = distance;
+            }
+        }
+        return best == null ? null : new FateLockedBundle.Nearest(best, bestDistance + leaving);
+    }
+
+    /** The chunk of a "cx,cy" key; null when it isn't one. */
+    private static CanonicalChunk chunkOf(String key)
+    {
+        String[] xy = key == null ? new String[0] : key.split(",");
+        if (xy.length != 2) return null;
+        try
+        {
+            return new CanonicalChunk(Integer.parseInt(xy[0].trim()), Integer.parseInt(xy[1].trim()));
+        }
+        catch (NumberFormatException notAChunk)
+        {
+            return null;
+        }
     }
 
     /** The nearest shop this character can use: a SHOPS row the tracker allows. */
@@ -333,11 +398,14 @@ public final class DecisionService
 
     private FateLockedBundle.Nearest nearest(CanonicalChunk from, Set<CanonicalChunk> candidates, String category)
     {
+        // As for the bank table: from inside an interior, from its entrance, and leaving counts as a chunk.
+        CanonicalChunk origin = surfaceOf(from);
+        int leaving = origin.equals(from) ? 0 : 1;
         CanonicalChunk best = null;
         int bestDistance = Integer.MAX_VALUE;
         for (CanonicalChunk chunk : candidates)
         {
-            int distance = Math.max(Math.abs(chunk.getCx() - from.getCx()), Math.abs(chunk.getCy() - from.getCy()));
+            int distance = Math.max(Math.abs(chunk.getCx() - origin.getCx()), Math.abs(chunk.getCy() - origin.getCy()));
             boolean closer = distance < bestDistance || (distance == bestDistance
                 && (chunk.getCx() < best.getCx() || (chunk.getCx() == best.getCx() && chunk.getCy() < best.getCy())));
             if (closer && usable(chunk, category))
@@ -346,7 +414,7 @@ public final class DecisionService
                 bestDistance = distance;
             }
         }
-        return best == null ? null : new FateLockedBundle.Nearest(best, bestDistance);
+        return best == null ? null : new FateLockedBundle.Nearest(best, bestDistance + leaving);
     }
 
     /** Whether any row of a category in a chunk is ALLOWED; a locked chunk locks them all. */

@@ -31,6 +31,9 @@ public final class RulesSnapshot
     private final Map<CanonicalChunk, PermissionStatus> entries;
     /** What each chunk that isn't land is, when the rules send it; empty otherwise. */
     private final Map<CanonicalChunk, RuneliteRulesManifest.Place> places;
+    /** The tracker's bank table, when the rules send it: each bank by its chunk, and by the chunks its facilities are in. */
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksAt;
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksIn;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
@@ -46,6 +49,18 @@ public final class RulesSnapshot
         RuneliteRulesManifest manifest = bundle.isLegacyRules() ? null : bundle.getRules();
         this.entries = Collections.unmodifiableMap(byChunk(manifest == null ? null : manifest.getChunkEntries()));
         this.places = Collections.unmodifiableMap(byChunk(manifest == null ? null : manifest.getPlaces()));
+        Map<CanonicalChunk, RuneliteRulesManifest.Bank> at = new HashMap<>();
+        Map<CanonicalChunk, RuneliteRulesManifest.Bank> in = new HashMap<>();
+        if (manifest != null && manifest.getBanks() != null)
+        {
+            for (RuneliteRulesManifest.Bank bank : manifest.getBanks().values())
+            {
+                for (CanonicalChunk chunk : chunks(Collections.singletonList(bank.getAt()))) at.putIfAbsent(chunk, bank);
+                for (CanonicalChunk chunk : chunks(bank.getPhysical())) in.putIfAbsent(chunk, bank);
+            }
+        }
+        this.banksAt = Collections.unmodifiableMap(at);
+        this.banksIn = Collections.unmodifiableMap(in);
     }
 
     /** A map by "cx,cy" key, keyed by chunk instead, skipping keys that aren't one. */
@@ -213,6 +228,24 @@ public final class RulesSnapshot
     PermissionStatus entryAt(CanonicalChunk chunk)
     {
         return entries.get(chunk);
+    }
+
+    /** Whether the rules send the tracker's bank table. */
+    boolean hasBankTable()
+    {
+        return !isLegacy() && bundle.getRules().getBanks() != null;
+    }
+
+    /** The bank whose facilities are in a chunk, as the tracker's bank table has it; null when none is. */
+    RuneliteRulesManifest.Bank bankIn(CanonicalChunk chunk)
+    {
+        return banksIn.get(chunk);
+    }
+
+    /** Each bank in the tracker's table by its chunk: where it is, or the entrance to it. */
+    Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksAt()
+    {
+        return banksAt;
     }
 
     /** What a chunk that isn't land is, as the rules' places say; null for land or when they don't. */

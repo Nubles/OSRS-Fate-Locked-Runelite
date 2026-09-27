@@ -35,11 +35,16 @@ public class NearestBankTest
         "21,51", "22,46", "23,51", "25,48", "34,47", "38,50", "40,35", "41,57", "42,58", "43,43",
         "43,48", "43,54", "45,58", "47,53", "52,42", "53,50", "55,52", "58,59", "59,47"));
 
-    /** vanilla-mid with every bank row and its chunk allowed: each bank is its own nearest. */
+    /**
+     * vanilla-mid with every bank row, its chunk and the bank table allowed:
+     * each bank is its own nearest, and so is each chunk its facilities are in.
+     */
     @Test
     public void everyBankTheTrackerListsIsACandidate() throws Exception
     {
         JsonObject wire = wire("vanilla-mid");
+        JsonObject table = wire.getAsJsonObject("rules").getAsJsonObject("banks");
+        for (Map.Entry<String, JsonElement> bank : table.entrySet()) bank.getValue().getAsJsonObject().addProperty("status", "ALLOWED");
         List<String> banks = new ArrayList<>();
         for (Map.Entry<String, JsonElement> chunk : wire.getAsJsonObject("rules").getAsJsonObject("chunks").entrySet())
         {
@@ -61,6 +66,36 @@ public class NearestBankTest
         assertEquals(127, banks.size());
         assertTrue(banks.containsAll(POI_MISSED));
         assertEquals(List.of(), notFound);
+
+        List<String> notInside = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> bank : table.entrySet())
+        {
+            for (JsonElement key : bank.getValue().getAsJsonObject().getAsJsonArray("physical"))
+            {
+                FateLockedBundle.Nearest near = allBanks.nearestBank(GoldenBundleContractTest.chunk(key.getAsString()));
+                if (near == null || near.getDistanceChunks() != 0) notInside.add(bank.getKey() + " " + key.getAsString());
+            }
+        }
+        assertEquals(127, table.size());
+        assertEquals(List.of(), notInside);
+    }
+
+    /**
+     * From inside an interior, the nearest bank is measured from its entrance,
+     * and leaving counts as a chunk; a bank whose facilities are inside is here.
+     */
+    @Test
+    public void fromInsideAnInteriorTheWayIsFromItsEntrance() throws Exception
+    {
+        JsonObject wire = wire("custom-lumbridge-banks-off");
+        // The Lumbridge Castle cellar, entered from Lumbridge, where bank 12850 is allowed.
+        CanonicalChunk cellar = new CanonicalChunk(50, 150);
+        assertEquals(new FateLockedBundle.Nearest(new CanonicalChunk(50, 50), 1), trusted(wire).nearestBank(cellar));
+
+        // Zanaris's bank is inside Zanaris.
+        wire.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12849").addProperty("status", "ALLOWED");
+        CanonicalChunk zanaris = new CanonicalChunk(37, 69);
+        assertEquals(new FateLockedBundle.Nearest(zanaris, 0), trusted(wire).nearestBank(zanaris));
     }
 
     /** Every golden bundle: the chosen bank and shop are allowed and nothing allowed is closer. */
@@ -116,9 +151,15 @@ public class NearestBankTest
         assertEquals("Draynor Vill… · 2 E", HudStatusTest.drawn(hud).get("Bank"));
         hud.getPanelComponent().getChildren().clear();
 
-        // The tracker locks South Draynor's chunk, bank row allowed or not: Lumbridge is nearest.
+        // Below the castle, the way is from the cellar's entrance, with no direction when the bank is right there.
+        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(50 * 64 + 5, 150 * 64 + 5, 0));
+        assertEquals("Lumbridge · 1", HudStatusTest.drawn(hud).get("Bank"));
+        hud.getPanelComponent().getChildren().clear();
+
+        // The tracker locks South Draynor's chunk and bank: Lumbridge is nearest.
         JsonObject locked = wire("custom-lumbridge-banks-off");
         locked.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("48,50").addProperty("entry", "LOCKED");
+        locked.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12338").addProperty("status", "LOCKED");
         FateLockedBundle lockedRules = FateLockedBundle.loadFromJson(GSON, locked.toString());
         org.mockito.Mockito.when(plugin.decisions()).thenReturn(
             DecisionService.create(RulesSnapshot.of(lockedRules), "iron example", "iron example"));

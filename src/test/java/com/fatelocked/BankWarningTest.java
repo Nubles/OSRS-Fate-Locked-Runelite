@@ -1,9 +1,11 @@
 package com.fatelocked;
 
+import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
@@ -48,6 +50,8 @@ public class BankWarningTest
     private static final CanonicalChunk AL_KHARID_PALACE = new CanonicalChunk(51, 49);
     /** Bank 11828, rolled in the v3 fixture. */
     private static final CanonicalChunk FALADOR = new CanonicalChunk(46, 52);
+    /** Inside Keldagrim, where bank 11066's facilities are. */
+    private static final CanonicalChunk KELDAGRIM = new CanonicalChunk(44, 159);
 
     private final FateLockedPlugin plugin = new FateLockedPlugin();
     private final FateLockedConfig config = mock(FateLockedConfig.class);
@@ -93,20 +97,48 @@ public class BankWarningTest
     }
 
     /**
-     * Keldagrim's bank is inside the city, where the rules list no bank yet
-     * (R5, fixed by the tracker's bank table in E4): no row, no warning.
+     * Keldagrim's bank is inside the city, while the rules list it at the
+     * entrance, 43,58. The tracker's bank table decides it inside too (R5),
+     * and it is rolled by its own id, 11066.
      */
     @Test
-    public void noWarningWhereTheRulesListNoBank() throws Exception
+    public void aBankInsideAnInteriorWarnsThere() throws Exception
     {
         FateLockedBundle rules = golden("custom-none-banks-on");
-        CanonicalChunk keldagrim = new CanonicalChunk(44, 159);
         DecisionService decisions = DecisionService.create(RulesSnapshot.of(rules), "iron example", "iron example");
-        assertEquals(PermissionStatus.UNKNOWN, decisions.bankAt(keldagrim).getStatus());
-        assertEquals("not rolled", PermissionStatus.LOCKED, decisions.bankRoll(keldagrim).getStatus());
+        assertEquals(new Decision(PermissionStatus.LOCKED, "Keldagrim bank and Blast Furnace chest", "Unlock Keldagrim",
+            Decision.Source.ROW), decisions.bankAt(KELDAGRIM));
+        assertEquals("not rolled", PermissionStatus.LOCKED, decisions.bankRoll(KELDAGRIM).getStatus());
         playing(rules, "Iron Example");
 
-        assertEquals(List.of(), openBankAt(keldagrim, BANK));
+        List<String> lines = openBankAt(KELDAGRIM, BANK);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("Keldagrim bank and Blast Furnace chest"));
+
+        JsonObject rolled = wire("custom-none-banks-on");
+        rolled.getAsJsonObject("rules").getAsJsonObject("unlocks").getAsJsonArray("banks").add("11066");
+        playing(FateLockedBundle.loadFromJson(GSON, rolled.toString()), "Iron Example");
+        assertEquals("rolled by its own id", List.of(), openBankAt(KELDAGRIM, BANK));
+    }
+
+    /** Older rules have no bank table: a bank the rows don't list stays silent, as before. */
+    @Test
+    public void withoutTheBankTableAnInteriorBankIsSilent() throws Exception
+    {
+        JsonObject older = wire("custom-none-banks-on");
+        JsonArray capabilities = new JsonArray();
+        for (com.google.gson.JsonElement capability : older.getAsJsonObject("rules").getAsJsonArray("capabilities"))
+        {
+            if (!"banks".equals(capability.getAsString())) capabilities.add(capability);
+        }
+        older.getAsJsonObject("rules").add("capabilities", capabilities);
+        FateLockedBundle rules = FateLockedBundle.loadFromJson(GSON, older.toString());
+        DecisionService decisions = DecisionService.create(RulesSnapshot.of(rules), "iron example", "iron example");
+        assertEquals(PermissionStatus.UNKNOWN, decisions.bankAt(KELDAGRIM).getStatus());
+        assertEquals("the entrance's row", PermissionStatus.LOCKED, decisions.bankAt(new CanonicalChunk(43, 58)).getStatus());
+        playing(rules, "Iron Example");
+
+        assertEquals(List.of(), openBankAt(KELDAGRIM, BANK));
     }
 
     @Test
@@ -177,6 +209,12 @@ public class BankWarningTest
     {
         return FateLockedBundle.loadFromJson(GSON,
             GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz")));
+    }
+
+    private static JsonObject wire(String id) throws Exception
+    {
+        return GSON.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz")), JsonObject.class);
     }
 
     private static String text(String name) throws Exception

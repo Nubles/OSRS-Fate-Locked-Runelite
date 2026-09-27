@@ -222,11 +222,14 @@ public class FateLockedHudOverlay extends OverlayPanel
         String name = area == null
             ? "(" + near.getChunk().getCx() + ", " + near.getChunk().getCy() + ")"
             : area.split(" · ")[0];
-        String dir = compass(near.getChunk().getCx() - from.getCx(),
-            near.getChunk().getCy() - from.getCy());
+        // From inside an interior, the way is from its entrance; none when the bank is right there.
+        CanonicalChunk origin = decisions.surfaceOf(from);
+        int dx = near.getChunk().getCx() - origin.getCx();
+        int dy = near.getChunk().getCy() - origin.getCy();
+        String dir = dx == 0 && dy == 0 ? "" : " " + compass(dx, dy);
         panelComponent.getChildren().add(LineComponent.builder()
             .left(label)
-            .right(truncate(name, 13) + " · " + near.getDistanceChunks() + " " + dir)
+            .right(truncate(name, 13) + " · " + near.getDistanceChunks() + dir)
             .rightColor(Color.WHITE)
             .build());
     }

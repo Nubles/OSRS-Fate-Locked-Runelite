@@ -23,6 +23,8 @@ public final class RuneliteRulesManifest
     /** The capabilities for every chunk's entry and what each non-land chunk is (R1). */
     public static final String CHUNK_ENTRIES = "chunkEntries";
     public static final String PLACES = "places";
+    /** The capability for the tracker's bank table: each bank's decision and chunks (R5). */
+    public static final String BANKS = "banks";
 
     private String rulesVersion;
     private int contentVersion;
@@ -64,6 +66,11 @@ public final class RuneliteRulesManifest
     @SerializedName("places")
     private JsonElement placesDeclaration;
     private transient Map<String, Place> places;
+    /** Stage 2: every bank with a chunk, by bank id; null when the bundle doesn't send the table. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("banks")
+    private JsonElement banksDeclaration;
+    private transient Map<String, Bank> banks;
 
     public RuneliteRulesManifest normalized()
     {
@@ -115,7 +122,34 @@ public final class RuneliteRulesManifest
             : chunkEntries != null ? chunkEntries : statuses(chunkEntriesDeclaration);
         copy.places = !copy.capabilities.contains(PLACES) ? null
             : places != null ? places : places(placesDeclaration);
+        copy.banks = !copy.capabilities.contains(BANKS) ? null
+            : banks != null ? banks : banks(banksDeclaration);
         return copy;
+    }
+
+    /**
+     * Each bank by id, skipping one that isn't an object with a name and its
+     * chunk. A status this build doesn't know reads UNKNOWN; a bank with no
+     * facility chunks is where its chunk is. Null when the table isn't an object.
+     */
+    private static Map<String, Bank> banks(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonObject()) return null;
+        Map<String, Bank> banks = new TreeMap<>();
+        for (Map.Entry<String, JsonElement> entry : declaration.getAsJsonObject().entrySet())
+        {
+            if (entry.getValue() == null || !entry.getValue().isJsonObject()) continue;
+            JsonObject value = entry.getValue().getAsJsonObject();
+            String name = string(value.get("name"));
+            String at = string(value.get("at"));
+            if (name == null || at == null) continue;
+            PermissionStatus status = status(value.get("status"));
+            List<String> physical = stringItems(value.get("physical"));
+            banks.put(entry.getKey(), new Bank(name, status == null ? PermissionStatus.UNKNOWN : status,
+                string(value.get("reason")), at,
+                physical == null || physical.isEmpty() ? Collections.singletonList(at) : physical));
+        }
+        return Collections.unmodifiableMap(banks);
     }
 
     /** A JSON string's value; null for anything else. */
@@ -135,18 +169,25 @@ public final class RuneliteRulesManifest
         Map<String, PermissionStatus> statuses = new TreeMap<>();
         for (Map.Entry<String, JsonElement> entry : declaration.getAsJsonObject().entrySet())
         {
-            String status = string(entry.getValue());
-            if (status == null) continue;
-            try
-            {
-                statuses.put(entry.getKey(), PermissionStatus.valueOf(status));
-            }
-            catch (IllegalArgumentException unknown)
-            {
-                statuses.put(entry.getKey(), PermissionStatus.UNKNOWN);
-            }
+            PermissionStatus status = status(entry.getValue());
+            if (status != null) statuses.put(entry.getKey(), status);
         }
         return Collections.unmodifiableMap(statuses);
+    }
+
+    /** A JSON string's status: one this build doesn't know reads UNKNOWN; null for anything but a string. */
+    private static PermissionStatus status(JsonElement value)
+    {
+        String status = string(value);
+        if (status == null) return null;
+        try
+        {
+            return PermissionStatus.valueOf(status);
+        }
+        catch (IllegalArgumentException unknown)
+        {
+            return PermissionStatus.UNKNOWN;
+        }
     }
 
     /** Each place by key, skipping a value that isn't an object with a kind. Null when it isn't an object. */
@@ -239,6 +280,28 @@ public final class RuneliteRulesManifest
         public boolean isOcean()
         {
             return "ocean".equals(kind);
+        }
+    }
+
+    /** A bank as the tracker decides it: where it is ("cx,cy"), and the chunks its facilities are in. */
+    @Getter
+    public static final class Bank
+    {
+        private final String name;
+        private final PermissionStatus status;
+        /** Why it isn't allowed, in the tracker's words; null when not given. */
+        private final String reason;
+        /** The bank's chunk: where it is on the surface, or the entrance to it. */
+        private final String at;
+        private final List<String> physical;
+
+        public Bank(String name, PermissionStatus status, String reason, String at, List<String> physical)
+        {
+            this.name = name;
+            this.status = status;
+            this.reason = reason;
+            this.at = at;
+            this.physical = physical;
         }
     }
 

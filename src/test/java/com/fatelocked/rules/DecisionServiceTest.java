@@ -236,6 +236,55 @@ public class DecisionServiceTest
             withPlaces(entries, places, strings("chunkEntries")).chunk(new CanonicalChunk(45, 45)));
     }
 
+    /** The fixture with this bank table in its rules, named in its capabilities when asked. */
+    private static DecisionService withBanks(JsonElement banks, boolean named) throws Exception
+    {
+        JsonObject root = new Gson().fromJson(fixtureText("bundles/v4-rules.json"), JsonObject.class);
+        JsonObject rules = root.getAsJsonObject("rules");
+        rules.add("banks", banks);
+        if (named) rules.add("capabilities", strings("banks"));
+        return playing(root.toString(), "nubles");
+    }
+
+    @Test
+    public void theBankTableIsReadLeniently() throws Exception
+    {
+        JsonObject table = new JsonObject();
+        // No facility chunks: the bank is where its chunk is, and the table outranks the chunk's row.
+        JsonObject castle = new JsonObject();
+        castle.addProperty("name", "Lumbridge Castle");
+        castle.addProperty("status", "LOCKED");
+        castle.addProperty("reason", "Roll it");
+        castle.addProperty("at", "50,50");
+        table.add("12850", castle);
+        // A newer status reads UNKNOWN.
+        JsonObject newer = new JsonObject();
+        newer.addProperty("name", "Draynor Village");
+        newer.addProperty("status", "A_NEWER_STATUS");
+        newer.addProperty("at", "48,50");
+        newer.add("physical", strings("48,50"));
+        table.add("12338", newer);
+        // Without a chunk it can't be placed.
+        JsonObject nowhere = new JsonObject();
+        nowhere.addProperty("name", "Nowhere");
+        nowhere.addProperty("status", "LOCKED");
+        table.add("1", nowhere);
+        table.add("2", new JsonPrimitive("not a bank"));
+        DecisionService rules = withBanks(table, true);
+
+        assertEquals(new Decision(PermissionStatus.LOCKED, "Lumbridge Castle", "Roll it", Decision.Source.ROW),
+            rules.bankAt(LUMBRIDGE));
+        assertEquals(new Decision(PermissionStatus.UNKNOWN, "Draynor Village", null, Decision.Source.ROW),
+            rules.bankAt(new CanonicalChunk(48, 50)));
+        assertNull("no bank in the table is allowed", rules.nearestBank(new CanonicalChunk(49, 50)));
+        // Without the capability, or as anything but an object, the rows decide as before.
+        for (DecisionService older : Arrays.asList(withBanks(table, false), withBanks(strings("12850"), true)))
+        {
+            assertEquals(PermissionStatus.ALLOWED, older.bankAt(LUMBRIDGE).getStatus());
+            assertEquals(new FateLockedBundle.Nearest(LUMBRIDGE, 1), older.nearestBank(new CanonicalChunk(49, 50)));
+        }
+    }
+
     @Test
     public void anotherCharacterGetsNoRowsNorLocks() throws Exception
     {
