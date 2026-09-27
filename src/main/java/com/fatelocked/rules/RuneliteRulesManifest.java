@@ -25,6 +25,8 @@ public final class RuneliteRulesManifest
     public static final String PLACES = "places";
     /** The capability for the tracker's bank table: each bank's decision and chunks (R5). */
     public static final String BANKS = "banks";
+    /** The capability for the run's progress as the tracker counts it (R9). */
+    public static final String PROGRESS = "progress";
 
     private String rulesVersion;
     private int contentVersion;
@@ -71,6 +73,11 @@ public final class RuneliteRulesManifest
     @SerializedName("banks")
     private JsonElement banksDeclaration;
     private transient Map<String, Bank> banks;
+    /** Stage 2: how far the run has come, as its run card counts it; null when not sent or malformed. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("progress")
+    private JsonElement progressDeclaration;
+    private transient Progress progress;
 
     public RuneliteRulesManifest normalized()
     {
@@ -124,7 +131,42 @@ public final class RuneliteRulesManifest
             : places != null ? places : places(placesDeclaration);
         copy.banks = !copy.capabilities.contains(BANKS) ? null
             : banks != null ? banks : banks(banksDeclaration);
+        copy.progress = !copy.capabilities.contains(PROGRESS) ? null
+            : progress != null ? progress : progress(progressDeclaration);
         return copy;
+    }
+
+    /**
+     * The run's progress: its unit (areas or chunks), unlocked and total, and
+     * the land chunks owned. Null unless every part is there and whole, none
+     * negative, and nothing unlocked beyond its total.
+     */
+    private static Progress progress(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonObject()) return null;
+        JsonObject value = declaration.getAsJsonObject();
+        String unit = string(value.get("unit"));
+        JsonElement chunks = value.get("chunks");
+        if (!Progress.AREAS.equals(unit) && !Progress.CHUNKS.equals(unit)) return null;
+        if (chunks == null || !chunks.isJsonObject()) return null;
+        Integer unlocked = count(value.get("unlocked"));
+        Integer total = count(value.get("total"));
+        Integer chunksUnlocked = count(chunks.getAsJsonObject().get("unlocked"));
+        Integer chunksTotal = count(chunks.getAsJsonObject().get("total"));
+        if (unlocked == null || total == null || chunksUnlocked == null || chunksTotal == null
+            || unlocked > total || chunksUnlocked > chunksTotal)
+        {
+            return null;
+        }
+        return new Progress(unit, unlocked, total, chunksUnlocked, chunksTotal);
+    }
+
+    /** A whole, non-negative JSON number; null for anything else. */
+    private static Integer count(JsonElement value)
+    {
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return null;
+        double number = value.getAsDouble();
+        return number < 0 || number > Integer.MAX_VALUE || number != Math.rint(number) ? null : (int) number;
     }
 
     /**

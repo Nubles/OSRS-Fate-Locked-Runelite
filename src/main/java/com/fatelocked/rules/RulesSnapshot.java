@@ -40,8 +40,10 @@ public final class RulesSnapshot
         this.bundle = bundle;
         this.legacy = bundle.isLegacyRules() ? new LegacyRules(bundle) : null;
         this.mapped = Collections.unmodifiableSet(mapped(bundle));
-        this.progress = new Progress(bundle.getUnlockedAreas(), bundle.getTotalAreas(),
-            bundle.getUnlockedChunks(), bundle.getTotalChunks());
+        Progress tracked = bundle.isLegacyRules() ? null : bundle.getRules().getProgress();
+        this.progress = tracked != null ? tracked : new Progress(
+            bundle.isChunkedBundle() ? Progress.CHUNKS : Progress.AREAS,
+            bundle.getUnlockedAreas(), bundle.getTotalAreas(), bundle.getUnlockedChunks(), bundle.getTotalChunks());
         this.bankChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "BANKS", "BANK"));
         this.shopChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "SHOPS", null));
         List<String> frontierKeys = bundle.isLegacyRules() ? null : bundle.getRules().getFrontier();
@@ -178,7 +180,7 @@ public final class RulesSnapshot
         return shopChunks;
     }
 
-    /** Today's unlock counts from the rules' area lists, fixed when they load. */
+    /** The run's progress, as the tracker counts it or else from the rules' area lists, fixed when they load. */
     Progress progress()
     {
         return progress;

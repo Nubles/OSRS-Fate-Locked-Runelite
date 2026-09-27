@@ -3,14 +3,20 @@ package com.fatelocked.rules;
 import lombok.Value;
 
 /**
- * How much of the run is unlocked: named areas, and chunks. Today's counts
- * from the rules' area lists; the tracker's own progress (E5) replaces them.
+ * How much of the run is unlocked, as the run card counts it: named areas,
+ * or chunks in a Chunked run, with the land chunks owned for the percentage.
+ * The tracker's own counts (R9), or for older rules the rules' area lists.
  */
 @Value
 public class Progress
 {
-    int areasUnlocked;
-    int areasTotal;
+    public static final String AREAS = "areas";
+    public static final String CHUNKS = "chunks";
+
+    /** What unlocked and total count: {@link #AREAS} or {@link #CHUNKS}. */
+    String unit;
+    int unlocked;
+    int total;
     int chunksUnlocked;
     int chunksTotal;
 

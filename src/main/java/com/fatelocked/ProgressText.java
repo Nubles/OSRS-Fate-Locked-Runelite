@@ -12,11 +12,11 @@ final class ProgressText
     {
     }
 
-    /** The HUD's "Unlocked" line, e.g. "13/177 · 7%"; null when there is none. */
+    /** The HUD's "Unlocked" line, e.g. "15/187 · 7%"; null when there is none. */
     static String hudLine(Progress progress)
     {
         if (progress == null || progress.getChunksTotal() <= 0) return null;
-        return progress.getAreasUnlocked() + "/" + progress.getAreasTotal() + " · " + progress.percent() + "%";
+        return progress.getUnlocked() + "/" + progress.getTotal() + " · " + progress.percent() + "%";
     }
 
     static String infoBoxText(Progress progress)
@@ -27,7 +27,8 @@ final class ProgressText
     static String infoBoxTooltip(Progress progress)
     {
         if (progress == null) return "Unlock progress";
-        return "Unlock progress: " + progress.getAreasUnlocked() + "/" + progress.getAreasTotal()
-            + " areas · " + progress.getChunksUnlocked() + "/" + progress.getChunksTotal() + " chunks";
+        String chunks = progress.getChunksUnlocked() + "/" + progress.getChunksTotal() + " chunks";
+        if (Progress.CHUNKS.equals(progress.getUnit())) return "Unlock progress: " + chunks;
+        return "Unlock progress: " + progress.getUnlocked() + "/" + progress.getTotal() + " areas · " + chunks;
     }
 }
