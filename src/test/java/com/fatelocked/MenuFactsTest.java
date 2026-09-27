@@ -39,7 +39,7 @@ public class MenuFactsTest
     {
         assertEquals("Cast", MenuFactsReader.text("<col=ff9040>Cast</col>"));
         assertEquals("Varrock Teleport", MenuFactsReader.text(
-            "<col=00ff00>Varrock Teleport</col> <col=ef4444>(LOCKED)</col>"));
+            "<col=00ff00>Varrock Teleport</col> <col=f87171>(Locked)</col>"));
         assertEquals("Amulet of glory(4)", MenuFactsReader.text("<col=ff9040>Amulet of glory(4)</col>"));
         assertEquals("Last-destination (CKS)", MenuFactsReader.text("Last-destination (CKS)"));
         assertEquals("Necklace of passage(5)", MenuFactsReader.text(" Necklace of  passage(5) "));

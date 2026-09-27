@@ -1490,10 +1490,10 @@ public class FateLockedPlugin extends Plugin
             current.getBundle().exportedAt(), Instant.now());
     }
     /**
-     * Tag right-click menu entries with a red (LOCKED) marker: the "are you
-     * sure?" before you ever click. The decision service decides (B2), so a
-     * tag never disagrees with the sidebar or Strict Mode, and another
-     * character, or nobody logged in, sees none.
+     * Tag right-click menu entries " (Locked)", in the palette's locked colour: the
+     * "are you sure?" before you ever click. The decision service decides (B2), so a
+     * tag never disagrees with the sidebar or Strict Mode, and another character, or
+     * nobody logged in, sees none.
      */
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
@@ -1506,9 +1506,9 @@ public class FateLockedPlugin extends Plugin
         if (!taggedLocked(entry, ruleDecisions)) return;
         String t = entry.getTarget();
         String base = t == null ? "" : t;
-        if (!base.contains("(LOCKED)"))
+        if (!base.contains(MenuFacts.LOCKED_MARK))
         {
-            entry.setTarget(base + " <col=ef4444>(LOCKED)</col>");
+            entry.setTarget(base + " <col=" + palette.hex(Palette.Tone.BAD) + ">" + MenuFacts.LOCKED_MARK + "</col>");
         }
     }
 

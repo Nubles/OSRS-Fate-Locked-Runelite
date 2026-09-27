@@ -26,7 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * F4 (G14): the "(LOCKED)" tag on a travel option is the tracker's exact
+ * F4 (G14): the " (Locked)" tag on a travel option is the tracker's exact
  * decision, the one Strict Mode reads. On every golden, every option of
  * every method in the travel table, clicked as the game gives it, is tagged
  * exactly when the tracker locks it and it goes to one place: networks and
@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 public class TagConsistencyTest
 {
     private static final Gson GSON = new Gson();
-    private static final String TAG = " <col=ef4444>(LOCKED)</col>";
+    private static final String TAG = " <col=f87171>(Locked)</col>";
 
     @Parameterized.Parameters(name = "{0}")
     public static List<Object[]> scenarios() throws IOException

@@ -29,6 +29,9 @@ public class GuardedActionFactoryTest
         assertEquals(GuardedAction.Kind.NPC,
             factory.from(attack, locator).getKind());
         assertEquals("goblin", factory.from(attack, locator).getTarget());
+        MenuEntry tagged = entry("Attack", "<col=ffff00>Goblin</col> <col=f87171>(Locked)</col>");
+        when(tagged.getNpc()).thenReturn(npc);
+        assertEquals("the plugin's own tag is removed", "goblin", factory.from(tagged, locator).getTarget());
 
         MenuEntry bank = entry("Bank", "Banker");
         when(bank.getNpc()).thenReturn(npc);

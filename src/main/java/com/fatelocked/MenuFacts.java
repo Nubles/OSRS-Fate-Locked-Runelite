@@ -9,13 +9,19 @@ import lombok.Value;
  * written down and cited. {@link MenuFactsReader} makes them on the client
  * thread; nothing here depends on RuneLite.
  *
- * <p>Text keeps its case, with colour tags and the plugin's own "(LOCKED)"
- * tag removed. An id that doesn't apply is {@link #NONE}.
+ * <p>Text keeps its case, with colour tags and the plugin's own
+ * {@link #LOCKED_MARK} removed. An id that doesn't apply is {@link #NONE}.
  */
 @Value
 @Builder
 public class MenuFacts
 {
+    /**
+     * What the plugin adds to an option the rules lock ({@code Terms.LOCKED_TAG}). Every
+     * reader of menu text removes it first, so a tag never changes what an option matches.
+     */
+    public static final String LOCKED_MARK = "(Locked)";
+
     /** What the option was on, which decides the ids a travel row may match. */
     public enum Kind
     {

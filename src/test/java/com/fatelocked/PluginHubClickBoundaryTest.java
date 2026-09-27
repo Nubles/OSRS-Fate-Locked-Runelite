@@ -57,7 +57,7 @@ public class PluginHubClickBoundaryTest
         {
             assertFalse(forbidden, all.contains(forbidden));
         }
-        // The only change to a menu is the red "(LOCKED)" tag on a target.
+        // The only change to a menu is the " (Locked)" tag on a target.
         assertEquals(1, occurrences(all, "entry.setTarget("));
         assertEquals(0, occurrences(all.replace("entry.setTarget(", "")
             .replace("point.setTarget(", ""), ".setTarget("));

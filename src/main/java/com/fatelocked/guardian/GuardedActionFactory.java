@@ -2,6 +2,7 @@ package com.fatelocked.guardian;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.ChunkLocator;
+import com.fatelocked.MenuFacts;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
@@ -73,7 +74,7 @@ public final class GuardedActionFactory
     {
         if (value == null) return "";
         return Text.removeTags(value)
-            .replace("(LOCKED)", "")
+            .replace(MenuFacts.LOCKED_MARK, "")
             .replaceAll("\\s+", " ")
             .trim()
             .toLowerCase(Locale.ROOT);

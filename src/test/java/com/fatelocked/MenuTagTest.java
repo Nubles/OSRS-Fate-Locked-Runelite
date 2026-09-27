@@ -26,7 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * B2: the red "(LOCKED)" menu tags come from the decision service, so they
+ * B2: the " (Locked)" menu tags come from the decision service, so they
  * say what the sidebar says. On a golden bundle a Guard in a locked chunk is
  * tagged, while not ready, allowed and ocean chunks aren't; another
  * character, or nobody logged in, sees no tags; an older export tags as it
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 public class MenuTagTest
 {
     private static final Gson GSON = new Gson();
-    private static final String TAG = " <col=ef4444>(LOCKED)</col>";
+    private static final String TAG = " <col=f87171>(Locked)</col>";
     /** vanilla-mid: Seers' Village is LOCKED, Glarial's Tomb NOT_READY, Lumbridge Castle ALLOWED. */
     private static final CanonicalChunk SEERS = new CanonicalChunk(42, 54);
     private static final CanonicalChunk GLARIALS_TOMB = new CanonicalChunk(39, 53);
@@ -74,6 +74,27 @@ public class MenuTagTest
         assertEquals("NOT_READY never tags", "Guard", npcTarget(GLARIALS_TOMB));
         assertEquals("Guard", npcTarget(LUMBRIDGE));
         assertEquals("the sea is locked without Sailing (R1)", "Guard" + TAG, npcTarget(OCEAN));
+    }
+
+    /** E1: the tag is the word players read everywhere, and every reader of menu text removes it. */
+    @Test
+    public void theTagIsTheWordPlayersRead()
+    {
+        assertEquals(com.fatelocked.ui.Terms.LOCKED_TAG, " " + MenuFacts.LOCKED_MARK);
+    }
+
+    /** E1: the tag takes the palette's locked colour, including a player's own. */
+    @Test
+    public void theTagTakesThePalettesLockedColour() throws Exception
+    {
+        playing(golden("vanilla-mid"), "Iron Example");
+        when(config.colourPreset()).thenReturn(FateLockedConfig.ColourPreset.CUSTOM);
+        when(config.unlockedColor()).thenReturn(new java.awt.Color(0, 128, 255, 110));
+        when(config.frontierColor()).thenReturn(new java.awt.Color(255, 255, 0, 100));
+        when(config.lockedColor()).thenReturn(new java.awt.Color(128, 0, 128, 110));
+        GearDecisionTest.configChanged(plugin, "lockedColor");
+
+        assertEquals("Guard <col=800080>(Locked)</col>", npcTarget(SEERS));
     }
 
     @Test
