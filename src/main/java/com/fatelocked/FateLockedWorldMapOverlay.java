@@ -126,7 +126,7 @@ public class FateLockedWorldMapOverlay extends Overlay
         // capped per category so dense chunks stay a tooltip, not a page.
         List<String> content = config.worldMapMode().contents()
             ? plugin.getBundle().contentAt(hovered, 4) : Collections.emptyList();
-        tooltipManager.add(new Tooltip(WorldMapChunks.tooltip(decisions, hovered, content)));
+        tooltipManager.add(new Tooltip(WorldMapChunks.tooltip(decisions, hovered, content, plugin.palette())));
     }
 
     /**
