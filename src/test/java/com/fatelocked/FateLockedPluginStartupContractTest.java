@@ -311,7 +311,7 @@ public class FateLockedPluginStartupContractTest
             harness.flushEdt();
 
             assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
-            assertTrue(harness.notice(), harness.notice().startsWith("imported "));
+            assertTrue(harness.notice(), harness.notice().startsWith("Imported rules from the clipboard, exported at "));
         }
         finally
         {
@@ -349,7 +349,7 @@ public class FateLockedPluginStartupContractTest
             harness.flushEdt();
 
             assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
-            assertTrue(harness.notice(), harness.notice().startsWith("loaded backup file: "));
+            assertTrue(harness.notice(), harness.notice().startsWith("Loaded the newest backup file, exported at "));
         }
         finally
         {
@@ -378,7 +378,7 @@ public class FateLockedPluginStartupContractTest
         {
             assertFalse(second.settings.networkAccessAllowed());
             assertEquals("run-1", second.plugin.getBundle().getRunId());
-            assertTrue(second.notice(), second.notice().startsWith("saved rules from "));
+            assertTrue(second.notice(), second.notice().startsWith("Restored the rules saved at "));
         }
         finally
         {
@@ -438,7 +438,7 @@ public class FateLockedPluginStartupContractTest
             // nothing asks to run again.
             assertTrue(harness.clientTasks.isEmpty());
             assertTrue(harness.backgroundTasks.isEmpty());
-            assertTrue(harness.notice(), harness.notice().startsWith("import failed"));
+            assertTrue(harness.notice(), harness.notice().equals(Notices.IMPORT_FAILED));
             assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
         }
         finally

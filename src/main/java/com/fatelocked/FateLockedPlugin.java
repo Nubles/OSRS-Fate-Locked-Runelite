@@ -1528,7 +1528,7 @@ public class FateLockedPlugin extends Plugin
         {
             return;
         }
-        panel.flashStatus("saved rules from " + LocalTimeText.of(saved.getSavedAt()), true);
+        panel.flashStatus(Notices.restored(saved.getSavedAt(), Instant.now(), ZoneId.systemDefault()), true);
         log.info("Fate Locked rules restored from the last start: {} regions",
             rules.bundle.getRegionChunks().size());
         TrackerConnectionController controller = connectionController;
@@ -1567,8 +1567,7 @@ public class FateLockedPlugin extends Plugin
                 {
                     if (explicit)
                     {
-                        panel.flashStatus(
-                            "no backup file in .runelite/fate-locked — rules unchanged", false);
+                        panel.flashStatus(Notices.NO_BACKUP_FILE, false);
                     }
                     onClient.run(this::refreshPanel);
                     return;
@@ -1581,8 +1580,7 @@ public class FateLockedPlugin extends Plugin
             catch (IOException | RuntimeException ex)
             {
                 log.warn("Failed to load backup file {}: {}", file, ex.getMessage());
-                panel.flashStatus(
-                    "couldn't read the backup file — rules unchanged", false);
+                panel.flashStatus(Notices.BACKUP_UNREADABLE, false);
                 onClient.run(this::refreshPanel);
                 return;
             }
@@ -1602,7 +1600,7 @@ public class FateLockedPlugin extends Plugin
         }
         if (!switchRules(parsed, RulesSource.FILE, arrival, Instant.now()))
         {
-            panel.flashStatus("couldn't read the backup file — rules unchanged", false);
+            panel.flashStatus(Notices.BACKUP_UNREADABLE, false);
             return;
         }
         saveRules(RulesSource.FILE, parsed.text, null);
@@ -1611,8 +1609,8 @@ public class FateLockedPlugin extends Plugin
             file, parsed.bundle.getRegionChunks().size(), parsed.bundle.getUnlockedRegions().size());
         if (explicit)
         {
-            panel.flashStatus(
-                "loaded backup file: " + parsed.bundle.getRegionChunks().size() + " regions", true);
+            panel.flashStatus(Notices.loadedBackupFile(parsed.bundle.exportedAt(), Instant.now(),
+                ZoneId.systemDefault()), true);
         }
     }
 
@@ -1686,12 +1684,12 @@ public class FateLockedPlugin extends Plugin
         }
         catch (Exception ex)
         {
-            panel.flashStatus("couldn't read clipboard", false);
+            panel.flashStatus(Notices.CLIPBOARD_UNREADABLE, false);
             return;
         }
         if (text.isEmpty())
         {
-            panel.flashStatus("clipboard empty", false);
+            panel.flashStatus(Notices.CLIPBOARD_EMPTY, false);
             return;
         }
         importClipboardText(text);
@@ -1715,8 +1713,7 @@ public class FateLockedPlugin extends Plugin
         String trimmed = json == null ? "" : json.trim();
         if (trimmed.matches("[0-9a-f]{32}"))
         {
-            panel.flashStatus(
-                "pairing code detected — use Connect tracker", false);
+            panel.flashStatus(Notices.PAIRING_CODE, false);
             return;
         }
         ClientThreadGate onClient = gate;
@@ -1735,7 +1732,7 @@ public class FateLockedPlugin extends Plugin
                 {
                     log.warn("Clipboard bundle could not be parsed: {}", ex.getMessage());
                 }
-                panel.flashStatus("import failed — using previous rules", false);
+                panel.flashStatus(Notices.IMPORT_FAILED, false);
                 return;
             }
             onClient.run(() -> useClipboardRules(parsed));
@@ -1747,12 +1744,12 @@ public class FateLockedPlugin extends Plugin
     {
         if (!switchRules(parsed, RulesSource.IMPORT, RulesPrecedence.Arrival.IMPORT, Instant.now()))
         {
-            panel.flashStatus("import failed — using previous rules", false);
+            panel.flashStatus(Notices.IMPORT_FAILED, false);
             return;
         }
         saveRules(RulesSource.IMPORT, parsed.text, null);
-        panel.flashStatus(
-            "imported " + parsed.bundle.getRegionChunks().size() + " regions", true);
+        panel.flashStatus(Notices.imported(parsed.bundle.exportedAt(), Instant.now(), ZoneId.systemDefault()),
+            true);
         trackerRulesReplaced();
         log.info(
             "Fate Locked bundle imported from the clipboard: {} regions",
@@ -1851,9 +1848,7 @@ public class FateLockedPlugin extends Plugin
             return false;
         }
         saveRules(RulesSource.RELAY, rules.text, version);
-        panel.flashStatus(
-            "synced " + parsed.getRegionChunks().size()
-                + " regions", true);
+        panel.flashStatus(Notices.SYNCED, true);
         log.info(
             "Fate Locked bundle imported from relay: {} regions",
             parsed.getRegionChunks().size());
@@ -2184,7 +2179,7 @@ public class FateLockedPlugin extends Plugin
         catch (RuntimeException error)
         {
             log.warn("Could not save Strict Mode: {}", error.getMessage());
-            panel.flashStatus("Couldn't save Strict Mode", false);
+            panel.flashStatus(Notices.STRICT_NOT_SAVED, false);
             panel.restoreStrictMode();
         }
     }
@@ -2215,7 +2210,7 @@ public class FateLockedPlugin extends Plugin
             catch (RuntimeException error)
             {
                 log.warn("Could not save online sync: {}", error.getMessage());
-                panel.flashStatus(on ? "Couldn't turn online sync on" : "Couldn't turn online sync off", false);
+                panel.flashStatus(on ? Notices.SYNC_NOT_ON : Notices.SYNC_NOT_OFF, false);
                 panel.restoreConnection();
             }
         });
@@ -2320,7 +2315,7 @@ public class FateLockedPlugin extends Plugin
             }
             catch (RuntimeException error)
             {
-                panel.flashStatus("couldn't enable online sync", false);
+                panel.flashStatus(Notices.SYNC_NOT_ON, false);
             }
         });
     }
@@ -2342,7 +2337,7 @@ public class FateLockedPlugin extends Plugin
                 }
                 catch (RuntimeException error)
                 {
-                    panel.flashStatus("couldn't enable online sync", false);
+                    panel.flashStatus(Notices.SYNC_NOT_ON, false);
                     return;
                 }
             }

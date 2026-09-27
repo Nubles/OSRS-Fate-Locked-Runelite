@@ -75,7 +75,7 @@ public class FateLockedRulesSourceTest
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
         verify(h.controller, never()).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "no backup file in .runelite/fate-locked — rules unchanged", false);
+            Notices.NO_BACKUP_FILE, false);
     }
 
     @Test
@@ -94,7 +94,7 @@ public class FateLockedRulesSourceTest
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
         verify(h.controller, never()).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "couldn't read the backup file — rules unchanged", false);
+            Notices.BACKUP_UNREADABLE, false);
     }
 
     @Test
@@ -139,9 +139,8 @@ public class FateLockedRulesSourceTest
         assertEquals(FateLockedPlugin.RulesSource.FILE, h.source());
         verify(h.controller).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "loaded backup file: "
-                + h.plugin.getBundle().getRegionChunks().size() + " regions",
-            true);
+            org.mockito.ArgumentMatchers.startsWith("Loaded the newest backup file"),
+            org.mockito.ArgumentMatchers.eq(true));
     }
 
     @Test
@@ -230,7 +229,7 @@ public class FateLockedRulesSourceTest
             RulesPrecedence.Arrival.SAVED, h.active().getArrival());
         assertEquals(h.savedRules().getSavedAt(), h.active().getArrivedAt());
         verify(h.panel).flashStatus(
-            org.mockito.ArgumentMatchers.startsWith("saved rules from "), eq(true));
+            org.mockito.ArgumentMatchers.startsWith("Restored the rules saved at "), eq(true));
         verify(h.controller, never()).seedAcceptedVersion(anyString());
     }
 
