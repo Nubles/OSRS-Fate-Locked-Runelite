@@ -395,12 +395,12 @@ commit carries its builder, the field and its golden answer together.
 
 ### Phase E: the plugin reads the new sections
 
-- [ ] **E1. Re-pin and prove compatibility.** Run
+- [x] **E1. Re-pin and prove compatibility.** Run
   `scripts/pin-web-contracts.sh` at the web `main` commit with C and D.
   Then, in a worktree at 4e37895, pin the same commit and run its
   `GoldenBundle*` tests: they must pass, and the only allowed failures are
   the intended ones, such as the Sailing-aware frontier.
-  *So far* `d1fa587`: pinned at web PR #53's head `f0a166b`; 4e37895 on those goldens fails only the chunked-sailing frontier. Re-pin at the merge commit once #53 is on web `main`.
+  *Done as* `d1fa587` (pinned at web PR #53's head `f0a166b`; 4e37895 on those goldens fails only the chunked-sailing frontier), then re-pinned at #53's merge commit `d2d72fa` on web `main`, whose contract files are the same bytes.
 - [x] **E2. Places into `DecisionService` (R1, R4).**
   `unmappedChunksReadUnauthoredUntilStage2` becomes
   `everyPlaceMatchesTheTracker`.
