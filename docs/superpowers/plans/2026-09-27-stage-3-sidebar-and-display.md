@@ -134,11 +134,11 @@ releases.
 
 ### Phase A: foundations (no visible change)
 
-- [ ] **A1. Preview tool.** `SwingSnapshot` paints a component with no display: it lays out by hand and repeats until
+- [x] **A1. Preview tool.** `SwingSnapshot` paints a component with no display: it lays out by hand and repeats until
   HTML labels have wrapped. `Previews` is the main class, and `gradle previews` runs it headless, in UTC, with
   `RuneLiteLAF.setup()`, writing PNGs to `build/previews`. It isn't part of `check`: the theme is global to the JVM.
   `SwingSnapshotTest` paints a plain panel headless.
-- [ ] **A2. `Palette`** (pure, only `java.awt.Color`): surface, text, accent, status, tint and edge tokens, with the
+- [x] **A2. `Palette`** (pure, only `java.awt.Color`): surface, text, accent, status, tint and edge tokens, with the
   Default, Colour-blind safe and Custom presets from the display brief §5.
   `PaletteTest`:
   - every text token is at least 4.5:1 on both RuneLite greys;
@@ -146,13 +146,13 @@ releases.
     Machado 2009 matrices;
   - the locked shade stands out from terrain in both presets;
   - locked edges are dashed in every preset.
-- [ ] **A3. `Type` and `Space`:** the three RuneScape fonts from `FontManager`, and the spacing constants.
-- [ ] **A4. `Terms` and `Copy`:** the canonical words (decision 7) and the message templates. Every status word, row
+- [x] **A3. `Type` and `Space`:** the three RuneScape fonts from `FontManager`, and the spacing constants.
+- [x] **A4. `Terms` and `Copy`:** the canonical words (decision 7) and the message templates. Every status word, row
   mark, section name and chat line comes from here. `CopyTest` covers the templates.
-- [ ] **A5. `IconSource`:** OSRS art by sprite or item id, with a placeholder until it loads. The runtime source wraps
+- [x] **A5. `IconSource`:** OSRS art by sprite or item id, with a placeholder until it loads. The runtime source wraps
   `SpriteManager` and `ItemManager`; the preview source reads a folder. `Icons` names the art for each concept (the
   design brief's candidates).
-- [ ] **A6. `UiBoundaryTest`,** in the style of `DecisionBoundaryTest`:
+- [x] **A6. `UiBoundaryTest`,** in the style of `DecisionBoundaryTest`:
   - no `new Color(` outside `Palette`;
   - no `deriveFont(` in views;
   - no ✓ ✕ ○ ⚠ ▸ ▾ ▼ ▶ in any string literal.
@@ -161,29 +161,30 @@ releases.
 
 ### Phase B: the component kit and views, over sample models
 
-- [ ] **B1. Components:** `Card`, `Section` (the one collapsible header), `StatusPill`, `StatTiles`, `ItemRow` (icon,
+- [x] **B1. Components:** `Card`, `Section` (the one collapsible header), `StatusPill`, `StatTiles`, `ItemRow` (icon,
   name, pill, a reason clamped to two lines, a tooltip), `MoreRow`, `Buttons` (primary, secondary, quiet), `ToggleRow`,
   `ProgressBar` and `Hairline`. Smoke-tested at 225 px.
-- [ ] **B2. Views over plain models:** `StatusCardView`, `HereView`, `StrictModeView`, `RunView`, `ConnectionView`, and
+- [x] **B2. Views over plain models:** `StatusCardView`, `HereView`, `StrictModeView`, `RunView`, `ConnectionView`, and
   the header and footer. The footer reads "More settings: RuneLite configuration › Fate Locked Ironman". RuneLite has
   no public way to open a plugin's config page, so it's text, not a link.
-- [ ] **B3. Preview shots:** every row of the UX status table, and Here in Lumbridge, Falador (locked), an interior and
+- [x] **B3. Preview shots:** every row of the UX status table, and Here in Lumbridge, Falador (locked), an interior and
   the sea, from the golden bundles' fictional "Iron Example" run.
 - [ ] **B4. Owner review.** Send the renders beside today's sidebar, and adjust before wiring. This is the one
-  checkpoint where the owner's taste decides.
+  checkpoint where the owner's taste decides. (Renders sent 27 Sept; the wiring went ahead while the owner's
+  reaction is awaited, and any changes land on top.)
 
 ### Phase C: presenters and wiring
 
-- [ ] **C1. `FreshnessPolicy`** (pure), taken out of `FateLockedPlugin.rulesAreFresh()`, so Strict Mode, the card and
+- [x] **C1. `FreshnessPolicy`** (pure), taken out of `FateLockedPlugin.rulesAreFresh()`, so Strict Mode, the card and
   the HUD share one answer. `ActiveRules` gains `arrivedAt`. A minute tick refreshes ages and the pause countdown, even
   at the login screen.
-- [ ] **C2. `StatusFacts` and `StatusCardPresenter`** (U8, U21).
+- [x] **C2. `StatusFacts` and `StatusCardPresenter`** (U8, U21).
   - `StatusTableTest` runs the 11 rows of the UX table. The Different character row also checks the Here, HUD and alert
     outputs, which stay quiet.
   - `everySyncReasonHasACard` covers the 17 `SyncReason`s, saved rules at startup, legacy backups, the logged-out state
     and an unbound profile.
   - The primary button comes from `SyncView.action`, which is computed today but never shown.
-- [ ] **C3. `HerePresenter`,** grown from `ChunkPanelViewModelFactory` (U13, U16, U21):
+- [x] **C3. `HerePresenter`,** grown from `ChunkPanelViewModelFactory` (U13, U16, U21):
   - interiors and the sea are named from `places`, fixing "Unknown chunk" at 18,143;
   - every row keeps its reason, with one mark per status and a status word from `Terms`;
   - the chunk's own reason shows;
@@ -192,30 +193,30 @@ releases.
 
   Tests: `ChunkPanelViewModelFactoryTest` (the reason assertions flip), and `ChunkPanelGoldenTest` (every place chunk
   is named, and every row's detail matches).
-- [ ] **C4. `StrictModeSectionPresenter`:** open only while Strict Mode is on; "Pause 60 s"; "Recently prevented"
+- [x] **C4. `StrictModeSectionPresenter`:** open only while Strict Mode is on; "Pause 60 s"; "Recently prevented"
   hidden until it has an entry.
-- [ ] **C5. `RunPresenter`** (R12, U22): the character line (decision 8), the Run ID as "…a1b2", Fate Points, ritual
+- [x] **C5. `RunPresenter`** (R12, U22): the character line (decision 8), the Run ID as "…a1b2", Fate Points, ritual
   names, keys, and progress as "15 of 187 areas unlocked". A test pins that the full Run ID never appears.
-- [ ] **C6. `ConnectionPresenter`:** the online-sync consent toggle, Re-pair, Disconnect (wires the unused
+- [x] **C6. `ConnectionPresenter`:** the online-sync consent toggle, Re-pair, Disconnect (wires the unused
   `clearPairing`), Check now, Import from clipboard, Load newest backup file, and the privacy note.
-- [ ] **C7. Wire the views into `FateLockedPanel`.**
+- [x] **C7. Wire the views into `FateLockedPanel`.**
   - Delete the sidebar's copies of settings, `KeybindCaptureButton`, and the binder's colour and keybind code. The
     binder keeps the two consent-bearing toggles.
   - Post to the panel only on a change; today Strict Mode posts every tick (A9).
   - `FateLockedPanelStatusTest` gives way to one smoke test per view.
-- [ ] **C8. Messages** (R12): "imported 13 regions" and its siblings count continents. They become `Copy` lines naming
+- [x] **C8. Messages** (R12): "imported 13 regions" and its siblings count continents. They become `Copy` lines naming
   the source and time. Status messages clear after about 8 seconds, and Bundle no longer collapses itself.
 
 ### Phase D: settings in RuneLite's config panel (U11)
 
-- [ ] **D1. The new `FateLockedConfig`** (the sidebar brief §3.4).
+- [x] **D1. The new `FateLockedConfig`** (the sidebar brief §3.4).
   - Sections: Tracker, Strict Mode, Alerts, Display, and two closed ones: Custom colours and Backup.
   - Every item gets an explicit `position`; today they sort alphabetically.
   - `@Alpha` goes on the three colours; without it, RuneLite's picker drops the tint's alpha.
   - New enum keys: `lockedAreaAlert`, `hudMode`, `worldMapMode`, `chunkBorders` and `colourPreset`.
   - Merged booleans: `announceAreaChanges`, `ruleWarnings` and `tagLockedOptions`.
   - `FateLockedConfigTest` pins the exact list: key, type, default, section and unique positions.
-- [ ] **D2. `SettingsMigration`** behind a `ConfigStore` seam.
+- [x] **D2. `SettingsMigration`** behind a `ConfigStore` seam.
   - It runs first in `startUp` and again on `ProfileChanged`, since RuneLite rewrites defaults for each profile.
   - `settingsVersion` is a raw key, and it is written last.
   - The rule: if all of a new setting's old keys are still at their old defaults, the new default stands. Otherwise
@@ -229,7 +230,7 @@ releases.
     - retired keys kept.
 
   `FateLockedPluginStartupContractTest` proves the migration runs before the first config read.
-- [ ] **D3. Every read site moves to the new keys.** `ruleWarnings` recomputes both gear and Slayer.
+- [x] **D3. Every read site moves to the new keys.** `ruleWarnings` recomputes both gear and Slayer.
 
 ### Phase E: in-game display
 
