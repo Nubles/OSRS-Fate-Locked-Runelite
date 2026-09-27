@@ -399,22 +399,31 @@ commit carries its builder, the field and its golden answer together.
   Then, in a worktree at 4e37895, pin the same commit and run its
   `GoldenBundle*` tests: they must pass, and the only allowed failures are
   the intended ones, such as the Sailing-aware frontier.
-- [ ] **E2. Places into `DecisionService` (R1, R4).**
+  *So far* `d1fa587`: pinned at web PR #53's head `f0a166b`; 4e37895 on those goldens fails only the chunked-sailing frontier. Re-pin at the merge commit once #53 is on web `main`.
+- [x] **E2. Places into `DecisionService` (R1, R4).**
   `unmappedChunksReadUnauthoredUntilStage2` becomes
   `everyPlaceMatchesTheTracker`.
-- [ ] **E3. Frontier from `rules.frontier` (R4).** The chunked-sailing
+  *Done as* `6d30a1d`: the sea and interiors read `rules.chunkEntries`, named from `rules.places`; the world map stays land-only.
+- [x] **E3. Frontier from `rules.frontier` (R4).** The chunked-sailing
   golden.
-- [ ] **E4. Bank table:** interior warnings and the nearest bank (R5).
+  *Done as* `d1fa587`, with E1's provisional pin.
+- [x] **E4. Bank table:** interior warnings and the nearest bank (R5).
   `expect.bankAt`.
-- [ ] **E5. Progress (R9).** `expect.progress`.
-- [ ] **E6. Slayer per master (R16).** `expect.slayer`.
-- [ ] **E7. The capabilities gate (R15):** a section is read only under a
+  *Done as* `2215323`: warnings at a bank's facility chunks, rolled by the bank's own id; from inside an interior the nearest is measured from its entrance. The table files interior banks under the entrance chunk's bank (the app's own model), for the bank review.
+- [x] **E5. Progress (R9).** `expect.progress`.
+  *Done as* `6b73c34`: vanilla-mid shows 15/187 areas, as its run card does (the plugin counted 13/177).
+- [x] **E6. Slayer per master (R16).** `expect.slayer`.
+  *Done as* `e2aec7f`: the master's own decision first, else the task's; the chat warning gives the tracker's reason.
+- [x] **E7. The capabilities gate (R15):** a section is read only under a
   known capability id; unknown ids are ignored; `rulesVersion` stays
   informational. Cases.
-- [ ] **E8. Labels and reasons** from `area` and `entryReason`.
+  *Done as* `3235b65`: `rules.freeAreas` under its capability ahead of the root copy; the two `stage2SameAnswers` cases run; a later `rulesVersion` with an unknown section keeps vanilla-mid's answers.
+- [x] **E8. Labels and reasons** from `area` and `entryReason`.
   `HudStatusTest` and the chat test.
+  *Done as* `b329b6b`: a HUD "Why" line and the locked chat line give the tracker's reason; "Here" is the tracker's area (the same name on every golden chunk) and an interior's place name.
 - [ ] **E9. Optional: accept a v4 bundle without root `chunks`** (R6), since
   "has rules" now means the manifest is present. A case.
+  *Skipped:* installed builds read root `chunks`, so the web must keep sending it, and `cases.json` pins "version 4 without chunks" as a refusal. Revisit when no supported build reads it.
 
 ### Phase F: Strict Mode matches travel by id
 
