@@ -78,9 +78,11 @@ public class FateLockedPluginStartupContractTest
         {
             assertEquals(1, harness.navigationAdds.get());
             assertSame(harness.panel, harness.navigation.getPanel());
-            assertNotNull(harness.panel.connectButtonForTest());
-            assertNotNull(harness.panel.sectionForTest("Guardian"));
-            assertNotNull(harness.panel.guardianPauseButtonForTest());
+            assertEquals("the status card asks to connect", "Not connected",
+                harness.panel.sidebar().status().model().getTitle());
+            assertEquals(com.fatelocked.sidebar.CardAction.CONNECT,
+                harness.panel.sidebar().status().model().getPrimary());
+            assertNotNull("Strict Mode has its section", harness.panel.sidebar().strictMode().model());
             assertFalse(harness.configuration.containsKey("onlineSync"));
             assertFalse(harness.configuration.containsKey("syncCode"));
             assertFalse(harness.configuration.containsKey("relayUrl"));
@@ -99,8 +101,8 @@ public class FateLockedPluginStartupContractTest
                 eq(TimeUnit.SECONDS));
 
             SwingUtilities.invokeAndWait(() -> {
-                harness.panel.connectButtonForTest().doClick();
-                harness.panel.guardianPauseButtonForTest().doClick();
+                harness.panel.act(com.fatelocked.sidebar.CardAction.CONNECT);
+                harness.panel.act(com.fatelocked.sidebar.CardAction.PAUSE_STRICT_MODE);
             });
 
             // Both clicks hand their work to the client thread.
@@ -166,7 +168,7 @@ public class FateLockedPluginStartupContractTest
             harness.set("connectionController", controller);
             int queued = harness.backgroundTasks.size();
 
-            SwingUtilities.invokeAndWait(() -> harness.panel.checkNowButtonForTest().doClick());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.CHECK_NOW));
 
             verify(controller).checkNow();
             assertEquals(queued + 1, harness.backgroundTasks.size());
@@ -269,8 +271,7 @@ public class FateLockedPluginStartupContractTest
         try
         {
             assertEquals(1, harness.navigationAdds.get());
-            assertNotNull(harness.panel.sectionForTest("Guardian"));
-            assertNotNull(harness.panel.connectButtonForTest());
+            assertNotNull(harness.panel.sidebar().status().model());
             // The shared files are only read, when an account's own files
             // start from them: left exactly as they were.
             assertEquals("{\"name\":\"Abyssal demons\",",
@@ -293,7 +294,7 @@ public class FateLockedPluginStartupContractTest
         {
             harness.plugin.clipboard = fixture("bundles/v4-rules.json");
             SwingUtilities.invokeAndWait(() ->
-                harness.panel.buttonForTest("Import from clipboard").doClick());
+                harness.panel.act(com.fatelocked.sidebar.CardAction.IMPORT_CLIPBOARD));
 
             // The Swing thread only hands the text over. A full bundle takes
             // a while to parse, so that happens in the background; the
@@ -310,7 +311,7 @@ public class FateLockedPluginStartupContractTest
             harness.flushEdt();
 
             assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
-            assertTrue(harness.panel.hasTextForTest("imported "));
+            assertTrue(harness.notice(), harness.notice().startsWith("imported "));
         }
         finally
         {
@@ -334,7 +335,7 @@ public class FateLockedPluginStartupContractTest
             assertTrue(harness.backgroundTasks.isEmpty());
 
             SwingUtilities.invokeAndWait(() ->
-                harness.panel.buttonForTest("Load newest backup file").doClick());
+                harness.panel.act(com.fatelocked.sidebar.CardAction.LOAD_BACKUP_FILE));
 
             // Neither the Swing thread nor the client thread reads the file.
             assertEquals(1, harness.backgroundTasks.size());
@@ -348,7 +349,7 @@ public class FateLockedPluginStartupContractTest
             harness.flushEdt();
 
             assertFalse(harness.plugin.getBundle().getRegionChunks().isEmpty());
-            assertTrue(harness.panel.hasTextForTest("loaded backup file: "));
+            assertTrue(harness.notice(), harness.notice().startsWith("loaded backup file: "));
         }
         finally
         {
@@ -363,7 +364,7 @@ public class FateLockedPluginStartupContractTest
         Harness first = new Harness(dir);
         first.plugin.clipboard = fixture("bundles/v4-rules.json");
         SwingUtilities.invokeAndWait(() ->
-            first.panel.buttonForTest("Import from clipboard").doClick());
+            first.panel.act(com.fatelocked.sidebar.CardAction.IMPORT_CLIPBOARD));
         first.runBackgroundTasks();
         first.runClientTasks();
         // The switch queued the save; it runs in the background too.
@@ -377,7 +378,7 @@ public class FateLockedPluginStartupContractTest
         {
             assertFalse(second.settings.networkAccessAllowed());
             assertEquals("run-1", second.plugin.getBundle().getRunId());
-            assertTrue(second.panel.hasTextForTest("saved rules from "));
+            assertTrue(second.notice(), second.notice().startsWith("saved rules from "));
         }
         finally
         {
@@ -398,8 +399,8 @@ public class FateLockedPluginStartupContractTest
         // clicks Connect, then turns the plugin off before any of it runs.
         harness.pressReimportHotkey();
         SwingUtilities.invokeAndWait(() -> {
-            harness.panel.buttonForTest("Load newest backup file").doClick();
-            harness.panel.connectButtonForTest().doClick();
+            harness.panel.act(com.fatelocked.sidebar.CardAction.LOAD_BACKUP_FILE);
+            harness.panel.act(com.fatelocked.sidebar.CardAction.CONNECT);
         });
         assertEquals(1, harness.clientTasks.size());
         assertEquals(2, harness.backgroundTasks.size());
@@ -427,7 +428,7 @@ public class FateLockedPluginStartupContractTest
             harness.pressReimportHotkey();
             harness.plugin.clipboard = "not a bundle";
             SwingUtilities.invokeAndWait(() ->
-                harness.panel.buttonForTest("Import from clipboard").doClick());
+                harness.panel.act(com.fatelocked.sidebar.CardAction.IMPORT_CLIPBOARD));
             assertEquals(2, harness.backgroundTasks.size());
 
             harness.runBackgroundTasks();
@@ -437,7 +438,7 @@ public class FateLockedPluginStartupContractTest
             // nothing asks to run again.
             assertTrue(harness.clientTasks.isEmpty());
             assertTrue(harness.backgroundTasks.isEmpty());
-            assertTrue(harness.panel.hasTextForTest("import failed"));
+            assertTrue(harness.notice(), harness.notice().startsWith("import failed"));
             assertTrue(harness.plugin.getBundle().getRegionChunks().isEmpty());
         }
         finally
@@ -492,7 +493,7 @@ public class FateLockedPluginStartupContractTest
             harness.acceptConsent = false;
             String previousCode = "0123456789abcdef0123456789abcdef";
             harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, previousCode);
-            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.CONNECT));
             harness.runClientTasks();
             harness.flushEdt();
 
@@ -515,10 +516,7 @@ public class FateLockedPluginStartupContractTest
         {
             String saved = "0123456789abcdef0123456789abcdef";
             harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
-            harness.panel.updateConnection(SyncMachine.idle(false, true));
-            harness.flushEdt();
-
-            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.TURN_ON_SYNC));
             harness.runClientTasks();
             harness.flushEdt();
 
@@ -543,20 +541,16 @@ public class FateLockedPluginStartupContractTest
             String saved = "0123456789abcdef0123456789abcdef";
             harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
             harness.settings.allowNetworkAccess();
-            harness.panel.updateConnection(TrackerConnectionSnapshot.connected(
-                java.time.Instant.now(), "6"));
-            harness.flushEdt();
-
             // Declined: nothing changes.
             harness.acceptRepair = false;
-            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.REPAIR));
             harness.runClientTasks();
             harness.flushEdt();
             assertEquals(1, harness.repairPrompts.get());
             assertTrue(harness.plugin.browserUrls.isEmpty());
 
             harness.acceptRepair = true;
-            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.REPAIR));
             harness.runClientTasks();
             harness.flushEdt();
 
@@ -572,13 +566,137 @@ public class FateLockedPluginStartupContractTest
     }
 
     @Test
+    public void disconnectAsksFirstThenForgetsThePairingAndKeepsTheRules() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("disconnect"));
+        try
+        {
+            String saved = "0123456789abcdef0123456789abcdef";
+            harness.configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, saved);
+            harness.settings.allowNetworkAccess();
+            FateLockedBundle rules = harness.plugin.getBundle();
+
+            harness.acceptDisconnect = false;
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.DISCONNECT));
+            assertEquals(1, harness.disconnectPrompts.get());
+            assertEquals(saved, harness.settings.pairingCode());
+
+            harness.acceptDisconnect = true;
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.DISCONNECT));
+            assertEquals(2, harness.disconnectPrompts.get());
+            assertEquals("", harness.settings.pairingCode());
+            assertTrue("online sync stays on for the next pairing", harness.settings.networkAccessAllowed());
+            assertSame(rules, harness.plugin.getBundle());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void aFirstPairingCanBeCancelledOrItsPageOpenedAgain() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("cancel-pairing"));
+        try
+        {
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.CONNECT));
+            harness.runClientTasks();
+            harness.flushEdt();
+            String code = harness.settings.pairingCode();
+            assertEquals(1, harness.plugin.browserUrls.size());
+
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.OPEN_PAGE_AGAIN));
+            assertEquals(2, harness.plugin.browserUrls.size());
+            harness.plugin.browserUrls.poll();
+            assertEquals(PairingSupport.trackerPairingUrl(code), harness.plugin.browserUrls.poll());
+
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.CANCEL_PAIRING));
+            assertEquals("", harness.settings.pairingCode());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.OPEN_PAGE_AGAIN));
+            assertTrue("no pairing, no page", harness.plugin.browserUrls.isEmpty());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void resumeEndsAPauseAndTheStrictModeSwitchSavesTheSetting() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("strict-switch"));
+        try
+        {
+            com.fatelocked.guardian.StrictModePause pause =
+                (com.fatelocked.guardian.StrictModePause) PluginTestSupport.get(harness.plugin, "strictPause");
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.PAUSE_STRICT_MODE));
+            harness.runClientTasks();
+            assertTrue(pause.isPaused());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.RESUME_STRICT_MODE));
+            harness.runClientTasks();
+            assertFalse(pause.isPaused());
+
+            // The harness's config reads Strict Mode as off, so the switch shows it off.
+            harness.configuration.remove("strictMode");
+            harness.flushEdt();
+            assertFalse(harness.panel.sidebar().strictMode().toggle().isSelected());
+            SwingUtilities.invokeAndWait(() -> harness.panel.sidebar().strictMode().toggle().doClick());
+            assertEquals("true", harness.configuration.get("strictMode"));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
+    public void theSyncSwitchAsksForConsentAndGoesBackWhenDeclined() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("sync-switch"));
+        try
+        {
+            harness.runClientTasks();
+            harness.flushEdt();
+            javax.swing.JToggleButton sync = harness.panel.sidebar().connection().syncSwitch();
+
+            harness.acceptConsent = false;
+            SwingUtilities.invokeAndWait(sync::doClick);
+            harness.runClientTasks();
+            harness.flushEdt();
+            assertEquals(1, harness.consentPrompts.get());
+            assertFalse(harness.settings.networkAccessAllowed());
+            assertFalse("the switch goes back", sync.isSelected());
+
+            harness.acceptConsent = true;
+            SwingUtilities.invokeAndWait(sync::doClick);
+            harness.runClientTasks();
+            assertEquals(2, harness.consentPrompts.get());
+            assertTrue(harness.settings.networkAccessAllowed());
+
+            harness.flushEdt();
+            SwingUtilities.invokeAndWait(() -> {
+                if (!sync.isSelected()) sync.setSelected(true);
+                sync.doClick();
+            });
+            harness.runClientTasks();
+            assertEquals("turning it off asks nothing", 2, harness.consentPrompts.get());
+            assertFalse(harness.settings.networkAccessAllowed());
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    @Test
     public void revocationBeforeQueuedReconnectDoesNotReenableSync() throws Exception
     {
         Harness harness = new Harness(folder.newFolder("revoke-before-reconnect"));
         try
         {
             harness.settings.allowNetworkAccess();
-            SwingUtilities.invokeAndWait(() -> harness.panel.connectButtonForTest().doClick());
+            SwingUtilities.invokeAndWait(() -> harness.panel.act(com.fatelocked.sidebar.CardAction.CONNECT));
             harness.configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
             harness.runClientTasks();
             harness.flushEdt();
@@ -606,6 +724,8 @@ public class FateLockedPluginStartupContractTest
         private boolean acceptConsent = true;
         private final AtomicInteger repairPrompts = new AtomicInteger();
         private boolean acceptRepair = true;
+        private final AtomicInteger disconnectPrompts = new AtomicInteger();
+        private boolean acceptDisconnect = true;
         private final Map<String, String> configuration =
             new ConcurrentHashMap<>();
         private final TrackerConnectionSettings settings;
@@ -614,6 +734,14 @@ public class FateLockedPluginStartupContractTest
             mock(ScheduledExecutorService.class);
         private final TestPlugin plugin;
         private NavigationButton navigation;
+
+        /** The sidebar's notice line, once the Swing thread has caught up; "" for none. */
+        String notice() throws Exception
+        {
+            flushEdt();
+            String shown = panel.sidebar().noticeText();
+            return shown == null ? "" : shown;
+        }
         /** The item the harness's player wears as a weapon. */
         static final int WORN_WEAPON = 4151;
         /** Whether a client tick is running, the only time RuneLite allows game reads. */
@@ -643,7 +771,7 @@ public class FateLockedPluginStartupContractTest
             ConfigManager configManager = statefulConfigManager();
             settings = new TrackerConnectionSettings(configManager);
             FateLockedConfig config = new FateLockedConfig() { };
-            panel = new FateLockedPanel(config, configManager)
+            panel = new FateLockedPanel(com.fatelocked.ui.IconSource.NONE)
             {
                 @Override
                 boolean confirmNetworkConnection()
@@ -659,6 +787,14 @@ public class FateLockedPluginStartupContractTest
                     assertTrue(SwingUtilities.isEventDispatchThread());
                     repairPrompts.incrementAndGet();
                     return acceptRepair;
+                }
+
+                @Override
+                boolean confirmDisconnect()
+                {
+                    assertTrue(SwingUtilities.isEventDispatchThread());
+                    disconnectPrompts.incrementAndGet();
+                    return acceptDisconnect;
                 }
             };
             plugin = new TestPlugin(dataDirectory);
@@ -790,6 +926,12 @@ public class FateLockedPluginStartupContractTest
                 return null;
             }).when(manager).setConfiguration(
                 anyString(), anyString(), anyString());
+            doAnswer(invocation -> {
+                configuration.put(
+                    invocation.getArgument(1), String.valueOf((Object) invocation.getArgument(2)));
+                return null;
+            }).when(manager).setConfiguration(
+                anyString(), anyString(), any(Object.class));
             doAnswer(invocation -> {
                 configuration.remove(invocation.getArgument(1));
                 return null;

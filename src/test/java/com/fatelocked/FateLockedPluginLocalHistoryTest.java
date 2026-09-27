@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.detectors.DetectedEvent;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.events.FateEventHistory;
@@ -59,7 +60,7 @@ public class FateLockedPluginLocalHistoryTest
         assertEquals(1, harness.history.events().size());
         assertEquals("Dragon Slayer",
             harness.history.events().get(0).getCanonicalLabel());
-        verify(harness.panel).updateRollInboxStatus(1, 0, 0, false);
+        verify(harness.panel).showRollInbox(new RollInboxModel(1, 0, 0, false));
     }
 
     @Test
@@ -293,12 +294,12 @@ public class FateLockedPluginLocalHistoryTest
         assertEquals(1, new FateEventHistory(
             harness.gson, harness.historyPath, harness.legacyPath)
             .events().size());
-        verify(harness.panel).updateRollInboxStatus(1, 0, 0, true);
+        verify(harness.panel).showRollInbox(new RollInboxModel(1, 0, 0, true));
 
         Files.delete(temporary);
         invokeRecord(harness.plugin, detected("Demon Slayer"));
         assertEquals(2, harness.history.events().size());
-        verify(harness.panel).updateRollInboxStatus(2, 0, 0, false);
+        verify(harness.panel).showRollInbox(new RollInboxModel(2, 0, 0, false));
     }
 
     private Harness harness(String name) throws Exception

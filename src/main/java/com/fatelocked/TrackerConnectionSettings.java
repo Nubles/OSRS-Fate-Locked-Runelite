@@ -49,6 +49,13 @@ final class TrackerConnectionSettings
             FateLockedConfig.GROUP, FateLockedConfig.NETWORK_ACCESS_KEY, "true");
     }
 
+    /** The player turned online sync off; the pairing is kept for when it comes back on. */
+    void refuseNetworkAccess()
+    {
+        configManager.setConfiguration(
+            FateLockedConfig.GROUP, FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+    }
+
     void replacePairingCode(String code)
     {
         if (code == null || !code.matches(CODE_PATTERN))

@@ -14,6 +14,11 @@ import com.fatelocked.rules.Trust;
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.panel.LocalTimeText;
+import com.fatelocked.sidebar.CardAction;
+import com.fatelocked.sidebar.HereModel;
+import com.fatelocked.sidebar.HerePresenter;
+import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.StrictModeClickHandler;
@@ -78,6 +83,7 @@ import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.RuneLite;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.task.Schedule;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.util.HotkeyListener;
@@ -110,6 +116,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.Duration;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -226,6 +233,15 @@ public class FateLockedPlugin extends Plugin
     private String decisionsPlayer = "";
     private final ChunkPanelViewModelFactory chunkPanelFactory =
         new ChunkPanelViewModelFactory();
+    /** The sidebar's models, posted only when they change (C7, A9). */
+    private SidebarPublisher sidebarModels;
+    private final HerePresenter herePresenter = new HerePresenter();
+    /** Here, as last worked out, for the decision service and chunk it was worked out for. */
+    private HereModel hereModel;
+    private DecisionService hereDecisions;
+    private CanonicalChunk hereChunk;
+    /** What Strict Mode stopped lately, newest first, for its section. */
+    private List<String> recentStopped = java.util.Collections.emptyList();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
     /** What a click is, by id in the tracker's travel table: Strict Mode and the tags read the same answer (F4). */
     private final IntentClassifier intentClassifier = new IntentClassifier();
@@ -378,6 +394,7 @@ public class FateLockedPlugin extends Plugin
         // changes plugin state waits for the client thread, through the gate.
         ClientThreadGate started = new ClientThreadGate(clientThread, new PluginSession());
         gate = started;
+        sidebarModels = new SidebarPublisher(panel);
         connectionSettings.clearLegacySettings();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
@@ -393,7 +410,7 @@ public class FateLockedPlugin extends Plugin
             Clock.systemUTC(),
             started::run,
             relayImporter,
-            panel::updateConnection);
+            snapshot -> started.run(this::refreshSidebar));
 
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
@@ -434,17 +451,11 @@ public class FateLockedPlugin extends Plugin
             () -> overlayManager.remove(travelBlockOverlay));
         travelOverlayLifecycle.start();
 
-        wirePanelActions(
-            panel,
-            this::reimportFromClipboard,
-            this::loadNewestBackupFile,
-            this::connectTracker);
-        panel.setGuardianCallbacks(
-            pauseStrictMode,
-            () -> started.run(() -> { strictPause.resume(); updateStrictModePanel(); }),
-            () -> configManager.setConfiguration(
-                FateLockedConfig.GROUP, "strictModeIntroSeen", true));
-        panel.setCheckNowCallback(this::checkTrackerNow);
+        panel.onAction(this::onSidebarAction);
+        panel.onStrictModeToggle(this::setStrictMode);
+        panel.onSyncToggle(this::setOnlineSync);
+        panel.onIntroDismiss(() -> configManager.setConfiguration(
+            FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
@@ -454,6 +465,7 @@ public class FateLockedPlugin extends Plugin
             updateStrictModePanel();
             updateStrictAuditPanel();
             updatePanelRollInbox();
+            refreshSidebar();
             refreshInfoBoxes();
         });
         loadSavedRules();
@@ -513,7 +525,6 @@ public class FateLockedPlugin extends Plugin
     public void onConfigChanged(ConfigChanged ev)
     {
         if (!FateLockedConfig.GROUP.equals(ev.getGroup())) return;
-        panel.refreshConfig(ev.getKey());
         String key = ev.getKey();
         gate.run(() -> applyConfigChange(key));
     }
@@ -553,11 +564,13 @@ public class FateLockedPlugin extends Plugin
             {
                 connectionController.networkAccessChanged();
             }
+            refreshSidebar();
         }
         else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
             panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
             updatePanelRollInbox();
+            refreshSidebar();
         }
     }
 
@@ -572,6 +585,7 @@ public class FateLockedPlugin extends Plugin
             forgetLoginWarnings();
             trackerLoggedIn(false);
             refreshDecisions();
+            refreshSidebar();
             return;
         }
         if (state == GameState.LOGGING_IN || state == GameState.HOPPING
@@ -820,7 +834,7 @@ public class FateLockedPlugin extends Plugin
     }
 
     /** The current slayer task's decision when the rules lock it, else null (B11, R16). */
-    private Decision lockedSlayerTask(DecisionService ruleDecisions)
+    Decision lockedSlayerTask(DecisionService ruleDecisions)
     {
         SlayerAssignment assignment = slayerAssignment;
         if (!config.warnLockedSlayer() || assignment == null) return null;
@@ -1266,7 +1280,6 @@ public class FateLockedPlugin extends Plugin
         boolean changed = !current.equals(lastChunk);
         if (changed)
         {
-            panel.update(b, viewModelFor(decisions, current));
             // Only the rules' own answers are announced (B6): never a chunk
             // they don't map (dungeons, instances, every chunk before rules
             // load), nor another character's rules. NOT_READY is owned, so
@@ -1343,9 +1356,9 @@ public class FateLockedPlugin extends Plugin
 
     private void updateStrictAuditPanel()
     {
-        panel.updateRecentPrevented(
-            StrictModeAuditPresenter.recentPrevented(
-                strictAuditLog == null ? null : strictAuditLog.recent(5)));
+        recentStopped = StrictModeAuditPresenter.recentPrevented(
+            strictAuditLog == null ? null : strictAuditLog.recent(5));
+        refreshSidebar();
     }
     void pauseStrictModeForSixtySeconds()
     {
@@ -1369,7 +1382,7 @@ public class FateLockedPlugin extends Plugin
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
             strictModeReadiness().getReason());
         strictModeStatus = status;
-        panel.updateStrictMode(status);
+        refreshSidebar();
     }
 
     /**
@@ -1935,9 +1948,7 @@ public class FateLockedPlugin extends Plugin
      */
     private RulesEffects effectsOf(FateLockedBundle rules, DecisionService ruleDecisions)
     {
-        CanonicalChunk current = chunkLocator().player();
         return new RulesEffects(
-            viewModelFor(ruleDecisions, current),
             overTierGear(ruleDecisions),
             lockedSlayerTask(ruleDecisions));
     }
@@ -1947,10 +1958,7 @@ public class FateLockedPlugin extends Plugin
     {
         overTierSummary = overTierSummary(effects.overTierGear);
         slayerTaskWarn = effects.lockedSlayerTask == null ? null : effects.lockedSlayerTask.getLabel();
-        showIsolated("sidebar", () -> {
-            panel.updateTrackerAccount(AccountBinding.boundAccount(rules));
-            panel.update(rules, effects.view);
-        });
+        showIsolated("sidebar", this::refreshSidebar);
         showIsolated("gear warning", () -> warnOverTierGear(effects.overTierGear));
         showIsolated("Slayer warning", () -> warnLockedSlayerTask(effects.lockedSlayerTask));
     }
@@ -1970,17 +1978,14 @@ public class FateLockedPlugin extends Plugin
     /** Everything a rule set means, worked out before anything changes. */
     private static final class RulesEffects
     {
-        final ChunkPanelViewModel view;
         final List<OverTierItem> overTierGear;
         /** The current Slayer task's decision when the rules lock it; null otherwise. */
         final Decision lockedSlayerTask;
 
         RulesEffects(
-            ChunkPanelViewModel view,
             List<OverTierItem> overTierGear,
             Decision lockedSlayerTask)
         {
-            this.view = view;
             this.overTierGear = overTierGear;
             this.lockedSlayerTask = lockedSlayerTask;
         }
@@ -2103,11 +2108,15 @@ public class FateLockedPlugin extends Plugin
         return img;
     }
 
-    /** The connect button, on the Swing thread: its job depends on the state shown. */
-    private void connectTracker()
+    /** What the player asked for in the sidebar, on the Swing thread. */
+    private void onSidebarAction(CardAction action)
     {
-        switch (panel.connectAction())
+        TrackerConnectionController controller = connectionController;
+        switch (action)
         {
+            case CONNECT:
+                beginTrackerPairing();
+                break;
             case TURN_ON_SYNC:
                 turnOnOnlineSync();
                 break;
@@ -2118,15 +2127,179 @@ public class FateLockedPlugin extends Plugin
                 }
                 break;
             case CANCEL_REPAIR:
-                TrackerConnectionController controller = connectionController;
                 if (controller != null)
                 {
                     controller.cancelRepair();
                 }
                 break;
-            default:
-                beginTrackerPairing();
+            case CANCEL_PAIRING:
+                if (controller != null)
+                {
+                    controller.forgetPairing();
+                }
                 break;
+            case DISCONNECT:
+                if (controller != null && panel.confirmDisconnect())
+                {
+                    controller.forgetPairing();
+                }
+                break;
+            case OPEN_PAGE_AGAIN:
+                String code = controller == null ? "" : controller.activeCode();
+                if (!code.isEmpty())
+                {
+                    launchTrackerBrowser(PairingSupport.trackerPairingUrl(code));
+                }
+                break;
+            case CHECK_NOW:
+                checkTrackerNow();
+                break;
+            case IMPORT_CLIPBOARD:
+                reimportFromClipboard();
+                break;
+            case LOAD_BACKUP_FILE:
+                loadNewestBackupFile();
+                break;
+            case PAUSE_STRICT_MODE:
+                gate.run(this::pauseStrictModeForSixtySeconds);
+                break;
+            case RESUME_STRICT_MODE:
+                gate.run(() -> {
+                    strictPause.resume();
+                    updateStrictModePanel();
+                });
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** Strict Mode's switch in the sidebar, on the Swing thread. */
+    private void setStrictMode(boolean on)
+    {
+        try
+        {
+            configManager.setConfiguration(FateLockedConfig.GROUP, "strictMode", on);
+        }
+        catch (RuntimeException error)
+        {
+            log.warn("Could not save Strict Mode: {}", error.getMessage());
+            panel.flashStatus("Couldn't save Strict Mode", false);
+            panel.restoreStrictMode();
+        }
+    }
+
+    /**
+     * The online-sync switch, on the Swing thread. Turning it on asks for consent
+     * first; the pairing is kept either way.
+     */
+    private void setOnlineSync(boolean on)
+    {
+        if (on && !panel.confirmNetworkConnection())
+        {
+            panel.restoreConnection();
+            return;
+        }
+        gate.run(() -> {
+            try
+            {
+                if (on)
+                {
+                    connectionSettings.allowNetworkAccess();
+                }
+                else
+                {
+                    connectionSettings.refuseNetworkAccess();
+                }
+            }
+            catch (RuntimeException error)
+            {
+                log.warn("Could not save online sync: {}", error.getMessage());
+                panel.flashStatus(on ? "Couldn't turn online sync on" : "Couldn't turn online sync off", false);
+                panel.restoreConnection();
+            }
+        });
+    }
+
+    /**
+     * On the client thread: work the sidebar out from the plugin's state (C7) and post
+     * what changed. Cheap enough for every tick; the presenters are pure.
+     */
+    void refreshSidebar()
+    {
+        SidebarPublisher models = sidebarModels();
+        if (models == null)
+        {
+            return;
+        }
+        ActiveRules current = active;
+        DecisionService ruleDecisions = decisions;
+        FateLockedBundle bundle = current.getBundle();
+        TrackerConnectionSnapshot connection = trackerSnapshot();
+        Instant now = Instant.now();
+        ZoneId zone = ZoneId.systemDefault();
+        String player = loggedInName();
+        models.status(StatusCardPresenter.present(StatusFacts.builder()
+            .connection(connection)
+            .source(current.getSource())
+            .arrival(current.getArrival())
+            .arrivedAt(current.getArrivedAt())
+            .exportedAt(bundle.exportedAt())
+            .legacy(current.getSnapshot().isLegacy())
+            .trust(ruleDecisions.trust())
+            .bound(ruleDecisions.isBound())
+            .boundAccount(AccountBinding.boundAccount(bundle))
+            .loggedInAs(player)
+            .paired(trackerPaired())
+            .fresh(rulesAreFresh())
+            .now(now)
+            .zone(zone)
+            .build()));
+        models.here(hereModel(ruleDecisions));
+        StrictModeStatusView strict = strictModeStatus;
+        if (strict != null)
+        {
+            models.strictMode(StrictModeSectionPresenter.present(strict, recentStopped));
+        }
+        models.run(RunPresenter.present(bundle, ruleDecisions, player));
+        TrackerConnectionSettings settings = connectionSettings;
+        models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
+            settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
+    }
+
+    /** The sidebar's publisher: made at startUp, or on first use by a test that sets the panel alone. */
+    private SidebarPublisher sidebarModels()
+    {
+        if (sidebarModels == null && panel != null)
+        {
+            sidebarModels = new SidebarPublisher(panel);
+        }
+        return sidebarModels;
+    }
+
+    /** Here for the place the player stands in, worked out again only when it or the rules change. */
+    private HereModel hereModel(DecisionService ruleDecisions)
+    {
+        CanonicalChunk chunk = client.getLocalPlayer() == null ? null : chunkLocator().player();
+        if (hereModel == null || ruleDecisions != hereDecisions || !java.util.Objects.equals(chunk, hereChunk))
+        {
+            hereModel = herePresenter.present(ruleDecisions, chunk);
+            hereDecisions = ruleDecisions;
+            hereChunk = chunk;
+        }
+        return hereModel;
+    }
+
+    /**
+     * Once a second: at the login screen there are no game ticks, so this keeps ages
+     * ("synced 2 min ago") and a pause's countdown current there.
+     */
+    @Schedule(period = 1, unit = java.time.temporal.ChronoUnit.SECONDS)
+    public void refreshSidebarWhileLoggedOut()
+    {
+        if (client.getGameState() != GameState.LOGGED_IN)
+        {
+            gate.run(this::updateStrictModePanel);
         }
     }
 
@@ -2205,15 +2378,6 @@ public class FateLockedPlugin extends Plugin
         return expected != null && expected.equals(current);
     }
 
-    private static void wirePanelActions(
-        FateLockedPanel target,
-        Runnable onClipboardImport,
-        Runnable onLoadBackupFile,
-        Runnable onConnect)
-    {
-        target.setCallbacks(onClipboardImport, onLoadBackupFile, onConnect);
-    }
-
     private static NavigationButton buildNavigationButton(FateLockedPanel target)
     {
         return NavigationButton.builder()
@@ -2274,8 +2438,15 @@ public class FateLockedPlugin extends Plugin
 
     private Instant trackerLastSync()
     {
-        return connectionController == null
-            ? null : connectionController.snapshot().getLastSync();
+        return trackerSnapshot().getLastSync();
+    }
+
+    /** The connection as the controller last showed it; not connected before it exists. */
+    private TrackerConnectionSnapshot trackerSnapshot()
+    {
+        TrackerConnectionController controller = connectionController;
+        TrackerConnectionSnapshot shown = controller == null ? null : controller.snapshot();
+        return shown == null ? TrackerConnectionSnapshot.disconnected() : shown;
     }
 
     /**
@@ -2322,9 +2493,11 @@ public class FateLockedPlugin extends Plugin
             if (event.getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
         }
         shownWarningCount = activeWarningCount();
-        panel.updateRollInboxStatus(
-            events.size(), needsReview, shownWarningCount,
-            historySaveFailed);
+        SidebarPublisher models = sidebarModels();
+        if (models != null)
+        {
+            models.rollInbox(new RollInboxModel(events.size(), needsReview, shownWarningCount, historySaveFailed));
+        }
     }
 
     /** Keep the sidebar's Warnings count current as you move, change gear and get tasks. */

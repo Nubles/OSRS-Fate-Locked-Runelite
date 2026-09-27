@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.rules.PermissionStatus;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
@@ -155,13 +156,13 @@ public class FateLockedChunkEntryTest
         loadRules();
 
         walk(LUMBRIDGE);
-        verify(panel, times(1)).updateRollInboxStatus(0, 0, 0, false);
+        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 0, false));
         walk(FALADOR);
-        verify(panel, times(1)).updateRollInboxStatus(0, 0, 1, false);
+        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
         walk(FALADOR_EAST);
-        verify(panel, times(1)).updateRollInboxStatus(0, 0, 1, false);
+        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
         walk(LUMBRIDGE);
-        verify(panel, times(2)).updateRollInboxStatus(0, 0, 0, false);
+        verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
     }
 
     /** B6: a golden walk warns once, on the way into Rimmington, and announces every step. */
@@ -194,8 +195,8 @@ public class FateLockedChunkEntryTest
         assertTrue(lines.get(2), lines.get(2).contains("(44, 53)") && lines.get(2).endsWith("✓ unlocked"));
         assertTrue(lines.get(1), lines.get(1).endsWith("⚠ LOCKED: Unlock Taverley"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
-        verify(panel, times(1)).updateRollInboxStatus(0, 0, 1, false);
-        verify(panel, times(2)).updateRollInboxStatus(0, 0, 0, false);
+        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
     }
 
     /** Another character's rules say nothing about this one: no chat, no alert, no warning. */
@@ -209,7 +210,7 @@ public class FateLockedChunkEntryTest
         verify(chat, never()).queue(any(QueuedMessage.class));
         verify(client, never()).playSoundEffect(anyInt());
         verify(notifier, never()).notify(anyString());
-        verify(panel, never()).updateRollInboxStatus(0, 0, 1, false);
+        verify(panel, never()).showRollInbox(new RollInboxModel(0, 0, 1, false));
     }
 
     /** A chunk the tracker locks outside the old area lists is announced without an area. */

@@ -1,21 +1,12 @@
 package com.fatelocked;
 
-import com.fatelocked.guardian.StrictModeStatusView;
-import com.fatelocked.panel.ChunkPanelViewModel;
-import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.preview.FolderArt;
 import com.fatelocked.preview.SwingSnapshot;
-import com.fatelocked.rules.DecisionService;
-import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.ui.IconSource;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -36,9 +27,6 @@ import net.runelite.client.ui.laf.RuneLiteLAF;
  */
 public final class Previews
 {
-    private static final Gson GSON = new Gson();
-    private static final Instant NOON = Instant.parse("2026-10-01T12:00:00Z");
-
     private Previews()
     {
     }
@@ -72,27 +60,7 @@ public final class Previews
     {
         Map<String, Callable<JComponent>> shots = new LinkedHashMap<>();
         shots.put("kit-gallery", com.fatelocked.preview.KitGallery::build);
-        shots.put("sidebar-first-run", () -> new FateLockedPanel(new FateLockedConfig() { }, null));
-        shots.put("sidebar-connected-lumbridge", () -> {
-            FateLockedPanel panel = new FateLockedPanel(new FateLockedConfig() { }, null);
-            panel.updateConnection(TrackerConnectionSnapshot.connected(NOON, "6"));
-            panel.updateStrictMode(StrictModeStatusView.of(true, false, 0, null));
-            panel.updateTrackerAccount("Iron Example");
-            panel.renderChunkForTest(here("vanilla-mid", 50, 50));
-            return panel;
-        });
         return shots;
-    }
-
-    /** The Here card for one chunk of a golden run, read on its own character. */
-    private static ChunkPanelViewModel here(String scenario, int x, int y) throws IOException
-    {
-        String json = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(scenario + ".bundle.json.gz"));
-        JsonObject wire = GSON.fromJson(json, JsonObject.class);
-        String account = AccountBinding.normalize(wire.getAsJsonObject("rules").get("account").getAsString());
-        RulesSnapshot rules = RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, json));
-        DecisionService decisions = DecisionService.create(rules, account, account);
-        return new ChunkPanelViewModelFactory().create(decisions, new CanonicalChunk(x, y), null);
     }
 
     private static <T> T onEdt(Callable<T> task) throws Exception

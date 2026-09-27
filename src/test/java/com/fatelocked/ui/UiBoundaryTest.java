@@ -28,15 +28,12 @@ import org.junit.Test;
 public class UiBoundaryTest
 {
     private static final Set<String> COLOUR_LITERALS = new TreeSet<>(List.of(
-        "FateLockedConfig.java", "FateLockedConfigBinder.java", "FateLockedContentOverlay.java",
-        "FateLockedFlashOverlay.java", "FateLockedHudOverlay.java", "FateLockedMinimapOverlay.java",
-        "FateLockedPanel.java", "FateLockedPlugin.java", "FateLockedSceneOverlay.java",
-        "FateLockedTravelBlockOverlay.java", "HudStatus.java"));
-    private static final Set<String> DERIVED_FONTS = new TreeSet<>(List.of(
-        "CollapsiblePanelSection.java", "FateLockedPanel.java"));
+        "FateLockedConfig.java", "FateLockedContentOverlay.java", "FateLockedFlashOverlay.java",
+        "FateLockedHudOverlay.java", "FateLockedMinimapOverlay.java", "FateLockedPlugin.java",
+        "FateLockedSceneOverlay.java", "FateLockedTravelBlockOverlay.java", "HudStatus.java"));
+    private static final Set<String> DERIVED_FONTS = new TreeSet<>();
     private static final Set<String> SYMBOLS = new TreeSet<>(List.of(
-        "ChunkPanelViewModelFactory.java", "CollapsiblePanelSection.java", "FateLockedHudOverlay.java",
-        "FateLockedPanel.java", "FateLockedPlugin.java"));
+        "ChunkPanelViewModelFactory.java", "FateLockedHudOverlay.java", "FateLockedPlugin.java"));
 
     /** Marks and arrows RuneLite's RuneScape fonts have no glyph for. */
     private static final String UNDRAWABLE = "✓✔✕✖✗○●⚠"
