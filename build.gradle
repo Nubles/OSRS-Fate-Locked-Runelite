@@ -67,6 +67,8 @@ tasks.register('previews', JavaExec) {
     mainClass = 'com.fatelocked.Previews'
     systemProperty 'java.awt.headless', 'true'
     systemProperty 'user.timezone', 'UTC'
+    // OSRS art for the previews: a folder of PNGs named after ui.Art constants.
+    systemProperty 'fatelocked.previewArt', project.findProperty('previewArt') ?: ''
     args layout.buildDirectory.dir('previews').get().asFile.absolutePath
 }
 

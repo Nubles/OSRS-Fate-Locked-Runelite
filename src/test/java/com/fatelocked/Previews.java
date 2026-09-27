@@ -3,9 +3,11 @@ package com.fatelocked;
 import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.panel.ChunkPanelViewModelFactory;
+import com.fatelocked.preview.FolderArt;
 import com.fatelocked.preview.SwingSnapshot;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.RulesSnapshot;
+import com.fatelocked.ui.IconSource;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.awt.image.BufferedImage;
@@ -52,7 +54,11 @@ public final class Previews
             }
             return null;
         });
-        for (Map.Entry<String, Callable<JComponent>> shot : shots().entrySet())
+        String artFolder = System.getProperty("fatelocked.previewArt", "");
+        IconSource icons = artFolder.isEmpty() ? IconSource.NONE : new FolderArt(Paths.get(artFolder));
+        Map<String, Callable<JComponent>> shots = shots();
+        shots.putAll(SidebarShots.all(icons));
+        for (Map.Entry<String, Callable<JComponent>> shot : shots.entrySet())
         {
             JComponent component = onEdt(shot.getValue());
             BufferedImage image = onEdt(() -> SwingSnapshot.paint(component, PluginPanel.PANEL_WIDTH, 0));
