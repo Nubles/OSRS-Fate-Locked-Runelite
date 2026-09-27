@@ -204,6 +204,18 @@ public final class RulesSnapshot
         return bundle.isUnlocked(name);
     }
 
+    /** Whether the rules send each Slayer task's decision. */
+    boolean hasSlayerTasks()
+    {
+        return !isLegacy() && bundle.getRules().getSlayerTasks() != null;
+    }
+
+    /** The tracker's decision for a Slayer task key ("master:task" or "task"); null when it has none. */
+    RuneliteRulesManifest.SlayerTask slayerTaskAt(String key)
+    {
+        return hasSlayerTasks() ? bundle.getRules().getSlayerTasks().get(FateLockedBundle.slayerKey(key)) : null;
+    }
+
     /** The tracker's Slayer index entry for a key; null when it has none. */
     Set<CanonicalChunk> slayerChunks(String key)
     {

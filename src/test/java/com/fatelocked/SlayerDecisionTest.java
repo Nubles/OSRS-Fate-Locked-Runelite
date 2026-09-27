@@ -18,14 +18,104 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * B11: Slayer tasks through the decision service. A task is LOCKED only
- * when every chunk its monsters live in is locked, and a known master's own
- * list decides first: in vanilla-mid, abyssal demons are owned for most
- * masters but Krystilia's are all in the locked Wilderness.
+ * B11 and E6: Slayer tasks through the decision service. Under the
+ * slayerTasks capability the tracker decides each task per master (R16).
+ * For older rules a task is LOCKED only when every chunk its monsters live
+ * in is locked, and a known master's own list decides first: in
+ * vanilla-mid, abyssal demons are owned for most masters but Krystilia's
+ * are all in the locked Wilderness.
  */
 public class SlayerDecisionTest
 {
     private static final Gson GSON = new Gson();
+
+    /** Every task key in every golden bundle reads the tracker's pinned status. */
+    @Test
+    public void everyGoldenTaskIsTheTrackers() throws Exception
+    {
+        for (Object[] scenario : GoldenBundleContractTest.scenarios())
+        {
+            String id = (String) scenario[0];
+            String json = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz"));
+            DecisionService service = DecisionService.create(
+                RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, json)), null, null);
+            JsonObject pinned = GoldenBundleContractTest.json(id + ".expect.json").getAsJsonObject("slayer");
+            List<String> mismatches = new ArrayList<>();
+            for (Map.Entry<String, JsonElement> task : pinned.entrySet())
+            {
+                String[] asked = asAsked(task.getKey());
+                PermissionStatus got = service.slayerTask(asked[0], asked[1], asked[2]).getStatus();
+                if (!task.getValue().getAsString().equals(got.name())) mismatches.add(task.getKey() + " want " + task.getValue() + " got " + got);
+            }
+            assertTrue(id + " has tasks", pinned.size() > 500);
+            assertEquals(id, List.of(), mismatches);
+        }
+    }
+
+    /**
+     * A task key as a game message would give it: master, task and place.
+     * A key drops one trailing "s", so one is added back where it ends.
+     */
+    private static String[] asAsked(String key)
+    {
+        String master = key.contains(":") ? key.substring(0, key.indexOf(':')) : null;
+        String name = key.contains(":") ? key.substring(key.indexOf(':') + 1) : key;
+        String location = null;
+        if (name.contains(" - "))
+        {
+            location = name.substring(name.indexOf(" - ") + 3) + "s";
+            name = name.substring(0, name.indexOf(" - "));
+        }
+        else
+        {
+            name = name + "s";
+        }
+        return new String[] { master, name, location };
+    }
+
+    @Test
+    public void theTrackerDecidesPerMasterWithItsReason() throws Exception
+    {
+        DecisionService interiors = trackerPlaying("vanilla-interiors");
+
+        assertEquals(new Decision(PermissionStatus.LOCKED, "bears", "Area locked", Decision.Source.SLAYER),
+            interiors.slayerTask("krystilia", "bears", null));
+        assertEquals("anyone else's bears", PermissionStatus.ALLOWED, interiors.slayerTask(null, "bears", null).getStatus());
+        assertEquals("a master with none of their own falls back to anyone's",
+            PermissionStatus.ALLOWED, interiors.slayerTask("mortimer", "bears", null).getStatus());
+        assertEquals(new Decision(PermissionStatus.LOCKED, "aberrant spectres", "Master: Mount Karuulm", Decision.Source.SLAYER),
+            interiors.slayerTask(SlayerAssignment.KONAR, "aberrant spectres", "Catacombs of Kourend"));
+        assertEquals("a task the tracker doesn't list falls back to the chunks",
+            PermissionStatus.UNKNOWN, interiors.slayerTask(null, "not a monster", null).getStatus());
+    }
+
+    @Test
+    public void theTrackersTasksAreReadLeniently() throws Exception
+    {
+        JsonObject json;
+        try (java.io.InputStream in = getClass().getClassLoader().getResourceAsStream("bundles/v4-rules.json"))
+        {
+            json = GSON.fromJson(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), JsonObject.class);
+        }
+        json.add("slayerChunks", GSON.fromJson("{\"spider\": [{\"cx\": 50, \"cy\": 50}]}", JsonObject.class));
+        json.getAsJsonObject("rules").add("slayerTasks", GSON.fromJson(
+            "{\"krystilia:spider\": {\"status\": \"A_NEWER_STATUS\"}, \"goblin\": {\"reason\": \"no status\"},"
+                + " \"spider\": \"not a task\"}", JsonObject.class));
+        JsonObject named = json.deepCopy();
+        named.getAsJsonObject("rules").add("capabilities", GSON.fromJson("[\"slayerTasks\"]", JsonArray.class));
+        DecisionService nubles = DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, named.toString())), "nubles", "nubles");
+
+        assertEquals(PermissionStatus.UNKNOWN, nubles.slayerTask("krystilia", "spiders", null).getStatus());
+        assertEquals(Decision.Source.SLAYER, nubles.slayerTask("krystilia", "spiders", null).getSource());
+        assertEquals("a skipped task falls back to its chunks", PermissionStatus.ALLOWED, nubles.slayerTask(null, "spiders", null).getStatus());
+        assertEquals("a task without a status is skipped", Decision.Source.UNMAPPED, nubles.slayerTask(null, "goblins", null).getSource());
+
+        DecisionService older = DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, json.toString())), "nubles", "nubles");
+        assertEquals("without the capability, the chunks decide", PermissionStatus.ALLOWED,
+            older.slayerTask("krystilia", "spiders", null).getStatus());
+    }
 
     @Test
     public void aKnownMastersOwnListDecides() throws Exception
@@ -86,15 +176,15 @@ public class SlayerDecisionTest
         assertEquals(Decision.Source.TRUST, theirs.getSource());
     }
 
-    /** Every task key in every golden bundle: owned anywhere, else locked everywhere, else unknown. */
+    /** Older rules, every task key in every golden bundle: owned anywhere, else locked everywhere, else unknown. */
     @Test
     public void everyGoldenTaskFollowsItsChunks() throws Exception
     {
         for (Object[] scenario : GoldenBundleContractTest.scenarios())
         {
             String id = (String) scenario[0];
-            String json = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz"));
-            JsonObject wire = GSON.fromJson(json, JsonObject.class);
+            JsonObject wire = withoutSlayerTasks(id);
+            String json = wire.toString();
             JsonObject chunks = wire.getAsJsonObject("rules").getAsJsonObject("chunks");
             DecisionService service = DecisionService.create(
                 RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, json)), null, null);
@@ -139,10 +229,33 @@ public class SlayerDecisionTest
         return allLocked ? PermissionStatus.LOCKED : PermissionStatus.UNKNOWN;
     }
 
+    /** The golden's own character, with older rules: the chunks decide (B11). */
     private static DecisionService playing(String id) throws Exception
     {
-        String json = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz"));
+        String json = withoutSlayerTasks(id).toString();
         return DecisionService.create(
             RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, json)), "iron example", "iron example");
+    }
+
+    /** A golden bundle as older rules send it: without the slayerTasks capability. */
+    private static JsonObject withoutSlayerTasks(String id) throws Exception
+    {
+        JsonObject wire = GSON.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz")), JsonObject.class);
+        JsonArray capabilities = new JsonArray();
+        for (JsonElement capability : wire.getAsJsonObject("rules").getAsJsonArray("capabilities"))
+        {
+            if (!"slayerTasks".equals(capability.getAsString())) capabilities.add(capability);
+        }
+        wire.getAsJsonObject("rules").add("capabilities", capabilities);
+        return wire;
+    }
+
+    /** The golden's own character, with the tracker's Slayer decisions. */
+    private static DecisionService trackerPlaying(String id) throws Exception
+    {
+        return DecisionService.create(RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON,
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz")))),
+            "iron example", "iron example");
     }
 }

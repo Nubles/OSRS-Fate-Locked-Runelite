@@ -814,22 +814,22 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Re-check whether the current slayer task's monster is in an unlocked chunk. */
+    /** Re-check whether the rules lock the current slayer task. */
     private void recomputeSlayer()
     {
-        String locked = lockedSlayerTask(decisions);
-        slayerTaskWarn = locked;
+        Decision locked = lockedSlayerTask(decisions);
+        slayerTaskWarn = locked == null ? null : locked.getLabel();
         warnLockedSlayerTask(locked);
     }
 
-    /** The current slayer task if the rules put its monsters only in locked chunks, else null (B11). */
-    private String lockedSlayerTask(DecisionService ruleDecisions)
+    /** The current slayer task's decision when the rules lock it, else null (B11, R16). */
+    private Decision lockedSlayerTask(DecisionService ruleDecisions)
     {
         SlayerAssignment assignment = slayerAssignment;
         if (!config.warnLockedSlayer() || assignment == null) return null;
-        // Reachable or unknown: no warning.
-        return ruleDecisions.slayerTask(assignment.getMaster(), assignment.getTask(), assignment.getLocation())
-            .isLocked() ? assignment.getTask() : null;
+        // Allowed, not ready or unknown: no warning.
+        Decision decision = ruleDecisions.slayerTask(assignment.getMaster(), assignment.getTask(), assignment.getLocation());
+        return decision.isLocked() ? decision : null;
     }
 
     /** Another character's task isn't this one's. */
@@ -840,24 +840,26 @@ public class FateLockedPlugin extends Plugin
         slayerWarnedFor = null;
     }
 
-    /** Say once per assignment that the task is in a locked area. */
-    private void warnLockedSlayerTask(String locked)
+    /** Say once per assignment that the task is locked, and why, in the tracker's words. */
+    private void warnLockedSlayerTask(Decision decision)
     {
+        String locked = decision == null ? null : decision.getLabel();
         if (locked == null || locked.equalsIgnoreCase(slayerWarnedFor))
         {
             return;
         }
         slayerWarnedFor = locked;
+        String why = decision.getReason() == null ? "." : ": " + decision.getReason() + ".";
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append("Your slayer task (")
             .append(ChatColorType.HIGHLIGHT).append(locked)
-            .append(ChatColorType.NORMAL).append(") is in a locked area.");
+            .append(ChatColorType.NORMAL).append(") is locked" + why);
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(msg.build())
             .build());
-        notifyIfEnabled("Slayer task (" + locked + ") is in a locked area");
+        notifyIfEnabled("Slayer task (" + locked + ") is locked");
     }
 
     @Subscribe
@@ -1936,7 +1938,7 @@ public class FateLockedPlugin extends Plugin
     private void show(FateLockedBundle rules, RulesEffects effects)
     {
         overTierSummary = overTierSummary(effects.overTierGear);
-        slayerTaskWarn = effects.lockedSlayerTask;
+        slayerTaskWarn = effects.lockedSlayerTask == null ? null : effects.lockedSlayerTask.getLabel();
         showIsolated("sidebar", () -> {
             panel.updateTrackerAccount(AccountBinding.boundAccount(rules));
             panel.update(rules, effects.view);
@@ -1962,12 +1964,13 @@ public class FateLockedPlugin extends Plugin
     {
         final ChunkPanelViewModel view;
         final List<OverTierItem> overTierGear;
-        final String lockedSlayerTask;
+        /** The current Slayer task's decision when the rules lock it; null otherwise. */
+        final Decision lockedSlayerTask;
 
         RulesEffects(
             ChunkPanelViewModel view,
             List<OverTierItem> overTierGear,
-            String lockedSlayerTask)
+            Decision lockedSlayerTask)
         {
             this.view = view;
             this.overTierGear = overTierGear;

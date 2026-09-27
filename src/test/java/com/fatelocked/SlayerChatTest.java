@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
  */
 public class SlayerChatTest
 {
-    private static final String GEM_CHECK = "You're assigned to kill abyssal demons; only 42 more to go.";
+    private static final String GEM_CHECK = "You're assigned to kill bears; only 42 more to go.";
     private static final String KONAR_CHECK =
         "You're assigned to kill aberrant spectres in the Catacombs of Kourend; only 105 more to go.";
 
@@ -84,7 +84,7 @@ public class SlayerChatTest
         set("chatMessageManager", chat);
         set("notifier", mock(Notifier.class));
         set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(),
-            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz"))),
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-interiors.bundle.json.gz"))),
             FateLockedPlugin.RulesSource.RELAY));
         refreshDecisions();
     }
@@ -95,16 +95,23 @@ public class SlayerChatTest
         assertEquals(List.of(), say(GEM_CHECK, 0));
         assertNull(plugin.getSlayerTaskWarn());
 
+        // In vanilla-interiors Krystilia's bears are all in the locked Wilderness; anyone else's aren't (R16).
         List<String> lines = say(GEM_CHECK, 7);
         assertEquals(1, lines.size());
-        assertTrue(lines.get(0), lines.get(0).contains("abyssal demons") && lines.get(0).contains("locked area"));
-        assertEquals("abyssal demons", plugin.getSlayerTaskWarn());
+        assertTrue(lines.get(0), lines.get(0).contains("bears") && lines.get(0).contains("is locked: Area locked."));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        // Not ready (Slayer 85) never alerts.
+        assertEquals(List.of(), say("You're assigned to kill abyssal demons; only 42 more to go.", 0));
+        assertNull(plugin.getSlayerTaskWarn());
     }
 
     @Test
     public void konarsPlaceDecides() throws Exception
     {
-        assertEquals(1, say(KONAR_CHECK, 0).size());
+        List<String> lines = say(KONAR_CHECK, 0);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("is locked: Master: Mount Karuulm."));
         assertEquals("aberrant spectres", plugin.getSlayerTaskWarn());
     }
 
@@ -112,7 +119,7 @@ public class SlayerChatTest
     public void anotherCharacterGetsNoWarningAndForgetsTheLastOnesTask() throws Exception
     {
         say(GEM_CHECK, 7);
-        assertEquals("abyssal demons", plugin.getSlayerTaskWarn());
+        assertEquals("bears", plugin.getSlayerTaskWarn());
 
         // A different account logs in: the last character's task goes with it.
         when(player.getName()).thenReturn("Someone Else");

@@ -208,6 +208,14 @@ public final class DecisionService
         Decision gate = gate();
         if (gate != null) return gate;
         if (isBlank(task)) return unmapped(null);
+        // The tracker's own decision (R16): the master's first, else the task's whatever the master.
+        if (rules.hasSlayerTasks())
+        {
+            String named = isBlank(location) ? task.trim() : task.trim() + " - " + location.trim();
+            RuneliteRulesManifest.SlayerTask decided = isBlank(master) ? null : rules.slayerTaskAt(master.trim() + ":" + named);
+            if (decided == null) decided = rules.slayerTaskAt(named);
+            if (decided != null) return new Decision(decided.getStatus(), task, decided.getReason(), Decision.Source.SLAYER);
+        }
         Set<CanonicalChunk> chunks = slayerChunks(master, task.trim(), location);
         if (chunks.isEmpty()) return unmapped(task);
         boolean allLocked = true;
@@ -221,7 +229,7 @@ public final class DecisionService
             if (status != PermissionStatus.LOCKED) allLocked = false;
         }
         return allLocked
-            ? new Decision(PermissionStatus.LOCKED, task, task + " is only in locked areas", Decision.Source.SLAYER)
+            ? new Decision(PermissionStatus.LOCKED, task, "Only in locked areas", Decision.Source.SLAYER)
             : unmapped(task);
     }
 

@@ -669,6 +669,12 @@ public class FateLockedBundle
         monsterIndex = idx;
     }
 
+    /** A Slayer task as slayerChunks and the rules' slayerTasks key it: "krystilia:abyssal demon". */
+    public static String slayerKey(String task)
+    {
+        return task == null ? null : normMonster(task);
+    }
+
     /** Lowercase + drop a trailing 's' so slayer plurals match singular monster names. */
     private static String normMonster(String s)
     {

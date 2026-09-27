@@ -27,6 +27,8 @@ public final class RuneliteRulesManifest
     public static final String BANKS = "banks";
     /** The capability for the run's progress as the tracker counts it (R9). */
     public static final String PROGRESS = "progress";
+    /** The capability for each Slayer task's decision, per master (R16). */
+    public static final String SLAYER_TASKS = "slayerTasks";
 
     private String rulesVersion;
     private int contentVersion;
@@ -78,6 +80,11 @@ public final class RuneliteRulesManifest
     @SerializedName("progress")
     private JsonElement progressDeclaration;
     private transient Progress progress;
+    /** Stage 2: each Slayer task's decision, keyed like slayerChunks; null when the bundle doesn't send them. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("slayerTasks")
+    private JsonElement slayerTasksDeclaration;
+    private transient Map<String, SlayerTask> slayerTasks;
 
     public RuneliteRulesManifest normalized()
     {
@@ -133,7 +140,28 @@ public final class RuneliteRulesManifest
             : banks != null ? banks : banks(banksDeclaration);
         copy.progress = !copy.capabilities.contains(PROGRESS) ? null
             : progress != null ? progress : progress(progressDeclaration);
+        copy.slayerTasks = !copy.capabilities.contains(SLAYER_TASKS) ? null
+            : slayerTasks != null ? slayerTasks : slayerTasks(slayerTasksDeclaration);
         return copy;
+    }
+
+    /**
+     * Each Slayer task's decision by its key, skipping one that isn't an
+     * object with a status string. Null when the section isn't an object.
+     */
+    private static Map<String, SlayerTask> slayerTasks(JsonElement declaration)
+    {
+        if (declaration == null || !declaration.isJsonObject()) return null;
+        Map<String, SlayerTask> tasks = new TreeMap<>();
+        for (Map.Entry<String, JsonElement> entry : declaration.getAsJsonObject().entrySet())
+        {
+            if (entry.getValue() == null || !entry.getValue().isJsonObject()) continue;
+            JsonObject value = entry.getValue().getAsJsonObject();
+            PermissionStatus status = status(value.get("status"));
+            if (status == null) continue;
+            tasks.put(entry.getKey(), new SlayerTask(status, string(value.get("reason"))));
+        }
+        return Collections.unmodifiableMap(tasks);
     }
 
     /**
@@ -344,6 +372,21 @@ public final class RuneliteRulesManifest
             this.reason = reason;
             this.at = at;
             this.physical = physical;
+        }
+    }
+
+    /** A Slayer task as the tracker decides it for the run. */
+    @Getter
+    public static final class SlayerTask
+    {
+        private final PermissionStatus status;
+        /** Why, in the tracker's words, such as "Area locked" or "Master: Mount Karuulm"; null when not given. */
+        private final String reason;
+
+        public SlayerTask(PermissionStatus status, String reason)
+        {
+            this.status = status;
+            this.reason = reason;
         }
     }
 
