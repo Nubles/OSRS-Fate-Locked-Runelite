@@ -1,65 +1,32 @@
 package com.fatelocked.guardian.travel;
 
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
 
+/**
+ * A trip's decision (F3, G6): the tracker's own decision for the option
+ * clicked, which counts the unlocks the method needs and where it lands.
+ * One destination is the invariant: an option that can go to several
+ * places stays Unknown even when the tracker locks it, since the place is
+ * picked after the click.
+ */
 public class TravelRuleEvaluator
 {
-    public TravelDecision evaluate(TravelAction action, FateRuleEngine rules)
+    public TravelDecision evaluate(TravelMatch match, TravelAction action, DecisionService rules)
     {
-        if (action == null
-            || action.getConfidence() != TravelAction.Confidence.EXACT
-            || action.getDestination() == null
-            || rules == null)
+        String label = label(action);
+        if (match == null || rules == null || action == null || action.getDestination() == null)
         {
-            return unknown(action);
+            return new TravelDecision(PermissionStatus.UNKNOWN, label, null);
         }
-
-        RuleDecision destination = rules.entry(action.getDestination());
-        if (destination.getStatus() == PermissionStatus.LOCKED)
-        {
-            return new TravelDecision(
-                PermissionStatus.LOCKED,
-                label(action),
-                destination.getLabel() + " is locked");
-        }
-        if (destination.getStatus() == PermissionStatus.UNKNOWN
-            || destination.getStatus() == PermissionStatus.NOT_READY)
-        {
-            return unknown(action);
-        }
-
-        String requiredUnlock = action.getRequiredUnlock();
-        if (requiredUnlock != null && !requiredUnlock.trim().isEmpty())
-        {
-            RuleDecision mobility = rules.mobility(requiredUnlock);
-            if (mobility.getStatus() == PermissionStatus.LOCKED)
-            {
-                return new TravelDecision(
-                    PermissionStatus.LOCKED,
-                    label(action),
-                    mobility.getReason());
-            }
-            if (mobility.getStatus() == PermissionStatus.UNKNOWN
-                || mobility.getStatus() == PermissionStatus.NOT_READY)
-            {
-                return unknown(action);
-            }
-        }
-
-        return new TravelDecision(PermissionStatus.ALLOWED, label(action), null);
-    }
-
-    private static TravelDecision unknown(TravelAction action)
-    {
-        return new TravelDecision(PermissionStatus.UNKNOWN, label(action), null);
+        Decision decision = rules.travel(match.getMethod(), match.getOption());
+        return new TravelDecision(decision.getStatus(), label, decision.getReason());
     }
 
     private static String label(TravelAction action)
     {
-        if (action == null || action.getLabel() == null
-            || action.getLabel().trim().isEmpty())
+        if (action == null || action.getLabel() == null || action.getLabel().trim().isEmpty())
         {
             return "Unknown travel";
         }

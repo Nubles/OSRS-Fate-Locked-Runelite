@@ -154,8 +154,16 @@ relay version and a tag of the pairing that sent them (never the code), and
 come back at the next start, even offline.
 
 The app-authored rules manifest carries run, account, and revision identity,
-unlock families, bank state, and category-first chunk permissions. Guardian
-logic consumes only these authored decisions; it must not invent a Locked
+unlock families, bank state, and category-first chunk permissions. Since
+Stage 2 it also sends the tracker's own answers, each in a section named in
+`rules.capabilities`: every land, ocean and interior chunk's entry
+(`chunkEntries`, with `places` saying what each non-land chunk is), the
+Chunked frontier, the bank table, the mode's free areas, the run's
+progress, each Slayer task per master, the travel table, and each
+snapshot's `area` and `entryReason` (`chunkDetails`). The plugin reads a
+section only under a capability it knows and ignores the rest; without one
+it falls back to what older rules send. Every surface asks
+`DecisionService` for these answers, and it must not invent a Locked
 decision from missing or ambiguous data.
 
 ## Contracts with the web app
@@ -171,6 +179,13 @@ with `--check` and fails if the copy differs. `GoldenBundleContractTest`,
 `RelayTransportFixtureTest` and `RelayFixtureStatesTest` check the plugin
 against them.
 
+The fields installed Plugin Hub builds read are frozen:
+`contracts/golden-bundles/bundle-contract.json` lists them, and the web
+never drops one, changes its JSON type or gives it a new meaning. New
+answers go in new sections, statuses stay the four names, and `rules.chunks`
+keeps only land and ocean keys, since older builds drive their tags and
+Strict Mode from every key in it.
+
 ## Strict Mode invariant
 
 Keep Strict Mode under the sole `strictMode` setting. The plugin consumes a
@@ -182,16 +197,27 @@ only when all of these are true:
   tracker confirmed in the last 15 minutes, or file and clipboard rules
   exported in the last 15 minutes.
 - The rules name a bound account, and it matches the logged-in character.
-- The click is travel recognised with exact confidence to one destination.
-- The authored destination decision is Locked.
+- The rules carry a travel table, and it matches the click by id: the
+  active spellbook and the spell's name, or an item, object or NPC id,
+  each only for its own kind of click, with the option's exact text. A
+  click two methods match is neither's.
+- The option goes to one destination, and its method isn't advisory
+  (networks and boats are, in Stage 2).
+- The tracker's decision for that option is Locked: the destination, or the
+  unlock it needs, is locked.
 
-Walking, NPC, object, bank and equipment clicks are never consumed.
+The code keeps limits a bundle can't widen: an option that is never travel
+(Walk here, Attack, Talk-to, Trade, Bank, Wear and the rest) is dropped from
+the table, whatever it says, and the table, each method and each option have
+caps. Walking, NPC, object, bank and equipment clicks are never consumed.
 `PluginHubClickBoundaryTest` pins the single consume site and that no menu
-entry is removed, reordered or created. Allowed, Unknown, stale, unbound,
-wrong-character, missing, invalid, future, ambiguous, and unresolved inputs
-fail open. Stage the four-second explanation and bounded local audit entry
-before consuming the player's click. Never click, activate, select, reorder,
-remove, path to, or perform an alternative.
+entry is removed, reordered or created. Allowed, Not ready, Unknown, stale,
+unbound, wrong-character, missing, invalid, future, several-place, advisory
+and unmatched inputs fail open. The menu tags read the same classifier and
+decision: a travel option is tagged only for an exact Locked decision. Stage
+the four-second explanation and bounded local audit entry before consuming
+the player's click. Never click, activate, select, reorder, remove, path to,
+or perform an alternative.
 
 Strict Mode requires RuneLite reviewer pre-clearance; contributors must not
 describe it as approved.

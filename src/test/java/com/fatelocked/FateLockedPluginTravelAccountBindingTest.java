@@ -2,7 +2,7 @@ package com.fatelocked;
 
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
-import com.fatelocked.guardian.travel.TravelActionResolver;
+import com.fatelocked.guardian.travel.IntentClassifier;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
@@ -106,21 +106,15 @@ public class FateLockedPluginTravelAccountBindingTest
         assertFalse(harness.noticeStore.current().isPresent());
     }
 
+    /** Cast on Falador Teleport, which the fixture's travel table locks. */
     private static MenuOptionClicked namedTeleportClick()
     {
-        MenuEntry entry = mock(MenuEntry.class);
-        when(entry.getOption()).thenReturn("Teleport");
-        when(entry.getTarget()).thenReturn("Lumbridge");
-        when(entry.getType()).thenReturn(MenuAction.UNKNOWN);
-        MenuOptionClicked click = mock(MenuOptionClicked.class);
-        when(click.getMenuEntry()).thenReturn(entry);
-        return click;
+        return TravelClicks.cast("Falador Teleport");
     }
 
     private static String lockedBundle() throws Exception
     {
-        return fixtureText("bundles/v4-rules.json")
-            .replace("\"entry\": \"ALLOWED\"", "\"entry\": \"LOCKED\"");
+        return fixtureText("bundles/v4-travel.json");
     }
 
     private static String fixtureText(String name) throws Exception
@@ -164,15 +158,14 @@ public class FateLockedPluginTravelAccountBindingTest
                 Player player = mock(Player.class);
                 when(client.getLocalPlayer()).thenReturn(player);
                 when(player.getName()).thenReturn(playerName);
-                when(player.getWorldLocation()).thenReturn(
-                    new WorldPoint(49 << 6, 50 << 6, 0));
+                TestWorld.standAt(client, player, new WorldPoint(49 << 6, 50 << 6, 0));
             }
 
             TravelAvailability availability = mock(TravelAvailability.class);
             when(finder.find(any(), any(), any())).thenReturn(Optional.empty());
             TravelGuardianCoordinator coordinator =
                 new TravelGuardianCoordinator(
-                    new TravelActionResolver(),
+                    new IntentClassifier(),
                     new TravelRuleEvaluator(),
                     finder,
                     noticeStore,

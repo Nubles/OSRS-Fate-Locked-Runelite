@@ -238,6 +238,18 @@ public interface FateLockedConfig extends Config
     {
         return false;
     }
+
+    @ConfigItem(
+        keyName = "pauseStrictModeHotkey",
+        name = "Pause Strict Mode hotkey",
+        description = "Pause Strict Mode for 60 seconds. Not set by default.",
+        section = guardianSection,
+        position = 1
+    )
+    default Keybind pauseStrictModeHotkey()
+    {
+        return Keybind.NOT_SET;
+    }
     @ConfigSection(
         name = "Rendering",
         description = "How chunks are drawn on the map and in-world",

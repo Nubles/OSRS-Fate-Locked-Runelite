@@ -304,7 +304,7 @@ go-ahead.
   saved rules offline) and rows 3, 11 and 12 changed. The ROADMAP's new
   contracts section is in web PR #47, with its diary gotcha brought up to
   date.
-- [ ] **E3. Release:** in-game checklist on the release commit; then, with
+- [x] **E3. Release:** in-game checklist on the release commit; then, with
   the owner, the web release, the relay deploy and the Plugin Hub pull
   request.
   The relay is deployed, and web PRs #49, #48 and #47 are merged. This
@@ -319,7 +319,8 @@ go-ahead.
     again;
   - after the code was marked gone, seven more minutes at the login screen,
     which cover its next check, logged no warning or error.
-  What remains: merging this branch, then the Plugin Hub pull request.
+  Released: this branch was merged as plugin `main` `4e37895`, and
+  runelite/plugin-hub#17144, which pins it, was merged on 26 September.
 
 ## Owner decisions and pending steps
 

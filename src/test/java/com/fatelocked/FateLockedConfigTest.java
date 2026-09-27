@@ -24,7 +24,7 @@ public class FateLockedConfigTest
     public void configRetainsSettingsAndAddsDefaultOffNetworkConsent()
     {
         Map<String, ConfigItem> items = configItemsByKey();
-        assertEquals(30, items.size());
+        assertEquals(31, items.size());
         assertFalse(new FateLockedConfig() { }.trackerNetworkAccess());
         assertEquals(FateLockedConfig.NETWORK_WARNING,
             items.get(FateLockedConfig.NETWORK_ACCESS_KEY).warning());
@@ -34,6 +34,9 @@ public class FateLockedConfigTest
         // Owner decision 3: the folder watcher and its setting are gone.
         assertFalse(items.containsKey("autoReload"));
         assertEquals("Strict Mode", items.get("strictMode").name());
+        // B16: the pause hotkey sits under Strict Mode and is not set by default.
+        assertEquals(FateLockedConfig.guardianSection, items.get("pauseStrictModeHotkey").section());
+        assertEquals(net.runelite.client.config.Keybind.NOT_SET, new FateLockedConfig() { }.pauseStrictModeHotkey());
     }
 
     @Test

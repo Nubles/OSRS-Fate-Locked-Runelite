@@ -1,8 +1,9 @@
 package com.fatelocked;
 
+import com.fatelocked.guardian.StrictModeStatusView;
+import com.fatelocked.rules.DecisionService;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
@@ -29,9 +30,10 @@ public class FateLockedHudOverlay extends OverlayPanel
     private final Client client;
     private final FateLockedPlugin plugin;
     private final FateLockedConfig config;
+    private final ChunkLocator locator;
 
-    // Nearest bank/shop cache — recomputed on chunk change or bundle reload.
-    private FateLockedBundle cachedBundle;
+    // Nearest bank/shop cache — recomputed on chunk change or new decisions.
+    private DecisionService cachedDecisions;
     private CanonicalChunk cachedChunk;
     private FateLockedBundle.Nearest cachedBank;
     private FateLockedBundle.Nearest cachedShop;
@@ -42,6 +44,7 @@ public class FateLockedHudOverlay extends OverlayPanel
         this.client = client;
         this.plugin = plugin;
         this.config = config;
+        this.locator = new ChunkLocator(client);
         setPosition(OverlayPosition.TOP_LEFT);
         setResizable(false);
     }
@@ -114,13 +117,22 @@ public class FateLockedHudOverlay extends OverlayPanel
             }
         }
 
-        Player local = client.getLocalPlayer();
-        WorldPoint wp = local == null ? null : local.getWorldLocation();
-        if (wp != null)
+        StrictModeStatusView strict = plugin.getStrictModeStatus();
+        if (strict != null && strict.isShownOnHud())
         {
-            CanonicalChunk chunk = CanonicalChunk.of(wp);
-            String label = bundle.labelAt(chunk);
-            FateLockedBundle.LockState lock = bundle.lockStateAt(chunk);
+            panelComponent.getChildren().add(LineComponent.builder()
+                .left("Strict")
+                .right(strict.getText())
+                .rightColor(strict.getTone() == StrictModeStatusView.Tone.ACTIVE ? GREEN : GOLD)
+                .build());
+        }
+
+        CanonicalChunk chunk = locator.player();
+        if (chunk != null)
+        {
+            DecisionService decisions = plugin.decisions();
+            String label = decisions.areaName(chunk);
+            HudStatus status = HudStatus.of(decisions.chunk(chunk));
 
             panelComponent.getChildren().add(LineComponent.builder()
                 .left("Here")
@@ -129,34 +141,40 @@ public class FateLockedHudOverlay extends OverlayPanel
                 .build());
             panelComponent.getChildren().add(LineComponent.builder()
                 .left("Status")
-                .right(lock == FateLockedBundle.LockState.UNLOCKED ? "Unlocked"
-                    : lock == FateLockedBundle.LockState.LOCKED ? "LOCKED" : "Unknown")
-                .rightColor(lock == FateLockedBundle.LockState.UNLOCKED ? GREEN
-                    : lock == FateLockedBundle.LockState.LOCKED ? RED : GRAY)
+                .right(truncate(status.getText(), 22))
+                .rightColor(status.getColor())
                 .build());
-
-            if (config.showNearest() && bundle.hasNearestData())
+            if (status.getWhy() != null)
             {
-                // Recompute only when the player crosses a chunk boundary or a
-                // new bundle is imported — render() runs per frame.
-                if (bundle != cachedBundle || !chunk.equals(cachedChunk))
+                panelComponent.getChildren().add(LineComponent.builder()
+                    .left("Why")
+                    .right(truncate(status.getWhy(), 22))
+                    .rightColor(status.getColor())
+                    .build());
+            }
+
+            if (config.showNearest() && decisions.hasNearestData())
+            {
+                // Recompute only when the player crosses a chunk boundary or the
+                // rules or character change — render() runs per frame.
+                if (decisions != cachedDecisions || !chunk.equals(cachedChunk))
                 {
-                    cachedBundle = bundle;
+                    cachedDecisions = decisions;
                     cachedChunk = chunk;
-                    cachedBank = bundle.nearestUsableBank(chunk);
-                    cachedShop = bundle.nearestUsableShop(chunk);
+                    cachedBank = decisions.nearestBank(chunk);
+                    cachedShop = decisions.nearestShop(chunk);
                 }
-                addNearestLine("Bank", cachedBank, chunk, bundle);
-                addNearestLine("Shop", cachedShop, chunk, bundle);
+                addNearestLine("Bank", cachedBank, chunk, decisions);
+                addNearestLine("Shop", cachedShop, chunk, decisions);
             }
         }
 
-        if (bundle.getTotalChunks() > 0)
+        String progress = ProgressText.hudLine(plugin.decisions().progress());
+        if (progress != null)
         {
-            int pct = (int) Math.round(100.0 * bundle.getUnlockedChunks() / bundle.getTotalChunks());
             panelComponent.getChildren().add(LineComponent.builder()
                 .left("Unlocked")
-                .right(bundle.getUnlockedAreas() + "/" + bundle.getTotalAreas() + " · " + pct + "%")
+                .right(progress)
                 .rightColor(GOLD)
                 .build());
         }
@@ -188,7 +206,7 @@ public class FateLockedHudOverlay extends OverlayPanel
 
     /** One "Bank:" / "Shop:" line: "here ✓", "<Area> · <dist> <dir>", or "none unlocked". */
     private void addNearestLine(String label, FateLockedBundle.Nearest near,
-                                CanonicalChunk from, FateLockedBundle bundle)
+                                CanonicalChunk from, DecisionService decisions)
     {
         if (near == null)
         {
@@ -208,15 +226,18 @@ public class FateLockedHudOverlay extends OverlayPanel
                 .build());
             return;
         }
-        String area = bundle.labelAt(near.getChunk());
+        String area = decisions.areaName(near.getChunk());
         String name = area == null
             ? "(" + near.getChunk().getCx() + ", " + near.getChunk().getCy() + ")"
             : area.split(" · ")[0];
-        String dir = compass(near.getChunk().getCx() - from.getCx(),
-            near.getChunk().getCy() - from.getCy());
+        // From inside an interior, the way is from its entrance; none when the bank is right there.
+        CanonicalChunk origin = decisions.surfaceOf(from);
+        int dx = near.getChunk().getCx() - origin.getCx();
+        int dy = near.getChunk().getCy() - origin.getCy();
+        String dir = dx == 0 && dy == 0 ? "" : " " + compass(dx, dy);
         panelComponent.getChildren().add(LineComponent.builder()
             .left(label)
-            .right(truncate(name, 13) + " · " + near.getDistanceChunks() + " " + dir)
+            .right(truncate(name, 13) + " · " + near.getDistanceChunks() + dir)
             .rightColor(Color.WHITE)
             .build());
     }

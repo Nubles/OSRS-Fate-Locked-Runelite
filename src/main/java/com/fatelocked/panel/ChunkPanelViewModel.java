@@ -14,6 +14,8 @@ public final class ChunkPanelViewModel
     private final String coordinates;
     private final PermissionStatus entryStatus;
     private final String freshnessLabel;
+    /** Why the rules don't apply to this character; null when they do (U4). */
+    private final String trustReason;
     private final int allowedCount;
     private final int notReadyCount;
     private final int lockedCount;
@@ -26,6 +28,7 @@ public final class ChunkPanelViewModel
         String coordinates,
         PermissionStatus entryStatus,
         String freshnessLabel,
+        String trustReason,
         int allowedCount,
         int notReadyCount,
         int lockedCount,
@@ -37,11 +40,18 @@ public final class ChunkPanelViewModel
         this.coordinates = coordinates;
         this.entryStatus = entryStatus;
         this.freshnessLabel = freshnessLabel;
+        this.trustReason = trustReason;
         this.allowedCount = allowedCount;
         this.notReadyCount = notReadyCount;
         this.lockedCount = lockedCount;
         this.unknownCount = unknownCount;
         this.categories = Collections.unmodifiableList(categories);
+    }
+
+    /** What follows the status: why the rules don't apply, else when they were synced. */
+    public String getStatusNote()
+    {
+        return trustReason != null ? trustReason : freshnessLabel;
     }
 
     public CategoryView category(String id)

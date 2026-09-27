@@ -76,17 +76,18 @@ including the single Strict Mode toggle.
 
 ## Main features
 
-- World-map, scene, minimap, and current-chunk rendering from app-authored
-  rules.
-- HUD run state, account binding, unlock progress, pinned goals, and active
-  warnings.
+- Every answer is the tracker's own, for land, the sea, and dungeons and
+  other interiors; an instance is judged as the chunk it copies. The world
+  map, scene, minimap and current chunk show them.
+- HUD run state, account binding, unlock progress as the run card counts it,
+  why the chunk you are in is locked, pinned goals, and active warnings.
 - Locked-region, bank, slayer-task, over-tier gear, and account-mismatch
   warnings.
 - Menu tagging and a four-second warning banner for recognised locked
   actions.
-- Strict Mode, which blocks only exactly matched travel into locked areas,
-  with fail-open safeguards, a status that says when it cannot act, a
-  60-second pause, and a bounded local audit log.
+- Strict Mode, which blocks only travel the tracker's travel table matches
+  by id, to one place it locks, with fail-open safeguards, a status that
+  says when it cannot act, a 60-second pause, and a bounded local audit log.
 - Local detection of supported skill, quest, diary, combat achievement,
   collection, clue, boss, raid, pet, and Slayer observations.
 
@@ -142,25 +143,32 @@ rules.
 
 Strict Mode is off by default. It never removes, reorders or creates menu
 entries and never performs an action. It consumes a click in one case only:
-the click is travel the plugin matches exactly to one destination (a teleport
-spell or tablet, a teleport item's destination option, or a named transport
-destination), and fresh rules bound to the logged-in character show that
-destination Locked.
+the tracker's travel table matches the click by id (a spell by its spellbook
+and name; a tablet, scroll or teleport item by its item id), the option goes
+to one place, and fresh rules bound to the logged-in character lock it.
+The tracker locks a trip when the place is locked, or when the run hasn't
+unlocked what the trip needs, such as a spellbook, Teleport Tablets or
+Jewelry Teleports.
 
-Walking, NPCs, objects (including doors, stairs and ladders), banks and
-equipment are never blocked. The red (LOCKED) menu tags, the locked-bank
-warning and the over-tier gear warning cover them. Fairy-ring codes, spirit
-trees, gliders, charters and other destinations picked in an interface,
-jewellery "Rub" dialogs and house portals are not recognised, so they are
-never blocked either.
+An option that picks its place after the click, such as a jewellery Rub, is
+never blocked. Fairy rings, spirit trees, gliders, charters, boats and the
+other networks are matched too, and an option to one locked place is tagged
+(LOCKED), but they are never blocked in this release. Walking, NPCs, objects
+(including doors, stairs and ladders), banks and equipment are never
+blocked; the red (LOCKED) menu tags, the locked-bank warning and the
+over-tier gear warning cover them.
 
-Missing, invalid, legacy, future, stale, unbound, wrong-character, ambiguous,
-unrecognised, Allowed, or Unknown decisions fail open. The sidebar shows
-whether Strict Mode is Active, Paused, Off, or Inactive and why. The pause
-turns it off for 60 seconds and resumes automatically.
+Missing, invalid, legacy, future, stale, unbound, wrong-character,
+unmatched, several-place, Allowed, Not ready and Unknown decisions fail
+open. Rules saved before the tracker sent a travel table can't match any
+trip, so Strict Mode reads Inactive until the tracker syncs them again. The
+sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
+why, and the HUD shows it while it is on. The pause turns it off for 60
+seconds and resumes automatically. A block's notice may suggest a trip the
+player carries that the tracker allows; the plugin never uses it for them.
 
 This behavior is adjacent to RuneLite's restrictions on conditional menu
-entry changes, so it is limited to exactly matched travel and does not claim
+entry changes, so it is limited to travel matched by id and does not claim
 reviewer approval. See [Plugin Hub review notes](docs/plugin-hub-review-notes.md).
 
 ## Building

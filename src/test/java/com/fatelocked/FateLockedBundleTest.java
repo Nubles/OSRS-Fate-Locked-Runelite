@@ -1,9 +1,15 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSyntaxException;
 import com.fatelocked.rules.ChunkPermissionSnapshot;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
+import com.fatelocked.rules.RulesSnapshot;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -14,6 +20,7 @@ import java.util.Base64;
 import java.util.zip.GZIPOutputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -199,5 +206,96 @@ public class FateLockedBundleTest
         {
             assertTrue(expected.getMessage(), expected.getMessage().contains("larger than 8 MiB"));
         }
+    }
+
+    /**
+     * E7 (R6): Stage 2 rules name the mode's free areas under their
+     * capability, ahead of the root copy; the items that aren't names are
+     * skipped, and an empty list frees nothing.
+     */
+    @Test
+    public void theRulesNameTheFreeAreasUnderTheirCapability() throws Exception
+    {
+        JsonArray named = strings("Tutorial Island");
+        named.add(7);
+        FateLockedBundle tracker = withFreeAreas(strings("someFutureSection", "freeAreas"), named);
+        assertTrue(tracker.isUnlocked("Tutorial Island"));
+        assertFalse("the root copy is the older one", tracker.isUnlocked("Karamja"));
+
+        FateLockedBundle none = withFreeAreas(strings("freeAreas"), new JsonArray());
+        assertFalse(none.isUnlocked("Tutorial Island"));
+        assertFalse(none.isUnlocked("Karamja"));
+    }
+
+    /** Without the capability, or as anything but a list, the root copy still decides. */
+    @Test
+    public void olderRulesKeepTheRootFreeAreas() throws Exception
+    {
+        for (FateLockedBundle older : Arrays.asList(
+            withFreeAreas(null, strings("Tutorial Island")),
+            withFreeAreas(strings("banks"), strings("Tutorial Island")),
+            withFreeAreas(new JsonPrimitive("freeAreas"), strings("Tutorial Island")),
+            withFreeAreas(strings("freeAreas"), new JsonPrimitive("Tutorial Island")),
+            withFreeAreas(strings("freeAreas"), null)))
+        {
+            assertTrue(older.isUnlocked("Karamja"));
+            assertFalse(older.isUnlocked("Tutorial Island"));
+        }
+    }
+
+    /**
+     * E7 (R15): rulesVersion is informational. A newer tracker's rules, with
+     * a later version and a section this plugin doesn't know, give the same
+     * answers everywhere the golden pins one.
+     */
+    @Test
+    public void aLaterRulesVersionAndAnUnknownSectionKeepTheAnswers() throws Exception
+    {
+        Gson gson = new Gson();
+        JsonObject wire = gson.fromJson(GoldenBundleContractTest.gunzip(
+            GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")), JsonObject.class);
+        FateLockedBundle today = FateLockedBundle.loadFromJson(gson, wire.toString());
+        JsonObject rules = wire.getAsJsonObject("rules");
+        rules.addProperty("rulesVersion", "2");
+        rules.getAsJsonArray("capabilities").add("someFutureSection");
+        rules.add("someFutureSection", gson.fromJson("{\"50,50\": \"LOCKED\"}", JsonObject.class));
+        FateLockedBundle newer = FateLockedBundle.loadFromJson(gson, wire.toString());
+
+        assertEquals("1", today.getRulesVersion());
+        assertEquals("2", newer.getRulesVersion());
+        DecisionService before = DecisionService.create(RulesSnapshot.of(today), null, null);
+        DecisionService after = DecisionService.create(RulesSnapshot.of(newer), null, null);
+        JsonObject expected = GoldenBundleContractTest.json("vanilla-mid.expect.json");
+        assertTrue(expected.getAsJsonObject("chunks").size() > 100);
+        for (String key : expected.getAsJsonObject("chunks").keySet())
+        {
+            CanonicalChunk chunk = GoldenBundleContractTest.chunk(key);
+            assertEquals(key, today.lockStateAt(chunk), newer.lockStateAt(chunk));
+            assertEquals(key, before.chunk(chunk), after.chunk(chunk));
+        }
+        for (String area : expected.getAsJsonObject("areas").keySet())
+        {
+            assertEquals(area, today.isUnlocked(area), newer.isUnlocked(area));
+        }
+        assertEquals(PermissionStatus.ALLOWED, after.chunk(new CanonicalChunk(50, 50)).getStatus());
+    }
+
+    /** The v4 fixture with root freeAreas [Karamja], and these capabilities and rules freeAreas (none when null). */
+    private FateLockedBundle withFreeAreas(JsonElement capabilities, JsonElement named) throws Exception
+    {
+        JsonObject root = new Gson().fromJson(
+            new String(fixtureBytes("bundles/v4-rules.json"), StandardCharsets.UTF_8), JsonObject.class);
+        root.add("freeAreas", strings("Karamja"));
+        JsonObject rules = root.getAsJsonObject("rules");
+        if (capabilities != null) rules.add("capabilities", capabilities);
+        if (named != null) rules.add("freeAreas", named);
+        return FateLockedBundle.loadFromJson(new Gson(), root.toString());
+    }
+
+    private static JsonArray strings(String... values)
+    {
+        JsonArray array = new JsonArray();
+        for (String value : values) array.add(value);
+        return array;
     }
 }

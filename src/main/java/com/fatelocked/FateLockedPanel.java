@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.rules.PermissionStatus;
 import net.runelite.client.config.ConfigManager;
@@ -191,6 +192,10 @@ class FateLockedPanel extends PluginPanel
         addSetting(body, ownSetting("Guardian", "strictMode",
             configBinder.booleanSetting(
                 "strictMode", "Strict Mode", config::strictMode)));
+        addLabeledSetting(body, "Pause hotkey",
+            ownSetting("Guardian", "pauseStrictModeHotkey",
+                configBinder.keybindSetting(
+                    "pauseStrictModeHotkey", "Pause Strict Mode hotkey", config::pauseStrictModeHotkey)));
         body.add(strictIntro);
         body.add(stats(new String[]{"Guardian status"},
             new JLabel[]{strictModeVal}));
@@ -452,22 +457,24 @@ class FateLockedPanel extends PluginPanel
      * when it can act; otherwise the sidebar says it is inactive and why,
      * instead of a green "On" while every click is let through.
      */
-    void updateStrictMode(boolean enabled, boolean paused, long seconds, String inactiveReason)
+    /** The Guardian row, from the same status view as the HUD's line (B16). */
+    void updateStrictMode(StrictModeStatusView view)
     {
         SwingUtilities.invokeLater(() -> {
+            StrictModeStatusView.Tone tone = view.getTone();
+            boolean enabled = tone != StrictModeStatusView.Tone.OFF;
+            boolean paused = tone == StrictModeStatusView.Tone.PAUSED;
+            boolean inactive = tone == StrictModeStatusView.Tone.INACTIVE;
             strictPaused = paused;
-            boolean inactive = enabled && !paused && inactiveReason != null;
-            strictModeVal.setText(!enabled ? "Off" : paused ? "Paused"
-                : inactive ? "Inactive" : "Active");
+            strictModeVal.setText(view.getText());
             strictModeVal.setForeground(!enabled ? GRAY : paused || inactive ? AMBER : GREEN);
-            String explained = inactive
-                ? "Not blocking anything: " + escapeHtml(inactiveReason) + "." : null;
+            String explained = view.getExplanation();
             strictModeVal.setToolTipText(explained);
-            strictModeReason.setText(explained == null ? "" : "<html>" + explained + "</html>");
+            strictModeReason.setText(explained == null ? "" : "<html>" + escapeHtml(explained) + "</html>");
             strictModeReason.setVisible(inactive);
             strictModeButton.setVisible(enabled);
             strictModeButton.setText(paused
-                ? "Resume Strict Mode · " + seconds + "s"
+                ? "Resume Strict Mode · " + view.getSecondsLeft() + "s"
                 : "Pause Strict Mode for 60 seconds");
         });
     }
@@ -705,7 +712,7 @@ class FateLockedPanel extends PluginPanel
         meta.setFont(meta.getFont().deriveFont(10f));
         header.add(meta);
         JLabel entry = new JLabel(
-            statusText(view.getEntryStatus()) + "  ·  " + view.getFreshnessLabel());
+            statusText(view.getEntryStatus()) + "  ·  " + view.getStatusNote());
         entry.setForeground(statusColor(view.getEntryStatus()));
         entry.setFont(entry.getFont().deriveFont(Font.BOLD, 10f));
         header.add(entry);

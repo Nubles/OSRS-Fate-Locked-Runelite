@@ -1,27 +1,36 @@
 package com.fatelocked.guardian;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
+import java.util.function.LongSupplier;
 
+/**
+ * Strict Mode's one-minute pause. It counts on a monotonic clock, so moving
+ * the computer's clock neither ends it early nor stretches it, and the
+ * plugin clears it when it shuts down.
+ */
 public final class StrictModePause
 {
-    private final Clock clock;
-    private Instant pausedUntil;
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
 
-    public StrictModePause(Clock clock)
+    private final LongSupplier nanoTime;
+    private boolean paused;
+    private long pausedUntil;
+
+    /** @param nanoTime a monotonic clock in nanoseconds, such as {@code System::nanoTime} */
+    public StrictModePause(LongSupplier nanoTime)
     {
-        this.clock = clock;
+        this.nanoTime = nanoTime;
     }
 
     public synchronized void pauseFor(Duration duration)
     {
-        pausedUntil = clock.instant().plus(duration);
+        pausedUntil = nanoTime.getAsLong() + duration.toNanos();
+        paused = true;
     }
 
     public synchronized void resume()
     {
-        pausedUntil = null;
+        paused = false;
     }
 
     public synchronized boolean isPaused()
@@ -31,13 +40,14 @@ public final class StrictModePause
 
     public synchronized long remainingSeconds()
     {
-        if (pausedUntil == null) return 0;
-        long millis = Duration.between(clock.instant(), pausedUntil).toMillis();
-        if (millis <= 0)
+        if (!paused) return 0;
+        // Compared as a difference, as System.nanoTime requires.
+        long remaining = pausedUntil - nanoTime.getAsLong();
+        if (remaining <= 0)
         {
-            pausedUntil = null;
+            paused = false;
             return 0;
         }
-        return (millis + 999) / 1000;
+        return (remaining + NANOS_PER_SECOND - 1) / NANOS_PER_SECOND;
     }
 }

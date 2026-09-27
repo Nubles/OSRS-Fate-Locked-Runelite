@@ -1,231 +1,176 @@
 package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
-import com.fatelocked.rules.FateRuleEngine;
-import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
+import com.fatelocked.FateLockedBundle;
+import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.RulesSnapshot;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import net.runelite.api.Client;
-import net.runelite.api.Skill;
-import org.junit.Before;
 import org.junit.Test;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.fatelocked.guardian.travel.TravelFixtures.AMULET_OF_GLORY_4;
+import static com.fatelocked.guardian.travel.TravelFixtures.DIGSITE_PENDANT_5;
+import static com.fatelocked.guardian.travel.TravelFixtures.EDGEVILLE;
+import static com.fatelocked.guardian.travel.TravelFixtures.EMIRS_ARENA;
+import static com.fatelocked.guardian.travel.TravelFixtures.FALADOR;
+import static com.fatelocked.guardian.travel.TravelFixtures.FALADOR_TABLET;
+import static com.fatelocked.guardian.travel.TravelFixtures.LUMBRIDGE;
+import static com.fatelocked.guardian.travel.TravelFixtures.LUMBRIDGE_TABLET;
+import static com.fatelocked.guardian.travel.TravelFixtures.RING_OF_DUELING_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+/**
+ * F7: another way there, from the tracker's travel table: a trip on an item
+ * the player carries or wears, to one place, that the tracker allows for
+ * the run. In the fixture the Lumbridge tablet and the glory's Edgeville
+ * are allowed; the Falador tablet, the glory's Karamja and Al Kharid, and
+ * the Digsite pendant are locked; a Rub goes to one of several places.
+ */
 public class TravelAlternativeFinderTest
 {
-    private static final CanonicalChunk VARROCK = new CanonicalChunk(50, 53);
-    private static final CanonicalChunk FALADOR = new CanonicalChunk(46, 52);
+    private static final Gson GSON = new Gson();
+    private static final String LUMBRIDGE_AREA = "Lumbridge · Misthalin";
 
-    private final FateRuleEngine rules = mock(FateRuleEngine.class);
+    private final TravelAlternativeFinder finder = new TravelAlternativeFinder();
     private final TravelAvailability availability = mock(TravelAvailability.class);
+    private final DecisionService rules = spy(TravelFixtures.nubles());
+    private final Set<Integer> carried = new HashSet<>();
 
-    @Before
-    public void allowTabletMobilityByDefault()
+    public TravelAlternativeFinderTest()
     {
-        when(rules.mobility("Teleport Tablets"))
-            .thenReturn(decision(PermissionStatus.ALLOWED));
+        when(availability.hasAnyItem(any())).thenAnswer(call -> {
+            Set<Integer> ids = call.getArgument(0);
+            return ids != null && !Collections.disjoint(ids, carried);
+        });
     }
 
     @Test
-    public void prefersCarriedAllowedAlternativeInTheIntendedArea()
+    public void onlyACarriedTripToOnePlaceTheTrackerAllows()
     {
-        when(rules.entry(VARROCK)).thenReturn(allowed("Varrock"));
-        when(rules.entry(FALADOR)).thenReturn(allowed("Falador"));
-        when(rules.areaLabel(new CanonicalChunk(49, 53))).thenReturn("  VARROCK ");
-        when(rules.areaLabel(VARROCK)).thenReturn("varrock");
-        when(rules.areaLabel(FALADOR)).thenReturn("Falador");
-        when(availability.hasAnyItem(setOf(8007))).thenReturn(true);
-        when(availability.hasAnyItem(setOf(8009))).thenReturn(true);
+        assertFalse("carrying nothing", find(FALADOR).isPresent());
 
-        Optional<TravelAlternative> result = new TravelAlternativeFinder(
-            Arrays.asList(
-                tablet("falador", "Falador", FALADOR, 8009),
-                tablet("varrock", "Varrock", VARROCK, 8007)))
-            .find(exactAction(new CanonicalChunk(49, 53)), rules, availability);
+        carrying(FALADOR_TABLET, DIGSITE_PENDANT_5);
+        assertFalse("every trip they have is locked, or goes to several places", find(FALADOR).isPresent());
 
-        assertTrue(result.isPresent());
-        assertEquals("Varrock", result.get().getLabel());
-        assertEquals(VARROCK, result.get().getDestination());
+        carrying(LUMBRIDGE_TABLET);
+        assertEquals(new TravelAlternative("tablet:lumbridge-teleport|Break", "Lumbridge teleport", LUMBRIDGE),
+            find(FALADOR).get());
     }
 
     @Test
-    public void rejectsLockedUnknownNotReadyAndUnavailableAlternatives()
+    public void anOptionThatNamesAPlaceIsNamed()
     {
-        CanonicalChunk locked = new CanonicalChunk(50, 53);
-        CanonicalChunk unknown = new CanonicalChunk(50, 52);
-        CanonicalChunk notReady = new CanonicalChunk(50, 51);
-        CanonicalChunk absent = new CanonicalChunk(50, 50);
-        when(rules.entry(locked)).thenReturn(decision(PermissionStatus.LOCKED));
-        when(rules.entry(unknown)).thenReturn(decision(PermissionStatus.UNKNOWN));
-        when(rules.entry(notReady)).thenReturn(decision(PermissionStatus.NOT_READY));
-        when(rules.entry(absent)).thenReturn(allowed("Lumbridge"));
-        when(availability.hasAnyItem(any())).thenReturn(false);
+        carrying(AMULET_OF_GLORY_4);
 
-        List<TravelAlternative> catalog = Arrays.asList(
-            tablet("locked", "Locked", locked, 8007),
-            tablet("unknown", "Unknown", unknown, 8008),
-            tablet("not-ready", "Not ready", notReady, 8009),
-            tablet("absent", "Absent", absent, 8010));
-
-        assertFalse(new TravelAlternativeFinder(catalog)
-            .find(exactAction(new CanonicalChunk(51, 53)), rules, availability)
-            .isPresent());
+        assertEquals(new TravelAlternative("item:amulet-of-glory|Edgeville", "Amulet of glory to Edgeville", EDGEVILLE),
+            find(FALADOR).get());
     }
 
+    /** The blocked trip's area first, then the nearest; then the lower id. */
     @Test
-    public void tabletMobilityMustBeExplicitlyAllowed()
+    public void theBlockedTripsAreaRanksFirst()
     {
-        TravelAlternative candidate =
-            TravelAlternativeCatalog.alternatives().get(0);
-        for (TravelAlternative tablet :
-            TravelAlternativeCatalog.alternatives())
-        {
-            assertEquals("Teleport Tablets", tablet.getRequiredUnlock());
-        }
-        when(rules.entry(candidate.getDestination()))
-            .thenReturn(allowed("Varrock"));
-        when(availability.hasAnyItem(candidate.getRequiredItemIds()))
-            .thenReturn(true);
+        carrying(LUMBRIDGE_TABLET, AMULET_OF_GLORY_4);
+        assertEquals(LUMBRIDGE_AREA, rules.areaName(LUMBRIDGE));
 
-        when(rules.mobility("Teleport Tablets")).thenReturn(null);
-        assertFalse(new TravelAlternativeFinder(
-            Collections.singletonList(candidate))
-            .find(exactAction(VARROCK), rules, availability).isPresent());
+        assertEquals("neither in Falador's area: the nearer", "item:amulet-of-glory|Edgeville", id(FALADOR));
 
-        for (PermissionStatus status : Arrays.asList(
-            PermissionStatus.UNKNOWN,
-            PermissionStatus.NOT_READY,
-            PermissionStatus.LOCKED))
-        {
-            when(rules.mobility("Teleport Tablets"))
-                .thenReturn(decision(status));
-            assertFalse(new TravelAlternativeFinder(
-                Collections.singletonList(candidate))
-                .find(exactAction(VARROCK), rules, availability).isPresent());
-        }
+        doReturn(LUMBRIDGE_AREA).when(rules).areaName(FALADOR);
+        assertEquals("in the blocked trip's area, though farther", "tablet:lumbridge-teleport|Break", id(FALADOR));
 
-        when(rules.mobility("Teleport Tablets"))
-            .thenReturn(decision(PermissionStatus.ALLOWED));
-        assertEquals(candidate, new TravelAlternativeFinder(
-            Collections.singletonList(candidate))
-            .find(exactAction(VARROCK), rules, availability).get());
+        CanonicalChunk northOfEdgeville = new CanonicalChunk(48, 55);
+        assertEquals("the nearest", "item:amulet-of-glory|Edgeville", id(northOfEdgeville));
+
+        CanonicalChunk between = new CanonicalChunk(49, 52);
+        assertEquals("as near as each other: the lower id", "item:amulet-of-glory|Edgeville", id(between));
+        doReturn(LUMBRIDGE_AREA).when(rules).areaName(between);
+        assertEquals("tablet:lumbridge-teleport|Break", id(between));
+
+        carrying(LUMBRIDGE_TABLET, RING_OF_DUELING_8);
+        CanonicalChunk unnamed = new CanonicalChunk(50, 51);
+        assertNull(rules.areaName(unnamed));
+        assertNull(rules.areaName(EMIRS_ARENA));
+        assertEquals("an area the lists don't name matches nothing", "tablet:lumbridge-teleport|Break", id(unnamed));
     }
 
+    /** Where the area lists name nothing, the nearest wins: the same place first. */
     @Test
-    public void requiresEveryDeclaredLocalRequirement()
+    public void withoutAreasTheNearestWins()
     {
-        TravelAlternative alternative = new TravelAlternative(
-            "verified", "Verified", VARROCK, "Teleport Tablets", setOf(8007),
-            Skill.MAGIC, 45, 0);
-        TravelAlternativeFinder finder = new TravelAlternativeFinder(
-            Collections.singletonList(alternative));
-        when(rules.entry(VARROCK)).thenReturn(allowed("Varrock"));
-        when(availability.hasAnyItem(setOf(8007))).thenReturn(true);
+        carrying(LUMBRIDGE_TABLET, RING_OF_DUELING_8);
+        doReturn(null).when(rules).areaName(any());
 
-        when(availability.realLevel(Skill.MAGIC)).thenReturn(44);
-        when(availability.spellbook()).thenReturn(0);
-        assertFalse(finder.find(exactAction(VARROCK), rules, availability).isPresent());
-
-        when(availability.realLevel(Skill.MAGIC)).thenReturn(45);
-        when(availability.spellbook()).thenReturn(1);
-        assertFalse(finder.find(exactAction(VARROCK), rules, availability).isPresent());
-
-        when(availability.spellbook()).thenReturn(0);
-        assertEquals(alternative,
-            finder.find(exactAction(VARROCK), rules, availability).get());
+        assertEquals("the same place, over the one next to it", "tablet:lumbridge-teleport|Break", id(LUMBRIDGE));
+        assertEquals("item:ring-of-dueling|Emir's Arena", id(EMIRS_ARENA));
     }
 
+    /** Spells aren't carried: only item trips are suggested, even with every id read as carried. */
     @Test
-    public void adjacentRankOutranksOtherBeforeDistance()
+    public void onlyItemsAreSuggested()
     {
-        CanonicalChunk destination = new CanonicalChunk(50, 50);
-        CanonicalChunk adjacent = new CanonicalChunk(50, 51);
-        TravelAlternative zeroDistanceOther = tablet(
-            "a-zero-distance", "Zero distance other", destination, 8008);
-        TravelAlternative adjacentCandidate = tablet(
-            "z-adjacent", "Adjacent", adjacent, 8007);
-        when(rules.entry(destination)).thenReturn(allowed("Destination"));
-        when(rules.entry(adjacent)).thenReturn(allowed("Adjacent"));
         when(availability.hasAnyItem(any())).thenReturn(true);
 
-        Optional<TravelAlternative> result = new TravelAlternativeFinder(
-            Arrays.asList(zeroDistanceOther, adjacentCandidate))
-            .find(exactAction(destination), rules, availability);
+        assertEquals("tablet:lumbridge-teleport|Break", id(LUMBRIDGE));
+    }
 
-        assertEquals(adjacentCandidate, result.get());
+    /** One place, allowed: not an allowed trip to several places, nor one not ready. */
+    @Test
+    public void onlyOnePlaceTheTrackerAllows()
+    {
+        JsonObject root = GSON.fromJson(TravelFixtures.json(), JsonObject.class);
+        root.getAsJsonObject("rules").getAsJsonObject("travel").add("item:odd", GSON.fromJson("{"
+            + "\"label\": \"Odd item\", \"match\": {\"items\": [1]}, \"options\": {"
+            + "\"Everywhere\": {\"to\": [\"50,50\", \"50,51\"], \"status\": \"ALLOWED\"},"
+            + "\"Home\": {\"to\": [\"50,50\"], \"status\": \"NOT_READY\", \"reason\": \"No route\"}}}", JsonObject.class));
+        DecisionService odd = DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, root.toString())), "nubles", "nubles");
+        carrying(1);
+
+        assertFalse(finder.find(blocked(LUMBRIDGE), odd, availability).isPresent());
     }
 
     @Test
-    public void normalizedStableIdBreaksEqualRankAndDistanceTies()
+    public void anotherCharacterOrOlderRulesSuggestNothing() throws Exception
     {
-        CanonicalChunk destination = new CanonicalChunk(50, 50);
-        CanonicalChunk east = new CanonicalChunk(51, 50);
-        CanonicalChunk north = new CanonicalChunk(50, 51);
-        TravelAlternative catalogFirst = tablet(
-            " Z-last-ID ", "Catalog first", east, 8008);
-        TravelAlternative lexicographicFirst = tablet(
-            "a-first-id", "Lexicographic first", north, 8007);
-        when(rules.entry(east)).thenReturn(allowed("East"));
-        when(rules.entry(north)).thenReturn(allowed("North"));
-        when(availability.hasAnyItem(any())).thenReturn(true);
+        carrying(LUMBRIDGE_TABLET, AMULET_OF_GLORY_4);
 
-        Optional<TravelAlternative> result = new TravelAlternativeFinder(
-            Arrays.asList(catalogFirst, lexicographicFirst))
-            .find(exactAction(destination), rules, availability);
-
-        assertEquals(lexicographicFirst, result.get());
+        assertFalse(finder.find(blocked(FALADOR), TravelFixtures.playing("zezima"), availability).isPresent());
+        DecisionService legacy = DecisionService.create(
+            RulesSnapshot.of(fixture("bundles/v3-standard.json")), "nubles", "nubles");
+        assertFalse(finder.find(blocked(FALADOR), legacy, availability).isPresent());
     }
 
     @Test
-    public void catalogAndAlternativesAreImmutableCheckedData()
+    public void unresolvedInputsNeverProduceAGuess()
     {
-        List<TravelAlternative> alternatives = TravelAlternativeCatalog.alternatives();
-        assertEquals(6, alternatives.size());
-        assertEquals("varrock-tablet", alternatives.get(0).getId());
-        assertEquals("watchtower-tablet", alternatives.get(5).getId());
-        assertThrows(UnsupportedOperationException.class,
-            () -> alternatives.add(alternatives.get(0)));
-
-        Set<Integer> mutableIds = new LinkedHashSet<>(setOf(8007));
-        TravelAlternative copied = new TravelAlternative(
-            "copy", "Copy", VARROCK, "Teleport Tablets", mutableIds,
-            null, 0, null);
-        mutableIds.clear();
-        assertEquals(setOf(8007), copied.getRequiredItemIds());
-        assertThrows(UnsupportedOperationException.class,
-            () -> copied.getRequiredItemIds().add(8008));
-    }
-
-    @Test
-    public void unresolvedInputsAndEmptyItemRequirementsNeverProduceAGuess()
-    {
-        when(rules.entry(VARROCK)).thenReturn(allowed("Varrock"));
-        when(availability.hasAnyItem(any())).thenReturn(true);
-        TravelAlternativeFinder finder = new TravelAlternativeFinder(
-            Collections.singletonList(new TravelAlternative(
-                "none", "None", VARROCK, "Teleport Tablets",
-                Collections.emptySet(), null, 0, null)));
+        carrying(LUMBRIDGE_TABLET);
+        TravelAction notTravel = new TravelAction(null, null, "Unknown",
+            Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
+        TravelAction severalPlaces = new TravelAction("item:amulet-of-glory", "Rub", "Amulet of glory(4)",
+            Arrays.asList(EDGEVILLE, FALADOR), false, TravelAction.Confidence.EXACT);
 
         assertFalse(finder.find(null, rules, availability).isPresent());
-        assertFalse(finder.find(unknownAction(), rules, availability).isPresent());
-        assertFalse(finder.find(exactAction(VARROCK), null, availability).isPresent());
-        assertFalse(finder.find(exactAction(VARROCK), rules, null).isPresent());
-        assertFalse(finder.find(exactAction(VARROCK), rules, availability).isPresent());
+        assertFalse(finder.find(notTravel, rules, availability).isPresent());
+        assertFalse(finder.find(severalPlaces, rules, availability).isPresent());
+        assertFalse(finder.find(blocked(FALADOR), null, availability).isPresent());
+        assertFalse(finder.find(blocked(FALADOR), rules, null).isPresent());
     }
 
     @Test
@@ -244,43 +189,34 @@ public class TravelAlternativeFinderTest
         assertNull(TravelAlternative.class.getSuperclass().getSuperclass());
     }
 
-    private static TravelAlternative tablet(
-        String id, String label, CanonicalChunk destination, int itemId)
+    private Optional<TravelAlternative> find(CanonicalChunk destination)
     {
-        return new TravelAlternative(
-            id, label, destination, "Teleport Tablets", setOf(itemId),
-            null, 0, null);
+        return finder.find(blocked(destination), rules, availability);
     }
 
-    private static TravelAction exactAction(CanonicalChunk destination)
+    private String id(CanonicalChunk destination)
     {
-        return new TravelAction(
-            TravelAction.Family.WALK, "walk", "Walk here",
-            new CanonicalChunk(49, 50), destination, null,
-            TravelAction.Confidence.EXACT);
+        return find(destination).get().getId();
     }
 
-    private static TravelAction unknownAction()
+    private void carrying(Integer... items)
     {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown",
-            new CanonicalChunk(49, 50), null, null,
-            TravelAction.Confidence.UNKNOWN);
+        carried.clear();
+        carried.addAll(Arrays.asList(items));
     }
 
-    private static Set<Integer> setOf(Integer... values)
+    /** A blocked trip to one place. */
+    private static TravelAction blocked(CanonicalChunk destination)
     {
-        return Collections.unmodifiableSet(
-            new LinkedHashSet<>(Arrays.asList(values)));
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport",
+            Collections.singletonList(destination), false, TravelAction.Confidence.EXACT);
     }
 
-    private static RuleDecision allowed(String label)
+    private FateLockedBundle fixture(String name) throws Exception
     {
-        return new RuleDecision(PermissionStatus.ALLOWED, label, null);
-    }
-
-    private static RuleDecision decision(PermissionStatus status)
-    {
-        return new RuleDecision(status, status.name(), null);
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(name))
+        {
+            return FateLockedBundle.loadFromJson(new Gson(), new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 }

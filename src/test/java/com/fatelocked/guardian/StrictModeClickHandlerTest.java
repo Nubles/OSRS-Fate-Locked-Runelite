@@ -7,7 +7,10 @@ import com.fatelocked.guardian.travel.TravelDecision;
 import net.runelite.api.events.MenuOptionClicked;
 import org.junit.Test;
 
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -15,61 +18,66 @@ import static org.mockito.Mockito.verify;
 
 public class StrictModeClickHandlerTest
 {
+    private final StrictModeClickHandler handler =
+        new StrictModeClickHandler(new StrictModeGuard());
+
     @Test
-    public void travelConsumesExactlyOnceOnlyForFreshExactLockedDecisions()
+    public void travelConsumesExactlyOnceOnlyForExactLockedTripsWhileActive()
     {
-        StrictModeClickHandler handler =
-            new StrictModeClickHandler(new StrictModeGuard());
         TravelAction exact = exactTravel();
         TravelDecision locked = travelDecision(PermissionStatus.LOCKED);
 
         MenuOptionClicked lockedEvent = mock(MenuOptionClicked.class);
-        handler.handleTravel(lockedEvent, exact, locked, enabled());
+        handler.handleTravel(lockedEvent, exact, locked, active());
         verify(lockedEvent, times(1)).consume();
 
-        assertNotConsumed(handler, exact, travelDecision(PermissionStatus.ALLOWED),
-            enabled());
-        assertNotConsumed(handler, exact, travelDecision(PermissionStatus.NOT_READY),
-            enabled());
-        assertNotConsumed(handler, exact, travelDecision(PermissionStatus.UNKNOWN),
-            enabled());
-        assertNotConsumed(handler, exact, locked, disabled());
-        assertNotConsumed(handler, exact, locked, paused());
-        assertNotConsumed(handler, exact, locked, stale());
-        assertNotConsumed(handler, exact, locked, wrongAccount());
-        assertNotConsumed(handler, unknownTravel(), locked, enabled());
-        assertNotConsumed(handler, null, locked, enabled());
-        assertNotConsumed(handler, exact, null, enabled());
-        assertNotConsumed(handler, exact, locked, null);
+        assertNotConsumed(exact, travelDecision(PermissionStatus.ALLOWED), active());
+        assertNotConsumed(exact, travelDecision(PermissionStatus.NOT_READY), active());
+        assertNotConsumed(exact, travelDecision(PermissionStatus.UNKNOWN), active());
+        assertNotConsumed(exact, locked, readiness(false, false, true, true));
+        assertNotConsumed(exact, locked, paused());
+        assertNotConsumed(exact, locked, readiness(true, false, true, false));
+        assertNotConsumed(exact, locked, readiness(true, false, false, true));
+        assertNotConsumed(unknownTravel(), locked, active());
+        assertNotConsumed(null, locked, active());
+        assertNotConsumed(exact, null, active());
+        assertNotConsumed(exact, locked, null);
     }
 
-    private static void assertNotConsumed(
-        StrictModeClickHandler handler,
+    @Test
+    public void decidingNeverTouchesTheClick()
+    {
+        MenuOptionClicked event = mock(MenuOptionClicked.class);
+
+        assertEquals(GuardResult.Outcome.BLOCK, handler.decide(
+            exactTravel(), travelDecision(PermissionStatus.LOCKED), active()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW_PAUSED, handler.handleTravel(
+            event, exactTravel(), travelDecision(PermissionStatus.LOCKED), paused()).getOutcome());
+        verify(event, never()).consume();
+    }
+
+    private void assertNotConsumed(
         TravelAction action,
         TravelDecision decision,
-        GuardContext context)
+        StrictModeReadiness readiness)
     {
         MenuOptionClicked event = mock(MenuOptionClicked.class);
         GuardResult result = handler.handleTravel(
-            event, action, decision, context);
-        assertEquals(GuardResult.Outcome.ALLOW,
-            result.getOutcome());
+            event, action, decision, readiness);
+        assertNotEquals(GuardResult.Outcome.BLOCK, result.getOutcome());
         verify(event, never()).consume();
     }
 
     private static TravelAction exactTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.SPELL_OR_ITEM, "named-teleport", "Teleport falador", null,
-            new CanonicalChunk(51, 51), null,
-            TravelAction.Confidence.EXACT);
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport",
+            Collections.singletonList(new CanonicalChunk(46, 52)), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown", null,
-            null, null, TravelAction.Confidence.UNKNOWN);
+        return new TravelAction(null, null, "Unknown",
+            Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 
     private static TravelDecision travelDecision(PermissionStatus status)
@@ -77,28 +85,19 @@ public class StrictModeClickHandlerTest
         return new TravelDecision(status, "Destination", "not unlocked");
     }
 
-    private static GuardContext enabled()
+    private static StrictModeReadiness active()
     {
-        return new GuardContext(true, false, true, true, null);
+        return readiness(true, false, true, true);
     }
 
-    private static GuardContext disabled()
+    private static StrictModeReadiness paused()
     {
-        return new GuardContext(false, false, true, true, null);
+        return readiness(true, true, true, true);
     }
 
-    private static GuardContext paused()
+    private static StrictModeReadiness readiness(
+        boolean enabled, boolean paused, boolean accountMatches, boolean fresh)
     {
-        return new GuardContext(true, true, true, true, null);
-    }
-
-    private static GuardContext stale()
-    {
-        return new GuardContext(true, false, true, false, null);
-    }
-
-    private static GuardContext wrongAccount()
-    {
-        return new GuardContext(true, false, false, true, null);
+        return StrictModeGuardTest.readiness(enabled, paused, accountMatches, fresh);
     }
 }

@@ -20,9 +20,23 @@ public class StrictModeReadinessTest
     {
         assertEquals(StrictModeReadiness.State.OFF,
             evaluate(false, false, false, null, null, false, false).getState());
-        StrictModeReadiness paused = evaluate(true, true, false, null, null, false, false);
+        assertEquals(StrictModeReadiness.State.OFF,
+            evaluate(false, true, true, "Nubles", "Nubles", true, true).getState());
+        StrictModeReadiness paused = evaluate(true, true, true, "Nubles", "Nubles", true, true);
         assertEquals(StrictModeReadiness.State.PAUSED, paused.getState());
         assertNull(paused.getReason());
+    }
+
+    /** Paused means it would block otherwise, so a pause never hides why it couldn't. */
+    @Test
+    public void aPauseDoesNotHideWhyStrictModeCannotAct()
+    {
+        assertInactive("no tracker rules are loaded",
+            evaluate(true, true, false, null, null, false, false));
+        assertInactive("the rules are more than 15 minutes old",
+            evaluate(true, true, true, "Nubles", "Nubles", true, false));
+        assertInactive("the rules have no travel table; sync them from the tracker again",
+            StrictModeReadiness.evaluate(true, true, true, false, "Nubles", "Nubles", true, true));
     }
 
     @Test
@@ -30,6 +44,8 @@ public class StrictModeReadinessTest
     {
         assertInactive("no tracker rules are loaded",
             evaluate(true, false, false, "Nubles", "Nubles", true, true));
+        assertInactive("the rules have no travel table; sync them from the tracker again",
+            StrictModeReadiness.evaluate(true, false, true, false, "Nubles", "Nubles", true, true));
         assertInactive("the tracker profile has no linked account",
             evaluate(true, false, true, "  ", "Nubles", false, true));
         assertInactive("you are not logged in",
@@ -50,6 +66,6 @@ public class StrictModeReadinessTest
         boolean enabled, boolean paused, boolean rules, String bound, String player,
         boolean matches, boolean fresh)
     {
-        return StrictModeReadiness.evaluate(enabled, paused, rules, bound, player, matches, fresh);
+        return StrictModeReadiness.evaluate(enabled, paused, rules, true, bound, player, matches, fresh);
     }
 }

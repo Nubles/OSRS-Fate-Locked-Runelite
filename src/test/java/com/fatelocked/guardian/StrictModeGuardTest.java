@@ -6,6 +6,9 @@ import com.fatelocked.guardian.travel.TravelAction;
 import com.fatelocked.guardian.travel.TravelDecision;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
 
 public class StrictModeGuardTest
@@ -13,26 +16,50 @@ public class StrictModeGuardTest
     private final StrictModeGuard guard = new StrictModeGuard();
 
     @Test
-    public void travelBlocksOnlyFreshExactLockedDecisions()
+    public void travelBlocksOnlyExactLockedTripsWhileActive()
     {
         TravelAction exact = exactTravel();
         TravelDecision locked = travelDecision(PermissionStatus.LOCKED);
 
         assertEquals(GuardResult.Outcome.BLOCK,
-            guard.decideTravel(exact, locked, enabled()).getOutcome());
+            guard.decideTravel(exact, locked, active()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
             guard.decideTravel(exact, travelDecision(PermissionStatus.UNKNOWN),
-                enabled()).getOutcome());
+                active()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
-            guard.decideTravel(exact, locked, disabled()).getOutcome());
-        assertEquals(GuardResult.Outcome.ALLOW,
-            guard.decideTravel(exact, locked, paused()).getOutcome());
+            guard.decideTravel(exact, locked, off()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
             guard.decideTravel(exact, locked, stale()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
             guard.decideTravel(exact, locked, wrongAccount()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
-            guard.decideTravel(unknownTravel(), locked, enabled()).getOutcome());
+            guard.decideTravel(unknownTravel(), locked, active()).getOutcome());
+        assertEquals("an exact match needs somewhere to go", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(noDestination(), locked, active()).getOutcome());
+        assertEquals("one place, not one of several", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(severalPlaces(), locked, active()).getOutcome());
+        assertEquals("networks and boats are tagged, never blocked", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, active()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, paused()).getOutcome());
+    }
+
+    @Test
+    public void aPauseLetsOnlyAProvenLockThroughAsPaused()
+    {
+        TravelAction exact = exactTravel();
+        TravelDecision locked = travelDecision(PermissionStatus.LOCKED);
+
+        assertEquals(GuardResult.Outcome.ALLOW_PAUSED,
+            guard.decideTravel(exact, locked, paused()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(exact, travelDecision(PermissionStatus.ALLOWED),
+                paused()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(unknownTravel(), locked, paused()).getOutcome());
+        // Paused on stale rules: it couldn't have blocked, so it isn't a pause.
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(exact, locked, readiness(true, true, true, false)).getOutcome());
     }
 
     @Test
@@ -43,14 +70,14 @@ public class StrictModeGuardTest
 
         assertEquals(GuardResult.Outcome.ALLOW,
             guard.decideTravel(exact, travelDecision(PermissionStatus.ALLOWED),
-                enabled()).getOutcome());
+                active()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
             guard.decideTravel(exact, travelDecision(PermissionStatus.NOT_READY),
-                enabled()).getOutcome());
+                active()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
-            guard.decideTravel(null, locked, enabled()).getOutcome());
+            guard.decideTravel(null, locked, active()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
-            guard.decideTravel(exact, null, enabled()).getOutcome());
+            guard.decideTravel(exact, null, active()).getOutcome());
         assertEquals(GuardResult.Outcome.ALLOW,
             guard.decideTravel(exact, locked, null).getOutcome());
     }
@@ -62,7 +89,7 @@ public class StrictModeGuardTest
         {
             TravelAction action = exactTravel();
             GuardResult result = guard.decideTravel(
-                action, travelDecision(status), enabled());
+                action, travelDecision(status), active());
 
             if (result.getOutcome() == GuardResult.Outcome.BLOCK)
             {
@@ -80,17 +107,32 @@ public class StrictModeGuardTest
 
     private static TravelAction exactTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.SPELL_OR_ITEM, "named-teleport", "Teleport falador", null,
-            new CanonicalChunk(51, 51), null,
-            TravelAction.Confidence.EXACT);
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport",
+            Collections.singletonList(new CanonicalChunk(46, 52)), false, TravelAction.Confidence.EXACT);
+    }
+
+    private static TravelAction noDestination()
+    {
+        return new TravelAction("item:somewhere", "Teleport", "Teleport",
+            Collections.emptyList(), false, TravelAction.Confidence.EXACT);
+    }
+
+    private static TravelAction severalPlaces()
+    {
+        return new TravelAction("item:digsite-pendant", "Rub", "Digsite pendant",
+            Arrays.asList(new CanonicalChunk(52, 53), new CanonicalChunk(58, 59)), false, TravelAction.Confidence.EXACT);
+    }
+
+    private static TravelAction advisory()
+    {
+        return new TravelAction("network:fairy-ring", "Zanaris", "Fairy ring to Zanaris",
+            Collections.singletonList(new CanonicalChunk(37, 69)), true, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown", null,
-            null, null, TravelAction.Confidence.UNKNOWN);
+        return new TravelAction(null, null, "Unknown",
+            Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 
     private static TravelDecision travelDecision(PermissionStatus status)
@@ -98,28 +140,36 @@ public class StrictModeGuardTest
         return new TravelDecision(status, "Destination", "not unlocked");
     }
 
-    private static GuardContext enabled()
+    private static StrictModeReadiness active()
     {
-        return new GuardContext(true, false, true, true, null);
+        return readiness(true, false, true, true);
     }
 
-    private static GuardContext disabled()
+    private static StrictModeReadiness off()
     {
-        return new GuardContext(false, false, true, true, null);
+        return readiness(false, false, true, true);
     }
 
-    private static GuardContext paused()
+    private static StrictModeReadiness paused()
     {
-        return new GuardContext(true, true, true, true, null);
+        return readiness(true, true, true, true);
     }
 
-    private static GuardContext stale()
+    private static StrictModeReadiness stale()
     {
-        return new GuardContext(true, false, true, false, null);
+        return readiness(true, false, true, false);
     }
 
-    private static GuardContext wrongAccount()
+    private static StrictModeReadiness wrongAccount()
     {
-        return new GuardContext(true, false, false, true, null);
+        return readiness(true, false, false, true);
+    }
+
+    /** Rules bound to Nubles, played by Nubles or by someone else. */
+    static StrictModeReadiness readiness(
+        boolean enabled, boolean paused, boolean accountMatches, boolean fresh)
+    {
+        return StrictModeReadiness.evaluate(enabled, paused, true, true, "Nubles",
+            accountMatches ? "Nubles" : "Zezima", accountMatches, fresh);
     }
 }

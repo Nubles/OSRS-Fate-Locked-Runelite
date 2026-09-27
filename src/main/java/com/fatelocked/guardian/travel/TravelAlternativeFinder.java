@@ -1,35 +1,26 @@
 package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
-import com.fatelocked.rules.FateRuleEngine;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
-import com.fatelocked.rules.RuleDecision;
+import com.fatelocked.rules.TravelTable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+/**
+ * Another way there, from the tracker's travel table (F7): a trip on an
+ * item the player carries or wears, to one place, that the tracker allows
+ * for the run. One landing in the blocked trip's area ranks first, then
+ * the nearest; ties go to the lower id. It only picks words for the
+ * notice: nothing here clicks or moves.
+ */
 public class TravelAlternativeFinder
 {
-    private final List<TravelAlternative> alternatives;
-
-    public TravelAlternativeFinder()
-    {
-        this(TravelAlternativeCatalog.alternatives());
-    }
-
-    TravelAlternativeFinder(List<TravelAlternative> alternatives)
-    {
-        this.alternatives = alternatives == null
-            ? Collections.emptyList()
-            : Collections.unmodifiableList(new ArrayList<>(alternatives));
-    }
-
     public Optional<TravelAlternative> find(
         TravelAction action,
-        FateRuleEngine rules,
+        DecisionService rules,
         TravelAvailability availability)
     {
         if (action == null
@@ -40,96 +31,53 @@ public class TravelAlternativeFinder
         {
             return Optional.empty();
         }
+        TravelTable table = rules.travelTable();
+        if (table == null) return Optional.empty();
 
-        String intendedArea = normalizeArea(
-            rules.areaLabel(action.getDestination()));
+        CanonicalChunk intended = action.getDestination();
+        String intendedArea = normalize(rules.areaName(intended));
         TravelAlternative best = null;
         int bestRank = Integer.MAX_VALUE;
         long bestDistance = Long.MAX_VALUE;
         String bestId = null;
 
-        for (TravelAlternative candidate : alternatives)
+        for (TravelTable.Method method : table.methods())
         {
-            if (!isVerified(candidate, rules, availability))
+            if (method.getMatch() != TravelTable.Match.ITEMS) continue;
+            Boolean carried = null;
+            for (TravelTable.Option option : method.getOptions().values())
             {
-                continue;
-            }
+                CanonicalChunk destination = option.destination();
+                if (destination == null) continue;
+                Decision decision = rules.travel(method, option);
+                if (decision == null || decision.getStatus() != PermissionStatus.ALLOWED) continue;
+                if (carried == null) carried = availability.hasAnyItem(method.getIds());
+                if (!carried) break;
 
-            String candidateArea = normalizeArea(
-                rules.areaLabel(candidate.getDestination()));
-            long candidateDistance = distance(
-                action.getDestination(), candidate.getDestination());
-            int candidateRank = sameArea(intendedArea, candidateArea)
-                ? 0 : candidateDistance == 1 ? 1 : 2;
-            String candidateId = normalizeStableId(candidate.getId());
-            if (best == null
-                || candidateRank < bestRank
-                || (candidateRank == bestRank
-                    && candidateDistance < bestDistance)
-                || (candidateRank == bestRank
-                    && candidateDistance == bestDistance
-                    && candidateId.compareTo(bestId) < 0))
-            {
-                best = candidate;
-                bestRank = candidateRank;
-                bestDistance = candidateDistance;
-                bestId = candidateId;
+                String id = method.getId() + "|" + option.getText();
+                long distance = distance(intended, destination);
+                int rank = sameArea(intendedArea, normalize(rules.areaName(destination))) ? 0 : 1;
+                String stableId = normalize(id);
+                if (best == null
+                    || rank < bestRank
+                    || rank == bestRank && distance < bestDistance
+                    || rank == bestRank && distance == bestDistance && stableId.compareTo(bestId) < 0)
+                {
+                    best = new TravelAlternative(id, label(method, option), destination);
+                    bestRank = rank;
+                    bestDistance = distance;
+                    bestId = stableId;
+                }
             }
         }
         return Optional.ofNullable(best);
     }
 
-    private static boolean isVerified(
-        TravelAlternative candidate,
-        FateRuleEngine rules,
-        TravelAvailability availability)
+    /** "Lumbridge teleport" for an option that names no place; "Amulet of glory to Edgeville" for one that does. */
+    static String label(TravelTable.Method method, TravelTable.Option option)
     {
-        if (candidate == null
-            || candidate.getDestination() == null
-            || candidate.getRequiredItemIds() == null
-            || candidate.getRequiredItemIds().isEmpty())
-        {
-            return false;
-        }
-
-        RuleDecision destination = rules.entry(candidate.getDestination());
-        if (destination == null
-            || destination.getStatus() != PermissionStatus.ALLOWED)
-        {
-            return false;
-        }
-
-        String requiredUnlock = candidate.getRequiredUnlock();
-        if (requiredUnlock == null || requiredUnlock.trim().isEmpty())
-        {
-            return false;
-        }
-        RuleDecision mobility = rules.mobility(requiredUnlock);
-        if (mobility == null
-            || mobility.getStatus() != PermissionStatus.ALLOWED)
-        {
-            return false;
-        }
-        if (!availability.hasAnyItem(candidate.getRequiredItemIds()))
-        {
-            return false;
-        }
-
-        if (candidate.getRequiredSkill() == null)
-        {
-            if (candidate.getRequiredLevel() > 0)
-            {
-                return false;
-            }
-        }
-        else if (availability.realLevel(candidate.getRequiredSkill())
-            < candidate.getRequiredLevel())
-        {
-            return false;
-        }
-
-        return candidate.getRequiredSpellbook() == null
-            || availability.spellbook() == candidate.getRequiredSpellbook();
+        return TravelAction.isActivation(option.getText())
+            ? method.getLabel() : method.getLabel() + " to " + option.getText();
     }
 
     private static boolean sameArea(String intended, String candidate)
@@ -137,22 +85,13 @@ public class TravelAlternativeFinder
         return intended != null && intended.equals(candidate);
     }
 
-    private static String normalizeArea(String area)
+    private static String normalize(String text)
     {
-        if (area == null)
-        {
-            return null;
-        }
-        String normalized = area.trim().replaceAll("\\s+", " ")
-            .toLowerCase(Locale.ROOT);
+        if (text == null) return null;
+        String normalized = text.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private static String normalizeStableId(String id)
-    {
-        String normalized = normalizeArea(id);
-        return normalized == null ? "" : normalized;
-    }
     private static long distance(CanonicalChunk left, CanonicalChunk right)
     {
         return Math.abs((long) left.getCx() - right.getCx())

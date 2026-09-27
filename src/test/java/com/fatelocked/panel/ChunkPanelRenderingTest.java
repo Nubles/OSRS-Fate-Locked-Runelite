@@ -2,6 +2,8 @@ package com.fatelocked;
 
 import com.fatelocked.panel.ChunkPanelViewModel;
 import com.fatelocked.panel.ChunkPanelViewModelFactory;
+import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
 import org.junit.Test;
 
@@ -34,7 +36,8 @@ public class ChunkPanelRenderingTest
     {
         FateLockedBundle bundle = fixture();
         ChunkPanelViewModel view = new ChunkPanelViewModelFactory().create(
-            bundle, new CanonicalChunk(50, 50), true, Instant.now());
+            DecisionService.create(RulesSnapshot.of(bundle), "nubles", "nubles"),
+            new CanonicalChunk(50, 50), Instant.now());
         FateLockedPanel panel = new FateLockedPanel();
         panel.renderChunkForTest(view);
         String text = String.join("\n", labels(panel));

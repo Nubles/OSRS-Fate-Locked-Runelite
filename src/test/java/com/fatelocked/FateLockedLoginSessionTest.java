@@ -1,14 +1,19 @@
 package com.fatelocked;
 
 import com.fatelocked.detectors.SkillLevelDetector;
+import com.fatelocked.rules.Trust;
+import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Player;
 import net.runelite.api.events.GameStateChanged;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -118,6 +123,33 @@ public class FateLockedLoginSessionTest
         fire(GameState.LOADING, GameState.LOGGED_IN);
         assertWarningsKept();
         assertTrue(detector().detect("Attack", 51).isPresent());
+    }
+
+    /** Rules bound to one character are answered only for that character. */
+    @Test
+    public void theDecisionServiceFollowsTheCharacterLoggedIn() throws Exception
+    {
+        FateLockedBundle rules;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("bundles/v4-rules.json"))
+        {
+            rules = FateLockedBundle.loadFromJson(new Gson(), new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        set("active", new ActiveRules(rules, FateLockedPlugin.RulesSource.RELAY));
+        Player player = mock(Player.class);
+        when(client.getLocalPlayer()).thenReturn(player);
+
+        when(player.getName()).thenReturn("Nubles");
+        fire(GameState.LOADING, GameState.LOGGED_IN);
+        assertEquals(Trust.TRUSTED, plugin.decisions().trust());
+
+        when(player.getName()).thenReturn("Someone Else");
+        when(client.getAccountHash()).thenReturn(OTHER_ACCOUNT);
+        fire(GameState.LOADING, GameState.LOGGED_IN);
+        assertEquals(Trust.WRONG_CHARACTER, plugin.decisions().trust());
+
+        when(client.getLocalPlayer()).thenReturn(null);
+        fire(GameState.LOGIN_SCREEN);
+        assertEquals(Trust.LOGGED_OUT, plugin.decisions().trust());
     }
 
     /** What a few minutes of play leaves behind. */

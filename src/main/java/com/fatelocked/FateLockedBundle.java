@@ -65,7 +65,6 @@ import java.util.zip.GZIPInputStream;
 public class FateLockedBundle
 {
     public enum LockState { UNLOCKED, LOCKED, UNAUTHORED }
-    public enum Reach { REACHABLE, LOCKED, UNKNOWN }
 
     private final String runId;
     private final String profileName;
@@ -163,12 +162,15 @@ public class FateLockedBundle
                 ? Collections.<String>emptySet() : new HashSet<>(raw.unlockedRegions);
 
         // Chunked mode: unlockedChunks' mere presence (even as an empty list)
-        // marks this as a Chunked bundle — see the class javadoc. Offsets are
-        // applied the same way index() applies them to chunks/subAreaChunks,
-        // for consistency, even though current exports always use {0,0}.
+        // marks a legacy bundle as Chunked — see the class javadoc. A v4
+        // bundle is Chunked only when its rules say so: a stray root field
+        // must not turn another mode's run into a Chunked one (R10). Offsets
+        // are applied the same way index() applies them to chunks and
+        // subAreaChunks, for consistency, even though current exports always
+        // use {0,0}.
         List<String> manifestChunks = rules != null && "chunked".equals(rules.getGameModeId())
             ? rules.getUnlocks().getChunks() : null;
-        List<String> wireChunks = manifestChunks != null
+        List<String> wireChunks = rules != null
             ? manifestChunks : (raw == null ? null : raw.unlockedChunks);
         if (wireChunks != null)
         {
@@ -248,13 +250,16 @@ public class FateLockedBundle
         this.bankChunks = bankSet;
         this.shopChunks = shopSet;
 
-        // Free-at-start baseline. v3.1+ bundles carry the mode's actual free
-        // set (full Misthalin / Lumbridge-only / none); older bundles fall
-        // back to the historical full-Misthalin assumption.
+        // Free-at-start baseline. Stage 2 rules name it from the run's own mode
+        // (R6); v3.1+ bundles carry the mode's actual free set (full Misthalin /
+        // Lumbridge-only / none) at the root; older bundles fall back to the
+        // historical full-Misthalin assumption.
         Set<String> always = new HashSet<>();
-        if (raw != null && raw.freeAreas != null)
+        List<String> free = rules != null && rules.getFreeAreas() != null
+            ? rules.getFreeAreas() : raw == null ? null : raw.freeAreas;
+        if (free != null)
         {
-            for (String a : raw.freeAreas) if (a != null) always.add(a);
+            for (String a : free) if (a != null) always.add(a);
         }
         else
         {
@@ -625,28 +630,26 @@ public class FateLockedBundle
     }
 
     /**
-     * Is a monster (e.g. a slayer task) reachable? REACHABLE if it appears in any
-     * unlocked chunk, LOCKED if every chunk holding it is locked, UNKNOWN if we
-     * have no location for it (its name isn't in the chunk-content summary).
+     * The tracker's Slayer index entry for a key: "abyssal demons",
+     * "krystilia:abyssal demons", or Konar's "konar quo maten:aberrant
+     * spectres - slayer tower" (compared lower-case, with one trailing "s"
+     * dropped, as the tracker writes them). Null when the index has no such
+     * key; empty when it has one but located none of it.
      */
-    public Reach monsterReach(String monsterName)
+    public Set<CanonicalChunk> slayerChunks(String key)
     {
-        if (monsterName == null || monsterName.trim().isEmpty()) return Reach.UNKNOWN;
-        String key = normMonster(monsterName);
-        // Prefer the complete slayer index (uncapped); fall back to the slim
-        // per-chunk monster summary (capped) for anything it doesn't cover.
-        Set<CanonicalChunk> chunks = slayerChunks.get(key);
-        if (chunks == null || chunks.isEmpty())
-        {
-            if (monsterIndex == null) buildMonsterIndex();
-            chunks = monsterIndex.get(key);
-        }
-        if (chunks == null || chunks.isEmpty()) return Reach.UNKNOWN;
-        for (CanonicalChunk c : chunks)
-        {
-            if (lockStateAt(c) == LockState.UNLOCKED) return Reach.REACHABLE;
-        }
-        return Reach.LOCKED;
+        if (key == null || key.trim().isEmpty()) return null;
+        Set<CanonicalChunk> chunks = slayerChunks.get(normMonster(key));
+        return chunks == null ? null : Collections.unmodifiableSet(chunks);
+    }
+
+    /** The chunks whose slim monster lists name a monster; empty when none do. */
+    public Set<CanonicalChunk> monsterChunks(String name)
+    {
+        if (name == null || name.trim().isEmpty()) return Collections.emptySet();
+        if (monsterIndex == null) buildMonsterIndex();
+        Set<CanonicalChunk> chunks = monsterIndex.get(normMonster(name));
+        return chunks == null ? Collections.emptySet() : Collections.unmodifiableSet(chunks);
     }
 
     private void buildMonsterIndex()
@@ -667,6 +670,12 @@ public class FateLockedBundle
             }
         }
         monsterIndex = idx;
+    }
+
+    /** A Slayer task as slayerChunks and the rules' slayerTasks key it: "krystilia:abyssal demon". */
+    public static String slayerKey(String task)
+    {
+        return task == null ? null : normMonster(task);
     }
 
     /** Lowercase + drop a trailing 's' so slayer plurals match singular monster names. */
