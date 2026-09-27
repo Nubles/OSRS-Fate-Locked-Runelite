@@ -15,6 +15,7 @@ import java.awt.Font;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.PluginPanel;
 
@@ -28,6 +29,8 @@ public class Sidebar extends JPanel
     /** The width text wraps to inside a card, before the first layout. */
     static final int TEXT_WIDTH = PluginPanel.PANEL_WIDTH - 2 * Space.EDGE - 2 * Space.PAD;
     static final String FOOTER = "More settings are in RuneLite's configuration, under Fate Locked Ironman.";
+    /** How long a notice ("Imported from the clipboard") stays before it clears (U16). */
+    static final int NOTICE_MILLIS = 8000;
 
     private static final int MARK = 28;
 
@@ -38,6 +41,10 @@ public class Sidebar extends JPanel
     private final StrictModeView strictMode;
     private final RunView run;
     private final ConnectionView connection = new ConnectionView();
+    private final RollInboxView rollInbox = new RollInboxView();
+    private final TextBlock notice = new TextBlock(Type.small(), Palette.TEXT_MUTED, 2, TEXT_WIDTH);
+    private final Timer noticeTimer = new Timer(NOTICE_MILLIS, e -> clearNotice());
+    private Palette palette = Palette.defaults();
 
     public Sidebar(IconSource icons)
     {
@@ -48,11 +55,16 @@ public class Sidebar extends JPanel
         icons.load(Art.MARK, mark::setImage);
         setBackground(Palette.PANEL);
         setBorder(new EmptyBorder(Space.EDGE, Space.EDGE, Space.EDGE, Space.EDGE));
+        noticeTimer.setRepeats(false);
+        notice.setBorder(new EmptyBorder(0, 2, 0, 2));
+        notice.setVisible(false);
         add(header());
         add(status);
+        add(notice);
         add(here);
         add(strictMode);
         add(run);
+        add(rollInbox);
         add(connection);
         add(text(FOOTER, Type.small(), Palette.TEXT_MUTED, 0));
     }
@@ -82,6 +94,37 @@ public class Sidebar extends JPanel
         return connection;
     }
 
+    public RollInboxView rollInbox()
+    {
+        return rollInbox;
+    }
+
+    /** A short message under the status card, in its tone, that clears itself after 8 seconds. */
+    public void notice(String text, Palette.Tone tone)
+    {
+        notice.setForeground(palette.text(tone));
+        notice.setText(text);
+        notice.setVisible(text != null && !text.isEmpty());
+        noticeTimer.restart();
+        revalidate();
+        repaint();
+    }
+
+    public void clearNotice()
+    {
+        noticeTimer.stop();
+        notice.setText(null);
+        notice.setVisible(false);
+        revalidate();
+        repaint();
+    }
+
+    /** The notice shown now, or null. */
+    public String noticeText()
+    {
+        return notice.isVisible() ? notice.getText() : null;
+    }
+
     public FlatButton openTracker()
     {
         return openTracker;
@@ -89,9 +132,11 @@ public class Sidebar extends JPanel
 
     public void setPalette(Palette palette)
     {
+        this.palette = palette;
         status.setPalette(palette);
         here.setPalette(palette);
         strictMode.setPalette(palette);
+        rollInbox.setPalette(palette);
     }
 
     private JComponent header()
@@ -125,11 +170,22 @@ public class Sidebar extends JPanel
     /** A label on the left and its value on the right, on one line. */
     static JPanel pair(String name, String value)
     {
-        return pair(name, value, null, IconSource.NONE);
+        return pair(name, value, Palette.TEXT, null, IconSource.NONE);
+    }
+
+    /** As {@link #pair(String, String)}, with the value in a colour. */
+    static JPanel pair(String name, String value, Color valueColour)
+    {
+        return pair(name, value, valueColour, null, IconSource.NONE);
     }
 
     /** As {@link #pair(String, String)}, with OSRS art before the label. */
     static JPanel pair(String name, String value, Art art, IconSource icons)
+    {
+        return pair(name, value, Palette.TEXT, art, icons);
+    }
+
+    private static JPanel pair(String name, String value, Color valueColour, Art art, IconSource icons)
     {
         JPanel row = new JPanel(new BorderLayout(Space.ICON_GAP, 0));
         row.setOpaque(false);
@@ -143,7 +199,7 @@ public class Sidebar extends JPanel
         }
         left.add(label(name, Type.body(), Palette.TEXT_MUTED), BorderLayout.CENTER);
         row.add(left, BorderLayout.WEST);
-        JLabel right = label(value == null ? "—" : value, Type.body(), Palette.TEXT);
+        JLabel right = label(value == null ? "—" : value, Type.body(), valueColour);
         right.setHorizontalAlignment(JLabel.RIGHT);
         row.add(right, BorderLayout.CENTER);
         return row;

@@ -30,7 +30,7 @@ public class SidebarViewsTest
             Sidebar sidebar = new Sidebar(IconSource.NONE);
             List<String> sections = all(sidebar, Section.class::isInstance).stream()
                 .map(section -> ((Section) section).getTitle()).collect(Collectors.toList());
-            assertEquals(Arrays.asList("Here", "Strict Mode", "Run", "Connection & backup"), sections);
+            assertEquals(Arrays.asList("Here", "Strict Mode", "Run", "Roll inbox", "Connection & backup"), sections);
             assertTrue(Arrays.asList(sidebar.getComponents()).indexOf(sidebar.status())
                 < Arrays.asList(sidebar.getComponents()).indexOf(sidebar.here()));
         });
@@ -107,6 +107,58 @@ public class SidebarViewsTest
     }
 
     @Test
+    public void aNoticeShowsUnderTheStatusCardAndClearsItself() throws Exception
+    {
+        onEdt(() -> {
+            Sidebar sidebar = new Sidebar(IconSource.NONE);
+            assertEquals(null, sidebar.noticeText());
+            sidebar.notice("Imported from the clipboard", Tone.GOOD);
+            assertEquals("Imported from the clipboard", sidebar.noticeText());
+            assertEquals(8000, Sidebar.NOTICE_MILLIS);
+            sidebar.clearNotice();
+            assertEquals(null, sidebar.noticeText());
+        });
+    }
+
+    @Test
+    public void theRollInboxCountsWarningsAndSaysWhenSavingFailed() throws Exception
+    {
+        onEdt(() -> {
+            RollInboxView inbox = new RollInboxView();
+            inbox.setExpanded(true);
+            int[] opened = new int[1];
+            inbox.onOpen(() -> opened[0]++);
+            inbox.apply(new RollInboxModel(4, 1, 2, true));
+            assertTrue(texts(inbox).contains("Saving the local history failed."));
+            assertTrue(texts(inbox).contains(RollInboxView.LOCAL_ONLY));
+            buttons(inbox).get(0).doClick();
+            assertEquals(1, opened[0]);
+
+            inbox.apply(new RollInboxModel(4, 1, 0, false));
+            assertFalse(texts(inbox).contains("Saving the local history failed."));
+        });
+    }
+
+    @Test
+    public void strictModeExplainsItselfOnceUntilDismissed() throws Exception
+    {
+        onEdt(() -> {
+            StrictModeView strict = new StrictModeView(IconSource.NONE);
+            int[] dismissed = new int[1];
+            strict.onIntroDismiss(() -> dismissed[0]++);
+            strict.apply(StrictModeModel.off());
+            strict.showIntro();
+            assertTrue(strict.isExpanded());
+            assertTrue(texts(strict).contains(StrictModeView.INTRO));
+
+            buttons(strict).stream().filter(b -> b.getText().equals("Got it")).findFirst().get().doClick();
+            assertEquals(1, dismissed[0]);
+            assertFalse(strict.isIntroShown());
+            assertFalse(texts(strict).contains(StrictModeView.INTRO));
+        });
+    }
+
+    @Test
     public void theConnectionSwitchAsksBeforeItChangesAnything() throws Exception
     {
         onEdt(() -> {
@@ -124,6 +176,12 @@ public class SidebarViewsTest
             assertTrue(buttons(connection).stream().anyMatch(b -> b.getText().equals("Disconnect")));
             assertTrue(buttons(connection).stream().anyMatch(b -> b.getText().equals("Check now")));
         });
+    }
+
+    private static List<String> texts(Container root)
+    {
+        return all(root, com.fatelocked.ui.TextBlock.class::isInstance).stream()
+            .map(block -> ((com.fatelocked.ui.TextBlock) block).getText()).collect(Collectors.toList());
     }
 
     private static List<FlatButton> buttons(Container root)

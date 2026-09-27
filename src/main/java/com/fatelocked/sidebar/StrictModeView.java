@@ -8,6 +8,7 @@ import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette;
 import com.fatelocked.ui.Section;
 import com.fatelocked.ui.Space;
+import com.fatelocked.ui.Stack;
 import com.fatelocked.ui.StatusPill;
 import com.fatelocked.ui.Terms;
 import com.fatelocked.ui.ToggleSwitch;
@@ -24,9 +25,16 @@ import javax.swing.JPanel;
  */
 public class StrictModeView extends Section
 {
+    static final String INTRO = "Strict Mode stops a teleport only when it can match the trip exactly and"
+        + " fresh rules for this character lock where it goes. Walking, NPCs, objects, banks and equipment are"
+        + " never stopped; tags and warnings cover those. Pause it for 60 seconds here, or with a hotkey you"
+        + " can set in RuneLite's configuration.";
+
     private final ToggleSwitch toggle = new ToggleSwitch();
     private final IconSource icons;
     private Consumer<Boolean> onToggle = on -> { };
+    private Runnable onIntroDismiss = () -> { };
+    private boolean introShown;
     private Consumer<CardAction> onAction = action -> { };
     private Palette palette = Palette.defaults();
     private StrictModeModel model;
@@ -51,6 +59,28 @@ public class StrictModeView extends Section
         onAction = handler;
     }
 
+    /** Called when the player dismisses the first-time explanation. */
+    public void onIntroDismiss(Runnable handler)
+    {
+        onIntroDismiss = handler;
+    }
+
+    /** Explain Strict Mode once, the first time it is turned on, until dismissed. */
+    public void showIntro()
+    {
+        introShown = true;
+        setExpanded(true);
+        if (model != null)
+        {
+            apply(model);
+        }
+    }
+
+    public boolean isIntroShown()
+    {
+        return introShown;
+    }
+
     public void setPalette(Palette palette)
     {
         this.palette = palette;
@@ -73,6 +103,10 @@ public class StrictModeView extends Section
         setCount(model.isOn() ? null : model.getWord());
         JPanel body = body();
         body.removeAll();
+        if (introShown)
+        {
+            body.add(intro());
+        }
 
         JPanel state = new JPanel(new BorderLayout(Space.ICON_GAP, 0));
         state.setOpaque(false);
@@ -121,5 +155,27 @@ public class StrictModeView extends Section
     public StrictModeModel model()
     {
         return model;
+    }
+
+    private JPanel intro()
+    {
+        JPanel intro = new JPanel(new Stack(Space.ROW));
+        intro.setOpaque(false);
+        intro.add(Sidebar.text(INTRO, Type.small(), Palette.TEXT, 0));
+        FlatButton gotIt = new FlatButton("Got it", FlatButton.Kind.LINK);
+        gotIt.addActionListener(e -> {
+            introShown = false;
+            onIntroDismiss.run();
+            if (model != null)
+            {
+                apply(model);
+            }
+        });
+        JPanel left = new JPanel(new BorderLayout());
+        left.setOpaque(false);
+        left.add(gotIt, BorderLayout.WEST);
+        intro.add(left);
+        intro.add(new Hairline());
+        return intro;
     }
 }
