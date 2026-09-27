@@ -457,6 +457,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(contentOverlay);
         overlayManager.add(flashOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
+        travelBlockOverlay.setPalette(this::palette);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
             () -> overlayManager.add(travelBlockOverlay),
             () -> mouseManager.registerMouseListener(travelBlockOverlay),

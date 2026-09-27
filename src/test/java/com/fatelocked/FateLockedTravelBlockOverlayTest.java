@@ -1,9 +1,12 @@
 package com.fatelocked;
 
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
+import com.fatelocked.ui.Palette;
+import net.runelite.client.ui.overlay.components.ComponentConstants;
 import org.junit.Test;
 
 import java.awt.Canvas;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -21,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public class FateLockedTravelBlockOverlayTest
 {
@@ -46,6 +50,58 @@ public class FateLockedTravelBlockOverlayTest
         enabled.set(true);
         paused.set(true);
         assertEquals(null, render(overlay));
+    }
+
+    /** E1: the banner sits on RuneLite's standard panel, in the palette's colours. */
+    @Test
+    public void theBannerSitsOnRuneLitesPanelInThePalettesColours()
+    {
+        TravelBlockNoticeStore store = new TravelBlockNoticeStore(
+            Clock.fixed(Instant.parse("2026-07-24T10:00:00Z"), ZoneOffset.UTC));
+        FateLockedTravelBlockOverlay overlay = new FateLockedTravelBlockOverlay(
+            store, () -> true, () -> false, () -> {});
+        store.show("boat:port", "Travel blocked - Boat", "Port is locked", "Varrock tablet");
+
+        BufferedImage image = new BufferedImage(500, 250, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        Dimension size = overlay.render(graphics);
+        graphics.dispose();
+        java.util.Set<Integer> drawn = colours(image);
+        Color panel = new Color(image.getRGB(size.width - 5, 5), true);
+        assertTrue("RuneLite's own panel, give or take compositing: " + panel,
+            near(panel, ComponentConstants.STANDARD_BACKGROUND_COLOR));
+        assertTrue(drawn.contains(Palette.defaults().text(Palette.Tone.BAD).getRGB()));
+        assertTrue(drawn.contains(Palette.defaults().text(Palette.Tone.GOOD).getRGB()));
+        assertTrue(drawn.contains(Palette.ACCENT.getRGB()));
+
+        Palette custom = Palette.of(Palette.Preset.CUSTOM, new Color(0, 128, 255, 110),
+            new Color(255, 255, 0, 100), new Color(128, 0, 128, 110));
+        overlay.setPalette(() -> custom);
+        image = new BufferedImage(500, 250, BufferedImage.TYPE_INT_ARGB);
+        graphics = image.createGraphics();
+        overlay.render(graphics);
+        graphics.dispose();
+        assertTrue("the block takes a player's own locked colour",
+            colours(image).contains(new Color(128, 0, 128).getRGB()));
+    }
+
+    private static boolean near(Color a, Color b)
+    {
+        return Math.abs(a.getRed() - b.getRed()) <= 1 && Math.abs(a.getGreen() - b.getGreen()) <= 1
+            && Math.abs(a.getBlue() - b.getBlue()) <= 1 && Math.abs(a.getAlpha() - b.getAlpha()) <= 1;
+    }
+
+    private static java.util.Set<Integer> colours(BufferedImage image)
+    {
+        java.util.Set<Integer> colours = new java.util.HashSet<>();
+        for (int x = 0; x < image.getWidth(); x++)
+        {
+            for (int y = 0; y < image.getHeight(); y++)
+            {
+                colours.add(image.getRGB(x, y));
+            }
+        }
+        return colours;
     }
 
     @Test

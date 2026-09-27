@@ -695,6 +695,7 @@ public class FateLockedPluginStartupContractTest
             com.fatelocked.ui.Palette safe = com.fatelocked.ui.Palette.of(
                 com.fatelocked.ui.Palette.Preset.COLOUR_BLIND_SAFE, null, null, null);
             assertSame(safe, harness.plugin.palette());
+            assertSame("the Strict Mode banner draws in it too", safe, bannerPalette(harness));
 
             harness.configuration.put("colourPreset", "DEFAULT");
             harness.plugin.onProfileChanged(new net.runelite.client.events.ProfileChanged());
@@ -705,6 +706,16 @@ public class FateLockedPluginStartupContractTest
         {
             harness.plugin.shutDown();
         }
+    }
+
+    /** The palette the Strict Mode banner would draw in now. */
+    @SuppressWarnings("unchecked")
+    private static com.fatelocked.ui.Palette bannerPalette(Harness harness) throws Exception
+    {
+        Object banner = PluginTestSupport.get(harness.plugin, "travelBlockOverlay");
+        Field field = FateLockedTravelBlockOverlay.class.getDeclaredField("palette");
+        field.setAccessible(true);
+        return ((java.util.function.Supplier<com.fatelocked.ui.Palette>) field.get(banner)).get();
     }
 
     /** Settings that can't be carried over keep their defaults, and the plugin carries on. */
