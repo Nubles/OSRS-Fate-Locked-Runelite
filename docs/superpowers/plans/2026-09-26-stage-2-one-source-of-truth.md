@@ -363,7 +363,7 @@ commit carries its builder, the field and its golden answer together.
 
 ### Phase D: web, the travel table (ships before the plugin)
 
-- [ ] **D1. `data/travelMethods.ts` and `utils/travelDecisions.ts`**
+- [x] **D1. `data/travelMethods.ts` and `utils/travelDecisions.ts`**
   with sample rows. Methods keyed by id: `label`, `unlocks` (ids from
   `MOBILITY_LIST`, `ARCANA_LIST` or `POH_LIST`), `match` (exactly one of
   `spell {book, name}`, `items`, `objects`, `npcs`), `options` keyed by exact
@@ -372,19 +372,25 @@ commit carries its builder, the field and its golden answer together.
   method's unlocks with the destination's entry. Tests: unique ids; unlock
   ids exist; every `to` is a land, ocean or interior key; no denylisted
   option.
-- [ ] **D2. Spells**, checked against the Chunk Picker Magic records,
+  *Done as* web `f535f6b`; later `a7cde41` lets a harder tier of a diary count for a switch.
+- [x] **D2. Spells**, checked against the Chunk Picker Magic records,
   with regression rows for Senntisten, Carrallanger and both Ape Atoll
   spells (G7).
-- [ ] **D3. Tablets and scrolls**, item ids cited from the OSRS Wiki.
-- [ ] **D4. Jewellery and equipment**, ids checked against the
+  *Done as* web `3580d64` and `1da0104`: 44 spells at the wiki's landing squares. Senntisten lands in 51,52, not the review's 52,52, so the plugin's G7 regression expects 51,52; the Arceuus Ape Atoll Teleport lands in the dungeon, 43,142.
+- [x] **D3. Tablets and scrolls**, item ids cited from the OSRS Wiki.
+  *Done as* web `6dc4929`: Ancient and Lunar tablets need their spellbook, as decision 3 has it for Arceuus; scrolls need no unlock.
+- [x] **D4. Jewellery and equipment**, ids checked against the
   pinned equipment catalogue; Digsite pendant, Slayer ring, Xeric's
   talisman, Drakan's medallion and the Necklace of passage's Eyrie option
   get their own unlocks (G6).
-- [ ] **D5. Networks and their stops** (fairy rings, spirit trees,
+  *Done as* web `08a0afb` (20 jewellery and teleport items), `69bf612` (30 worn items: diary rewards and capes) and `7b2be2c` (single-use items, and tablets D3 missed). Worn rows match exactly the catalogue's charged ids; the Eyrie needs Jewelry Teleports. The table is checked against the wiki's list of teleport items, pinned in `data/sources`, with each item left out given a reason.
+- [x] **D5. Networks and their stops** (fairy rings, spirit trees,
   gliders, charters and the rest), advisory in Stage 2, each stop checked
   against the network's nodes in chunk content.
-- [ ] **D6. Export `rules.travel`** with golden `travel` answers
+  *Done as* web `a148e3e` (11 networks; fairy rings with 53 codes) and `6379baf` (14 boats, which land where the app's chunk content has the crew for the way back). A few stops without a node are reviewed in the test.
+- [x] **D6. Export `rules.travel`** with golden `travel` answers
   (`"<method>|<option>": status`) and the size check.
+  *Done as* web `9ce81fa`: under a `travel` capability, left out when the chunk data didn't load. Goldens pin 32 answers each (fairy codes as `"<method>|code:<code>"`) and the bundle sends all 388. The section is about 9 KiB compressed; relay requests are 193-197 KiB. With these goldens 4e37895 and this branch fail only on the chunked-sailing frontier, as after C13.
 
 ### Phase E: the plugin reads the new sections
 
@@ -415,7 +421,8 @@ commit carries its builder, the field and its golden answer together.
 - [ ] **F1. Read `rules.travel` into a validated `TravelTable`.** Lenient
   like `knownMobility`: a bad row is dropped, never the bundle. Each match
   kind counts only for its own menu types; denylisted options are dropped;
-  caps of about 1,000 methods, 64 options and 64 ids per method, and
+  caps of about 1,000 methods, 64 options and 256 ids per method (the
+  charter ship row matches 144 crew ids), and
   120-character reasons. `TravelTableTest` and new `GoldenBundleCasesTest`
   cases.
 - [ ] **F2. Classify travel by id (G7, G13).** `IntentClassifier` replaces
