@@ -60,15 +60,15 @@ final class SettingsMigration
     }
 
     /** The colours Stage 3 kept, with the defaults they have; a changed one means Custom. */
-    private static final Map<String, String> COLOUR_DEFAULTS;
+    private static final Map<String, Color> COLOUR_DEFAULTS;
 
     static
     {
         FateLockedConfig defaults = new FateLockedConfig() { };
-        Map<String, String> colours = new LinkedHashMap<>();
-        colours.put("unlockedColor", rgb(defaults.unlockedColor()));
-        colours.put("frontierColor", rgb(defaults.frontierColor()));
-        colours.put("lockedColor", rgb(defaults.lockedColor()));
+        Map<String, Color> colours = new LinkedHashMap<>();
+        colours.put("unlockedColor", defaults.unlockedColor());
+        colours.put("frontierColor", defaults.frontierColor());
+        colours.put("lockedColor", defaults.lockedColor());
         COLOUR_DEFAULTS = Collections.unmodifiableMap(colours);
     }
 
@@ -120,8 +120,25 @@ final class SettingsMigration
                 : old(store, "drawScene") ? FateLockedConfig.ChunkBorders.ALL_EDGES
                 : FateLockedConfig.ChunkBorders.OFF).name());
         }
-        if (COLOUR_DEFAULTS.entrySet().stream().anyMatch(colour ->
-            store.get(colour.getKey()) != null && !colour.getValue().equals(store.get(colour.getKey()))))
+        boolean custom = false;
+        for (Map.Entry<String, Color> colour : COLOUR_DEFAULTS.entrySet())
+        {
+            String stored = store.get(colour.getKey());
+            if (stored == null || stored.equals(rgb(colour.getValue())))
+            {
+                continue;
+            }
+            custom = true;
+            // The old pickers saved a picked colour fully solid: the sidebar's swatches did,
+            // and RuneLite's picker hides transparency without @Alpha. A solid tint hides the
+            // map under it, so the colour gets its default's transparency back.
+            Integer picked = argb(stored);
+            if (picked != null && picked >>> 24 == 0xFF)
+            {
+                store.set(colour.getKey(), String.valueOf(colour.getValue().getAlpha() << 24 | picked & 0xFFFFFF));
+            }
+        }
+        if (custom)
         {
             store.set("colourPreset", FateLockedConfig.ColourPreset.CUSTOM.name());
         }
@@ -189,5 +206,18 @@ final class SettingsMigration
     static String rgb(Color colour)
     {
         return String.valueOf(colour.getRGB());
+    }
+
+    /** A stored colour as RuneLite reads it, alpha in the top byte; null when it can't be read. */
+    private static Integer argb(String stored)
+    {
+        try
+        {
+            return Integer.decode(stored);
+        }
+        catch (NumberFormatException e)
+        {
+            return null;
+        }
     }
 }

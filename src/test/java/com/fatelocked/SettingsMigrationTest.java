@@ -183,6 +183,36 @@ public class SettingsMigrationTest
     }
 
     /**
+     * The old pickers saved a picked colour fully solid, which hid the map under it (a player's
+     * solid red world map, 27 Sept). Such a colour keeps its hue and gets its default's
+     * transparency back; a see-through one is kept as it is.
+     */
+    @Test
+    public void aColourSavedSolidGetsItsTransparencyBack()
+    {
+        Profile player = Profile.existing("lockedColor", SettingsMigration.rgb(new Color(255, 0, 0)),
+            "frontierColor", SettingsMigration.rgb(new Color(0, 0, 255)));
+
+        player.migrated();
+
+        assertEquals(SettingsMigration.rgb(new Color(255, 0, 0, 110)), player.stored.get("lockedColor"));
+        assertEquals(SettingsMigration.rgb(new Color(0, 0, 255, 100)), player.stored.get("frontierColor"));
+        assertEquals("CUSTOM", player.stored.get("colourPreset"));
+
+        String purple = SettingsMigration.rgb(new Color(128, 0, 128, 110));
+        Profile seeThrough = Profile.existing("lockedColor", purple).migrated();
+        assertEquals(purple, seeThrough.stored.get("lockedColor"));
+        assertFalse(seeThrough.writes.contains("lockedColor"));
+    }
+
+    /** RuneLite replaces a colour it can't read before the plugin starts; the migration leaves it. */
+    @Test
+    public void anUnreadableColourIsLeftAlone()
+    {
+        assertEquals("red", setting("lockedColor", "lockedColor", "red"));
+    }
+
+    /**
      * On a profile switch RuneLite may store that profile's defaults after the plugin has run,
      * so a colour that isn't stored yet is still the default one.
      */
