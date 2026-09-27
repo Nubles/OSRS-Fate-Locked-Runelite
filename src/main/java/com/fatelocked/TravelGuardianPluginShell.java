@@ -14,7 +14,8 @@ import java.time.Clock;
 
 /**
  * Thin plugin boundary for coordinator routing and post-enforcement side
- * effects. It never repeats travel recognition, evaluation, or presentation.
+ * effects. It reads the click into {@link MenuFacts} on the client thread
+ * and never repeats travel recognition, evaluation, or presentation.
  * Clicks that are not exactly matched travel are left alone.
  */
 final class TravelGuardianPluginShell
@@ -77,9 +78,8 @@ final class TravelGuardianPluginShell
         TravelGuardianResult result;
         try
         {
-            result = coordinator.handle(
-                event, event.getMenuEntry(), client, origin,
-                readiness, travelRules, availability);
+            MenuFacts facts = new MenuFactsReader(client).read(event.getMenuEntry());
+            result = coordinator.handle(event, facts, origin, readiness, travelRules, availability);
         }
         catch (RuntimeException ex)
         {

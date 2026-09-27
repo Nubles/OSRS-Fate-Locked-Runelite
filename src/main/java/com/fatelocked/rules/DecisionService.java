@@ -115,6 +115,27 @@ public final class DecisionService
         return place.getName() != null ? place.getName() : place.getArea();
     }
 
+    /**
+     * The tracker's travel table, on any character: what a click is isn't a
+     * decision (F2). Null when the rules have none, as older rules don't.
+     */
+    public TravelTable travelTable()
+    {
+        return rules.travelTable();
+    }
+
+    /**
+     * A travel option's decision, as the tracker's table has it for the run
+     * (F3): it counts the unlocks the method needs and where it lands.
+     */
+    public Decision travel(TravelTable.Method method, TravelTable.Option option)
+    {
+        Decision gate = gate();
+        if (gate != null) return gate;
+        if (method == null || option == null) return unmapped(null);
+        return new Decision(option.getStatus(), method.getLabel(), option.getReason(), Decision.Source.TRAVEL);
+    }
+
     /** The tracker's rows for a chunk, for the sidebar; empty unless the rules apply. */
     public Optional<ChunkPermissionSnapshot> details(CanonicalChunk chunk)
     {

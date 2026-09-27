@@ -5,7 +5,7 @@ import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeGuard;
 import com.fatelocked.guardian.StrictModePause;
 import com.fatelocked.guardian.StrictModeReadiness;
-import com.fatelocked.guardian.travel.TravelActionResolver;
+import com.fatelocked.guardian.travel.IntentClassifier;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
@@ -14,7 +14,6 @@ import com.fatelocked.guardian.travel.TravelRuleEvaluator;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
-import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuOptionClicked;
@@ -105,9 +104,9 @@ public class StrictModeGateTest
         StrictModeReadiness.State state = harness.plugin.strictModeReadiness().getState();
         assertEquals("the sidebar's readiness", expectedState(), state);
 
-        MenuOptionClicked teleport = click("Teleport", "Lumbridge", 0);
-        MenuOptionClicked dialogue = click("Continue", "", 0);
-        MenuOptionClicked wield = click("Wield", "Abyssal whip", 4151);
+        MenuOptionClicked teleport = TravelClicks.cast("Falador Teleport");
+        MenuOptionClicked dialogue = TravelClicks.click(MenuAction.WIDGET_CONTINUE, "Continue", "");
+        MenuOptionClicked wield = TravelClicks.item(4151, "Wield", "Abyssal whip");
         harness.plugin.onMenuOptionClicked(teleport);
         harness.plugin.onMenuOptionClicked(dialogue);
         harness.plugin.onMenuOptionClicked(wield);
@@ -132,18 +131,6 @@ public class StrictModeGateTest
             return StrictModeReadiness.State.INACTIVE;
         }
         return paused ? StrictModeReadiness.State.PAUSED : StrictModeReadiness.State.ACTIVE;
-    }
-
-    private static MenuOptionClicked click(String option, String target, int itemId)
-    {
-        MenuEntry entry = mock(MenuEntry.class);
-        when(entry.getOption()).thenReturn(option);
-        when(entry.getTarget()).thenReturn(target);
-        when(entry.getType()).thenReturn(MenuAction.UNKNOWN);
-        when(entry.getItemId()).thenReturn(itemId);
-        MenuOptionClicked click = mock(MenuOptionClicked.class);
-        when(click.getMenuEntry()).thenReturn(entry);
-        return click;
     }
 
     private static String fixture(String name) throws Exception
@@ -176,9 +163,8 @@ public class StrictModeGateTest
             }
             set("client", client);
 
-            // Every chunk locked, so the Lumbridge teleport is a proven lock.
-            String locked = fixture("bundles/v4-rules.json")
-                .replace("\"entry\": \"ALLOWED\"", "\"entry\": \"LOCKED\"");
+            // The fixture's travel table locks Falador Teleport: a proven lock.
+            String locked = fixture("bundles/v4-travel.json");
             Gson gson = new Gson();
             switch (rules)
             {
@@ -214,7 +200,7 @@ public class StrictModeGateTest
             when(finder.find(any(), any(), any())).thenReturn(Optional.empty());
             set("travelGuardianShell", new TravelGuardianPluginShell(
                 new TravelGuardianCoordinator(
-                    new TravelActionResolver(),
+                    new IntentClassifier(),
                     new TravelRuleEvaluator(),
                     finder,
                     new TravelBlockNoticeStore(Clock.systemUTC()),

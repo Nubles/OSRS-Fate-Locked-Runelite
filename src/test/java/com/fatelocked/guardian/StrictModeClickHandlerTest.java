@@ -7,6 +7,8 @@ import com.fatelocked.guardian.travel.TravelDecision;
 import net.runelite.api.events.MenuOptionClicked;
 import org.junit.Test;
 
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.mock;
@@ -68,17 +70,14 @@ public class StrictModeClickHandlerTest
 
     private static TravelAction exactTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.SPELL_OR_ITEM, "named-teleport", "Teleport falador", null,
-            new CanonicalChunk(51, 51), null,
-            TravelAction.Confidence.EXACT);
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport", null,
+            Collections.singletonList(new CanonicalChunk(46, 52)), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown", null,
-            null, null, TravelAction.Confidence.UNKNOWN);
+        return new TravelAction(null, null, "Unknown", null,
+            Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 
     private static TravelDecision travelDecision(PermissionStatus status)

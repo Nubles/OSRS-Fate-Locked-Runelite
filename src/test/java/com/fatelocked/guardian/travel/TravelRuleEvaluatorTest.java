@@ -2,173 +2,122 @@ package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
-import com.fatelocked.rules.Decision;
+import com.fatelocked.MenuFacts;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import org.junit.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+import static com.fatelocked.guardian.travel.TravelFixtures.AMULET_OF_GLORY_4;
+import static com.fatelocked.guardian.travel.TravelFixtures.ANCIENT;
+import static com.fatelocked.guardian.travel.TravelFixtures.DIGSITE_PENDANT_5;
+import static com.fatelocked.guardian.travel.TravelFixtures.FAIRY_RING;
+import static com.fatelocked.guardian.travel.TravelFixtures.FALADOR_TABLET;
+import static com.fatelocked.guardian.travel.TravelFixtures.LUMBRIDGE_TABLET;
+import static com.fatelocked.guardian.travel.TravelFixtures.cast;
+import static com.fatelocked.guardian.travel.TravelFixtures.item;
+import static com.fatelocked.guardian.travel.TravelFixtures.nubles;
+import static com.fatelocked.guardian.travel.TravelFixtures.object;
+import static com.fatelocked.guardian.travel.TravelFixtures.other;
+import static com.fatelocked.guardian.travel.TravelFixtures.spell;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
+/**
+ * F3 (G6): a trip's decision is the tracker's own for the option clicked,
+ * which already counts the unlocks the method needs and where it lands. An
+ * option that can go to several places is Unknown, even when the tracker
+ * locks it: the place is picked after the click.
+ */
 public class TravelRuleEvaluatorTest
 {
+    private static final CanonicalChunk ORIGIN = new CanonicalChunk(50, 51);
+
     private final TravelRuleEvaluator evaluator = new TravelRuleEvaluator();
-    private final CanonicalChunk destination = new CanonicalChunk(50, 50);
+    private final IntentClassifier classifier = new IntentClassifier();
+    private final DecisionService rules = nubles();
 
     @Test
-    public void onlyExactAuthoredLocksRemainLocked() throws Exception
+    public void aTripIsTheTrackersDecisionForItsOption()
     {
-        TravelDecision destinationLocked = evaluator.evaluate(
-            exact(null), rules("LOCKED", "[\"Fairy Rings\"]", true));
-        assertEquals(PermissionStatus.LOCKED, destinationLocked.getStatus());
-        assertEquals("Lumbridge is locked", destinationLocked.getReason());
-
-        TravelDecision mobilityLocked = evaluator.evaluate(
-            exact("Fairy Rings"), rules("ALLOWED", "[]", true));
-        assertEquals(PermissionStatus.LOCKED, mobilityLocked.getStatus());
-        assertEquals("Fairy Rings is not unlocked", mobilityLocked.getReason());
-
-        assertEquals(PermissionStatus.ALLOWED,
-            evaluator.evaluate(exact("Fairy Rings"),
-                rules("ALLOWED", "[\"Fairy Rings\"]", true)).getStatus());
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(unknown(),
-                rules("ALLOWED", "[\"Fairy Rings\"]", true)).getStatus());
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exact("Unmapped Network"),
-                rules("ALLOWED", "[\"Fairy Rings\"]", true)).getStatus());
+        assertEquals(new TravelDecision(PermissionStatus.LOCKED, "Falador Teleport", "Unlock Falador"),
+            evaluate(cast("Falador Teleport"), rules));
+        assertEquals(new TravelDecision(PermissionStatus.ALLOWED, "Lumbridge Teleport", null),
+            evaluate(cast("Lumbridge Teleport"), rules));
+        assertEquals(new TravelDecision(PermissionStatus.NOT_READY, "Camelot Teleport", "No route from Lumbridge"),
+            evaluate(cast("Camelot Teleport"), rules));
+        assertEquals(new TravelDecision(PermissionStatus.LOCKED, "Falador teleport", "Unlock Falador"),
+            evaluate(item(FALADOR_TABLET, "Break", "Falador teleport"), rules));
+        assertEquals(PermissionStatus.ALLOWED, evaluate(item(LUMBRIDGE_TABLET, "Break", "Lumbridge teleport"), rules).getStatus());
+        assertEquals(new TravelDecision(PermissionStatus.LOCKED, "Amulet of glory(4) to Al Kharid", "Unlock Al Kharid"),
+            evaluate(item(AMULET_OF_GLORY_4, "Al Kharid", "Amulet of glory(4)"), rules));
     }
 
+    /** G6: the method's own unlock, as the web names it: a spellbook, the Digsite pendant. */
     @Test
-    public void destinationUncertaintyTakesPrecedenceOverMobility() throws Exception
+    public void eachMethodNeedsItsOwnUnlock()
     {
-        DecisionService lockedMobility = rules("ALLOWED", "[]", true);
-
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exactAt(new CanonicalChunk(1, 1), "Fairy Rings"),
-                lockedMobility).getStatus());
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exact("Fairy Rings"),
-                rules("NOT_READY", "[]", true)).getStatus());
-        assertEquals(PermissionStatus.LOCKED,
-            evaluator.evaluate(exact("Unmapped Network"),
-                rules("LOCKED", "[]", true)).getStatus());
+        assertEquals(new TravelDecision(PermissionStatus.LOCKED, "Senntisten Teleport", "Needs Ancient Magicks"),
+            evaluate(spell(ANCIENT, "Cast", "Senntisten Teleport"), rules));
+        assertEquals(new TravelDecision(PermissionStatus.LOCKED, "Digsite pendant (5) to Digsite", "Needs Digsite Pendant"),
+            evaluate(item(DIGSITE_PENDANT_5, "Digsite", "Digsite pendant (5)"), rules));
     }
 
+    /** G7: several places, or none, are Unknown whatever the tracker says. */
     @Test
-    public void notReadyMobilityRemainsUnknown()
+    public void severalPlacesAreUnknown()
     {
-        DecisionService notReady = mock(DecisionService.class);
-        when(notReady.chunk(destination)).thenReturn(
-            new Decision(PermissionStatus.ALLOWED, "Lumbridge", null, Decision.Source.CHUNK));
-        when(notReady.mobility("Fairy Rings")).thenReturn(
-            new Decision(PermissionStatus.NOT_READY, "Fairy Rings", null, Decision.Source.MOBILITY));
-
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exact("Fairy Rings"), notReady).getStatus());
+        assertEquals(PermissionStatus.UNKNOWN, evaluate(item(DIGSITE_PENDANT_5, "Rub", "Digsite pendant (5)"), rules).getStatus());
+        assertEquals(PermissionStatus.UNKNOWN, evaluate(cast("Varrock Teleport"), rules).getStatus());
+        assertEquals(PermissionStatus.UNKNOWN, evaluate(item(AMULET_OF_GLORY_4, "Rub", "Amulet of glory(4)"), rules).getStatus());
     }
 
-    /** Only the tracker's own chunk decisions count; an older export's never do. */
+    /** Advisory travel still has the tracker's decision, for tags; the guard never blocks it. */
     @Test
-    public void untrustedAndLegacyRulesNeverBecomeLocked() throws Exception
+    public void advisoryTravelKeepsItsDecision()
     {
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exact(null),
-                rules("LOCKED", "[]", false)).getStatus());
-
-        // The v3 fixture with Seers' Village added and not unlocked.
-        JsonObject v3 = new Gson().fromJson(fixtureText("bundles/v3-standard.json"), JsonObject.class);
-        JsonArray seers = new Gson().fromJson("[{\"cx\":42,\"cy\":54}]", JsonArray.class);
-        v3.getAsJsonObject("chunks").add("Kandarin", seers);
-        v3.getAsJsonObject("subAreaChunks").add("Seers' Village", seers.deepCopy());
-        v3.getAsJsonObject("regionGroups").add("Kandarin",
-            new Gson().fromJson("[\"Seers' Village\"]", JsonArray.class));
-        DecisionService legacy = DecisionService.create(
-            RulesSnapshot.of(FateLockedBundle.loadFromJson(new Gson(), v3.toString())), "nubles", "nubles");
-        CanonicalChunk seersVillage = new CanonicalChunk(42, 54);
-        assertEquals("the older export locks it", PermissionStatus.LOCKED, legacy.chunk(seersVillage).getStatus());
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(exactAt(seersVillage, null), legacy).getStatus());
+        assertEquals(new TravelDecision(PermissionStatus.LOCKED, "Fairy ring to Zanaris", "Needs Fairy Rings"),
+            evaluate(object(FAIRY_RING, "Zanaris", "Fairy ring"), rules));
     }
 
     @Test
-    public void nullAndUnresolvedActionsRemainUnknown() throws Exception
+    public void anotherCharacterOrOlderRulesDecideNothing() throws Exception
     {
-        DecisionService allowed = rules("ALLOWED", "[\"Fairy Rings\"]", true);
+        TravelDecision other = evaluate(cast("Falador Teleport"), TravelFixtures.playing("zezima"));
+        assertEquals(PermissionStatus.UNKNOWN, other.getStatus());
 
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(null, allowed).getStatus());
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(new TravelAction(
-                TravelAction.Family.WALK, "walk", "Walk here", destination,
-                null, null, TravelAction.Confidence.EXACT), allowed).getStatus());
-        TravelDecision unknown = evaluator.evaluate(unknown(), allowed);
-        assertEquals("Unknown travel", unknown.getLabel());
-        assertNull(unknown.getReason());
-        assertEquals(PermissionStatus.UNKNOWN, evaluator.evaluate(exact(null), null).getStatus());
+        DecisionService legacy = DecisionService.create(RulesSnapshot.of(fixture("bundles/v3-standard.json")), "nubles", "nubles");
+        assertEquals(PermissionStatus.UNKNOWN, evaluate(cast("Falador Teleport"), legacy).getStatus());
     }
 
     @Test
-    public void unresolvedNamedMethodsRemainUnknownEvenWhenTheDestinationWouldLock()
-        throws Exception
+    public void anythingElseIsUnknown()
     {
-        DecisionService locked = rules("LOCKED", "[\"Fairy Rings\"]", true);
-        TravelAction unresolved = new TravelAction(
-            TravelAction.Family.SPELL_OR_ITEM, "named-teleport",
-            "Teleport New destination", new CanonicalChunk(49, 50), null,
-            null, TravelAction.Confidence.UNKNOWN);
-
-        assertEquals(PermissionStatus.UNKNOWN,
-            evaluator.evaluate(unresolved, locked).getStatus());
+        assertEquals(new TravelDecision(PermissionStatus.UNKNOWN, "Continue", null), evaluate(other("Continue", ""), rules));
+        assertEquals(new TravelDecision(PermissionStatus.UNKNOWN, "Unknown travel", null), evaluator.evaluate(null, null, rules));
+        TravelMatch match = classifier.classify(cast("Falador Teleport"), rules.travelTable());
+        TravelAction action = TravelAction.of(match, cast("Falador Teleport"), ORIGIN);
+        assertEquals(PermissionStatus.UNKNOWN, evaluator.evaluate(match, action, null).getStatus());
+        assertEquals(PermissionStatus.UNKNOWN, evaluator.evaluate(null, action, rules).getStatus());
+        assertNull(evaluator.evaluate(null, action, rules).getReason());
     }
 
-    private TravelAction exact(String requiredUnlock)
+    private TravelDecision evaluate(MenuFacts facts, DecisionService decisions)
     {
-        return exactAt(destination, requiredUnlock);
+        TravelMatch match = classifier.classify(facts, decisions.travelTable());
+        TravelAction action = match == null ? TravelAction.notTravel(facts, ORIGIN) : TravelAction.of(match, facts, ORIGIN);
+        return evaluator.evaluate(match, action, decisions);
     }
 
-    private TravelAction exactAt(CanonicalChunk chunk, String requiredUnlock)
-    {
-        return new TravelAction(
-            TravelAction.Family.WALK, "walk", "Walk here",
-            new CanonicalChunk(49, 50), chunk, requiredUnlock,
-            TravelAction.Confidence.EXACT);
-    }
-
-    private TravelAction unknown()
-    {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown travel",
-            new CanonicalChunk(49, 50), null, null,
-            TravelAction.Confidence.UNKNOWN);
-    }
-
-    /** The v4 fixture (bound to Nubles) with this entry and rolled mobility, for Nubles or someone else. */
-    private DecisionService rules(String entry, String mobility, boolean boundCharacter)
-        throws Exception
-    {
-        String json = fixtureText("bundles/v4-rules.json")
-            .replace("\"entry\": \"ALLOWED\"", "\"entry\": \"" + entry + "\"")
-            .replace("\"mobility\": [\"Fairy Rings\"]", "\"mobility\": " + mobility);
-        return DecisionService.create(
-            RulesSnapshot.of(FateLockedBundle.loadFromJson(new Gson(), json)),
-            "nubles", boundCharacter ? "nubles" : "zezima");
-    }
-
-    private String fixtureText(String name) throws Exception
+    private FateLockedBundle fixture(String name) throws Exception
     {
         try (InputStream in = getClass().getClassLoader().getResourceAsStream(name))
         {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return FateLockedBundle.loadFromJson(new Gson(), new String(in.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
 }

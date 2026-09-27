@@ -1,24 +1,25 @@
 package com.fatelocked.guardian.travel;
 
 import com.fatelocked.CanonicalChunk;
+import com.fatelocked.MenuFacts;
 import com.fatelocked.guardian.GuardResult;
 import com.fatelocked.guardian.StrictModeClickHandler;
 import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.rules.DecisionService;
-import net.runelite.api.Client;
-import net.runelite.api.MenuEntry;
 import net.runelite.api.events.MenuOptionClicked;
 
 import java.util.Optional;
 
 /**
- * Owns the complete recognised-travel flow. One verdict from the Strict Mode
- * gate routes the click; the click handler is invoked only for a proven
- * block, and only after every presentation decision has been staged.
+ * Owns the complete recognised-travel flow. The tracker's travel table
+ * says what a click is, by id (F2), and what it decides for the option
+ * (F3). One verdict from the Strict Mode gate routes the click; the click
+ * handler is invoked only for a proven block, and only after every
+ * presentation decision has been staged.
  */
 public final class TravelGuardianCoordinator
 {
-    private final TravelActionResolver resolver;
+    private final IntentClassifier classifier;
     private final TravelRuleEvaluator evaluator;
     private final TravelAlternativeFinder alternativeFinder;
     private final TravelBlockNoticeStore noticeStore;
@@ -26,24 +27,24 @@ public final class TravelGuardianCoordinator
     private final EnforcementPresenter presenter;
 
     public TravelGuardianCoordinator(
-        TravelActionResolver resolver,
+        IntentClassifier classifier,
         TravelRuleEvaluator evaluator,
         TravelAlternativeFinder alternativeFinder,
         TravelBlockNoticeStore noticeStore,
         StrictModeClickHandler clickHandler)
     {
-        this(resolver, evaluator, alternativeFinder, noticeStore, clickHandler, new EnforcementPresenter());
+        this(classifier, evaluator, alternativeFinder, noticeStore, clickHandler, new EnforcementPresenter());
     }
 
     TravelGuardianCoordinator(
-        TravelActionResolver resolver,
+        IntentClassifier classifier,
         TravelRuleEvaluator evaluator,
         TravelAlternativeFinder alternativeFinder,
         TravelBlockNoticeStore noticeStore,
         StrictModeClickHandler clickHandler,
         EnforcementPresenter presenter)
     {
-        this.resolver = resolver;
+        this.classifier = classifier;
         this.evaluator = evaluator;
         this.alternativeFinder = alternativeFinder;
         this.noticeStore = noticeStore;
@@ -53,15 +54,16 @@ public final class TravelGuardianCoordinator
 
     public TravelGuardianResult handle(
         MenuOptionClicked event,
-        MenuEntry entry,
-        Client client,
+        MenuFacts facts,
         CanonicalChunk origin,
         StrictModeReadiness readiness,
         DecisionService rules,
         TravelAvailability availability)
     {
-        TravelAction action = resolver.resolve(entry, client, origin);
-        TravelDecision decision = evaluator.evaluate(action, rules);
+        TravelMatch match = rules == null ? null : classifier.classify(facts, rules.travelTable());
+        TravelAction action = match == null
+            ? TravelAction.notTravel(facts, origin) : TravelAction.of(match, facts, origin);
+        TravelDecision decision = evaluator.evaluate(match, action, rules);
         GuardResult verdict = clickHandler.decide(action, decision, readiness);
 
         if (verdict.getOutcome() == GuardResult.Outcome.ALLOW_PAUSED)
@@ -119,12 +121,9 @@ public final class TravelGuardianCoordinator
         }
     }
 
+    /** One trip: the table's method and option. */
     private static String fingerprint(TravelAction action)
     {
-        CanonicalChunk destination = action.getDestination();
-        String method = action.getMethodId() == null
-            ? action.getFamily().name().toLowerCase()
-            : action.getMethodId();
-        return method + ":" + destination.getCx() + "," + destination.getCy();
+        return action.getMethodId() + "|" + action.getOption();
     }
 }

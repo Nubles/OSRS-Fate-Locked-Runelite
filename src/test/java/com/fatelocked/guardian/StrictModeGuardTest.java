@@ -6,6 +6,9 @@ import com.fatelocked.guardian.travel.TravelAction;
 import com.fatelocked.guardian.travel.TravelDecision;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+
 import static org.junit.Assert.assertEquals;
 
 public class StrictModeGuardTest
@@ -33,6 +36,12 @@ public class StrictModeGuardTest
             guard.decideTravel(unknownTravel(), locked, active()).getOutcome());
         assertEquals("an exact match needs somewhere to go", GuardResult.Outcome.ALLOW,
             guard.decideTravel(noDestination(), locked, active()).getOutcome());
+        assertEquals("one place, not one of several", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(severalPlaces(), locked, active()).getOutcome());
+        assertEquals("networks and boats are tagged, never blocked", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, active()).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, paused()).getOutcome());
     }
 
     @Test
@@ -98,24 +107,32 @@ public class StrictModeGuardTest
 
     private static TravelAction exactTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.SPELL_OR_ITEM, "named-teleport", "Teleport falador", null,
-            new CanonicalChunk(51, 51), null,
-            TravelAction.Confidence.EXACT);
+        return new TravelAction("spell:standard:falador-teleport", "Cast", "Falador Teleport", null,
+            Collections.singletonList(new CanonicalChunk(46, 52)), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction noDestination()
     {
-        return new TravelAction(
-            TravelAction.Family.SPELL_OR_ITEM, "named-teleport", "Teleport", null,
-            null, null, TravelAction.Confidence.EXACT);
+        return new TravelAction("item:somewhere", "Teleport", "Teleport", null,
+            Collections.emptyList(), false, TravelAction.Confidence.EXACT);
+    }
+
+    private static TravelAction severalPlaces()
+    {
+        return new TravelAction("item:digsite-pendant", "Rub", "Digsite pendant", null,
+            Arrays.asList(new CanonicalChunk(52, 53), new CanonicalChunk(58, 59)), false, TravelAction.Confidence.EXACT);
+    }
+
+    private static TravelAction advisory()
+    {
+        return new TravelAction("network:fairy-ring", "Zanaris", "Fairy ring to Zanaris", null,
+            Collections.singletonList(new CanonicalChunk(37, 69)), true, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()
     {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown", null,
-            null, null, TravelAction.Confidence.UNKNOWN);
+        return new TravelAction(null, null, "Unknown", null,
+            Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 
     private static TravelDecision travelDecision(PermissionStatus status)

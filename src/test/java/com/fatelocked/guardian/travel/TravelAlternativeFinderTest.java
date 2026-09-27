@@ -258,18 +258,15 @@ public class TravelAlternativeFinderTest
 
     private static TravelAction exactAction(CanonicalChunk destination)
     {
-        return new TravelAction(
-            TravelAction.Family.WALK, "walk", "Walk here",
-            new CanonicalChunk(49, 50), destination, null,
-            TravelAction.Confidence.EXACT);
+        return new TravelAction("spell:standard:somewhere", "Cast", "Somewhere Teleport",
+            new CanonicalChunk(49, 50), destination == null ? Collections.emptyList()
+                : Collections.singletonList(destination), false, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownAction()
     {
-        return new TravelAction(
-            TravelAction.Family.UNKNOWN, "unknown", "Unknown",
-            new CanonicalChunk(49, 50), null, null,
-            TravelAction.Confidence.UNKNOWN);
+        return new TravelAction(null, null, "Unknown",
+            new CanonicalChunk(49, 50), Collections.emptyList(), false, TravelAction.Confidence.UNKNOWN);
     }
 
     private static Set<Integer> setOf(Integer... values)

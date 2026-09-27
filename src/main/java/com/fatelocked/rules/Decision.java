@@ -25,6 +25,8 @@ public class Decision
         AREA,
         /** Whether a Slayer task's monsters live anywhere owned. */
         SLAYER,
+        /** A travel option's decision in the tracker's travel table. */
+        TRAVEL,
         /** The v1–3 root-field rules of an older export. */
         LEGACY,
         /** The rules don't apply to this character, or none are loaded. */

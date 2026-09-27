@@ -37,12 +37,17 @@ public final class StrictModeGuard
         }
     }
 
-    /** Exactly matched travel to a known destination that the rules prove locked. */
+    /**
+     * The code's outer limit, which the rules can't widen (F3): travel the
+     * tracker's table matched by id, with one destination, not advisory, and
+     * a LOCKED decision. Networks and boats are advisory in Stage 2.
+     */
     private static boolean provesLocked(TravelAction action, TravelDecision decision)
     {
         return action != null && decision != null
             && action.getConfidence() == TravelAction.Confidence.EXACT
             && action.getDestination() != null
+            && !action.isAdvisory()
             && decision.getStatus() == PermissionStatus.LOCKED;
     }
 }

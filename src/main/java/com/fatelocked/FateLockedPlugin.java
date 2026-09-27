@@ -25,7 +25,7 @@ import com.fatelocked.guardian.StrictModeAuditPresenter;
 import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.guardian.travel.RuneLiteTravelAvailability;
-import com.fatelocked.guardian.travel.TravelActionResolver;
+import com.fatelocked.guardian.travel.IntentClassifier;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
@@ -237,7 +237,7 @@ public class FateLockedPlugin extends Plugin
     private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
     /** Strict Mode's status as last worked out, for the HUD; null until then. */
     @Getter private volatile StrictModeStatusView strictModeStatus;
-    private TravelActionResolver travelActionResolver;
+    private IntentClassifier intentClassifier;
     private TravelRuleEvaluator travelRuleEvaluator;
     private TravelAvailability travelAvailability;
     private TravelAlternativeFinder travelAlternativeFinder;
@@ -397,13 +397,13 @@ public class FateLockedPlugin extends Plugin
             relayImporter,
             panel::updateConnection);
 
-        travelActionResolver = new TravelActionResolver();
+        intentClassifier = new IntentClassifier();
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
         travelAlternativeFinder = new TravelAlternativeFinder();
         travelNoticeStore = new TravelBlockNoticeStore(Clock.systemUTC());
         travelGuardianCoordinator = new TravelGuardianCoordinator(
-            travelActionResolver,
+            intentClassifier,
             travelRuleEvaluator,
             travelAlternativeFinder,
             travelNoticeStore,

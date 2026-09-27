@@ -203,7 +203,7 @@ public class GoldenBundleContractTest
     }
 
     /** The menu texts a method's options are clicked as: each option, and a fairy ring's Last-destination for each code. */
-    private static List<String> texts(TravelTable.Method method)
+    static List<String> texts(TravelTable.Method method)
     {
         List<String> texts = new ArrayList<>(method.getOptions().keySet());
         for (String code : method.getCodes().keySet()) texts.add("Last-destination (" + code + ")");
@@ -211,7 +211,7 @@ public class GoldenBundleContractTest
     }
 
     /** Clicks on a method as the game gives them: its spell on the spellbook, or each id in the inventory or the scene. */
-    private static List<MenuFacts> clicks(TravelTable.Method method, String option)
+    static List<MenuFacts> clicks(TravelTable.Method method, String option)
     {
         List<MenuFacts> clicks = new ArrayList<>();
         if (method.getMatch() == TravelTable.Match.SPELL)

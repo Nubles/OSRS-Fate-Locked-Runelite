@@ -1,0 +1,402 @@
+{
+  "version": 4,
+  "runId": "run-1",
+  "runRevision": 41,
+  "rulesVersion": "1",
+  "contentVersion": 1,
+  "detectorContractVersion": 1,
+  "chunks": {
+    "Misthalin": [
+      {
+        "cx": 50,
+        "cy": 50
+      }
+    ]
+  },
+  "subAreaChunks": {
+    "Lumbridge": [
+      {
+        "cx": 50,
+        "cy": 50
+      }
+    ]
+  },
+  "regionGroups": {
+    "Misthalin": [
+      "Lumbridge"
+    ]
+  },
+  "unlockedRegions": [
+    "Lumbridge"
+  ],
+  "state": {
+    "linkedAccount": "Nubles"
+  },
+  "rules": {
+    "rulesVersion": "1",
+    "contentVersion": 1,
+    "detectorContractVersion": 1,
+    "runId": "run-1",
+    "runRevision": 41,
+    "account": "Nubles",
+    "gameModeId": "vanilla",
+    "exportedAt": "2026-07-24T10:00:00.000Z",
+    "bankLocks": true,
+    "knownMobility": [
+      "Fairy Rings",
+      "Spirit Trees"
+    ],
+    "unlocks": {
+      "regions": [
+        "Lumbridge"
+      ],
+      "chunks": [],
+      "skills": {},
+      "levels": {},
+      "equipment": {
+        "Weapon": 5
+      },
+      "banks": [
+        "12850"
+      ],
+      "merchants": [
+        "General Stores"
+      ],
+      "bosses": [],
+      "minigames": [],
+      "mobility": [
+        "Fairy Rings"
+      ],
+      "arcana": [],
+      "guilds": [],
+      "farming": [],
+      "slayer": [],
+      "quests": []
+    },
+    "itemRules": {
+      "4151": {
+        "tier": 7,
+        "slot": "Weapon"
+      }
+    },
+    "chunks": {
+      "50,50": {
+        "chunkKey": "50,50",
+        "name": "Lumbridge",
+        "region": "Misthalin",
+        "entry": "ALLOWED",
+        "categories": {
+          "SKILLING": [
+            {
+              "key": "skill:oak tree",
+              "name": "Oak tree",
+              "status": "ALLOWED",
+              "detail": "Woodcutting 30/15 · cap 50",
+              "targetKind": "OBJECT"
+            }
+          ],
+          "BANKS": [
+            {
+              "key": "bank:12850",
+              "name": "Lumbridge Castle",
+              "status": "ALLOWED",
+              "targetKind": "BANK"
+            }
+          ],
+          "SHOPS": [
+            {
+              "key": "shop:lumbridge general store",
+              "name": "Lumbridge General Store",
+              "status": "ALLOWED",
+              "targetKind": "SHOP"
+            }
+          ],
+          "QUESTS": [
+            {
+              "key": "quest:cook's assistant",
+              "name": "Cook's Assistant",
+              "status": "NOT_READY"
+            }
+          ],
+          "COMBAT": [
+            {
+              "key": "combat:goblin",
+              "name": "Goblin",
+              "status": "LOCKED",
+              "targetKind": "NPC"
+            }
+          ]
+        },
+        "counts": {
+          "allowed": 3,
+          "notReady": 0,
+          "locked": 0,
+          "unknown": 0
+        }
+      }
+    },
+    "capabilities": [
+      "travel"
+    ],
+    "travel": {
+      "spell:standard:lumbridge-teleport": {
+        "label": "Lumbridge Teleport",
+        "unlocks": [],
+        "match": {
+          "spell": {
+            "book": "standard",
+            "name": "Lumbridge Teleport"
+          }
+        },
+        "options": {
+          "Cast": {
+            "to": [
+              "50,50"
+            ],
+            "status": "ALLOWED"
+          }
+        }
+      },
+      "spell:standard:falador-teleport": {
+        "label": "Falador Teleport",
+        "unlocks": [],
+        "match": {
+          "spell": {
+            "book": "standard",
+            "name": "Falador Teleport"
+          }
+        },
+        "options": {
+          "Cast": {
+            "to": [
+              "46,52"
+            ],
+            "status": "LOCKED",
+            "reason": "Unlock Falador"
+          }
+        }
+      },
+      "spell:standard:camelot-teleport": {
+        "label": "Camelot Teleport",
+        "unlocks": [],
+        "match": {
+          "spell": {
+            "book": "standard",
+            "name": "Camelot Teleport"
+          }
+        },
+        "options": {
+          "Cast": {
+            "to": [
+              "43,54"
+            ],
+            "status": "NOT_READY",
+            "reason": "No route from Lumbridge"
+          }
+        }
+      },
+      "spell:standard:varrock-teleport": {
+        "label": "Varrock Teleport",
+        "unlocks": [],
+        "match": {
+          "spell": {
+            "book": "standard",
+            "name": "Varrock Teleport"
+          }
+        },
+        "options": {
+          "Cast": {
+            "to": [
+              "50,53",
+              "49,54"
+            ],
+            "status": "UNKNOWN",
+            "reason": "Goes to one of several places"
+          }
+        }
+      },
+      "spell:ancient:senntisten-teleport": {
+        "label": "Senntisten Teleport",
+        "unlocks": [
+          "Ancient Magicks"
+        ],
+        "match": {
+          "spell": {
+            "book": "ancient",
+            "name": "Senntisten Teleport"
+          }
+        },
+        "options": {
+          "Cast": {
+            "to": [
+              "51,52"
+            ],
+            "status": "LOCKED",
+            "reason": "Needs Ancient Magicks"
+          }
+        }
+      },
+      "tablet:lumbridge-teleport": {
+        "label": "Lumbridge teleport",
+        "unlocks": [
+          "Teleport Tablets"
+        ],
+        "match": {
+          "items": [
+            8008
+          ]
+        },
+        "options": {
+          "Break": {
+            "to": [
+              "50,50"
+            ],
+            "status": "ALLOWED"
+          }
+        }
+      },
+      "tablet:falador-teleport": {
+        "label": "Falador teleport",
+        "unlocks": [
+          "Teleport Tablets"
+        ],
+        "match": {
+          "items": [
+            8009
+          ]
+        },
+        "options": {
+          "Break": {
+            "to": [
+              "46,52"
+            ],
+            "status": "LOCKED",
+            "reason": "Unlock Falador"
+          }
+        }
+      },
+      "item:amulet-of-glory": {
+        "label": "Amulet of glory",
+        "unlocks": [
+          "Jewelry Teleports"
+        ],
+        "match": {
+          "items": [
+            1712,
+            1710
+          ]
+        },
+        "options": {
+          "Rub": {
+            "to": [
+              "48,54",
+              "45,49",
+              "48,50",
+              "51,49"
+            ],
+            "status": "UNKNOWN",
+            "reason": "Goes to one of several places"
+          },
+          "Edgeville": {
+            "to": [
+              "48,54"
+            ],
+            "status": "ALLOWED"
+          },
+          "Karamja": {
+            "to": [
+              "45,49"
+            ],
+            "status": "LOCKED",
+            "reason": "Unlock Karamja"
+          },
+          "Al Kharid": {
+            "to": [
+              "51,49"
+            ],
+            "status": "LOCKED",
+            "reason": "Unlock Al Kharid"
+          }
+        }
+      },
+      "item:digsite-pendant": {
+        "label": "Digsite pendant",
+        "unlocks": [
+          "Digsite Pendant"
+        ],
+        "match": {
+          "items": [
+            11194
+          ]
+        },
+        "options": {
+          "Rub": {
+            "to": [
+              "52,53",
+              "58,59",
+              "55,63"
+            ],
+            "status": "LOCKED",
+            "reason": "Needs Digsite Pendant"
+          },
+          "Digsite": {
+            "to": [
+              "52,53"
+            ],
+            "status": "LOCKED",
+            "reason": "Needs Digsite Pendant"
+          }
+        }
+      },
+      "network:fairy-ring": {
+        "label": "Fairy ring",
+        "unlocks": [
+          "Fairy Rings"
+        ],
+        "match": {
+          "objects": [
+            29495
+          ]
+        },
+        "options": {
+          "Zanaris": {
+            "to": [
+              "37,69"
+            ],
+            "status": "LOCKED",
+            "reason": "Needs Fairy Rings"
+          }
+        },
+        "advisory": true,
+        "codes": {
+          "CKS": {
+            "to": [
+              "53,54"
+            ],
+            "status": "LOCKED",
+            "reason": "Needs Fairy Rings"
+          }
+        }
+      },
+      "boat:port-sarim-ship": {
+        "label": "Ship from Port Sarim",
+        "unlocks": [],
+        "match": {
+          "npcs": [
+            14978
+          ]
+        },
+        "options": {
+          "The Pandemonium": {
+            "to": [
+              "47,46"
+            ],
+            "status": "LOCKED",
+            "reason": "Unlock The Pandemonium"
+          }
+        },
+        "advisory": true
+      }
+    }
+  }
+}
