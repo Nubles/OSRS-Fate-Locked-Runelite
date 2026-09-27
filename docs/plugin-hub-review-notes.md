@@ -1,9 +1,9 @@
 # Plugin Hub review notes
 
-The plugin is on the Plugin Hub, which builds commit `874b9d1` (the Stage 0
-safety release, 25 September 2026, runelite/plugin-hub#17110). These notes
-describe `main` for reviewers of the next update and do not claim approval of
-any change made since that commit.
+The plugin is on the Plugin Hub, which builds commit `4e37895` (the Stage 1
+release, 26 September 2026, runelite/plugin-hub#17144). These notes describe
+`main` for reviewers of the next update and do not claim approval of any
+change made since that commit.
 
 Official references checked while preparing this candidate:
 
@@ -59,14 +59,27 @@ worlds).
 
 Strict Mode is off by default. It does not remove, reorder or create menu
 entries and never performs an action. It consumes a user-selected click only
-for travel it matches exactly to one destination (a teleport spell or tablet,
-a teleport item's destination option, or a named transport destination) when
-fresh rules bound to the logged-in character prove that destination Locked.
-It never consumes walking, NPC, object (including doors, stairs and ladders),
-bank or equipment clicks; those get only the passive (LOCKED) menu tag and
-chat warnings. Because blocking travel is behaviorally adjacent to
-conditional menu-entry restrictions, we request reviewer pre-clearance and do
-not claim that this behavior is already approved.
+when the travel table the tracker sends matches it by id (the active
+spellbook and a spell's name, or a tablet, scroll or teleport item's item
+id), the option goes to one destination, and fresh rules bound to the
+logged-in character lock that trip: the destination, or the unlock the trip
+needs, is locked. It never consumes walking, NPC, object (including doors,
+stairs and ladders), bank or equipment clicks; those get only the passive
+(LOCKED) menu tag and chat warnings. Fairy rings, spirit trees, gliders,
+charters, boats and the other networks are matched too, and an option to one
+locked place is tagged, but they are never blocked. Because blocking travel
+is behaviorally adjacent to conditional menu-entry restrictions, we request
+reviewer pre-clearance and do not claim that this behavior is already
+approved.
+
+What changed since `4e37895`: that build recognised travel from menu text,
+with a table of places inside the plugin, and checked an unlock it guessed
+from the text. This build matches by id against the tracker's table, which
+names each trip's unlock and where each option can go, and blocks nothing
+that can go to several places. The code keeps limits the table can't widen:
+options that are never travel are dropped, and the table has caps. The tags
+and Strict Mode read the same decision, and both now cover dungeons and other
+interiors the tracker names, and instances, judged as the chunk they copy.
 
 Builds up to and including `52f45f5` also consumed NPC, object, bank and
 Wear/Wield clicks through an older generic guard, and read "Walk here" menu
@@ -75,14 +88,15 @@ parameters as a tile. Both are removed.
 Strict Mode fails open when:
 
 - Strict Mode is disabled or its 60-second pause is active;
-- the bundle is missing, invalid, legacy, future, or stale;
+- the bundle is missing, invalid, legacy, future, or stale, or has no travel
+  table;
 - the rules have no bound account, or it does not match the logged-in
   character;
 - the click is walking, or an NPC, object, bank or equipment option;
-- the destination is unrecognised, ambiguous, or has several possible
-  destinations;
-- recognition confidence is not exact;
-- the authored decision is Allowed or Unknown; or
+- the tracker's table doesn't match the click by id, or two of its methods
+  do;
+- the option can go to several places, or its method is advisory;
+- the tracker's decision is Allowed, Not ready or Unknown; or
 - evaluation throws or required client state is unavailable.
 
 The sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
