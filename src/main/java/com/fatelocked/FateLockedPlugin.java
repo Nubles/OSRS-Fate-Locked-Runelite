@@ -233,10 +233,6 @@ public class FateLockedPlugin extends Plugin
     private volatile ChunkLocator chunkLocator;
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
-    /** Strict Mode acts only on rules confirmed or exported within this window. */
-    static final Duration FRESH_RULES_WINDOW = Duration.ofMinutes(15);
-    /** How far in the future an export time may be before it is not trusted. */
-    static final Duration EXPORT_CLOCK_SKEW = Duration.ofMinutes(5);
     private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
     /** Strict Mode's status as last worked out, for the HUD; null until then. */
     @Getter private volatile StrictModeStatusView strictModeStatus;
@@ -1403,19 +1399,9 @@ public class FateLockedPlugin extends Plugin
      */
     boolean rulesAreFresh()
     {
-        Instant now = Instant.now();
         ActiveRules current = active;
-        RulesSource source = current.getSource();
-        if (source == RulesSource.NONE) return false;
-        if (source == RulesSource.RELAY && trackerPaired())
-        {
-            Instant confirmed = trackerLastSync();
-            return confirmed != null
-                && Duration.between(confirmed, now).compareTo(FRESH_RULES_WINDOW) < 0;
-        }
-        Instant exported = current.getBundle().exportedAt();
-        if (exported == null || exported.isAfter(now.plus(EXPORT_CLOCK_SKEW))) return false;
-        return Duration.between(exported, now).compareTo(FRESH_RULES_WINDOW) < 0;
+        return FreshnessPolicy.isFresh(current.getSource(), trackerPaired(), trackerLastSync(),
+            current.getBundle().exportedAt(), Instant.now());
     }
     /**
      * Tag right-click menu entries with a red (LOCKED) marker: the "are you
@@ -1525,7 +1511,7 @@ public class FateLockedPlugin extends Plugin
     private void useSavedRules(SavedRules saved, ParsedRules rules)
     {
         if (!RulesPrecedence.mayReplace(active.getSource(), RulesPrecedence.Arrival.SAVED)
-            || !switchRules(rules, saved.getSource()))
+            || !switchRules(rules, saved.getSource(), RulesPrecedence.Arrival.SAVED, saved.getSavedAt()))
         {
             return;
         }
@@ -1601,7 +1587,7 @@ public class FateLockedPlugin extends Plugin
         {
             return;
         }
-        if (!switchRules(parsed, RulesSource.FILE))
+        if (!switchRules(parsed, RulesSource.FILE, arrival, Instant.now()))
         {
             panel.flashStatus("couldn't read the backup file — rules unchanged", false);
             return;
@@ -1746,7 +1732,7 @@ public class FateLockedPlugin extends Plugin
     /** On the client thread: switch to rules read from the clipboard. */
     private void useClipboardRules(ParsedRules parsed)
     {
-        if (!switchRules(parsed, RulesSource.IMPORT))
+        if (!switchRules(parsed, RulesSource.IMPORT, RulesPrecedence.Arrival.IMPORT, Instant.now()))
         {
             panel.flashStatus("import failed — using previous rules", false);
             return;
@@ -1847,7 +1833,7 @@ public class FateLockedPlugin extends Plugin
     private boolean acceptRelayRules(ParsedRules rules, String version)
     {
         FateLockedBundle parsed = rules.bundle;
-        if (!switchRules(rules, RulesSource.RELAY))
+        if (!switchRules(rules, RulesSource.RELAY, RulesPrecedence.Arrival.RELAY, Instant.now()))
         {
             return false;
         }
@@ -1868,7 +1854,8 @@ public class FateLockedPlugin extends Plugin
      * leaves everything as it was; a failure while showing one change is
      * logged, and neither undoes the switch nor stops the others.
      */
-    private boolean switchRules(ParsedRules candidate, RulesSource source)
+    private boolean switchRules(ParsedRules candidate, RulesSource source, RulesPrecedence.Arrival arrival,
+        Instant arrivedAt)
     {
         RulesEffects effects;
         try
@@ -1880,7 +1867,7 @@ public class FateLockedPlugin extends Plugin
             log.warn("New rules could not be applied: {}", ex.getMessage());
             return false;
         }
-        active = new ActiveRules(candidate.bundle, candidate.snapshot, source);
+        active = new ActiveRules(candidate.bundle, candidate.snapshot, source, arrival, arrivedAt);
         refreshDecisions();
         show(candidate.bundle, effects);
         return true;
