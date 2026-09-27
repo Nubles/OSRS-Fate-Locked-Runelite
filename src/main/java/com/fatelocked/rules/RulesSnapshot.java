@@ -204,6 +204,12 @@ public final class RulesSnapshot
         return bundle.isUnlocked(name);
     }
 
+    /** The tracker's travel table; null without rules, or for older rules, which have none (F1). */
+    TravelTable travelTable()
+    {
+        return isEmpty() || isLegacy() || bundle.getRules() == null ? null : bundle.getRules().getTravel();
+    }
+
     /** Whether the rules send each Slayer task's decision. */
     boolean hasSlayerTasks()
     {

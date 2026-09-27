@@ -31,6 +31,8 @@ public final class RuneliteRulesManifest
     public static final String SLAYER_TASKS = "slayerTasks";
     /** The capability for the areas the run's mode frees, from the mode itself (R6). */
     public static final String FREE_AREAS = "freeAreas";
+    /** The capability for the travel table: each travel method, matched by id, and its options' decisions (F1). */
+    public static final String TRAVEL = "travel";
 
     private String rulesVersion;
     private int contentVersion;
@@ -92,6 +94,11 @@ public final class RuneliteRulesManifest
     @SerializedName("freeAreas")
     private JsonElement freeAreasDeclaration;
     private transient List<String> freeAreas;
+    /** Stage 2: the travel table; null when the bundle doesn't send one, or it isn't an object. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("travel")
+    private JsonElement travelDeclaration;
+    private transient TravelTable travel;
 
     public RuneliteRulesManifest normalized()
     {
@@ -151,6 +158,8 @@ public final class RuneliteRulesManifest
             : slayerTasks != null ? slayerTasks : slayerTasks(slayerTasksDeclaration);
         copy.freeAreas = !copy.capabilities.contains(FREE_AREAS) ? null
             : freeAreas != null ? freeAreas : stringItems(freeAreasDeclaration);
+        copy.travel = !copy.capabilities.contains(TRAVEL) ? null
+            : travel != null ? travel : TravelTable.parse(travelDeclaration);
         return copy;
     }
 

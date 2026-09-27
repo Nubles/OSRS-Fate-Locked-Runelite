@@ -49,6 +49,12 @@ public class GoldenBundleCasesTest
         {
             cases.add(new Object[] {"keeps its answers for", name(element), element.getAsJsonObject()});
         }
+        // The plugin's own (F1): a travel table it can't read never costs the bundle.
+        for (String travel : List.of("\"a table\"", "[1, 2]", "{\"spell:x\": {\"label\": 7}}", "{\"item:x\": null}"))
+        {
+            cases.add(new Object[] {"keeps its answers for", "a travel section of " + travel, GSON.fromJson(
+                "{\"scenario\": \"vanilla-mid\", \"set\": {\"rules.travel\": " + travel + "}}", JsonObject.class)});
+        }
         return cases;
     }
 
