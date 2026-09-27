@@ -7,10 +7,10 @@ import java.util.Objects;
 import lombok.Value;
 
 /**
- * Where chunk lines run through the loaded scene, and which of them are locked (U3). It is
- * worked out once per scene from the scene's 8-tile zones, so an instance, which is copied
- * zone by zone from anywhere, breaks where its zones do. On the surface the zone lines that
- * matter are the chunk lines.
+ * The loaded scene as the rules draw it (U3): where its chunk lines run, which of them are
+ * locked, and where its locked land lies. It is worked out once per scene from the scene's
+ * 8-tile zones, so an instance, which is copied zone by zone from anywhere, breaks where its
+ * zones do. On the surface the zone lines that matter are the chunk lines.
  *
  * <p>A line between a locked place and an unlocked one is a locked edge. A line between two
  * different chunks that are alike is a plain edge. A place the rules don't decide draws no
@@ -20,6 +20,8 @@ final class SceneEdges
 {
     /** Instances are copied in 8-tile zones. */
     static final int ZONE = 8;
+    /** A scene with nothing to draw. */
+    static final SceneEdges NONE = new SceneEdges(Collections.emptyList(), Collections.emptyList());
 
     enum Kind { LOCKED, PLAIN }
 
@@ -48,12 +50,39 @@ final class SceneEdges
         int lockedSide;
     }
 
-    private SceneEdges()
+    /** Locked land in one row of zones, in scene tiles: from x0, y0 up to x1, y1. */
+    @Value
+    static class Block
     {
+        int x0;
+        int y0;
+        int x1;
+        int y1;
     }
 
-    /** The runs between these zones, indexed [zone x][zone y], joined where they carry on. */
-    static List<Run> of(Zone[][] zones)
+    private final List<Run> edges;
+    private final List<Block> locked;
+
+    private SceneEdges(List<Run> edges, List<Block> locked)
+    {
+        this.edges = edges;
+        this.locked = locked;
+    }
+
+    /** The scene's edges, joined where they carry on. */
+    List<Run> edges()
+    {
+        return edges;
+    }
+
+    /** The scene's locked land, one block per run of locked zones in a row. */
+    List<Block> locked()
+    {
+        return locked;
+    }
+
+    /** The scene these zones make, indexed [zone x][zone y]. */
+    static SceneEdges of(Zone[][] zones)
     {
         int width = zones.length;
         int height = width == 0 ? 0 : zones[0].length;
@@ -62,18 +91,23 @@ final class SceneEdges
         {
             line(runs, true, zx * ZONE, zones[zx - 1], zones[zx]);
         }
-        for (int zy = 1; zy < height; zy++)
+        List<Block> locked = new ArrayList<>();
+        Zone[] below = null;
+        for (int zy = 0; zy < height; zy++)
         {
-            Zone[] below = new Zone[width];
-            Zone[] above = new Zone[width];
+            Zone[] row = new Zone[width];
             for (int zx = 0; zx < width; zx++)
             {
-                below[zx] = zones[zx][zy - 1];
-                above[zx] = zones[zx][zy];
+                row[zx] = zones[zx][zy];
             }
-            line(runs, false, zy * ZONE, below, above);
+            if (below != null)
+            {
+                line(runs, false, zy * ZONE, below, row);
+            }
+            lockedRow(locked, zy, row);
+            below = row;
         }
-        return Collections.unmodifiableList(runs);
+        return new SceneEdges(Collections.unmodifiableList(runs), Collections.unmodifiableList(locked));
     }
 
     /** The runs along one line, between the zones before it and the zones after it. */
@@ -97,6 +131,25 @@ final class SceneEdges
                 open = kind;
                 openSide = side;
                 start = i * ZONE;
+            }
+        }
+    }
+
+    /** The locked zones of one row, joined where they touch. */
+    private static void lockedRow(List<Block> locked, int zy, Zone[] row)
+    {
+        int start = -1;
+        for (int zx = 0; zx <= row.length; zx++)
+        {
+            boolean isLocked = zx < row.length && row[zx] != null && row[zx].getTint() == TintPolicy.Tint.LOCKED;
+            if (isLocked && start < 0)
+            {
+                start = zx;
+            }
+            else if (!isLocked && start >= 0)
+            {
+                locked.add(new Block(start * ZONE, zy * ZONE, zx * ZONE, (zy + 1) * ZONE));
+                start = -1;
             }
         }
     }

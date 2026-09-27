@@ -132,6 +132,32 @@ final class ChunkBorderRenderer
         return path;
     }
 
+    /**
+     * Locked land, as one path of blocks. The minimap's projection is flat, so a block's four
+     * corners place it exactly; one that can't be placed is left out.
+     */
+    static GeneralPath blocks(List<SceneEdges.Block> blocks, Projector projector)
+    {
+        GeneralPath path = new GeneralPath();
+        for (SceneEdges.Block block : blocks)
+        {
+            Point2D a = projector.project(block.getX0(), block.getY0());
+            Point2D b = projector.project(block.getX1(), block.getY0());
+            Point2D c = projector.project(block.getX1(), block.getY1());
+            Point2D d = projector.project(block.getX0(), block.getY1());
+            if (a == null || b == null || c == null || d == null)
+            {
+                continue;
+            }
+            path.moveTo(a.getX(), a.getY());
+            path.lineTo(b.getX(), b.getY());
+            path.lineTo(c.getX(), c.getY());
+            path.lineTo(d.getX(), d.getY());
+            path.closePath();
+        }
+        return path;
+    }
+
     /** Close one strip: along the edge, then back along its far side. */
     private static void strip(GeneralPath path, List<Point2D> edge, List<Point2D> deep)
     {

@@ -61,6 +61,7 @@ import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.VarbitChanged;
@@ -234,6 +235,8 @@ public class FateLockedPlugin extends Plugin
     private volatile DecisionService decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
     /** Counts scene loads, so overlays work a scene out once (U3). */
     private volatile int sceneGeneration;
+    /** The loaded scene as the rules draw it, for the game view and the minimap. Client thread. */
+    private final SceneEdgesCache sceneEdgesCache = new SceneEdgesCache();
     /** The colours the colour settings choose; overlays read it through this volatile field. */
     private volatile Palette palette = Palette.defaults();
     /** The settings that change the palette. */
@@ -548,6 +551,12 @@ public class FateLockedPlugin extends Plugin
     int sceneGeneration()
     {
         return sceneGeneration;
+    }
+
+    /** The loaded scene's edges and locked land under these rules, on this plane. Client thread. */
+    SceneEdges sceneEdges(DecisionService rules, WorldView view, int plane)
+    {
+        return sceneEdgesCache.get(rules, view, plane, sceneGeneration, chunkLocator());
     }
 
     /** The colours everything is drawn in (U15): a preset, or the player's own. Client thread. */

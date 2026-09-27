@@ -99,6 +99,20 @@ public class ChunkBorderRendererTest
             .getPathIterator(null).isDone());
     }
 
+    /** The minimap's locked land: each block placed by its corners, and one that can't be, left out. */
+    @Test
+    public void lockedLandIsDrawnBlockByBlock()
+    {
+        List<SceneEdges.Block> blocks = Arrays.asList(new SceneEdges.Block(24, 16, 48, 24),
+            new SceneEdges.Block(96, 56, 104, 64));
+        GeneralPath all = ChunkBorderRenderer.blocks(blocks, FLAT);
+        assertEquals(new Rectangle2D.Double(240, 160, 800, 480), all.getBounds2D());
+        assertTrue("each block is whole, to its far corner", all.contains(475, 235) && all.contains(1035, 635));
+
+        ChunkBorderRenderer.Projector near = (x, y) -> x > 60 ? null : FLAT.project(x, y);
+        assertEquals(new Rectangle2D.Double(240, 160, 240, 80), ChunkBorderRenderer.blocks(blocks, near).getBounds2D());
+    }
+
     @Test
     public void eachSettingDrawsItsOwnLines()
     {

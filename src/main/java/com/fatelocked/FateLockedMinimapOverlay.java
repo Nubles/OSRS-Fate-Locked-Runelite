@@ -1,56 +1,56 @@
 package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.Trust;
+import com.fatelocked.ui.Palette;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Point2D;
+import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
 import net.runelite.api.WorldView;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.widgets.ComponentID;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
-import javax.inject.Inject;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.Shape;
-import java.awt.geom.Ellipse2D;
-
 /**
- * Tints the player's current 64-tile chunk on the minimap, color-coded by the
- * region's unlock status. Mirrors {@link FateLockedSceneOverlay} but projected
- * onto the minimap instead of the main scene.
+ * The scene's chunk lines on the minimap, from the same edges as the game view (U3): locked
+ * edges dashed over the dark underlay and, under All edges, the other chunk lines thin and
+ * faint. With "shade locked land nearby" the locked land is darkened like fog. Nothing fills
+ * the chunk the player stands in, and nothing is drawn without rules for the character playing.
  */
 public class FateLockedMinimapOverlay extends Overlay
 {
-    // Local-coordinate radius within which Perspective will project a point.
-    // Generous enough to cover the corners of chunks one step out from the
-    // player's (for nearby-locked shading); the minimap clip discards overflow.
+    /**
+     * How far from the player a point still projects, in local units: past the whole loaded
+     * scene, so a block of locked land is placed whole. The minimap's clip drops the rest.
+     */
     private static final int PROJECTION_DISTANCE = 30000;
-    private static final BasicStroke STROKE = new BasicStroke(1.5f);
 
-    // The minimap draw area widget differs between the fixed and resizable
-    // layouts; whichever is currently shown is the non-hidden one. ComponentID
-    // is the stable modern API (WidgetInfo was removed).
-    private static final int[] MINIMAP_DRAW_AREAS = {
-        ComponentID.FIXED_VIEWPORT_MINIMAP_DRAW_AREA,
-        ComponentID.RESIZABLE_VIEWPORT_MINIMAP_DRAW_AREA,
-        ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_MINIMAP_DRAW_AREA,
+    /** The minimap in each layout: fixed, resizable, and resizable with the bottom bar. */
+    static final int[] MINIMAPS = {
+        InterfaceID.Toplevel.MINIMAP,
+        InterfaceID.ToplevelOsrsStretch.MINIMAP,
+        InterfaceID.ToplevelPreEoc.MINIMAP,
     };
 
-    @Inject private Client client;
-    @Inject private FateLockedPlugin plugin;
-    @Inject private FateLockedConfig config;
+    private final Client client;
+    private final FateLockedPlugin plugin;
+    private final FateLockedConfig config;
 
     @Inject
-    FateLockedMinimapOverlay()
+    FateLockedMinimapOverlay(Client client, FateLockedPlugin plugin, FateLockedConfig config)
     {
+        this.client = client;
+        this.plugin = plugin;
+        this.config = config;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
     }
@@ -60,115 +60,62 @@ public class FateLockedMinimapOverlay extends Overlay
     {
         if (!config.drawMinimap()) return null;
         DecisionService decisions = plugin.decisions();
-        if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
-        ChunkLocator locator = plugin.chunkLocator();
-        Located here = locator.playerInScene();
+        // Another character's rules, or none, draw nothing (B6).
+        if (decisions.trust() != Trust.TRUSTED) return null;
+        Shape minimap = minimapClip();
+        if (minimap == null) return null;
         WorldView view = client.getTopLevelWorldView();
-        if (here == null || view == null) return null;
-        // Drawn where the player stands in the scene; tinted as the rules judge it (B14).
-        CanonicalChunk chunk = here.getScene();
-        Color color = TintPolicy.color(TintPolicy.at(decisions, here.getRules()), config);
+        Located here = plugin.chunkLocator().playerInScene();
+        if (view == null || here == null) return null;
 
-        Polygon poly = chunkMinimapPolygon(chunk, view);
-
-        // A whole 64-tile chunk projects to a polygon much larger than the
-        // minimap circle, so clip to the minimap draw area before filling —
-        // otherwise the tint spills across the rest of the UI.
-        Shape oldClip = graphics.getClip();
-        Shape clip = minimapClip();
-        if (clip != null) graphics.clip(clip);
-
-        // Faint shading for surrounding locked chunks first, beneath the current.
-        if (config.shadeNearbyLocked())
-        {
-            drawSurroundingLocked(graphics, chunk, decisions, locator, view);
-        }
-
-        if (poly != null && color != null)
-        {
-            graphics.setColor(color);
-            graphics.fillPolygon(poly);
-            graphics.setStroke(STROKE);
-            graphics.setColor(new Color(
-                Math.min(color.getRed() + 40, 255),
-                Math.min(color.getGreen() + 40, 255),
-                Math.min(color.getBlue() + 40, 255),
-                230));
-            graphics.drawPolygon(poly);
-        }
-
-        graphics.setClip(oldClip);
-        return null;
-    }
-
-    /** Lightly tint locked chunks overlapping the loaded scene around the player. */
-    private void drawSurroundingLocked(Graphics2D graphics, CanonicalChunk current, DecisionService decisions,
-        ChunkLocator locator, WorldView view)
-    {
-        int baseX = view.getBaseX();
-        int baseY = view.getBaseY();
-        int cxMin = baseX >> 6, cxMax = (baseX + view.getSizeX() - 1) >> 6;
-        int cyMin = baseY >> 6, cyMax = (baseY + view.getSizeY() - 1) >> 6;
-
-        Color c = config.lockedColor();
-        graphics.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(),
-            Math.max(20, Math.min(c.getAlpha(), 110) / 3)));
-        for (int cx = cxMin; cx <= cxMax; cx++)
-        {
-            for (int cy = cyMin; cy <= cyMax; cy++)
+        draw(graphics, minimap, plugin.sceneEdges(decisions, view, here.getPlane()), config.chunkBorders(),
+            config.shadeNearbyLocked(), plugin.palette(), here.getSceneX(), here.getSceneY(),
+            view.getSizeX(), view.getSizeY(), (x, y) ->
             {
-                if (cx == current.getCx() && cy == current.getCy()) continue;
-                CanonicalChunk ch = new CanonicalChunk(cx, cy);
-                if (!TintPolicy.isLocked(decisions, locator.sceneChunk(ch))) continue;
-                Polygon p = chunkMinimapPolygon(ch, view);
-                if (p != null) graphics.fillPolygon(p);
-            }
-        }
-    }
-
-    /** Elliptical clip matching the currently-visible minimap draw area, or null. */
-    private Shape minimapClip()
-    {
-        for (int componentId : MINIMAP_DRAW_AREAS)
-        {
-            Widget w = client.getWidget(componentId);
-            if (w == null || w.isHidden()) continue;
-            Rectangle b = w.getBounds();
-            if (b != null && b.width > 0 && b.height > 0)
-            {
-                return new Ellipse2D.Double(b.x, b.y, b.width, b.height);
-            }
-        }
+                Point dot = Perspective.localToMinimap(client, FateLockedSceneOverlay.corner(x, y, view),
+                    PROJECTION_DISTANCE);
+                return dot == null ? null : new Point2D.Double(dot.getX(), dot.getY());
+            });
         return null;
     }
 
     /**
-     * Project a chunk's four corner tiles onto the minimap. Corner local points
-     * are built directly from the scene base so they project even when the
-     * corner tile lies outside the loaded scene.
+     * Draw the scene inside the minimap: the locked land first, when it is shaded, then the
+     * lines. The locked edges always show, the minimap's own setting being on; the other
+     * chunk lines follow the game view's All edges.
      */
-    private Polygon chunkMinimapPolygon(CanonicalChunk chunk, WorldView view)
+    static void draw(Graphics2D graphics, Shape minimap, SceneEdges scene, FateLockedConfig.ChunkBorders borders,
+        boolean fog, Palette palette, int playerX, int playerY, int sizeX, int sizeY,
+        ChunkBorderRenderer.Projector projector)
     {
-        int baseX = view.getBaseX();
-        int baseY = view.getBaseY();
-
-        int x0 = chunk.getCx() << 6;
-        int y0 = chunk.getCy() << 6;
-        int[][] corners = {
-            { x0,        y0        },
-            { x0 + 64,   y0        },
-            { x0 + 64,   y0 + 64   },
-            { x0,        y0 + 64   },
-        };
-
-        Polygon poly = new Polygon();
-        for (int[] c : corners)
+        // A projected chunk is far bigger than the minimap, so everything is clipped to it.
+        Shape before = graphics.getClip();
+        graphics.clip(minimap);
+        if (fog)
         {
-            LocalPoint lp = new LocalPoint((c[0] - baseX) * 128, (c[1] - baseY) * 128);
-            Point mm = Perspective.localToMinimap(client, lp, PROJECTION_DISTANCE);
-            if (mm == null) return null; // corner out of projection range
-            poly.addPoint(mm.getX(), mm.getY());
+            graphics.setColor(palette.lockedShade());
+            graphics.fill(ChunkBorderRenderer.blocks(scene.locked(), projector));
         }
-        return poly;
+        FateLockedConfig.ChunkBorders lines = borders == FateLockedConfig.ChunkBorders.ALL_EDGES
+            ? FateLockedConfig.ChunkBorders.ALL_EDGES : FateLockedConfig.ChunkBorders.LOCKED_EDGES;
+        ChunkBorderRenderer.draw(graphics, scene.edges(), lines, false, palette, playerX, playerY, sizeX, sizeY,
+            projector);
+        graphics.setClip(before);
+    }
+
+    /** The minimap shown in the current layout, as its round draw area; null when none is. */
+    private Shape minimapClip()
+    {
+        for (int id : MINIMAPS)
+        {
+            Widget minimap = client.getWidget(id);
+            if (minimap == null || minimap.isHidden()) continue;
+            Rectangle bounds = minimap.getBounds();
+            if (bounds != null && bounds.width > 0 && bounds.height > 0)
+            {
+                return new Ellipse2D.Double(bounds.x, bounds.y, bounds.width, bounds.height);
+            }
+        }
+        return null;
     }
 }

@@ -187,24 +187,6 @@ public class ChunkLocatorTest
         assertNull("nobody logged in", locator.playerInScene());
     }
 
-    @Test
-    public void aSceneChunkIsJudgedByTheChunkItIsACopyOf()
-    {
-        when(main.getBaseX()).thenReturn(BASE);
-        when(main.getBaseY()).thenReturn(BASE);
-        assertEquals("on the surface, itself", new CanonicalChunk(49, 49), locator.sceneChunk(new CanonicalChunk(49, 49)));
-        assertEquals("partly loaded, judged by what is", new CanonicalChunk(50, 50),
-            locator.sceneChunk(new CanonicalChunk(50, 50)));
-        assertNull("not loaded", locator.sceneChunk(new CanonicalChunk(60, 60)));
-
-        // The scene chunk at 6400,6400 has its centre (scene tile 31) in zone 3,3, a copy of Lumbridge.
-        instance(3, 3, template(400, 400));
-        when(main.getBaseX()).thenReturn(6400);
-        when(main.getBaseY()).thenReturn(6400);
-        assertEquals(new CanonicalChunk(50, 50), locator.sceneChunk(new CanonicalChunk(100, 100)));
-        assertNull("its centre zone has no template", locator.sceneChunk(new CanonicalChunk(101, 100)));
-    }
-
     /** U3: the scene's borders are worked out zone by zone, each judged by what it is a copy of. */
     @Test
     public void eachSceneZoneIsJudgedByTheChunkItIsACopyOf()

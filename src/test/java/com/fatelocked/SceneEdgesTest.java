@@ -24,7 +24,7 @@ public class SceneEdgesTest
     public void aLockedChunkBesideAnUnlockedOneIsOneLockedRunOnTheChunkLine()
     {
         List<Run> runs = SceneEdges.of(scene((zx, zy) -> new Zone(
-            zx < 8 ? Tint.UNLOCKED : Tint.LOCKED, surface(zx, zy))));
+            zx < 8 ? Tint.UNLOCKED : Tint.LOCKED, surface(zx, zy)))).edges();
 
         assertEquals(Arrays.asList(
             new Run(true, LINE, 0, 104, Kind.LOCKED, 1),
@@ -37,11 +37,11 @@ public class SceneEdgesTest
         assertEquals(Arrays.asList(
                 new Run(true, LINE, 0, 104, Kind.PLAIN, 0),
                 new Run(false, LINE, 0, 104, Kind.PLAIN, 0)),
-            SceneEdges.of(scene((zx, zy) -> new Zone(Tint.LOCKED, surface(zx, zy)))));
+            SceneEdges.of(scene((zx, zy) -> new Zone(Tint.LOCKED, surface(zx, zy)))).edges());
 
         assertEquals(Arrays.asList(new Run(false, LINE, 0, 64, Kind.PLAIN, 0)),
             SceneEdges.of(scene((zx, zy) -> zx < 8 ? new Zone(Tint.UNLOCKED, surface(zx, zy))
-                : new Zone(Tint.UNKNOWN, null))));
+                : new Zone(Tint.UNKNOWN, null))).edges());
     }
 
     /** An instance is copied zone by zone, so one locked zone is edged on all four sides. */
@@ -50,7 +50,7 @@ public class SceneEdgesTest
     {
         CanonicalChunk tomb = new CanonicalChunk(39, 53);
         List<Run> runs = SceneEdges.of(scene((zx, zy) -> zx == 5 && zy == 5
-            ? new Zone(Tint.LOCKED, tomb) : new Zone(Tint.UNLOCKED, new CanonicalChunk(50, 50))));
+            ? new Zone(Tint.LOCKED, tomb) : new Zone(Tint.UNLOCKED, new CanonicalChunk(50, 50)))).edges();
 
         assertEquals(Arrays.asList(
             new Run(true, 40, 40, 48, Kind.LOCKED, 1),
@@ -62,21 +62,35 @@ public class SceneEdgesTest
     @Test
     public void theScenesOwnBorderIsNeverAnEdge()
     {
-        assertTrue(SceneEdges.of(scene((zx, zy) -> new Zone(Tint.UNLOCKED, new CanonicalChunk(50, 50)))).isEmpty());
-        assertTrue(SceneEdges.of(scene((zx, zy) -> new Zone(Tint.LOCKED, new CanonicalChunk(46, 52)))).isEmpty());
+        assertTrue(SceneEdges.of(scene((zx, zy) -> new Zone(Tint.UNLOCKED, new CanonicalChunk(50, 50)))).edges().isEmpty());
+        assertTrue(SceneEdges.of(scene((zx, zy) -> new Zone(Tint.LOCKED, new CanonicalChunk(46, 52)))).edges().isEmpty());
     }
 
     @Test
     public void aRunBreaksWhereTheLockedSideChanges()
     {
         List<Run> runs = SceneEdges.of(scene((zx, zy) ->
-            new Zone((zx < 8) == (zy < 8) ? Tint.UNLOCKED : Tint.LOCKED, surface(zx, zy))));
+            new Zone((zx < 8) == (zy < 8) ? Tint.UNLOCKED : Tint.LOCKED, surface(zx, zy)))).edges();
 
         assertEquals(Arrays.asList(
             new Run(true, LINE, 0, 64, Kind.LOCKED, 1),
             new Run(true, LINE, 64, 104, Kind.LOCKED, -1),
             new Run(false, LINE, 0, 64, Kind.LOCKED, 1),
             new Run(false, LINE, 64, 104, Kind.LOCKED, -1)), runs);
+    }
+
+    /** Locked land is kept per row of zones, joined where locked zones touch. */
+    @Test
+    public void lockedLandIsOneBlockPerRunOfLockedZones()
+    {
+        CanonicalChunk tomb = new CanonicalChunk(39, 53);
+        List<SceneEdges.Block> locked = SceneEdges.of(scene((zx, zy) -> zy == 2 && zx >= 3 && zx <= 5 || zy == 7 && zx == 12
+            ? new Zone(Tint.LOCKED, tomb) : new Zone(zx == 0 ? Tint.UNKNOWN : Tint.UNLOCKED, new CanonicalChunk(50, 50))))
+            .locked();
+
+        assertEquals(Arrays.asList(new SceneEdges.Block(24, 16, 48, 24), new SceneEdges.Block(96, 56, 104, 64)), locked);
+        assertTrue(SceneEdges.NONE.locked().isEmpty());
+        assertTrue(SceneEdges.NONE.edges().isEmpty());
     }
 
     /** The surface chunk a zone of this scene lies in: four chunks, split 64 tiles in. */

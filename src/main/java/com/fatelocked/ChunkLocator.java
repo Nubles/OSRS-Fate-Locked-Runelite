@@ -100,24 +100,6 @@ public final class ChunkLocator
         return locate(view, LocalPoint.fromScene(x, y, view));
     }
 
-    /**
-     * The rules chunk of a top-level scene chunk, judged by its centre (or
-     * the part of it that is loaded): its template chunk inside an instance,
-     * itself elsewhere. Null when it isn't loaded or can't be known.
-     */
-    public CanonicalChunk sceneChunk(CanonicalChunk sceneChunk)
-    {
-        WorldView view = client.getTopLevelWorldView();
-        if (view == null || sceneChunk == null) return null;
-        int x0 = Math.max(sceneChunk.getCx() << 6, view.getBaseX());
-        int y0 = Math.max(sceneChunk.getCy() << 6, view.getBaseY());
-        int x1 = Math.min((sceneChunk.getCx() << 6) + 63, view.getBaseX() + view.getSizeX() - 1);
-        int y1 = Math.min((sceneChunk.getCy() << 6) + 63, view.getBaseY() + view.getSizeY() - 1);
-        if (x0 > x1 || y0 > y1) return null;
-        return locate(view, LocalPoint.fromScene(
-            (x0 + x1) / 2 - view.getBaseX(), (y0 + y1) / 2 - view.getBaseY(), view));
-    }
-
     /** The chunk a menu option points at: its NPC, or its object's or ground item's tile. */
     public CanonicalChunk menuTarget(MenuEntry entry)
     {
