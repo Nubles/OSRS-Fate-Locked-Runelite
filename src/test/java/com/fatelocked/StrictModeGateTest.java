@@ -51,7 +51,8 @@ import static org.mockito.Mockito.when;
 @RunWith(Parameterized.class)
 public class StrictModeGateTest
 {
-    enum Rules { BOUND, UNBOUND, NONE, LEGACY }
+    /** NO_TRAVEL: bound v4 rules saved before the tracker sent a travel table (F6). */
+    enum Rules { BOUND, UNBOUND, NONE, LEGACY, NO_TRAVEL }
 
     enum Playing { OWNER, SOMEONE_ELSE, NOBODY }
 
@@ -101,8 +102,13 @@ public class StrictModeGateTest
     public void onlyAnActiveGateConsumesAndOnlyAProvenLock() throws Exception
     {
         Harness harness = new Harness();
-        StrictModeReadiness.State state = harness.plugin.strictModeReadiness().getState();
+        StrictModeReadiness readiness = harness.plugin.strictModeReadiness();
+        StrictModeReadiness.State state = readiness.getState();
         assertEquals("the sidebar's readiness", expectedState(), state);
+        if (enabled && rules == Rules.NO_TRAVEL)
+        {
+            assertEquals("the rules have no travel table; sync them from the tracker again", readiness.getReason());
+        }
 
         MenuOptionClicked teleport = TravelClicks.cast("Falador Teleport");
         MenuOptionClicked dialogue = TravelClicks.click(MenuAction.WIDGET_CONTINUE, "Continue", "");
@@ -175,6 +181,10 @@ public class StrictModeGateTest
                 case UNBOUND:
                     set("active", new ActiveRules(FateLockedBundle.loadFromJson(gson,
                         locked.replace("\"account\": \"Nubles\",", "")), FateLockedPlugin.RulesSource.RELAY));
+                    break;
+                case NO_TRAVEL:
+                    set("active", new ActiveRules(FateLockedBundle.loadFromJson(gson,
+                        fixture("bundles/v4-rules.json")), FateLockedPlugin.RulesSource.RELAY));
                     break;
                 case LEGACY:
                     set("active", new ActiveRules(FateLockedBundle.loadFromJson(gson,

@@ -385,7 +385,7 @@ public class TravelGuardianCoordinatorTest
     private static StrictModeReadiness context(boolean enabled, boolean paused, boolean accountMatches, boolean freshRules)
     {
         return StrictModeReadiness.evaluate(
-            enabled, paused, true, "Nubles", accountMatches ? "Nubles" : "Zezima", accountMatches, freshRules);
+            enabled, paused, true, true, "Nubles", accountMatches ? "Nubles" : "Zezima", accountMatches, freshRules);
     }
 
     private FateLockedBundle fixture(String name) throws Exception

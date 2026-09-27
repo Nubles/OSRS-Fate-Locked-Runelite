@@ -27,12 +27,15 @@ public class StrictModeReadiness
 
     /**
      * The pause is checked last: a pause only matters when Strict Mode could
-     * act, and a paused Strict Mode that couldn't still says why.
+     * act, and a paused Strict Mode that couldn't still says why. Rules saved
+     * before the tracker sent a travel table (older saved rules and backups)
+     * can't match any trip, so they say so too (F6).
      */
     public static StrictModeReadiness evaluate(
         boolean enabled,
         boolean paused,
         boolean hasCurrentRules,
+        boolean hasTravelTable,
         String boundAccount,
         String loggedInAs,
         boolean accountMatches,
@@ -40,6 +43,7 @@ public class StrictModeReadiness
     {
         if (!enabled) return new StrictModeReadiness(State.OFF, null);
         if (!hasCurrentRules) return inactive("no tracker rules are loaded");
+        if (!hasTravelTable) return inactive("the rules have no travel table; sync them from the tracker again");
         if (boundAccount == null || boundAccount.trim().isEmpty())
         {
             return inactive("the tracker profile has no linked account");

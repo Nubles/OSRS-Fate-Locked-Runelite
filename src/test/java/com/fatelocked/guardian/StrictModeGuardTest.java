@@ -169,7 +169,7 @@ public class StrictModeGuardTest
     static StrictModeReadiness readiness(
         boolean enabled, boolean paused, boolean accountMatches, boolean fresh)
     {
-        return StrictModeReadiness.evaluate(enabled, paused, true, "Nubles",
+        return StrictModeReadiness.evaluate(enabled, paused, true, true, "Nubles",
             accountMatches ? "Nubles" : "Zezima", accountMatches, fresh);
     }
 }

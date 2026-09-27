@@ -137,7 +137,7 @@ public class StrictModeGoldenTest
     /** The readiness the plugin works out for these rules and this character, fresh and unpaused. */
     private StrictModeReadiness readiness(DecisionService decisions, String player)
     {
-        return StrictModeReadiness.evaluate(true, false, true, account, player,
+        return StrictModeReadiness.evaluate(true, false, true, decisions.travelTable() != null, account, player,
             decisions.trust() == Trust.TRUSTED && decisions.isBound(), true);
     }
 

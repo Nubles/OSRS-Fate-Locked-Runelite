@@ -1389,6 +1389,7 @@ public class FateLockedPlugin extends Plugin
             config.strictMode(),
             strictPause.isPaused(),
             !rules.isEmpty() && !rules.isLegacy(),
+            ruleDecisions.travelTable() != null,
             AccountBinding.boundAccount(getBundle()),
             loggedInName(),
             ruleDecisions.trust() == Trust.TRUSTED && ruleDecisions.isBound(),

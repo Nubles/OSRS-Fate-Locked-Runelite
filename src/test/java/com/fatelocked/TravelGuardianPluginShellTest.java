@@ -56,7 +56,7 @@ public class TravelGuardianPluginShellTest
     private static final CanonicalChunk DESTINATION = new CanonicalChunk(51, 51);
     /** Strict Mode on, with fresh rules bound to the character playing. */
     private static final StrictModeReadiness ACTIVE =
-        StrictModeReadiness.evaluate(true, false, true, "Nubles", "Nubles", true, true);
+        StrictModeReadiness.evaluate(true, false, true, true, "Nubles", "Nubles", true, true);
     private static final Clock CLOCK = Clock.fixed(
         Instant.parse("2026-07-24T10:00:00Z"), ZoneOffset.UTC);
 
