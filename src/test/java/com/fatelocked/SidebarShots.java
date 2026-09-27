@@ -85,14 +85,14 @@ final class SidebarShots
             run(), connected()));
         shots.put("new-09-paused", () -> sidebar(icons, upToDate(),
             here("vanilla-mid", 50, 50, true),
-            new StrictModeModel(true, "Paused · 42 s", Tone.PENDING, null, CardAction.RESUME_STRICT_MODE,
+            new StrictModeModel(true, "Paused · 42s", Tone.PENDING, null, CardAction.RESUME_STRICT_MODE,
                 Arrays.asList("Varrock Teleport, 12:02", "Ring of dueling: Emir's Arena, 11:40")),
             run(), connected()));
         shots.put("new-10-interior", () -> sidebar(icons, upToDate(),
             here("vanilla-interiors", 18, 143, true), active(), run(), connected()));
         shots.put("new-12-strict-paused", () -> {
             Sidebar sidebar = (Sidebar) sidebar(icons, upToDate(), here("vanilla-mid", 50, 50, true),
-                new StrictModeModel(true, "Paused · 42 s", Tone.PENDING, null, CardAction.RESUME_STRICT_MODE,
+                new StrictModeModel(true, "Paused · 42s", Tone.PENDING, null, CardAction.RESUME_STRICT_MODE,
                     Arrays.asList("Varrock Teleport, 12:02", "Ring of dueling: Emir's Arena, 11:40")),
                 run(), connected());
             sidebar.here().setExpanded(false);

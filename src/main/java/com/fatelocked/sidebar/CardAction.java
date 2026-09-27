@@ -15,7 +15,7 @@ public enum CardAction
     REPAIR("Re-pair tracker…"),
     CANCEL_REPAIR("Cancel re-pairing"),
     DISCONNECT("Disconnect"),
-    PAUSE_STRICT_MODE("Pause 60 s"),
+    PAUSE_STRICT_MODE("Pause 60s"),
     RESUME_STRICT_MODE("Resume");
 
     private final String label;

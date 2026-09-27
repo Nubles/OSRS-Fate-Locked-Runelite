@@ -99,7 +99,7 @@ public class SidebarViewsTest
                 Collections.emptyList()));
             assertTrue(strict.isExpanded());
             assertTrue(strict.toggle().isSelected());
-            assertEquals("Pause 60 s", buttons(strict).get(0).getText());
+            assertEquals("Pause 60s", buttons(strict).get(0).getText());
 
             strict.toggle().doClick();
             assertEquals(Collections.singletonList(false), flipped);
