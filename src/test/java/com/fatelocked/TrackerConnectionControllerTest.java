@@ -371,6 +371,59 @@ public class TrackerConnectionControllerTest
     }
 
     @Test
+    public void disconnectingForgetsThePairingAtOnceAndChecksNothingMore() throws Exception
+    {
+        connect(5, "\"5\"");
+
+        controller.forgetPairing();
+
+        assertEquals("", controller.activeCode());
+        assertNull(configuration.get(TrackerConnectionSettings.PAIRING_CODE_KEY));
+        assertEquals(SyncReason.NOT_PAIRED, controller.snapshot().getReason());
+        assertEquals(SyncReason.NOT_PAIRED, listener.last().getReason());
+        controller.poll();
+        assertNoFurtherRequest();
+    }
+
+    @Test
+    public void disconnectingDuringARePairingForgetsTheNewCodeToo() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+
+        controller.forgetPairing();
+
+        assertEquals("", controller.activeCode());
+        controller.poll();
+        assertNoFurtherRequest();
+    }
+
+    @Test
+    public void cancellingAFirstPairingForgetsItsCode() throws Exception
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, controller.snapshot().getReason());
+
+        controller.forgetPairing();
+
+        assertEquals("", controller.activeCode());
+        assertEquals(SyncReason.NOT_PAIRED, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void aStoppedControllerForgetsNothing() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.stop();
+
+        controller.forgetPairing();
+
+        assertEquals(INITIAL_CODE, configuration.get(TrackerConnectionSettings.PAIRING_CODE_KEY));
+    }
+
+    @Test
     public void aPairingChangedElsewhereEndsARePairing() throws Exception
     {
         connect(5, "\"5\"");

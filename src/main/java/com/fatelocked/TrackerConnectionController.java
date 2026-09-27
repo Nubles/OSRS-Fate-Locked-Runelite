@@ -194,6 +194,27 @@ final class TrackerConnectionController
         }
     }
 
+    /**
+     * The player pressed Disconnect, or cancelled a first pairing: forget the code at
+     * once, so nothing more is asked of the relay. The rules in force stay, as a
+     * backup's would, until others arrive.
+     */
+    void forgetPairing()
+    {
+        synchronized (pollLock)
+        {
+            if (stopped)
+            {
+                return;
+            }
+            abandonCheckLocked();
+            pendingCode = null;
+            settings.clearPairing();
+            currentIdentityCode = settings.pairingCode();
+            showLocked(machine.pairingReplaced(false));
+        }
+    }
+
     /** The code checks go to: a re-pairing's new code, or the saved one. */
     String activeCode()
     {
