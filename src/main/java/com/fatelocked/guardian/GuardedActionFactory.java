@@ -2,7 +2,6 @@ package com.fatelocked.guardian;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.ChunkLocator;
-import com.fatelocked.Teleports;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
@@ -10,6 +9,10 @@ import net.runelite.client.util.Text;
 
 import java.util.Locale;
 
+/**
+ * What a menu option is on, for the chunk tags. Travel isn't read here: the
+ * tracker's travel table matches it by id (F4).
+ */
 public final class GuardedActionFactory
 {
     /** What a menu option is on, placed by the chunk locator (instances and boats, B14). */
@@ -25,14 +28,6 @@ public final class GuardedActionFactory
             // "Walk here" carries viewport pixel coordinates, not a scene
             // tile: it has no knowable destination, so it is never tagged.
             return unknown(option, target);
-        }
-
-        CanonicalChunk teleport = Teleports.checkedTravelDestinationChunk(
-            entry.getOption(), entry.getTarget(), false);
-        if (teleport != null)
-        {
-            return new GuardedAction(
-                GuardedAction.Kind.TELEPORT, option, target, teleport, null);
         }
 
         if (option.equals("wear") || option.equals("wield") || option.equals("equip"))

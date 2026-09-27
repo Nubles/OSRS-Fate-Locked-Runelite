@@ -36,8 +36,9 @@ public class GuardedActionFactoryTest
             factory.from(bank, locator).getKind());
     }
 
+    /** Travel is the tracker's table's to match, by id (F4): menu text alone is never a teleport here. */
     @Test
-    public void walkingHasNoDestinationWhileTeleportAndEquipmentAreRecognized()
+    public void walkingAndTeleportTextHaveNoChunkWhileEquipmentIsRecognized()
     {
         // "Walk here" carries viewport pixel coordinates, not a scene tile,
         // so it is never given a chunk (and never tagged).
@@ -50,8 +51,9 @@ public class GuardedActionFactoryTest
         assertNull(factory.from(walk, locator).getChunk());
 
         MenuEntry teleport = entry("Teleport", "Falador");
-        assertEquals(GuardedAction.Kind.TELEPORT,
+        assertEquals(GuardedAction.Kind.UNKNOWN,
             factory.from(teleport, locator).getKind());
+        assertNull(factory.from(teleport, locator).getChunk());
 
         MenuEntry wield = entry("Wield", "Abyssal whip");
         when(wield.getItemId()).thenReturn(4151);
@@ -71,23 +73,16 @@ public class GuardedActionFactoryTest
     }
 
     @Test
-    public void newNonTeleportTransportFormsRemainUnknownUntilTravelGuardianIntegrates()
+    public void transportTextIsNeverAChunk()
     {
         String[] transports = {
-            "mine cart", "magic carpet", "balloon", "eagle"
+            "mine cart", "magic carpet", "balloon", "eagle", "minigame teleport"
         };
         for (String transport : transports)
         {
             assertEquals(GuardedAction.Kind.UNKNOWN,
                 factory.from(entry("Travel via " + transport, "Falador"), locator).getKind());
         }
-    }
-
-    @Test
-    public void minigameTeleportRetainsLegacyTeleportClassification()
-    {
-        assertEquals(GuardedAction.Kind.TELEPORT,
-            factory.from(entry("Travel via minigame teleport", "Falador"), locator).getKind());
     }
 
     private static MenuEntry entry(String option, String target)

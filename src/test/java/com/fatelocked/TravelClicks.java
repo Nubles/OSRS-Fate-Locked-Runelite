@@ -7,6 +7,8 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.WidgetUtil;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -25,7 +27,13 @@ public final class TravelClicks
     /** Cast on a spell in the spellbook. */
     public static MenuOptionClicked cast(String spell)
     {
-        return widget("Cast", "<col=00ff00>" + spell + "</col>", InterfaceID.MAGIC_SPELLBOOK, -1);
+        return spell("Cast", spell);
+    }
+
+    /** An option on a spell in the spellbook. */
+    public static MenuOptionClicked spell(String option, String spell)
+    {
+        return widget(option, "<col=00ff00>" + spell + "</col>", InterfaceID.MAGIC_SPELLBOOK, -1);
     }
 
     /** An option on an item in the inventory. */
@@ -50,11 +58,17 @@ public final class TravelClicks
         return click;
     }
 
+    /** A click whose entry keeps the target set on it, as a menu tag sets it. */
     public static MenuOptionClicked click(MenuAction type, String option, String target)
     {
         MenuEntry entry = mock(MenuEntry.class);
+        String[] current = { target };
         when(entry.getOption()).thenReturn(option);
-        when(entry.getTarget()).thenReturn(target);
+        when(entry.getTarget()).thenAnswer(call -> current[0]);
+        doAnswer(call -> {
+            current[0] = call.getArgument(0);
+            return entry;
+        }).when(entry).setTarget(anyString());
         when(entry.getType()).thenReturn(type);
         when(entry.getItemId()).thenReturn(-1);
         MenuOptionClicked click = mock(MenuOptionClicked.class);

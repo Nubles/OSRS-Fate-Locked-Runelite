@@ -8,7 +8,7 @@ public class GuardedAction
 {
     public enum Kind
     {
-        NPC, OBJECT, BANK, TELEPORT, EQUIPMENT, MOVEMENT, UNKNOWN
+        NPC, OBJECT, BANK, EQUIPMENT, UNKNOWN
     }
 
     Kind kind;

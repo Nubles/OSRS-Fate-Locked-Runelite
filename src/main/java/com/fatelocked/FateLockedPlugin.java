@@ -26,6 +26,7 @@ import com.fatelocked.guardian.StrictModeReadiness;
 import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.guardian.travel.RuneLiteTravelAvailability;
 import com.fatelocked.guardian.travel.IntentClassifier;
+import com.fatelocked.guardian.travel.TravelMatch;
 import com.fatelocked.guardian.travel.TravelAlternativeFinder;
 import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
@@ -226,6 +227,8 @@ public class FateLockedPlugin extends Plugin
     private final ChunkPanelViewModelFactory chunkPanelFactory =
         new ChunkPanelViewModelFactory();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
+    /** What a click is, by id in the tracker's travel table: Strict Mode and the tags read the same answer (F4). */
+    private final IntentClassifier intentClassifier = new IntentClassifier();
     /** Where the player and menu targets are, for the client this plugin reads (B14). */
     private volatile ChunkLocator chunkLocator;
     private final StrictModeClickHandler strictClickHandler =
@@ -237,7 +240,6 @@ public class FateLockedPlugin extends Plugin
     private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
     /** Strict Mode's status as last worked out, for the HUD; null until then. */
     @Getter private volatile StrictModeStatusView strictModeStatus;
-    private IntentClassifier intentClassifier;
     private TravelRuleEvaluator travelRuleEvaluator;
     private TravelAvailability travelAvailability;
     private TravelAlternativeFinder travelAlternativeFinder;
@@ -397,7 +399,6 @@ public class FateLockedPlugin extends Plugin
             relayImporter,
             panel::updateConnection);
 
-        intentClassifier = new IntentClassifier();
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
         travelAlternativeFinder = new TravelAlternativeFinder();
@@ -1416,10 +1417,10 @@ public class FateLockedPlugin extends Plugin
         return Duration.between(exported, now).compareTo(FRESH_RULES_WINDOW) < 0;
     }
     /**
-     * Tag right-click menu entries whose target stands in a locked chunk with a
-     * red (LOCKED) marker: the "are you sure?" before you ever click. The
-     * decision service decides (B2), so a tag never disagrees with the
-     * sidebar, and another character, or nobody logged in, sees none.
+     * Tag right-click menu entries with a red (LOCKED) marker: the "are you
+     * sure?" before you ever click. The decision service decides (B2), so a
+     * tag never disagrees with the sidebar or Strict Mode, and another
+     * character, or nobody logged in, sees none.
      */
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
@@ -1429,17 +1430,33 @@ public class FateLockedPlugin extends Plugin
         if (ruleDecisions.trust() != Trust.TRUSTED) return;
 
         MenuEntry entry = event.getMenuEntry();
-        GuardedAction action = guardedActionFactory.from(entry, chunkLocator());
-        if (action.getChunk() == null) return;
-        boolean teleport = action.getKind() == GuardedAction.Kind.TELEPORT;
-        if (teleport ? !config.tagLockedTeleports() : !config.tagLockedMenus()) return;
-        if (!ruleDecisions.chunk(action.getChunk()).isLocked()) return;
+        if (!taggedLocked(entry, ruleDecisions)) return;
         String t = entry.getTarget();
         String base = t == null ? "" : t;
         if (!base.contains("(LOCKED)"))
         {
             entry.setTarget(base + " <col=ef4444>(LOCKED)</col>");
         }
+    }
+
+    /**
+     * Whether a menu option is tagged (F4, G14). Travel the tracker's table
+     * matches by id is tagged only for an exact LOCKED decision, one place,
+     * as Strict Mode reads it; networks and boats, which Strict Mode never
+     * blocks, are tagged the same way. Anything else is tagged by the chunk
+     * it stands in.
+     */
+    private boolean taggedLocked(MenuEntry entry, DecisionService ruleDecisions)
+    {
+        TravelMatch travel = intentClassifier.classify(new MenuFactsReader(client).read(entry), ruleDecisions.travelTable());
+        if (travel != null)
+        {
+            return config.tagLockedTeleports() && travel.getOption().destination() != null
+                && ruleDecisions.travel(travel.getMethod(), travel.getOption()).isLocked();
+        }
+        GuardedAction action = guardedActionFactory.from(entry, chunkLocator());
+        return config.tagLockedMenus() && action.getChunk() != null
+            && ruleDecisions.chunk(action.getChunk()).isLocked();
     }
 
     /** Chat line for entering a mapped chunk; {@code region} is null for a chunk only the tracker names. */

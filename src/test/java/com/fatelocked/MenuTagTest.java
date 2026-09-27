@@ -20,7 +20,6 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -103,20 +102,17 @@ public class MenuTagTest
         assertEquals("Guard", npcTarget(SEERS));
     }
 
+    /** vanilla-mid's travel table locks Ardougne Teleport: one place, locked (F4). */
     @Test
     public void theSettingsChooseWhatIsTaggedAndATagIsAddedOnce() throws Exception
     {
         playing(golden("vanilla-mid"), "Iron Example");
-        CanonicalChunk ardougne = Teleports.checkedTravelDestinationChunk("Cast", "Ardougne Teleport", false);
-        assertNotNull(ardougne);
-        assertEquals(PermissionStatus.LOCKED,
-            golden("vanilla-mid").permissionsAt(ardougne).get().getEntry());
 
-        assertEquals("Ardougne Teleport" + TAG, target(entry("Cast", "Ardougne Teleport", MenuAction.CC_OP)));
+        assertEquals("<col=00ff00>Ardougne Teleport</col>" + TAG, target(ardougneTeleport()));
         assertEquals("Guard" + TAG, npcTarget(SEERS));
 
         when(config.tagLockedTeleports()).thenReturn(false);
-        assertEquals("Ardougne Teleport", target(entry("Cast", "Ardougne Teleport", MenuAction.CC_OP)));
+        assertEquals("<col=00ff00>Ardougne Teleport</col>", target(ardougneTeleport()));
         assertEquals("Guard" + TAG, npcTarget(SEERS));
 
         when(config.tagLockedMenus()).thenReturn(false);
@@ -139,6 +135,11 @@ public class MenuTagTest
         Method refresh = FateLockedPlugin.class.getDeclaredMethod("refreshDecisions");
         refresh.setAccessible(true);
         refresh.invoke(plugin);
+    }
+
+    private static MenuEntry ardougneTeleport()
+    {
+        return TravelClicks.cast("Ardougne Teleport").getMenuEntry();
     }
 
     private String npcTarget(CanonicalChunk chunk)
