@@ -232,6 +232,8 @@ public class FateLockedPlugin extends Plugin
      * overlays read it through this volatile field.
      */
     private volatile DecisionService decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
+    /** Counts scene loads, so overlays work a scene out once (U3). */
+    private volatile int sceneGeneration;
     /** The colours the colour settings choose; overlays read it through this volatile field. */
     private volatile Palette palette = Palette.defaults();
     /** The settings that change the palette. */
@@ -542,6 +544,12 @@ public class FateLockedPlugin extends Plugin
         gate.run(this::refreshPalette);
     }
 
+    /** Which load of the scene this is; it changes whenever a scene loads. */
+    int sceneGeneration()
+    {
+        return sceneGeneration;
+    }
+
     /** The colours everything is drawn in (U15): a preset, or the player's own. Client thread. */
     Palette palette()
     {
@@ -661,6 +669,12 @@ public class FateLockedPlugin extends Plugin
     public void onGameStateChanged(GameStateChanged ev)
     {
         GameState state = ev.getGameState();
+        if (state == GameState.LOADING)
+        {
+            // A new scene, even at the same base, which instances reuse.
+            sceneGeneration++;
+            return;
+        }
         if (state == GameState.LOGIN_SCREEN)
         {
             // Logged out: the next login warns and announces afresh.

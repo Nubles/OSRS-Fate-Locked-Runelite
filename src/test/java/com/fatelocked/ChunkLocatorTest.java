@@ -157,6 +157,8 @@ public class ChunkLocatorTest
         assertEquals(new CanonicalChunk(50, 50), here.getRules());
         assertEquals(new CanonicalChunk((6400 + 43) >> 6, (6400 + 46) >> 6), here.getScene());
         assertEquals(0, here.getPlane());
+        assertEquals("the player's tile in the scene", 43, here.getSceneX());
+        assertEquals(46, here.getSceneY());
     }
 
     @Test
@@ -177,6 +179,8 @@ public class ChunkLocatorTest
         CanonicalChunk sea = new CanonicalChunk((BASE + 100) >> 6, (BASE + 10) >> 6);
         assertEquals(sea, here.getRules());
         assertEquals(sea, here.getScene());
+        assertEquals("the sea tile under the ship", 100, here.getSceneX());
+        assertEquals(10, here.getSceneY());
         ships();
         assertNull("a deck with no ship", locator.playerInScene());
         when(client.getLocalPlayer()).thenReturn(null);
@@ -199,6 +203,25 @@ public class ChunkLocatorTest
         when(main.getBaseY()).thenReturn(6400);
         assertEquals(new CanonicalChunk(50, 50), locator.sceneChunk(new CanonicalChunk(100, 100)));
         assertNull("its centre zone has no template", locator.sceneChunk(new CanonicalChunk(101, 100)));
+    }
+
+    /** U3: the scene's borders are worked out zone by zone, each judged by what it is a copy of. */
+    @Test
+    public void eachSceneZoneIsJudgedByTheChunkItIsACopyOf()
+    {
+        when(main.getBaseX()).thenReturn(BASE);
+        when(main.getBaseY()).thenReturn(BASE);
+        assertEquals("on the surface, its own chunk",
+            new CanonicalChunk((BASE + 8 * 8) >> 6, BASE >> 6), locator.sceneZone(8, 0));
+        assertNull("past the scene", locator.sceneZone(13, 0));
+        assertNull(locator.sceneZone(0, 13));
+        assertNull(locator.sceneZone(-1, 0));
+
+        instance(5, 5, template(400, 400));
+        when(main.getBaseX()).thenReturn(6400);
+        when(main.getBaseY()).thenReturn(6400);
+        assertEquals("a copy of Lumbridge", new CanonicalChunk(50, 50), locator.sceneZone(5, 5));
+        assertNull("a zone with no template", locator.sceneZone(5, 6));
     }
 
     private void standAt(WorldView view, int sceneX, int sceneY)

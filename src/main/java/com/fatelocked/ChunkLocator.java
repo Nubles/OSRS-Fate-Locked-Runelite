@@ -81,7 +81,23 @@ public final class ChunkLocator
         }
         int plane = view.getPlane();
         WorldPoint inScene = WorldPoint.fromLocal(view, point.getX(), point.getY(), plane);
-        return new Located(locate(view, point), WorldChunks.of(inScene), plane);
+        return new Located(locate(view, point), WorldChunks.of(inScene), plane,
+            point.getSceneX(), point.getSceneY());
+    }
+
+    /**
+     * The rules chunk of one 8-tile zone of the top-level scene: the chunk it is a copy of
+     * inside an instance, which is copied zone by zone. Zones never straddle a chunk line, so
+     * the zone's first tile decides. Null when it isn't loaded or can't be known.
+     */
+    public CanonicalChunk sceneZone(int zoneX, int zoneY)
+    {
+        WorldView view = client.getTopLevelWorldView();
+        if (view == null || zoneX < 0 || zoneY < 0) return null;
+        int x = zoneX * ZONE_TILES;
+        int y = zoneY * ZONE_TILES;
+        if (x >= view.getSizeX() || y >= view.getSizeY()) return null;
+        return locate(view, LocalPoint.fromScene(x, y, view));
     }
 
     /**

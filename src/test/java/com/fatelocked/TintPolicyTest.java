@@ -111,6 +111,11 @@ public class TintPolicyTest
             assertFalse(overlay, source.contains("lockStateAt("));
             assertTrue(overlay, source.contains("TintPolicy."));
         }
+        // U3: the scene draws edges tile by tile, and fills no chunk.
+        String scene = new String(Files.readAllBytes(Paths.get("src", "main", "java", "com", "fatelocked",
+            "FateLockedSceneOverlay.java")), StandardCharsets.UTF_8);
+        assertFalse(scene.contains("fillPolygon("));
+        assertFalse(scene.contains("LocalPoint.fromWorld("));
     }
 
     private static TintPolicy.Tint tint(String entry)

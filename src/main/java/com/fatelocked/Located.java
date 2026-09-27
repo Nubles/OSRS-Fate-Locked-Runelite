@@ -16,4 +16,7 @@ public class Located
     /** The chunk of the top-level scene, in its own coordinates, for drawing. */
     CanonicalChunk scene;
     int plane;
+    /** The player's tile in the top-level scene, counted from its base. */
+    int sceneX;
+    int sceneY;
 }
