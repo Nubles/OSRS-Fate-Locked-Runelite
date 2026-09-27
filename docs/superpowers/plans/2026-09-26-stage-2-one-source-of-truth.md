@@ -460,16 +460,18 @@ commit carries its builder, the field and its golden answer together.
 
 ### Phase G: finish
 
-- [ ] **G1. Docs.** Plugin: README, CONTRIBUTING (the contract, the frozen
+- [~] **G1. Docs.** Plugin: README, CONTRIBUTING (the contract, the frozen
   fields and the Strict Mode invariant: an id match, one destination, "the
   destination or the unlock it needs is locked"), the Hub review notes
   (tags and Strict Mode now cover interiors and instances), and checklist
   rows for interiors, instances, ocean, boats, tablets, spellbooks, the
   passage Eyrie, a Digsite Rub that is not blocked, and the HUD countdown.
   Web: the RuneLite guide text in `data/runeliteGuide.ts`.
-- [ ] **G2. Release.** A login-screen client test with an empty RuneLite
+  *Plugin part done as* `cc57a4d`. *Web part pending:* the guide still describes `autoReload`, which Stage 1 removed, and doesn't mention the Stage 2 pause hotkey or Strict Mode's travel table. The web's `bundle-contract.json` should also name `4c2bf97` as an installed build.
+- [x] **G2. Release.** A login-screen client test with an empty RuneLite
   home, as in Stage 1; the web release; then the Plugin Hub pull request
   once the owner has merged the plugin.
+  *Done* on 27 September 2026: the client test on `cc57a4d` (a Stage 2 bundle as the backup file; loaded, saved, no warnings); web #53 merged as `d2d72fa`, whose deploy a flaky test skipped, so it went live with #51 (`0d1ab4f`); the plugin merged as `4c2bf97` (#21); and runelite/plugin-hub#17192 merged, so the Hub builds `4c2bf97`.
 
 ## Owner decisions and pending steps
 
