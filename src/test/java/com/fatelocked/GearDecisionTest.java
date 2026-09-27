@@ -113,12 +113,51 @@ public class GearDecisionTest
     public void thePluginWarnsOnlyForTheRulesCharacter() throws Exception
     {
         FateLockedBundle mid = golden("vanilla-mid");
-        int weapon = overTierWeapon(mid);
-        FateLockedPlugin plugin = new FateLockedPlugin();
         FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.warnOverTierGear()).thenReturn(true);
-        Client client = mock(Client.class);
+        when(config.ruleWarnings()).thenReturn(true);
         Player player = mock(Player.class);
+        FateLockedPlugin plugin = wearing(overTierWeapon(mid), mid, config, player);
+
+        when(player.getName()).thenReturn("Iron Example");
+        call(plugin, "refreshDecisions");
+        call(plugin, "recomputeOverTierGear");
+        assertEquals("Weapon", plugin.getOverTierSummary());
+
+        when(player.getName()).thenReturn("Someone Else");
+        call(plugin, "refreshDecisions");
+        call(plugin, "recomputeOverTierGear");
+        assertNull(plugin.getOverTierSummary());
+    }
+
+    /** D3: one switch warns about gear and Slayer, and turning it off or on works the gear out again. */
+    @Test
+    public void theRuleWarningsSwitchDecidesTheGearWarning() throws Exception
+    {
+        FateLockedBundle mid = golden("vanilla-mid");
+        FateLockedConfig config = mock(FateLockedConfig.class);
+        when(config.ruleWarnings()).thenReturn(true);
+        Player player = mock(Player.class);
+        when(player.getName()).thenReturn("Iron Example");
+        FateLockedPlugin plugin = wearing(overTierWeapon(mid), mid, config, player);
+        call(plugin, "refreshDecisions");
+        call(plugin, "recomputeOverTierGear");
+        assertEquals("Weapon", plugin.getOverTierSummary());
+
+        when(config.ruleWarnings()).thenReturn(false);
+        configChanged(plugin, "ruleWarnings");
+        assertNull(plugin.getOverTierSummary());
+
+        when(config.ruleWarnings()).thenReturn(true);
+        configChanged(plugin, "ruleWarnings");
+        assertEquals("Weapon", plugin.getOverTierSummary());
+    }
+
+    /** A plugin whose player wears this weapon, with these rules and settings. */
+    private static FateLockedPlugin wearing(int weapon, FateLockedBundle rules, FateLockedConfig config, Player player)
+        throws Exception
+    {
+        FateLockedPlugin plugin = new FateLockedPlugin();
+        Client client = mock(Client.class);
         when(client.getLocalPlayer()).thenReturn(player);
         ItemContainer worn = mock(ItemContainer.class);
         when(worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx())).thenReturn(new Item(weapon, 1));
@@ -132,17 +171,16 @@ public class GearDecisionTest
         set(plugin, "itemManager", items);
         set(plugin, "chatMessageManager", mock(ChatMessageManager.class));
         set(plugin, "notifier", mock(Notifier.class));
-        set(plugin, "active", new ActiveRules(mid, FateLockedPlugin.RulesSource.RELAY));
+        set(plugin, "active", new ActiveRules(rules, FateLockedPlugin.RulesSource.RELAY));
+        return plugin;
+    }
 
-        when(player.getName()).thenReturn("Iron Example");
-        call(plugin, "refreshDecisions");
-        call(plugin, "recomputeOverTierGear");
-        assertEquals("Weapon", plugin.getOverTierSummary());
-
-        when(player.getName()).thenReturn("Someone Else");
-        call(plugin, "refreshDecisions");
-        call(plugin, "recomputeOverTierGear");
-        assertNull(plugin.getOverTierSummary());
+    /** What the plugin does on the client thread when one of its settings changes. */
+    static void configChanged(FateLockedPlugin plugin, String key) throws Exception
+    {
+        Method apply = FateLockedPlugin.class.getDeclaredMethod("applyConfigChange", String.class);
+        apply.setAccessible(true);
+        apply.invoke(plugin, key);
     }
 
     private static int overTierWeapon(FateLockedBundle mid)

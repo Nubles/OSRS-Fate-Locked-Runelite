@@ -122,7 +122,7 @@ public class ProgressTest
         FateLockedPlugin plugin = mock(FateLockedPlugin.class);
         when(plugin.getBundle()).thenReturn(mid);
         FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.showHud()).thenReturn(true);
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
         Client client = mock(Client.class);
         Player player = mock(Player.class);
         when(player.getName()).thenReturn("Iron Example");

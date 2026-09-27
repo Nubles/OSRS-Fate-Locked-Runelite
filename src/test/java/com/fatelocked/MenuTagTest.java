@@ -52,8 +52,7 @@ public class MenuTagTest
     @Before
     public void setUp() throws Exception
     {
-        when(config.tagLockedMenus()).thenReturn(true);
-        when(config.tagLockedTeleports()).thenReturn(true);
+        when(config.tagLockedOptions()).thenReturn(true);
         set("config", config);
         set("client", client);
     }
@@ -102,24 +101,23 @@ public class MenuTagTest
         assertEquals("Guard", npcTarget(SEERS));
     }
 
-    /** vanilla-mid's travel table locks Ardougne Teleport: one place, locked (F4). */
+    /**
+     * vanilla-mid's travel table locks Ardougne Teleport: one place, locked (F4). One setting
+     * tags both travel and what stands in a locked chunk (D1), and a tag is added once.
+     */
     @Test
-    public void theSettingsChooseWhatIsTaggedAndATagIsAddedOnce() throws Exception
+    public void theSettingChoosesWhetherToTagAndATagIsAddedOnce() throws Exception
     {
         playing(golden("vanilla-mid"), "Iron Example");
 
         assertEquals("<col=00ff00>Ardougne Teleport</col>" + TAG, target(ardougneTeleport()));
         assertEquals("Guard" + TAG, npcTarget(SEERS));
 
-        when(config.tagLockedTeleports()).thenReturn(false);
+        when(config.tagLockedOptions()).thenReturn(false);
         assertEquals("<col=00ff00>Ardougne Teleport</col>", target(ardougneTeleport()));
-        assertEquals("Guard" + TAG, npcTarget(SEERS));
-
-        when(config.tagLockedMenus()).thenReturn(false);
-        when(config.tagLockedTeleports()).thenReturn(true);
         assertEquals("Guard", npcTarget(SEERS));
 
-        when(config.tagLockedMenus()).thenReturn(true);
+        when(config.tagLockedOptions()).thenReturn(true);
         MenuEntry tagged = npcEntry(SEERS);
         tagged.setTarget("Guard" + TAG);
         assertEquals("Guard" + TAG, target(tagged));

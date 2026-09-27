@@ -43,14 +43,14 @@ final class TintPolicy
         return at(decisions, chunk) == Tint.LOCKED;
     }
 
-    /** The player's colour for a tint. */
+    /** The player's colour for a tint, or null for a chunk the rules don't decide, which isn't tinted. */
     static Color color(Tint tint, FateLockedConfig config)
     {
         switch (tint)
         {
             case UNLOCKED: return config.unlockedColor();
             case LOCKED: return config.lockedColor();
-            default: return config.unauthoredColor();
+            default: return null;
         }
     }
 }

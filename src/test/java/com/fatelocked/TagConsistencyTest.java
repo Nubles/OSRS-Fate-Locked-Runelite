@@ -58,8 +58,7 @@ public class TagConsistencyTest
         bundle = FateLockedBundle.loadFromJson(GSON, json);
         travel = GSON.fromJson(json, JsonObject.class).getAsJsonObject("rules").getAsJsonObject("travel");
         FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.tagLockedMenus()).thenReturn(true);
-        when(config.tagLockedTeleports()).thenReturn(true);
+        when(config.tagLockedOptions()).thenReturn(true);
         set("config", config);
         set("client", client);
         set("active", new ActiveRules(bundle, FateLockedPlugin.RulesSource.RELAY));

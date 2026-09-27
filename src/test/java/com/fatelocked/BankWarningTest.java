@@ -62,7 +62,7 @@ public class BankWarningTest
     @Before
     public void setUp() throws Exception
     {
-        when(config.warnLockedBank()).thenReturn(true);
+        when(config.ruleWarnings()).thenReturn(true);
         set("config", config);
         set("client", client);
         set("chatMessageManager", chat);
@@ -160,7 +160,7 @@ public class BankWarningTest
         assertEquals(List.of(), openBankAt(LUMBRIDGE_CASTLE, BANK));
 
         playing(golden("custom-none-banks-on"), "Iron Example");
-        when(config.warnLockedBank()).thenReturn(false);
+        when(config.ruleWarnings()).thenReturn(false);
         assertEquals(List.of(), openBankAt(LUMBRIDGE_CASTLE, BANK));
     }
 

@@ -93,11 +93,11 @@ public class TintPolicyTest
         FateLockedConfig config = mock(FateLockedConfig.class);
         when(config.unlockedColor()).thenReturn(Color.GREEN);
         when(config.lockedColor()).thenReturn(Color.RED);
-        when(config.unauthoredColor()).thenReturn(Color.GRAY);
 
         assertEquals(Color.GREEN, TintPolicy.color(TintPolicy.Tint.UNLOCKED, config));
         assertEquals(Color.RED, TintPolicy.color(TintPolicy.Tint.LOCKED, config));
-        assertEquals(Color.GRAY, TintPolicy.color(TintPolicy.Tint.UNKNOWN, config));
+        assertEquals("a place the rules don't decide isn't tinted", null,
+            TintPolicy.color(TintPolicy.Tint.UNKNOWN, config));
     }
 
     /** Until B17's boundary test covers every surface: both overlays tint through TintPolicy. */

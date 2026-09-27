@@ -41,7 +41,8 @@ public class FateLockedSceneOverlay extends Overlay
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.drawScene() && !config.highlightLockedBorders() && !config.shadeNearbyLocked()) return null;
+        FateLockedConfig.ChunkBorders borders = config.chunkBorders();
+        if (borders == FateLockedConfig.ChunkBorders.OFF && !config.shadeNearbyLocked()) return null;
         DecisionService decisions = plugin.decisions();
         if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
         ChunkLocator locator = plugin.chunkLocator();
@@ -59,13 +60,13 @@ public class FateLockedSceneOverlay extends Overlay
             drawSurroundingLocked(graphics, chunk, plane, decisions, locator, view);
         }
 
-        if (config.drawScene())
+        Color tint = TintPolicy.color(TintPolicy.at(decisions, here.getRules()), config);
+        if (borders == FateLockedConfig.ChunkBorders.ALL_EDGES && tint != null)
         {
-            drawChunkOutline(graphics, chunk, plane, view,
-                TintPolicy.color(TintPolicy.at(decisions, here.getRules()), config));
+            drawChunkOutline(graphics, chunk, plane, view, tint);
         }
 
-        if (config.highlightLockedBorders())
+        if (borders != FateLockedConfig.ChunkBorders.OFF)
         {
             drawLockedBorders(graphics, chunk, plane, decisions, locator, view);
         }

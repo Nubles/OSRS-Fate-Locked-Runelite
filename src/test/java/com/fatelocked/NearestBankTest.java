@@ -132,8 +132,7 @@ public class NearestBankTest
         org.mockito.Mockito.when(plugin.decisions()).thenReturn(
             DecisionService.create(RulesSnapshot.of(rules), "iron example", "iron example"));
         FateLockedConfig config = org.mockito.Mockito.mock(FateLockedConfig.class);
-        org.mockito.Mockito.when(config.showHud()).thenReturn(true);
-        org.mockito.Mockito.when(config.showNearest()).thenReturn(true);
+        org.mockito.Mockito.when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
         net.runelite.api.Client client = org.mockito.Mockito.mock(net.runelite.api.Client.class);
         net.runelite.api.Player player = org.mockito.Mockito.mock(net.runelite.api.Player.class);
         org.mockito.Mockito.when(player.getName()).thenReturn("Iron Example");

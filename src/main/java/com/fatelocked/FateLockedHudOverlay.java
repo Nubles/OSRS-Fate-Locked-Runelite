@@ -52,7 +52,7 @@ public class FateLockedHudOverlay extends OverlayPanel
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.showHud())
+        if (config.hudMode() == FateLockedConfig.HudMode.OFF)
         {
             return null;
         }
@@ -153,7 +153,7 @@ public class FateLockedHudOverlay extends OverlayPanel
                     .build());
             }
 
-            if (config.showNearest() && decisions.hasNearestData())
+            if (decisions.hasNearestData())
             {
                 // Recompute only when the player crosses a chunk boundary or the
                 // rules or character change — render() runs per frame.

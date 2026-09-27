@@ -120,7 +120,7 @@ public class HudStatusTest
         FateLockedPlugin plugin = mock(FateLockedPlugin.class);
         when(plugin.getBundle()).thenReturn(mid);
         FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.showHud()).thenReturn(true);
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
         Client client = mock(Client.class);
         Player player = mock(Player.class);
         when(player.getName()).thenReturn("Someone Else");
@@ -140,6 +140,10 @@ public class HudStatusTest
         assertEquals("LOCKED", lines.get("Status"));
         assertEquals("Unlock Seers' Village", lines.get("Why"));
         assertTrue(lines.get("Here"), lines.get("Here").startsWith("Seers' Village"));
+
+        hud.getPanelComponent().getChildren().clear();
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.OFF);
+        assertTrue("the HUD's Off draws nothing", drawn(hud).isEmpty());
     }
 
     /** E8: the tracker's area names a chunk, with its region, ahead of the area lists older rules use. */
@@ -209,7 +213,7 @@ public class HudStatusTest
             GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz"))));
         when(plugin.decisions()).thenReturn(DecisionService.create(RulesSnapshot.empty(), null, null));
         FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.showHud()).thenReturn(true);
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
         FateLockedHudOverlay hud = new FateLockedHudOverlay(mock(Client.class), plugin, config);
         hud.setClearChildren(false);
 

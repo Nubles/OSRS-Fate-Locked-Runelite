@@ -58,7 +58,7 @@ public class FateLockedWorldMapOverlay extends Overlay
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.drawWorldMap()) return null;
+        if (!config.worldMapMode().shading()) return null;
         DecisionService decisions = plugin.decisions();
         // No rules, or another character's: the map draws nothing.
         if (decisions.trust() != Trust.TRUSTED) return null;
@@ -94,7 +94,7 @@ public class FateLockedWorldMapOverlay extends Overlay
             graphics.draw(rect);
         }
 
-        if (config.worldMapTooltip())
+        if (config.worldMapMode().tooltip())
         {
             addHoverTooltip(decisions, bounds, ro);
         }
@@ -124,7 +124,7 @@ public class FateLockedWorldMapOverlay extends Overlay
 
         // Per-chunk "what's here" from the app's chunk-content dataset —
         // capped per category so dense chunks stay a tooltip, not a page.
-        List<String> content = config.worldMapTooltipContent()
+        List<String> content = config.worldMapMode().contents()
             ? plugin.getBundle().contentAt(hovered, 4) : Collections.emptyList();
         tooltipManager.add(new Tooltip(WorldMapChunks.tooltip(decisions, hovered, content)));
     }

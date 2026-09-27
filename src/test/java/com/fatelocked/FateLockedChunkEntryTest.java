@@ -81,8 +81,8 @@ public class FateLockedChunkEntryTest
         set("chatMessageManager", chat);
         set("notifier", notifier);
         when(client.getLocalPlayer()).thenReturn(player);
-        when(config.chatOnEnter()).thenReturn(true);
-        when(config.warnOnLocked()).thenReturn(true);
+        when(config.announceAreaChanges()).thenReturn(true);
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT_SOUND_FADE);
         when(config.useNotifier()).thenReturn(true);
     }
 
@@ -125,15 +125,16 @@ public class FateLockedChunkEntryTest
         verify(client, times(2)).playSoundEffect(LOCKED_SOUND);
     }
 
+    /** D1: routine announcements are their own setting; the locked-area alert keeps its line and sound. */
     @Test
-    public void theLockedWarningDoesNotNeedChunkChat() throws Exception
+    public void theLockedWarningDoesNotNeedRoutineAnnouncements() throws Exception
     {
         loadRules();
-        when(config.chatOnEnter()).thenReturn(false);
+        when(config.announceAreaChanges()).thenReturn(false);
 
         walk(LUMBRIDGE, FALADOR);
 
-        verify(chat, never()).queue(any(QueuedMessage.class));
+        verify(chat, times(1)).queue(any(QueuedMessage.class));
         verify(client).playSoundEffect(LOCKED_SOUND);
         verify(notifier).notify("Entered LOCKED chunk: Asgarnia");
     }
@@ -142,12 +143,27 @@ public class FateLockedChunkEntryTest
     public void turningTheWarningOffSilencesIt() throws Exception
     {
         loadRules();
-        when(config.warnOnLocked()).thenReturn(false);
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT);
 
         walk(LUMBRIDGE, FALADOR);
 
         verify(client, never()).playSoundEffect(anyInt());
         verify(notifier, never()).notify(anyString());
+    }
+
+    /** D1: with the alert off, a locked area says nothing; routine announcements are their own setting. */
+    @Test
+    public void anAlertSetToOffPostsNoLockedLine() throws Exception
+    {
+        loadRules();
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.OFF);
+
+        walk(LUMBRIDGE, FALADOR);
+
+        List<String> lines = chatLines();
+        assertEquals(lines.toString(), 1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).endsWith("✓ unlocked"));
+        verify(client, never()).playSoundEffect(anyInt());
     }
 
     @Test
@@ -199,7 +215,10 @@ public class FateLockedChunkEntryTest
         verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
     }
 
-    /** Another character's rules say nothing about this one: no chat, no alert, no warning. */
+    /**
+     * Another character's rules say nothing about this one: walking brings no area line, sound
+     * or alert. The one line says whose run it is, and it always shows (decision 10).
+     */
     @Test
     public void anotherCharacterWalksInSilence() throws Exception
     {
@@ -207,9 +226,13 @@ public class FateLockedChunkEntryTest
 
         walk(LUMBRIDGE_TO_FALADOR);
 
-        verify(chat, never()).queue(any(QueuedMessage.class));
+        List<String> lines = chatLines();
+        assertEquals(lines.toString(), 1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("you're logged in as"));
         verify(client, never()).playSoundEffect(anyInt());
-        verify(notifier, never()).notify(anyString());
+        // Notifications are on here, so that line is also the one notification.
+        verify(notifier, times(1)).notify(anyString());
+        verify(notifier).notify("You're logged in as Someone Else, not the bound account Iron Example");
         verify(panel, never()).showRollInbox(new RollInboxModel(0, 0, 1, false));
     }
 

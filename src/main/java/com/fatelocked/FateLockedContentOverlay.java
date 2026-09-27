@@ -43,7 +43,7 @@ public class FateLockedContentOverlay extends OverlayPanel
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.showChunkContentBox()) return null;
+        if (config.hudMode() != FateLockedConfig.HudMode.DETAILED) return null;
         DecisionService decisions = plugin.decisions();
         if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to list
         CanonicalChunk chunk = plugin.chunkLocator().player();

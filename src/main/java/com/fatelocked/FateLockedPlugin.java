@@ -83,6 +83,7 @@ import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.RuneLite;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
@@ -393,6 +394,8 @@ public class FateLockedPlugin extends Plugin
     {
         // startUp runs on the Swing thread: everything that reads the game or
         // changes plugin state waits for the client thread, through the gate.
+        // Before anything reads a setting, carry the old ones over (D2).
+        migrateSettings();
         ClientThreadGate started = new ClientThreadGate(clientThread, new PluginSession());
         gate = started;
         sidebarModels = new SidebarPublisher(panel);
@@ -522,6 +525,40 @@ public class FateLockedPlugin extends Plugin
      * the Swing thread for the sidebar and the config panel. The sidebar
      * control updates there; everything else waits for the client thread.
      */
+    /** RuneLite writes each profile's defaults on a switch; its old settings are carried over too. */
+    @Subscribe
+    public void onProfileChanged(ProfileChanged ev)
+    {
+        migrateSettings();
+    }
+
+    /** Carry each player's settings from before Stage 3 over to the merged ones (D2). */
+    private void migrateSettings()
+    {
+        try
+        {
+            SettingsMigration.migrate(new SettingsMigration.ConfigStore()
+            {
+                @Override
+                public String get(String key)
+                {
+                    return configManager.getConfiguration(FateLockedConfig.GROUP, key);
+                }
+
+                @Override
+                public void set(String key, String value)
+                {
+                    configManager.setConfiguration(FateLockedConfig.GROUP, key, value);
+                }
+            });
+        }
+        catch (RuntimeException error)
+        {
+            // Settings that can't be carried over start at their defaults; the plugin still starts.
+            log.warn("Could not carry old Fate Locked settings over: {}", error.getMessage());
+        }
+    }
+
     @Subscribe
     public void onConfigChanged(ConfigChanged ev)
     {
@@ -532,12 +569,10 @@ public class FateLockedPlugin extends Plugin
 
     private void applyConfigChange(String key)
     {
-        if ("warnOverTierGear".equals(key))
+        if ("ruleWarnings".equals(key))
         {
+            // One switch warns about both, so each is worked out again.
             recomputeOverTierGear();
-        }
-        else if ("warnLockedSlayer".equals(key))
-        {
             recomputeSlayer();
         }
         else if ("worldMapMarkers".equals(key))
@@ -818,10 +853,7 @@ public class FateLockedPlugin extends Plugin
                         }
                     });
                 }
-                if (config.warnLockedSlayer())
-                {
-                    recomputeSlayer();
-                }
+                recomputeSlayer();
             }
         }
     }
@@ -838,7 +870,7 @@ public class FateLockedPlugin extends Plugin
     Decision lockedSlayerTask(DecisionService ruleDecisions)
     {
         SlayerAssignment assignment = slayerAssignment;
-        if (!config.warnLockedSlayer() || assignment == null) return null;
+        if (!config.ruleWarnings() || assignment == null) return null;
         // Allowed, not ready or unknown: no warning.
         Decision decision = ruleDecisions.slayerTask(assignment.getMaster(), assignment.getTask(), assignment.getLocation());
         return decision.isLocked() ? decision : null;
@@ -879,7 +911,7 @@ public class FateLockedPlugin extends Plugin
     {
         // Locked-bank warning is independent of the roll-nudge toggle.
         if ((ev.getGroupId() == BANK_GROUP_ID || ev.getGroupId() == DEPOSIT_BOX_GROUP_ID)
-            && config.warnLockedBank())
+            && config.ruleWarnings())
         {
             warnLockedBankIfNeeded();
         }
@@ -1162,7 +1194,7 @@ public class FateLockedPlugin extends Plugin
     /** Worn items these rules put above their slot's unlocked tier. */
     private List<OverTierItem> overTierGear(DecisionService ruleDecisions)
     {
-        if (!config.warnOverTierGear()) return Collections.emptyList();
+        if (!config.ruleWarnings()) return Collections.emptyList();
         ItemContainer eq = client.getItemContainer(InventoryID.WORN);
         if (eq == null) return Collections.emptyList();
 
@@ -1230,7 +1262,6 @@ public class FateLockedPlugin extends Plugin
      */
     private void checkBoundAccount()
     {
-        if (!config.warnAccountMismatch()) return;
         String bound = AccountBinding.boundAccount(getBundle());
         if (bound == null) return;
 
@@ -1253,7 +1284,6 @@ public class FateLockedPlugin extends Plugin
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(msg.build())
             .build());
-        client.playSoundEffect(2277);
         notifyIfEnabled("You're logged in as " + current + ", not the bound account " + bound);
     }
 
@@ -1285,7 +1315,9 @@ public class FateLockedPlugin extends Plugin
             // they don't map (dungeons, instances, every chunk before rules
             // load), nor another character's rules. NOT_READY is owned, so
             // it reads as unlocked and never alerts.
-            if (config.chatOnEnter() && status != PermissionStatus.UNKNOWN)
+            FateLockedConfig.LockedAreaAlert alert = config.lockedAreaAlert();
+            boolean locked = status == PermissionStatus.LOCKED;
+            if (status != PermissionStatus.UNKNOWN && (locked ? alert.chat() : config.announceAreaChanges()))
             {
                 announceEntry(current, label, status != PermissionStatus.LOCKED ? null : entry);
             }
@@ -1295,7 +1327,7 @@ public class FateLockedPlugin extends Plugin
             if (status == PermissionStatus.LOCKED && lastStatus != PermissionStatus.LOCKED)
             {
                 lockedFlashUntil = System.currentTimeMillis() + LOCKED_FLASH_MS;
-                if (config.warnOnLocked())
+                if (alert.sound())
                 {
                     client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
                     notifyIfEnabled(label == null
@@ -1426,7 +1458,7 @@ public class FateLockedPlugin extends Plugin
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
     {
-        if (!config.tagLockedMenus() && !config.tagLockedTeleports()) return;
+        if (!config.tagLockedOptions()) return;
         DecisionService ruleDecisions = decisions;
         if (ruleDecisions.trust() != Trust.TRUSTED) return;
 
@@ -1452,11 +1484,11 @@ public class FateLockedPlugin extends Plugin
         TravelMatch travel = intentClassifier.classify(new MenuFactsReader(client).read(entry), ruleDecisions.travelTable());
         if (travel != null)
         {
-            return config.tagLockedTeleports() && travel.getOption().destination() != null
+            return travel.getOption().destination() != null
                 && ruleDecisions.travel(travel.getMethod(), travel.getOption()).isLocked();
         }
         GuardedAction action = guardedActionFactory.from(entry, chunkLocator());
-        return config.tagLockedMenus() && action.getChunk() != null
+        return action.getChunk() != null
             && ruleDecisions.chunk(action.getChunk()).isLocked();
     }
 

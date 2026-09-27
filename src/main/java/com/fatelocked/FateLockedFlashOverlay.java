@@ -37,7 +37,7 @@ public class FateLockedFlashOverlay extends Overlay
     @Override
     public Dimension render(Graphics2D g)
     {
-        if (!config.flashOnLocked())
+        if (!config.lockedAreaAlert().fade())
         {
             return null;
         }

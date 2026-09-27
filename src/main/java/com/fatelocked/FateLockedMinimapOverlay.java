@@ -84,7 +84,7 @@ public class FateLockedMinimapOverlay extends Overlay
             drawSurroundingLocked(graphics, chunk, decisions, locator, view);
         }
 
-        if (poly != null)
+        if (poly != null && color != null)
         {
             graphics.setColor(color);
             graphics.fillPolygon(poly);

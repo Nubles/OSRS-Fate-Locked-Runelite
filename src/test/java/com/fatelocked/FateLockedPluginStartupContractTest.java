@@ -650,6 +650,59 @@ public class FateLockedPluginStartupContractTest
         }
     }
 
+    /**
+     * D2: a player's settings from before Stage 3 are carried over before anything reads a
+     * setting, and again when RuneLite switches to a profile that hasn't been carried over.
+     */
+    @Test
+    public void oldSettingsAreCarriedOverFirstAndAgainOnAProfileSwitch() throws Exception
+    {
+        Map<String, String> old = new java.util.HashMap<>(SettingsMigration.OLD_DEFAULTS);
+        old.put("warnOnLocked", "false");
+        old.put("showHud", "false");
+        Harness harness = new Harness(folder.newFolder("old-settings"), true, old);
+        try
+        {
+            assertEquals("get " + SettingsMigration.VERSION_KEY, harness.settingsLog.peek());
+            assertEquals("CHAT_FADE", harness.configuration.get("lockedAreaAlert"));
+            assertEquals("OFF", harness.configuration.get("hudMode"));
+            assertEquals("2", harness.configuration.get(SettingsMigration.VERSION_KEY));
+            assertEquals("the old setting stays for one release", "false", harness.configuration.get("warnOnLocked"));
+
+            // Another profile, not carried over yet, where the world map was switched off.
+            harness.configuration.remove(SettingsMigration.VERSION_KEY);
+            harness.configuration.put("drawWorldMap", "false");
+            harness.plugin.onProfileChanged(new net.runelite.client.events.ProfileChanged());
+
+            assertEquals("OFF", harness.configuration.get("worldMapMode"));
+            assertEquals("2", harness.configuration.get(SettingsMigration.VERSION_KEY));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    /** Settings that can't be carried over keep their defaults, and the plugin carries on. */
+    @Test
+    public void settingsThatCantBeReadDoNotStopThePlugin() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("unreadable-settings"));
+        try
+        {
+            harness.configuration.remove(SettingsMigration.VERSION_KEY);
+            harness.settingsUnreadable = true;
+            harness.plugin.onProfileChanged(new net.runelite.client.events.ProfileChanged());
+            harness.settingsUnreadable = false;
+
+            assertEquals(null, harness.configuration.get(SettingsMigration.VERSION_KEY));
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
     @Test
     public void theSyncSwitchAsksForConsentAndGoesBackWhenDeclined() throws Exception
     {
@@ -749,6 +802,11 @@ public class FateLockedPluginStartupContractTest
         private final AtomicInteger gameReads = new AtomicInteger();
         private final ConcurrentLinkedQueue<String> offThreadGameReads =
             new ConcurrentLinkedQueue<>();
+        /** Every stored-setting read and write since startUp began, in order: "get key" or "set key". */
+        private final ConcurrentLinkedQueue<String> settingsLog =
+            new ConcurrentLinkedQueue<>();
+        /** While set, reading a stored setting fails, as a damaged profile might. */
+        private volatile boolean settingsUnreadable;
 
         /** A started plugin after its first client tick. */
         private Harness(File dataDirectory) throws Exception
@@ -758,6 +816,13 @@ public class FateLockedPluginStartupContractTest
 
         private Harness(File dataDirectory, boolean firstTick) throws Exception
         {
+            this(dataDirectory, firstTick, java.util.Collections.emptyMap());
+        }
+
+        /** A plugin started over these stored settings, as an earlier release left them. */
+        private Harness(File dataDirectory, boolean firstTick, Map<String, String> stored) throws Exception
+        {
+            configuration.putAll(stored);
             String legacyCode = "0123456789abcdef0123456789abcdef";
             configuration.put("onlineSync", "true");
             configuration.put("syncCode", "OLD-CODE");
@@ -885,6 +950,7 @@ public class FateLockedPluginStartupContractTest
             set("configManager", configManager);
             set("connectionSettings", settings);
 
+            settingsLog.clear();
             plugin.startUp();
             flushEdt();
             if (firstTick)
@@ -908,8 +974,14 @@ public class FateLockedPluginStartupContractTest
         {
             ConfigManager manager = mock(ConfigManager.class);
             when(manager.getConfiguration(anyString(), anyString()))
-                .thenAnswer(invocation ->
-                    configuration.get(invocation.getArgument(1)));
+                .thenAnswer(invocation -> {
+                    settingsLog.add("get " + invocation.getArgument(1));
+                    if (settingsUnreadable)
+                    {
+                        throw new IllegalStateException("unreadable settings");
+                    }
+                    return configuration.get(stored(invocation.getArgument(0), invocation.getArgument(1)));
+                });
             when(manager.getConfigurationKeys(anyString()))
                 .thenAnswer(invocation -> {
                     String prefix = invocation.getArgument(0);
@@ -921,22 +993,30 @@ public class FateLockedPluginStartupContractTest
                     return keys;
                 });
             doAnswer(invocation -> {
-                configuration.put(
-                    invocation.getArgument(1), invocation.getArgument(2));
+                settingsLog.add("set " + invocation.getArgument(1));
+                configuration.put(stored(invocation.getArgument(0), invocation.getArgument(1)),
+                    invocation.getArgument(2));
                 return null;
             }).when(manager).setConfiguration(
                 anyString(), anyString(), anyString());
             doAnswer(invocation -> {
-                configuration.put(
-                    invocation.getArgument(1), String.valueOf((Object) invocation.getArgument(2)));
+                settingsLog.add("set " + invocation.getArgument(1));
+                configuration.put(stored(invocation.getArgument(0), invocation.getArgument(1)),
+                    String.valueOf((Object) invocation.getArgument(2)));
                 return null;
             }).when(manager).setConfiguration(
                 anyString(), anyString(), any(Object.class));
             doAnswer(invocation -> {
-                configuration.remove(invocation.getArgument(1));
+                configuration.remove(stored(invocation.getArgument(0), invocation.getArgument(1)));
                 return null;
             }).when(manager).unsetConfiguration(anyString(), anyString());
             return manager;
+        }
+
+        /** The plugin's own settings are stored by key; another group's are kept apart. */
+        private static String stored(String group, String key)
+        {
+            return FateLockedConfig.GROUP.equals(group) ? key : group + "." + key;
         }
 
         private void set(String field, Object value) throws Exception

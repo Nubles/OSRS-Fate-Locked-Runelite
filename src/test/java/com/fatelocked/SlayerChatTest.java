@@ -76,7 +76,7 @@ public class SlayerChatTest
     @Before
     public void setUp() throws Exception
     {
-        when(config.warnLockedSlayer()).thenReturn(true);
+        when(config.ruleWarnings()).thenReturn(true);
         when(player.getName()).thenReturn("Iron Example");
         when(client.getLocalPlayer()).thenReturn(player);
         set("config", config);
@@ -134,6 +134,37 @@ public class SlayerChatTest
         assertNull(plugin.getSlayerTaskWarn());
     }
 
+    /**
+     * D3: with rule warnings off, a locked task gets no line. Turning them on works the task
+     * out again and warns once.
+     */
+    @Test
+    public void theRuleWarningsSwitchDecidesTheSlayerWarning() throws Exception
+    {
+        when(config.ruleWarnings()).thenReturn(false);
+        assertEquals(List.of(), say(GEM_CHECK, 7));
+        assertNull(plugin.getSlayerTaskWarn());
+
+        when(config.ruleWarnings()).thenReturn(true);
+        GearDecisionTest.configChanged(plugin, "ruleWarnings");
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+        assertEquals(1, queued().size());
+
+        when(config.ruleWarnings()).thenReturn(false);
+        GearDecisionTest.configChanged(plugin, "ruleWarnings");
+        assertNull(plugin.getSlayerTaskWarn());
+    }
+
+    /** The chat lines queued since the last clear. */
+    private List<String> queued()
+    {
+        ArgumentCaptor<QueuedMessage> queued = ArgumentCaptor.forClass(QueuedMessage.class);
+        verify(chat, atLeast(0)).queue(queued.capture());
+        List<String> lines = new ArrayList<>();
+        for (QueuedMessage line : queued.getAllValues()) lines.add(line.getRuneLiteFormattedMessage());
+        return lines;
+    }
+
     /** A game message with this SLAYER_MASTER value; the chat lines it queued. */
     private List<String> say(String message, int master)
     {
@@ -143,11 +174,7 @@ public class SlayerChatTest
         event.setType(ChatMessageType.GAMEMESSAGE);
         event.setMessage(message);
         plugin.onChatMessage(event);
-        ArgumentCaptor<QueuedMessage> queued = ArgumentCaptor.forClass(QueuedMessage.class);
-        verify(chat, atLeast(0)).queue(queued.capture());
-        List<String> lines = new ArrayList<>();
-        for (QueuedMessage line : queued.getAllValues()) lines.add(line.getRuneLiteFormattedMessage());
-        return lines;
+        return queued();
     }
 
     private void refreshDecisions() throws Exception
