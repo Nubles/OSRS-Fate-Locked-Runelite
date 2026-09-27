@@ -1,11 +1,15 @@
 package com.fatelocked;
 
+import com.fatelocked.guardian.travel.IntentClassifier;
+import com.fatelocked.guardian.travel.TravelMatch;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.RulesSnapshot;
+import com.fatelocked.rules.TravelTable;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.runelite.api.gameval.InterfaceID;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -157,6 +161,84 @@ public class GoldenBundleContractTest
             if (isLand(chunk) && engine.isFrontier(chunk)) got.add(key);
         }
         assertEquals(id + " frontier", want, got);
+    }
+
+    /**
+     * F2 (G7, G13): every option of every travel method, clicked on each of
+     * its ids as the game gives them, is classified back to that method and
+     * option by id alone; and each answer the golden pins is the tracker's.
+     */
+    @Test
+    public void travelMatchesTheTracker()
+    {
+        TravelTable table = bundle.getRules().getTravel();
+        IntentClassifier classifier = new IntentClassifier();
+        List<String> mismatches = new ArrayList<>();
+        int clicks = 0;
+        for (TravelTable.Method method : table.methods())
+        {
+            for (String option : texts(method))
+            {
+                for (MenuFacts click : clicks(method, option))
+                {
+                    clicks++;
+                    TravelMatch match = classifier.classify(click, table);
+                    if (match == null || match.getMethod() != method || match.getOption() != method.option(option))
+                    {
+                        mismatches.add(method.getId() + "|" + option + " on " + click);
+                    }
+                }
+            }
+        }
+        assertTrue(id + " clicks " + clicks, clicks > 1000);
+        assertEquals(id + " travel", List.of(), mismatches);
+
+        for (Map.Entry<String, JsonElement> answer : expected.getAsJsonObject("travel").entrySet())
+        {
+            String[] key = answer.getKey().split("\\|", 2);
+            String option = key[1].startsWith("code:") ? "Last-destination (" + key[1].substring(5) + ")" : key[1];
+            TravelMatch match = classifier.classify(clicks(table.method(key[0]), option).get(0), table);
+            assertEquals(id + " " + answer.getKey(), answer.getValue().getAsString(), match.getOption().getStatus().name());
+        }
+    }
+
+    /** The menu texts a method's options are clicked as: each option, and a fairy ring's Last-destination for each code. */
+    private static List<String> texts(TravelTable.Method method)
+    {
+        List<String> texts = new ArrayList<>(method.getOptions().keySet());
+        for (String code : method.getCodes().keySet()) texts.add("Last-destination (" + code + ")");
+        return texts;
+    }
+
+    /** Clicks on a method as the game gives them: its spell on the spellbook, or each id in the inventory or the scene. */
+    private static List<MenuFacts> clicks(TravelTable.Method method, String option)
+    {
+        List<MenuFacts> clicks = new ArrayList<>();
+        if (method.getMatch() == TravelTable.Match.SPELL)
+        {
+            clicks.add(MenuFacts.builder().kind(MenuFacts.Kind.WIDGET).interfaceGroup(InterfaceID.MAGIC_SPELLBOOK)
+                .spellbook(TravelTable.SPELLBOOKS.indexOf(method.getSpellbook())).option(option)
+                .target(method.getSpell()).build());
+            return clicks;
+        }
+        for (int itemOrObject : method.getIds())
+        {
+            MenuFacts.MenuFactsBuilder click = MenuFacts.builder().option(option).target(method.getLabel());
+            switch (method.getMatch())
+            {
+                case ITEMS:
+                    click.kind(MenuFacts.Kind.WIDGET).interfaceGroup(InterfaceID.INVENTORY).itemId(itemOrObject);
+                    break;
+                case OBJECTS:
+                    click.kind(MenuFacts.Kind.OBJECT).objectId(itemOrObject);
+                    break;
+                default:
+                    click.kind(MenuFacts.Kind.NPC).npcId(itemOrObject);
+                    break;
+            }
+            clicks.add(click.build());
+        }
+        return clicks;
     }
 
     @Test
