@@ -49,6 +49,12 @@ public final class Palette
     public static final Color HAIRLINE = new Color(50, 50, 50);
     /** A track behind a progress bar. */
     public static final Color TRACK = new Color(52, 52, 52);
+    /** A secondary button. */
+    public static final Color CONTROL = new Color(52, 52, 52);
+    /** A secondary button under the mouse. */
+    public static final Color CONTROL_HOVER = new Color(64, 64, 64);
+    /** A switch that is off. */
+    public static final Color SWITCH_OFF = new Color(76, 76, 76);
     /** Titles and values. */
     public static final Color TEXT = new Color(232, 232, 232);
     /** Labels and secondary lines. */

@@ -65,6 +65,7 @@ public final class Previews
     private static Map<String, Callable<JComponent>> shots()
     {
         Map<String, Callable<JComponent>> shots = new LinkedHashMap<>();
+        shots.put("kit-gallery", com.fatelocked.preview.KitGallery::build);
         shots.put("sidebar-first-run", () -> new FateLockedPanel(new FateLockedConfig() { }, null));
         shots.put("sidebar-connected-lumbridge", () -> {
             FateLockedPanel panel = new FateLockedPanel(new FateLockedConfig() { }, null);
