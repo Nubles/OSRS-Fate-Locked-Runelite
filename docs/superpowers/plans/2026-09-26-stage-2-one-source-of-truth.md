@@ -165,7 +165,7 @@ re-pins to a web `main` commit that has C and D (E1). Each phase leaves
   instance zone with template -1, WALK, minimap and `WORLD_ENTITY_*`
   options. Pinned by `ChunkLocatorTest` with a real template array.
   *Done as* `fc09b14`, with `player`, `actor`, `menuTarget` and `sceneTile`.
-- [~] **A6. Remove dead travel code (G14):** `GuardedAction.Kind.MOVEMENT`,
+- [x] **A6. Remove dead travel code (G14):** `GuardedAction.Kind.MOVEMENT`,
   `TravelAction.Family.WALK`, `BOUNDARY_OBJECT`, `OTHER_TRANSPORT`,
   `TravelAction.origin`, `TravelGuardianResult.guardResult`,
   `Teleports.destinationChunk(String,String)` and `destinations()`,
@@ -175,6 +175,7 @@ re-pins to a web `main` commit that has C and D (E1). Each phase leaves
   tasks delete or rewrite (`FateRuleEngine`, `TravelActionResolver`,
   `TravelAction`, `Teleports`), so trimming them now would edit about fifty
   call sites twice.
+  *Done as* F3 to F5, and `ae9d9a5` for the two fields still written but never read (`TravelAction.origin`, `TravelGuardianResult.guardResult`).
 - [x] **A7. One Strict Mode gate (G14).** `StrictModeReadiness` becomes the
   only gate; `isTrustedExact` goes, and the not-proven path no longer calls
   the click handler. Pinned by a parameterised `StrictModeGateTest` (a
@@ -427,28 +428,35 @@ commit carries its builder, the field and its golden answer together.
 
 ### Phase F: Strict Mode matches travel by id
 
-- [ ] **F1. Read `rules.travel` into a validated `TravelTable`.** Lenient
+- [x] **F1. Read `rules.travel` into a validated `TravelTable`.** Lenient
   like `knownMobility`: a bad row is dropped, never the bundle. Each match
   kind counts only for its own menu types; denylisted options are dropped;
   caps of about 1,000 methods, 64 options and 256 ids per method (the
   charter ship row matches 144 crew ids), and
   120-character reasons. `TravelTableTest` and new `GoldenBundleCasesTest`
   cases.
-- [ ] **F2. Classify travel by id (G7, G13).** `IntentClassifier` replaces
+  *Done as* `98e8668`: also 64 destinations per option; one bad destination drops its option (skipping it could leave one place of two); advisory unless plainly false; codes must be the dials' letters.
+- [x] **F2. Classify travel by id (G7, G13).** `IntentClassifier` replaces
   `TravelActionResolver`. `IntentClassifierTest` and
   `GoldenBundleContractTest.travelMatchesTheTracker`.
-- [ ] **F3. Use the tracker's per-option decision (G6)**, with the
+  *Done as* `2b1cc10` (the classifier, on the A9 `MenuFacts`), wired in with F3; a click two methods match is neither's.
+- [x] **F3. Use the tracker's per-option decision (G6)**, with the
   one-destination invariant. Golden decisions for each G6 item; a rewritten
   `TravelRuleEvaluatorTest`.
-- [ ] **F4. Tags use the same classifier and decision (G14).** Delete
+  *Done as* `d3262fb`: the guard blocks an id match with one destination, not advisory, and LOCKED; test bundle `bundles/v4-travel.json`; `StrictModeGoldenTest` clicks every golden option.
+- [x] **F4. Tags use the same classifier and decision (G14).** Delete
   `GuardedActionFactory`'s travel path; `TagConsistencyTest` (a tag only for
   an exact LOCKED decision) replaces the isolation test.
-- [ ] **F5. Delete `Teleports.java` and the menu-text matrix tests (G7).**
-- [ ] **F6. Readiness says when the rules have no travel table** (older
+  *Done as* `1e1d32a`: networks and boats are tagged too; anything the table doesn't match keeps its chunk tag.
+- [x] **F5. Delete `Teleports.java` and the menu-text matrix tests (G7).**
+  *Done as* `472c467`; the matrix tests went with the resolver in F3.
+- [x] **F6. Readiness says when the rules have no travel table** (older
   saved rules and backups): Strict Mode shows Inactive with the reason.
-- [ ] **F7. Alternatives from the table:** single-destination rows the
+  *Done as* `d3e70be`: "the rules have no travel table; sync them from the tracker again".
+- [x] **F7. Alternatives from the table:** single-destination rows the
   player carries or wears whose option is ALLOWED, ranked by the
   destination's area. `TravelAlternativeFinderTest`.
+  *Done as* `610a0c7`: items only; the blocked trip's area first, then the nearest, then the lower id.
 
 ### Phase G: finish
 
