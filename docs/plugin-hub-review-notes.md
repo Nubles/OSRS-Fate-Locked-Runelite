@@ -1,7 +1,7 @@
 # Plugin Hub review notes
 
-The plugin is on the Plugin Hub, which builds commit `4e37895` (the Stage 1
-release, 26 September 2026, runelite/plugin-hub#17144). These notes describe
+The plugin is on the Plugin Hub, which builds commit `4c2bf97` (the Stage 2
+release, 27 September 2026, runelite/plugin-hub#17192). These notes describe
 `main` for reviewers of the next update and do not claim approval of any
 change made since that commit.
 
@@ -72,14 +72,15 @@ is behaviorally adjacent to conditional menu-entry restrictions, we request
 reviewer pre-clearance and do not claim that this behavior is already
 approved.
 
-What changed since `4e37895`: that build recognised travel from menu text,
-with a table of places inside the plugin, and checked an unlock it guessed
-from the text. This build matches by id against the tracker's table, which
-names each trip's unlock and where each option can go, and blocks nothing
-that can go to several places. The code keeps limits the table can't widen:
-options that are never travel are dropped, and the table has caps. The tags
-and Strict Mode read the same decision, and both now cover dungeons and other
-interiors the tracker names, and instances, judged as the chunk they copy.
+What Stage 2 (`4c2bf97`) changed: the build before it, `4e37895`, recognised
+travel from menu text, with a table of places inside the plugin, and checked
+an unlock it guessed from the text. Stage 2 matches by id against the
+tracker's table, which names each trip's unlock and where each option can
+go, and blocks nothing that can go to several places. The code keeps limits
+the table can't widen: options that are never travel are dropped, and the
+table has caps. The tags and Strict Mode read the same decision, and both
+now cover dungeons and other interiors the tracker names, and instances,
+judged as the chunk they copy.
 
 Builds up to and including `52f45f5` also consumed NPC, object, bank and
 Wear/Wield clicks through an older generic guard, and read "Walk here" menu
