@@ -234,14 +234,17 @@ releases.
 
 ### Phase E: in-game display
 
-- [ ] **E1. The palette in game:**
+- [x] **E1. The palette in game:**
   - the HUD, tooltip colours, the menu tag, the pin, the infoboxes and the banner, which takes RuneLite's standard
     background;
   - the tag " (Locked)" is changed where it is written, and in the three places that strip it;
   - no glyphs in game text.
 
   `HudStatusTest`, `WorldMapTooltipTest`, `MenuTagTest` and `TagConsistencyTest` follow.
-- [ ] **E2. Scene borders (U3).**
+
+  *Done as* `6cacd80`, `f6392a3`, `490ecf8`, `efd3719` and `5ea34f5`, with `32d770e` repairing colours the old pickers
+  saved solid. The HUD's colours came with E6 (`HudStatusTest` became `HudPresenterTest`), the infoboxes' with E7.
+- [x] **E2. Scene borders (U3).** *Done as* `2d55726`; the path tests are in `ChunkBorderRendererTest`.
   - `SceneEdges` (pure) is built once per scene key from a 13×13 grid of 8-tile zones, so instances break at their
     zones.
   - `ChunkBorderRenderer` walks tile corners on the exact chunk line within 32 tiles, and breaks the path where a corner
@@ -249,12 +252,13 @@ releases.
   - There is no chunk fill, and nothing is drawn on another character.
   - `SceneEdgesTest` and `ChunkBorderPathTest` use a fake projector.
   - Measured: about 0.3 ms a frame, against 2.4 ms for today's fill.
-- [ ] **E3. Minimap:**
+- [x] **E3. Minimap:** *Done as* `a1b8926`.
   - edges come from `SceneEdges` through `localToMinimap`;
   - locked shading is drawn as runs;
   - the current chunk is not filled;
   - the gameval minimap ids replace the deprecated `ComponentID`.
-- [ ] **E4. World map (U18).**
+- [x] **E4. World map (U18).** *Done as* `9272fe5`; the clip is tested in `WorldMapModelTest` and
+  `FateLockedWorldMapOverlayTest`.
   - `WorldMapProjection` ports RuneLite's integer maths, so the tint lines up with the pins; today it can be a tile off.
   - `WorldMapClip` cuts out the overview and surface selector, for drawing and for the tooltip.
   - `WorldMapModel` holds runs per row and is cached per decision service and palette. Locked land is shaded, with a
@@ -262,7 +266,7 @@ releases.
   - The tooltip is cached, and the deprecated APIs go.
   - Tests: `WorldMapProjectionTest` (0 px against RuneLite's formula), `WorldMapClipTest`, and `WorldMapModelTest` over
     every golden.
-- [ ] **E5. `LockedAreaAlerts` and `FlashFade`** (U10's rest, U20).
+- [x] **E5. `LockedAreaAlerts` and `FlashFade`** (U10's rest, U20). *Done as* `769e217`.
   - Chat is posted per area.
   - The locked alert fires when entering a locked area from an unlocked one, or when entering a different locked area.
   - The same area waits 60 seconds before alerting again.
@@ -270,11 +274,14 @@ releases.
   - State is forgotten at login and shutdown, which today skips the sound after a re-login.
   - The flash is a single fade, on a monotonic clock.
   - `LockedAreaAlertsTest` and `FlashFadeTest`; the golden walk in `FateLockedChunkEntryTest` becomes one line per area.
-- [ ] **E6. HUD modes.**
+- [x] **E6. HUD modes.**
   - Compact: Here, Status, Why when locked or not ready, Strict Mode, and the nearest bank and shop.
   - Detailed adds the chunk's contents, replacing the content box, and progress.
   - The model is published on change, not rebuilt each frame.
-- [ ] **E7. Infoboxes (A15):** distinct pinned names, OSRS icons and the web's words. `FateLockedInfoBoxTest`.
+
+  *Done as* `66708b9`. Detailed also shows the run's Keys, Fate Points, ritual and goal, which left Compact.
+- [x] **E7. Infoboxes (A15):** distinct pinned names, OSRS icons and the web's words. `FateLockedInfoBoxTest`.
+  *Done as* `64d91d8`. A box with nothing to count, or on another character, isn't drawn.
 
 ### Phase F: performance (A9)
 
