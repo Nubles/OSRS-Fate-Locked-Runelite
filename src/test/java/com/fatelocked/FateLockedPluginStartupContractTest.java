@@ -14,6 +14,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.ClientToolbar;
@@ -1032,6 +1033,7 @@ public class FateLockedPluginStartupContractTest
             set("notifier", mock(Notifier.class));
             set("worldMapPointManager", mock(WorldMapPointManager.class));
             set("infoBoxManager", mock(InfoBoxManager.class));
+            set("spriteManager", mock(SpriteManager.class));
             set("keyManager", mock(KeyManager.class));
             set("mouseManager", mock(MouseManager.class));
             set("okHttpClient", new OkHttpClient());

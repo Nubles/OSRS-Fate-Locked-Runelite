@@ -17,6 +17,7 @@ import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.StrictModeSectionPresenter;
+import com.fatelocked.ui.Art;
 import com.fatelocked.ui.Palette;
 import com.fatelocked.ui.Terms;
 import com.fatelocked.guardian.GuardedAction;
@@ -76,6 +77,7 @@ import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.Notifier;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
@@ -164,6 +166,7 @@ public class FateLockedPlugin extends Plugin
     @Inject private Notifier notifier;
     @Inject private WorldMapPointManager worldMapPointManager;
     @Inject private InfoBoxManager infoBoxManager;
+    @Inject private SpriteManager spriteManager;
     @Inject private KeyManager keyManager;
     @Inject private MouseManager mouseManager;
     @Inject private OkHttpClient okHttpClient;
@@ -345,8 +348,6 @@ public class FateLockedPlugin extends Plugin
      *  numeric ids, used raw like QUEST_COMPLETED to avoid API-constant churn. */
     private static final int BANK_GROUP_ID = 12;
     private static final int DEPOSIT_BOX_GROUP_ID = 192;
-    /** Crystal key — a gold-key item icon for the Keys infobox. */
-    private static final int KEYS_ICON_ITEM = 989;
     /** Plugin-specific data dir under .runelite/ — all file I/O is confined here. */
     private static final File DATA_DIR = new File(RuneLite.RUNELITE_DIR, "fate-locked");
 
@@ -2216,45 +2217,31 @@ public class FateLockedPlugin extends Plugin
         return img;
     }
 
-    // ── Infoboxes (keys / fate / unlock progress) ─────────────────────────────
+    // ── Infoboxes: Keys, Fate Points and progress (A15, E7) ──────────────────
 
     private void refreshInfoBoxes()
     {
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         if (!config.showInfoBoxes()) return;
-
-        infoBoxManager.addInfoBox(new FateLockedInfoBox(itemManager.getImage(KEYS_ICON_ITEM), this,
-            new Color(245, 158, 11),
-            () -> { FateLockedBundle.RunState s = getBundle().getState(); return s == null ? "—" : String.valueOf(s.getKeys()); },
-            () -> {
-                FateLockedBundle.RunState s = getBundle().getState();
-                return s == null ? "Fate Locked keys"
-                    : "Keys: " + s.getKeys() + " · Omni " + s.getSpecialKeys() + " · Chaos " + s.getChaosKeys();
-            }));
-
-        infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(168, 85, 247)), this,
-            new Color(196, 145, 255),
-            () -> { FateLockedBundle.RunState s = getBundle().getState(); return s == null ? "—" : String.valueOf(s.getFatePoints()); },
-            () -> "Fate points"));
-
-        infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(52, 211, 153)), this,
-            new Color(52, 211, 153),
-            () -> ProgressText.infoBoxText(decisions.progress()),
-            () -> ProgressText.infoBoxTooltip(decisions.progress())));
-    }
-
-    /** A small filled-disc infobox icon in the given colour. */
-    private static BufferedImage discIcon(Color c)
-    {
-        BufferedImage img = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(c);
-        g.fillOval(1, 1, 14, 14);
-        g.setColor(new Color(0, 0, 0, 140));
-        g.drawOval(1, 1, 14, 14);
-        g.dispose();
-        return img;
+        for (FateLockedInfoBox.Kind kind : FateLockedInfoBox.Kind.values())
+        {
+            FateLockedInfoBox box = new FateLockedInfoBox(kind, this);
+            Art art = kind.art();
+            if (art.kind() == Art.Kind.ITEM)
+            {
+                // RuneLite fills an item's image in once it loads.
+                box.setImage(itemManager.getImage(art.id(), art.detail(), false));
+                infoBoxManager.addInfoBox(box);
+            }
+            else
+            {
+                infoBoxManager.addInfoBox(box);
+                spriteManager.getSpriteAsync(art.id(), art.detail(), image -> {
+                    box.setImage(image);
+                    infoBoxManager.updateInfoBoxImage(box);
+                });
+            }
+        }
     }
 
     /** What the player asked for in the sidebar, on the Swing thread. */

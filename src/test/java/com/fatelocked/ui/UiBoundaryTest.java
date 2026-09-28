@@ -27,8 +27,8 @@ import org.junit.Test;
  */
 public class UiBoundaryTest
 {
-    private static final Set<String> COLOUR_LITERALS = new TreeSet<>(List.of(
-        "FateLockedConfig.java", "FateLockedPlugin.java"));
+    /** The settings' default colours are the one place a colour is written out. */
+    private static final Set<String> COLOUR_LITERALS = new TreeSet<>(List.of("FateLockedConfig.java"));
     private static final Set<String> DERIVED_FONTS = new TreeSet<>();
     private static final Set<String> SYMBOLS = new TreeSet<>();
 

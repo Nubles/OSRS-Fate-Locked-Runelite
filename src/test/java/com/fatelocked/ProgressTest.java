@@ -79,7 +79,7 @@ public class ProgressTest
         walk.getAsJsonObject("rules").remove("progress");
         Progress chunked = trusted(FateLockedBundle.loadFromJson(GSON, walk.toString())).progress();
         assertEquals(Progress.CHUNKS, chunked.getUnit());
-        assertEquals("Unlock progress: " + chunked.getChunksUnlocked() + "/" + chunked.getChunksTotal() + " chunks",
+        assertEquals(chunked.getChunksUnlocked() + " of " + chunked.getChunksTotal() + " chunks unlocked",
             ProgressText.infoBoxTooltip(chunked));
     }
 
@@ -90,7 +90,7 @@ public class ProgressTest
         Progress walk = trusted(golden("chunked-walk")).progress();
         assertEquals(new Progress(Progress.CHUNKS, 7, 624, 7, 624), walk);
         assertEquals("7/624 · 1%", ProgressText.hudLine(walk));
-        assertEquals("Unlock progress: 7/624 chunks", ProgressText.infoBoxTooltip(walk));
+        assertEquals("7 of 624 chunks unlocked", ProgressText.infoBoxTooltip(walk));
     }
 
     @Test
@@ -102,15 +102,16 @@ public class ProgressTest
 
         assertEquals("15/187 · " + percent, ProgressText.hudLine(progress));
         assertEquals(percent, ProgressText.infoBoxText(progress));
-        assertEquals("Unlock progress: 15/187 areas · " + progress.getChunksUnlocked() + "/"
+        assertEquals("15 of 187 areas unlocked</br>" + progress.getChunksUnlocked() + " of "
             + progress.getChunksTotal() + " chunks", ProgressText.infoBoxTooltip(progress));
 
         DecisionService other = DecisionService.create(RulesSnapshot.of(mid), "iron example", "someone else");
         assertNull(other.progress());
         assertNull(ProgressText.hudLine(null));
-        assertEquals("—", ProgressText.infoBoxText(null));
-        assertEquals("Unlock progress", ProgressText.infoBoxTooltip(null));
+        assertNull("no box", ProgressText.infoBoxText(null));
+        assertNull(ProgressText.infoBoxTooltip(null));
         assertNull("no chunks, no line", ProgressText.hudLine(new Progress(Progress.AREAS, 0, 0, 0, 0)));
+        assertNull("no chunks, no box", ProgressText.infoBoxText(new Progress(Progress.AREAS, 0, 0, 0, 0)));
         assertEquals(-1, new Progress(Progress.AREAS, 0, 0, 0, 0).percent());
     }
 
