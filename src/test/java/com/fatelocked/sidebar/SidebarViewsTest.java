@@ -147,8 +147,16 @@ public class SidebarViewsTest
 
             here.apply(new HereModel("Draynor", "Unlocked", Tone.GOOD, null, null, Collections.emptyList(),
                 Collections.emptyList(), null));
-            assertFalse("the line belongs to the place the player left",
+            assertFalse("the note belongs to the place the player left",
                 texts(here).contains("Can't find Yew tree near you here."));
+
+            String way = "Shortest Path shows the way to the nearest Oak tree you've seen here.";
+            here.showPointer(way, true);
+            here.apply(new HereModel("Lumbridge", "Unlocked", Tone.GOOD, null, null, Collections.emptyList(),
+                Collections.emptyList(), null));
+            assertTrue("while it's up, the arrow's line goes from place to place, as the way may",
+                texts(here).contains(way));
+            assertTrue(buttons(here).stream().anyMatch(button -> button.getText().equals("Clear")));
         });
     }
 

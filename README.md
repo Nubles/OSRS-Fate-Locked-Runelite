@@ -71,7 +71,10 @@ their own:
    says what it holds; Skilling opens skill by skill, with the game's skill
    icons and your level and cap. What you leave open stays open. Click a
    skilling spot, monster, bank or shop, and the game's own arrow points at
-   the nearest one around you.
+   the nearest one around you. With none loaded near you, it shows the way to
+   the nearest one you've seen there: the arrow on that spot, which the
+   minimap points toward, a pin on the world map and, if you run the Shortest
+   Path plugin, its route. Where you've seen things stays on your computer.
 2. **Strict Mode**: its switch, its status, the pause, and what it recently
    stopped.
 3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate

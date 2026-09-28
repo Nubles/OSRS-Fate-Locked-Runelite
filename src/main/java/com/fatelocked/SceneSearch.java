@@ -134,14 +134,20 @@ final class SceneSearch
     /** Whether an object is the target, by the name and options it shows now. */
     private static boolean named(Client client, TileObject object, PointTarget target)
     {
+        ObjectComposition shown = shown(client, object);
+        return shown != null && target.matches(shown.getName(), shown.getActions());
+    }
+
+    /** What an object shows now: the one it stands for, as a patch does as it grows, or itself. Client thread. */
+    static ObjectComposition shown(Client client, TileObject object)
+    {
         ObjectComposition shown = client.getObjectDefinition(object.getId());
         if (shown != null && shown.getImpostorIds() != null)
         {
-            // Some objects show another as they change, such as a patch as it grows.
             ObjectComposition now = shown.getImpostor();
             shown = now != null ? now : shown;
         }
-        return shown != null && target.matches(shown.getName(), shown.getActions());
+        return shown;
     }
 
     private static TileObject[] objectsOn(Tile tile)

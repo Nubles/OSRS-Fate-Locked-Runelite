@@ -65,11 +65,14 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
+import net.runelite.api.NPCComposition;
+import net.runelite.api.ObjectComposition;
 import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
+import net.runelite.api.TileObject;
 import net.runelite.api.WorldType;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
@@ -77,13 +80,19 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.DecorativeObjectSpawned;
+import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.GroundObjectSpawned;
+import net.runelite.api.events.NpcSpawned;
+import net.runelite.api.events.WallObjectSpawned;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.plugins.loottracker.LootReceived;
@@ -97,6 +106,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.RuneLite;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.task.Schedule;
@@ -108,6 +118,7 @@ import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -180,6 +191,8 @@ public class FateLockedPlugin extends Plugin
     @Inject private ItemManager itemManager;
     @Inject private Notifier notifier;
     @Inject private WorldMapPointManager worldMapPointManager;
+    @Inject private PluginManager pluginManager;
+    @Inject private EventBus eventBus;
     @Inject private InfoBoxManager infoBoxManager;
     @Inject private SpriteManager spriteManager;
     @Inject private KeyManager keyManager;
@@ -278,6 +291,18 @@ public class FateLockedPlugin extends Plugin
     static final int POINTER_REACHED = 2 * Perspective.LOCAL_TILE_SIZE;
     /** The arrow the Here card put up, or null. Client thread. */
     private Pointer pointer;
+    /** Something the arrow's row names has loaded since the last tick, so it's looked for. Client thread. */
+    private boolean pointerLooks;
+    /** Shortest Path, asked for the way to a spot seen before when it runs; made on first use. */
+    private ShortestPathHandOff shortestPath;
+    /** Where what the Here card can point at was seen, for the way back to one out of sight. */
+    private final SpotMemory spots = new SpotMemory();
+    /** Spots seen are saved at most this often, in ticks: half a minute. */
+    static final int SPOTS_SAVE_TICKS = 50;
+    private int spotsSavedTick;
+    /** What each chunk's card can point at, for the rules in {@link #pointablesFor}. Client thread. */
+    private final Map<CanonicalChunk, Pointables> pointables = new HashMap<>();
+    private DecisionService pointablesFor;
     private HereModel hereModel;
     private DecisionService hereDecisions;
     private CanonicalChunk hereChunk;
@@ -527,6 +552,7 @@ public class FateLockedPlugin extends Plugin
             refreshInfoBoxes();
         });
         loadSavedRules();
+        loadSpots();
         keyManager.registerKeyListener(reimportHotkey);
         keyManager.registerKeyListener(pauseStrictHotkey);
         startTrackerPoll();
@@ -563,8 +589,10 @@ public class FateLockedPlugin extends Plugin
         keyManager.unregisterKeyListener(reimportHotkey);
         keyManager.unregisterKeyListener(pauseStrictHotkey);
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
+        worldMapPointManager.removeIf(WayPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         dropPointer();
+        saveSpots();
         active = ActiveRules.NONE;
         // A pause belongs to this start: turning the plugin off and on ends it.
         strictPause.resume();
@@ -777,7 +805,10 @@ public class FateLockedPlugin extends Plugin
             // Logged out: the next login warns and announces afresh.
             awaitingLogin = true;
             hudModel = HudModel.NONE;
+            endWay(pointer);
             pointer = null;
+            pointerLooks = false;
+            saveSpots();
             forgetLoginWarnings();
             trackerLoggedIn(false);
             refreshDecisions();
@@ -1500,6 +1531,7 @@ public class FateLockedPlugin extends Plugin
         refreshWarningCount();
         refreshHud(current);
         keepPointer(current);
+        saveSpotsIfDue();
     }
 
     /** The player crossed into this chunk: its line, sound and fade, as the area and the alert setting say. */
@@ -2523,25 +2555,49 @@ public class FateLockedPlugin extends Plugin
 
     /**
      * The player clicked a row of Here (the owner's review, 28 Sept): put the game's arrow on
-     * the nearest one in the chunk they stand in, and say so; the same row again takes it
-     * down. Client thread.
+     * the nearest one in the chunk they stand in, and say so. With none loaded near them, show
+     * the way to the nearest one seen there: the game's arrow on that spot, which the minimap
+     * points the way to, a pin on the world map, and Shortest Path's route when it runs. The
+     * same row again takes it down. Client thread.
      */
     void pointTo(String category, String row)
     {
         Pointer before = pointer;
         clearPointer();
-        if (before != null && before.getCategory().equals(category) && before.getRow().equals(row))
+        CanonicalChunk chunk = chunkLocator().player();
+        if (before != null && before.getCategory().equals(category) && before.getRow().equals(row)
+            && before.getChunk().equals(chunk))
         {
             return;
         }
-        CanonicalChunk chunk = chunkLocator().player();
         PointTarget target = PointTarget.of(category, row);
         SceneSearch.Found found = target == null ? null : SceneSearch.nearest(client, chunkLocator(), chunk, target);
-        if (found == null)
+        if (found != null)
+        {
+            pointAt(category, row, chunk, found, false, false);
+            return;
+        }
+        WorldPoint from = target == null || chunk == null ? null : chunkLocator().playerWorld();
+        SpotMemory.Spot spot = from == null ? null : spots.nearest(chunk, category, target.getLabel(),
+            new SpotMemory.Spot(from.getX(), from.getY(), from.getPlane()));
+        if (spot == null)
         {
             panel.showHerePointer(PointerText.notFound(row), false);
             return;
         }
+        WorldPoint to = new WorldPoint(spot.getX(), spot.getY(), spot.getPlane());
+        client.setHintArrow(to);
+        boolean routed = shortestPath().route(from, to);
+        pin(to, row);
+        pointer = new Pointer(category, row, chunk, null, null, client.getHintArrowPoint(), to, true, routed);
+        String place = HerePresenter.placeName(decisions, chunk);
+        panel.showHerePointer(routed ? PointerText.routed(row, place) : PointerText.remembered(row, place), true);
+    }
+
+    /** The game's arrow on something loaded, and the line saying so. */
+    private void pointAt(String category, String row, CanonicalChunk chunk, SceneSearch.Found found,
+        boolean remembered, boolean routed)
+    {
         if (found.getNpc() != null)
         {
             client.setHintArrow(found.getNpc());
@@ -2550,25 +2606,47 @@ public class FateLockedPlugin extends Plugin
         {
             client.setHintArrow(found.getPoint());
         }
-        pointer = new Pointer(category, row, chunk, found.getNpc(), found.getPoint(), client.getHintArrowPoint());
+        pointer = new Pointer(category, row, chunk, found.getNpc(), found.getPoint(), client.getHintArrowPoint(),
+            null, remembered, routed);
         panel.showHerePointer(PointerText.pointing(row, found.isSameFloor()), true);
     }
 
-    /** Takes down the arrow the card put up, if it's still the one showing, and its line. Client thread. */
+    /**
+     * Takes down the arrow the card put up, if it's still the one showing, with its pin and
+     * route, and its line. Client thread.
+     */
     void clearPointer()
     {
         Pointer shown = pointer;
         pointer = null;
+        pointerLooks = false;
         if (shown != null && ours(shown))
         {
             client.clearHintArrow();
         }
+        endWay(shown);
         panel.showHerePointer(null, false);
     }
 
+    /** The way to a spot seen before is over: its pin comes off the world map, and Shortest Path's route down. */
+    private void endWay(Pointer shown)
+    {
+        if (shown == null || !shown.isRemembered())
+        {
+            return;
+        }
+        worldMapPointManager.removeIf(WayPoint.class::isInstance);
+        if (shown.isRouted())
+        {
+            shortestPath().clear();
+        }
+    }
+
     /**
-     * Each tick, while the card's arrow is up: gone once the player reaches it or leaves the
-     * chunk; forgotten if the game or another plugin has put up an arrow of its own since.
+     * Each tick, while the card's arrow is up: gone once the player reaches it, or leaves the
+     * chunk when it was on something loaded there all along; forgotten if the game or another
+     * plugin has put up an arrow of its own since. The way to a spot seen before goes on from
+     * place to place (keepWay).
      */
     private void keepPointer(CanonicalChunk current)
     {
@@ -2580,24 +2658,65 @@ public class FateLockedPlugin extends Plugin
         if (!ours(shown))
         {
             pointer = null;
+            pointerLooks = false;
+            endWay(shown);
             panel.showHerePointer(null, false);
+            return;
+        }
+        if (shown.getSpot() != null)
+        {
+            keepWay(shown);
             return;
         }
         Player local = client.getLocalPlayer();
         LocalPoint at = shown.getNpc() != null ? shown.getNpc().getLocalLocation() : shown.getPoint();
         LocalPoint player = local == null ? null : local.getLocalLocation();
-        if (!shown.getChunk().equals(current)
+        if (!shown.isRemembered() && !shown.getChunk().equals(current)
             || at != null && player != null && player.distanceTo(at) <= POINTER_REACHED)
         {
             clearPointer();
         }
     }
 
-    /** Turning the plugin off: its arrow comes down, on the client thread, if it's still the one showing. */
+    /**
+     * On the way to a spot seen before: the arrow moves onto the thing once one loads; and at
+     * the spot with none loaded, it has moved or gone, so the spot is forgotten.
+     */
+    private void keepWay(Pointer shown)
+    {
+        if (pointerLooks)
+        {
+            pointerLooks = false;
+            PointTarget target = PointTarget.of(shown.getCategory(), shown.getRow());
+            SceneSearch.Found found = target == null ? null
+                : SceneSearch.nearest(client, chunkLocator(), shown.getChunk(), target);
+            if (found != null)
+            {
+                pointAt(shown.getCategory(), shown.getRow(), shown.getChunk(), found, true, shown.isRouted());
+                return;
+            }
+        }
+        WorldPoint at = chunkLocator().playerWorld();
+        if (at != null && at.distanceTo(shown.getSpot()) <= POINTER_REACHED / Perspective.LOCAL_TILE_SIZE)
+        {
+            WorldPoint spot = shown.getSpot();
+            spots.forget(shown.getChunk(), shown.getCategory(), shown.getRow(),
+                new SpotMemory.Spot(spot.getX(), spot.getY(), spot.getPlane()));
+            clearPointer();
+            panel.showHerePointer(PointerText.gone(shown.getRow(), HerePresenter.placeName(decisions,
+                shown.getChunk())), false);
+        }
+    }
+
+    /**
+     * Turning the plugin off: its arrow comes down, on the client thread, if it's still the one
+     * showing, with its pin and route.
+     */
     private void dropPointer()
     {
         Pointer shown = pointer;
         pointer = null;
+        pointerLooks = false;
         if (shown != null)
         {
             clientThread.invoke(() -> {
@@ -2605,6 +2724,7 @@ public class FateLockedPlugin extends Plugin
                 {
                     client.clearHintArrow();
                 }
+                endWay(shown);
             });
         }
     }
@@ -2627,11 +2747,213 @@ public class FateLockedPlugin extends Plugin
         String category;
         String row;
         CanonicalChunk chunk;
-        /** The NPC it follows, or null for an object's point. */
+        /** The NPC it follows, or null for an object's point or a spot. */
         NPC npc;
         LocalPoint point;
         /** Where the game put it, to tell it from an arrow the game or another plugin puts up. */
         WorldPoint arrow;
+        /** The spot seen before that it shows the way to, until the thing itself loads; else null. */
+        WorldPoint spot;
+        /** Whether it began as the way to a spot seen before: it goes on from place to place, with its pin. */
+        boolean remembered;
+        /** Whether Shortest Path was asked for the way. */
+        boolean routed;
+    }
+
+    /** A pin on the world map at the spot the card shows the way to, with the game's own destination flag. */
+    private void pin(WorldPoint to, String row)
+    {
+        BufferedImage flag = spriteManager == null ? null : spriteManager.getSprite(SpriteID.MAPMARKER, 0);
+        if (flag == null || worldMapPointManager == null)
+        {
+            return;
+        }
+        WayPoint point = new WayPoint(to, flag);
+        point.setName(row);
+        point.setTooltip(row + " (seen here)");
+        point.setTarget(to);
+        point.setJumpOnClick(true);
+        point.setSnapToEdge(true);
+        worldMapPointManager.add(point);
+    }
+
+    /** The world map pin for a spot the card shows the way to, so it can remove exactly its own. */
+    static final class WayPoint extends WorldMapPoint
+    {
+        WayPoint(WorldPoint point, BufferedImage image)
+        {
+            super(point, image);
+        }
+    }
+
+    /** Shortest Path, as RuneLite runs it now. */
+    ShortestPathHandOff shortestPath()
+    {
+        if (shortestPath == null)
+        {
+            shortestPath = new ShortestPathHandOff(pluginManager, eventBus);
+        }
+        return shortestPath;
+    }
+
+    /** An NPC came into view: remembered where the Here card could point at it. */
+    @Subscribe
+    public void onNpcSpawned(NpcSpawned event)
+    {
+        NPC npc = event.getNpc();
+        if (npc == null || decisions.trust() != Trust.TRUSTED)
+        {
+            return;
+        }
+        NPCComposition shown = npc.getTransformedComposition();
+        seen(shown != null ? shown.getName() : npc.getName(), shown != null ? shown.getActions() : null,
+            chunkLocator().world(npc));
+    }
+
+    @Subscribe
+    public void onGameObjectSpawned(GameObjectSpawned event)
+    {
+        seen(event.getGameObject());
+    }
+
+    @Subscribe
+    public void onWallObjectSpawned(WallObjectSpawned event)
+    {
+        seen(event.getWallObject());
+    }
+
+    @Subscribe
+    public void onDecorativeObjectSpawned(DecorativeObjectSpawned event)
+    {
+        seen(event.getDecorativeObject());
+    }
+
+    @Subscribe
+    public void onGroundObjectSpawned(GroundObjectSpawned event)
+    {
+        seen(event.getGroundObject());
+    }
+
+    /** An object loaded: remembered where the Here card could point at it. */
+    private void seen(TileObject object)
+    {
+        if (object == null || decisions.trust() != Trust.TRUSTED)
+        {
+            return;
+        }
+        ObjectComposition shown = SceneSearch.shown(client, object);
+        if (shown != null)
+        {
+            seen(shown.getName(), shown.getActions(), chunkLocator().world(object));
+        }
+    }
+
+    /**
+     * Something seen at a spot, by the name and options it shows: remembered for each row of
+     * its chunk's card that points at it, and looked for at the next tick when it's what the
+     * arrow shows the way to. Only in the real world, and for these rules' own character.
+     */
+    private void seen(String name, String[] options, WorldPoint at)
+    {
+        if (name == null || at == null)
+        {
+            return;
+        }
+        CanonicalChunk chunk = CanonicalChunk.ofTile(at.getX(), at.getY());
+        Pointables here = pointables(chunk);
+        if (!here.names.contains(name.trim().toLowerCase(Locale.ROOT)))
+        {
+            return;
+        }
+        SpotMemory.Spot spot = new SpotMemory.Spot(at.getX(), at.getY(), at.getPlane());
+        Pointer shown = pointer;
+        for (PointTarget target : here.targets)
+        {
+            if (!target.matches(name, options))
+            {
+                continue;
+            }
+            spots.see(chunk, target.getCategory(), target.getLabel(), spot);
+            if (shown != null && shown.getSpot() != null && shown.getChunk().equals(chunk)
+                && shown.getCategory().equals(target.getCategory()) && shown.getRow().equals(target.getLabel()))
+            {
+                pointerLooks = true;
+            }
+        }
+    }
+
+    /** What a chunk's card can point at, read once for the rules in force. */
+    private Pointables pointables(CanonicalChunk chunk)
+    {
+        if (pointablesFor != decisions)
+        {
+            pointables.clear();
+            pointablesFor = decisions;
+        }
+        return pointables.computeIfAbsent(chunk, c -> new Pointables(HerePresenter.pointable(decisions, c)));
+    }
+
+    /** What a chunk's card can point at, and every name those go by, lower case. */
+    private static final class Pointables
+    {
+        final List<PointTarget> targets;
+        final Set<String> names = new HashSet<>();
+
+        Pointables(List<PointTarget> targets)
+        {
+            this.targets = targets;
+            for (PointTarget target : targets)
+            {
+                names.addAll(target.getNames());
+            }
+        }
+    }
+
+    /** Where things were seen, read from this computer as the plugin starts, off the client thread. */
+    private void loadSpots()
+    {
+        Path path = dataDirectory().toPath().resolve(SpotMemory.FILE);
+        fileWriter.submit(() -> {
+            try
+            {
+                spots.load(gson, path);
+            }
+            catch (IOException ex)
+            {
+                log.warn("Could not read where things were seen: {}", ex.getMessage());
+            }
+        });
+    }
+
+    /** Spots seen since the last save are written at most every half minute. */
+    private void saveSpotsIfDue()
+    {
+        int now = client.getTickCount();
+        if (spots.changed() && (now - spotsSavedTick >= SPOTS_SAVE_TICKS || now < spotsSavedTick))
+        {
+            spotsSavedTick = now;
+            saveSpots();
+        }
+    }
+
+    /** Spots seen since the last save, written off the client thread. */
+    private void saveSpots()
+    {
+        if (!spots.changed())
+        {
+            return;
+        }
+        Path path = dataDirectory().toPath().resolve(SpotMemory.FILE);
+        fileWriter.submit(() -> {
+            try
+            {
+                spots.save(gson, path);
+            }
+            catch (IOException ex)
+            {
+                log.warn("Could not save where things were seen: {}", ex.getMessage());
+            }
+        });
     }
 
     /**

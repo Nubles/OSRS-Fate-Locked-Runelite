@@ -16,8 +16,8 @@ Official references checked while preparing this candidate:
 Stage 3 changes what the plugin shows, not what it can block. Strict Mode is
 unchanged. For review:
 
-- **No new network or files.** The one request, its consent and the local
-  files are as below.
+- **No new network.** The one request and its consent are as below. One
+  local file is new, `spots.json`, under Local data.
 - **Drawing stays inside what the game shows.** Chunk borders are drawn tile
   by tile within 32 tiles of the player, inside the loaded scene, with no
   chunk fills; a short band of shade marks the locked side. The world map is
@@ -50,6 +50,19 @@ unchanged. For review:
   arrival, on a second click, on leaving the chunk or on shutdown, and an arrow
   the game or another plugin put up is never taken down. Nothing moves the
   player or clicks for them.
+- **With none loaded, the way to one seen before.** The plugin notes where
+  the NPCs and objects a Here row names load (`NpcSpawned` and the object
+  spawn events), in the real world only, never in an instance or on a boat,
+  and keeps the spots in `spots.json`. A click with none loaded puts the hint
+  arrow on the nearest spot seen in that chunk (`setHintArrow(WorldPoint)`),
+  whose minimap arrow shows the way, and adds a world map pin with the game's
+  own destination flag. When the Shortest Path plugin is running
+  (`PluginManager.isPluginActive`), it is sent the `PluginMessage` Quest
+  Helper sends: "shortestpath", "path" with the player's tile and the spot,
+  and "clear" when the arrow comes down. The way stays up from chunk to
+  chunk until it is reached, cleared, replaced or the player logs out; the
+  arrow moves onto the thing when it loads, and a spot found empty is
+  forgotten.
 - **Alerts are calmer.** A locked area posts one chat line and, on arrival
   from unlocked land, a sound and a single 1.1-second fade. The old red border
   pulsed at 2.5 Hz; it is gone.
@@ -95,7 +108,9 @@ All files stay in RuneLite's own `fate-locked` data directory: the last
 accepted rules (`saved-rules.json`, tagged with a hash of the pairing, never
 the code), and per OSRS account, in `accounts/<account hash>/`, the detected
 event history, the Strict Mode audit log, the Slayer task and the finished
-diary tiers. Two RuneLites sharing the folder merge their writes under a lock
+diary tiers. `spots.json` holds where the things the Here card can point at
+were seen, by chunk and row, at most eight tiles a row, and is written at most
+every half minute. Two RuneLites sharing the folder merge their writes under a lock
 file rather than overwrite each other. Detections are recorded, and roll
 reminders shown, only for the character the rules are bound to, on worlds
 that save to that account (not Leagues, Deadman, speedrunning and similar

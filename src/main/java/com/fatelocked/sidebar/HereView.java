@@ -31,7 +31,8 @@ import javax.swing.JPanel;
  * Skilling's skills do too; all start closed, each with a line saying what it holds, and
  * the card remembers which the player left open from place to place. A row of a category
  * the card can point in answers a click: the plugin puts the game's arrow on the nearest
- * one, and the card says so under its counts, until it's cleared.
+ * one, or shows the way to the nearest the player has seen, and the card says so under its
+ * counts, until it's cleared.
  */
 public class HereView extends Section
 {
@@ -117,11 +118,11 @@ public class HereView extends Section
         if (this.model == null || !java.util.Objects.equals(this.model.getPlace(), model.getPlace()))
         {
             expandedGroups.clear();
-            if (this.model != null)
+            if (this.model != null && !pointing)
             {
-                // The arrow belongs to the place the player left.
+                // A note belongs to the place the player left. An arrow's line stays while it's
+                // up, as the way to one seen here may cross other places; the plugin takes it down.
                 pointer = null;
-                pointing = false;
             }
         }
         this.model = model;

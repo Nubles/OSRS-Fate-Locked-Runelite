@@ -157,6 +157,45 @@ public final class HerePresenter
     }
 
     /**
+     * What a chunk's card could point at, row by row as it would show them, whatever their
+     * status: so the plugin can remember where each was seen, for the way back to one out of
+     * sight. None for another character's rules, or none, which give no rows.
+     */
+    public static List<PointTarget> pointable(DecisionService decisions, CanonicalChunk chunk)
+    {
+        List<PointTarget> targets = new ArrayList<>();
+        ChunkPermissionSnapshot snapshot = decisions.details(chunk).orElse(null);
+        if (snapshot != null)
+        {
+            for (Map.Entry<String, List<ChunkPermissionRow>> category : snapshot.getCategories().entrySet())
+            {
+                for (ChunkPermissionRow row : category.getValue())
+                {
+                    PointTarget target = PointTarget.of(category.getKey(), rowName(row.getName()));
+                    if (target != null)
+                    {
+                        targets.add(target);
+                    }
+                }
+            }
+            return targets;
+        }
+        Map<String, List<String>> legacy = decisions.legacyContent(chunk);
+        for (Map.Entry<String, String> key : LEGACY.entrySet())
+        {
+            for (String name : legacy.getOrDefault(key.getKey(), Collections.emptyList()))
+            {
+                PointTarget target = PointTarget.of(key.getValue(), name);
+                if (target != null)
+                {
+                    targets.add(target);
+                }
+            }
+        }
+        return targets;
+    }
+
+    /**
      * Skilling split by skill, in the order of their names, each with the player's level
      * and cap beside it. Each row keeps only the level it needs and what else is left. Rows
      * without a skill come last, as Other.
@@ -244,6 +283,18 @@ public final class HerePresenter
     /** The tracker's name for the chunk, else the place the rules' places name, else Uncharted. */
     private static String place(DecisionService decisions, CanonicalChunk chunk, Decision decision)
     {
+        String name = named(decisions, chunk, decision);
+        return name == null ? Terms.UNCHARTED : name;
+    }
+
+    /** A place's name as the card's title gives it, for saying where something was seen; null for none. */
+    public static String placeName(DecisionService decisions, CanonicalChunk chunk)
+    {
+        return chunk == null ? null : named(decisions, chunk, decisions.chunk(chunk));
+    }
+
+    private static String named(DecisionService decisions, CanonicalChunk chunk, Decision decision)
+    {
         String name = blankToNull(decisions.chunkName(chunk));
         if (name == null && decision.getSource() == Decision.Source.CHUNK)
         {
@@ -253,7 +304,7 @@ public final class HerePresenter
         {
             name = blankToNull(decisions.areaName(chunk));
         }
-        return name == null ? Terms.UNCHARTED : name;
+        return name;
     }
 
     /** The area and region, unless the title already says them, and the chunk's coordinates. */

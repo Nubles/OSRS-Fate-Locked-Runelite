@@ -171,6 +171,51 @@ public class HerePresenterGoldenTest
         assertTrue(names.stream().noneMatch(name -> name.contains("#")));
     }
 
+    /**
+     * What the card could point at in a place, for remembering where each is seen: the rows of
+     * the categories it points in, named as it shows them; none for another character.
+     */
+    @Test
+    public void theCardKnowsWhatItCouldPointAt() throws Exception
+    {
+        CanonicalChunk lumbridge = new CanonicalChunk(50, 50);
+        List<String> rows = HerePresenter.pointable(decisions("vanilla-mid", "iron example"), lumbridge).stream()
+            .map(target -> target.getCategory() + ": " + target.getLabel()).collect(Collectors.toList());
+
+        assertTrue(rows.toString(), rows.contains("SKILLING: Dead tree"));
+        assertTrue(rows.contains("COMBAT: Cave goblin guard"));
+        assertTrue(rows.contains("SHOPS: Culinaromancer's Chest (Food)"));
+        assertEquals("every Skilling row, pointable or not by status",
+            group(here("vanilla-mid", "iron example", 50, 50), "SKILLING").getRows().size(),
+            rows.stream().filter(row -> row.startsWith("SKILLING: ")).count());
+        assertTrue("no quest or journey is one thing", rows.stream()
+            .noneMatch(row -> row.startsWith("QUESTS") || row.startsWith("TRAVEL")));
+        assertTrue(HerePresenter.pointable(decisions("vanilla-mid", "someone else"), lumbridge).isEmpty());
+        assertTrue(HerePresenter.pointable(decisions("vanilla-mid", "iron example"), null).isEmpty());
+    }
+
+    /** An older export lists what's in a place without statuses; the card can still point at it. */
+    @Test
+    public void anOlderExportsContentCanBePointedAt()
+    {
+        CanonicalChunk lumbridge = new CanonicalChunk(50, 50);
+        DecisionService older = org.mockito.Mockito.mock(DecisionService.class);
+        org.mockito.Mockito.when(older.trust()).thenReturn(com.fatelocked.rules.Trust.TRUSTED);
+        org.mockito.Mockito.when(older.details(lumbridge)).thenReturn(java.util.Optional.empty());
+        java.util.Map<String, List<String>> content = new java.util.LinkedHashMap<>();
+        content.put("mon", List.of("Goblin"));
+        content.put("shop", List.of("Bob's Brilliant Axes"));
+        content.put("farm", List.of("Herb patch"));
+        content.put("poi", List.of("Fountain"));
+        org.mockito.Mockito.when(older.legacyContent(lumbridge)).thenReturn(content);
+
+        List<String> rows = HerePresenter.pointable(older, lumbridge).stream()
+            .map(target -> target.getCategory() + ": " + target.getLabel()).collect(Collectors.toList());
+
+        assertEquals(List.of("COMBAT: Goblin", "SHOPS: Bob's Brilliant Axes", "FARMING: Herb patch",
+            "ACTIVITIES: Fountain"), rows);
+    }
+
     private static HereModel.Group group(HereModel here, String category)
     {
         return here.getGroups().stream().filter(group -> group.getCategory().equals(category)).findFirst()

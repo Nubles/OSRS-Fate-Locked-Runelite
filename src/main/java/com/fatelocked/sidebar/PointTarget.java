@@ -35,6 +35,8 @@ public class PointTarget
     private static final Pattern OWNER = Pattern.compile("^(.+?)'s\\s");
     private static final Pattern INN = Pattern.compile("\\b(inn|arms|bar|pub|tavern)\\b");
 
+    /** The category it's in, as the tracker keys it: SKILLING, SHOPS and so on. */
+    String category;
     /** The row as the card shows it. */
     String label;
     /** The names it goes by in the game, lower case. */
@@ -114,7 +116,8 @@ public class PointTarget
                     }
                 }
         }
-        return new PointTarget(label, Collections.unmodifiableSet(names), Collections.unmodifiableSet(actions));
+        return new PointTarget(category, label, Collections.unmodifiableSet(names),
+            Collections.unmodifiableSet(actions));
     }
 
     /** Whether a thing in the game, by its name and options, is this target. */

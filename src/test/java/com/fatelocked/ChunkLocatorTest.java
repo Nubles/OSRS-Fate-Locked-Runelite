@@ -206,6 +206,44 @@ public class ChunkLocatorTest
         assertNull("a zone with no template", locator.sceneZone(5, 6));
     }
 
+    /**
+     * Where things stand in the real world, for the way back to one: the game's own world
+     * location on the surface; nothing inside an instance, whose tiles are copies, or on a
+     * boat's deck, and nothing for nobody.
+     */
+    @Test
+    public void onlyTheRealWorldHasPlacesToFindAgain()
+    {
+        net.runelite.api.coords.WorldPoint oak = new net.runelite.api.coords.WorldPoint(3210, 3200, 0);
+        net.runelite.api.GameObject tree = mock(net.runelite.api.GameObject.class);
+        when(tree.getWorldView()).thenReturn(main);
+        when(tree.getWorldLocation()).thenReturn(oak);
+        NPC guard = mock(NPC.class);
+        when(guard.getWorldView()).thenReturn(main);
+        when(guard.getWorldLocation()).thenReturn(oak);
+        standAt(main, 40, 40);
+        net.runelite.api.coords.WorldPoint standing = new net.runelite.api.coords.WorldPoint(BASE + 40, BASE + 40, 0);
+        when(client.getLocalPlayer().getWorldLocation()).thenReturn(standing);
+
+        assertEquals(oak, locator.world(tree));
+        assertEquals(oak, locator.world(guard));
+        assertEquals(standing, locator.playerWorld());
+
+        instance(5, 5, template(400, 400));
+        assertNull(locator.world(tree));
+        assertNull(locator.world(guard));
+        assertNull(locator.playerWorld());
+
+        when(scene.isInstance()).thenReturn(false);
+        WorldView deck = deck();
+        when(deck.getScene()).thenReturn(scene);
+        when(tree.getWorldView()).thenReturn(deck);
+        assertNull("on a boat", locator.world(tree));
+        assertNull(locator.world((net.runelite.api.TileObject) null));
+        when(client.getLocalPlayer()).thenReturn(null);
+        assertNull(locator.playerWorld());
+    }
+
     private void standAt(WorldView view, int sceneX, int sceneY)
     {
         // Read the view's id first: Mockito can't stub while another stub is half-made.
