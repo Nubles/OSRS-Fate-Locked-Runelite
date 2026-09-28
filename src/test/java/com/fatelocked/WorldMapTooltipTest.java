@@ -142,19 +142,31 @@ public class WorldMapTooltipTest
             WorldMapChunks.tooltip(nubles, new CanonicalChunk(46, 52), List.of(), Palette.defaults()));
     }
 
-    /** Until B17's boundary test covers every surface: the overlay draws through WorldMapChunks. */
+    /**
+     * Until B17's boundary test covers every surface: the overlay draws through WorldMapChunks,
+     * by way of the model worked out once per decision service (U18). It uses no deprecated
+     * RuneLite API, and never walks every chunk in a frame.
+     */
     @Test
     public void theOverlayDrawsThroughWorldMapChunks() throws Exception
     {
-        String source = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src", "main", "java", "com", "fatelocked", "FateLockedWorldMapOverlay.java")), StandardCharsets.UTF_8);
-        for (String old : new String[] { "lockStateAt(", "isFrontierChunk(", "labelAt(", "getRegionChunks(" })
+        String source = source("FateLockedWorldMapOverlay.java");
+        for (String old : new String[] { "lockStateAt(", "isFrontierChunk(", "labelAt(", "getRegionChunks(",
+            "getRenderOverview(", "RenderOverview", "ComponentID", "OverlayPriority", "widgets.InterfaceID",
+            "mappedChunks()" })
         {
             assertFalse(old, source.contains(old));
         }
-        assertTrue(source.contains("WorldMapChunks.fill("));
+        assertTrue(source.contains("WorldMapModel.of("));
+        assertTrue(source("WorldMapModel.java").contains("WorldMapChunks.fill("));
         assertTrue(source.contains("WorldMapChunks.tooltip("));
         assertTrue("the tooltip takes the plugin's palette", source.contains("plugin.palette()"));
+    }
+
+    private static String source(String name) throws Exception
+    {
+        return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+            "src", "main", "java", "com", "fatelocked", name)), StandardCharsets.UTF_8);
     }
 
     private static Set<CanonicalChunk> frontierOf(String id) throws Exception
