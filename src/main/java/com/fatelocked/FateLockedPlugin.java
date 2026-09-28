@@ -20,6 +20,7 @@ import com.fatelocked.sidebar.HerePresenter;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.fatelocked.ui.Palette;
+import com.fatelocked.ui.Terms;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.StrictModeClickHandler;
@@ -275,12 +276,15 @@ public class FateLockedPlugin extends Plugin
     private FateLockedTravelBlockOverlay travelBlockOverlay;
     private TravelGuardianOverlayLifecycle travelOverlayLifecycle;
 
-    /** How long the locked-entry screen flash lasts. */
-    public static final long LOCKED_FLASH_MS = 1600;
-    @Getter private volatile long lockedFlashUntil;
+    /** No locked-area fade is showing. */
+    static final long NO_FADE = Long.MIN_VALUE;
+    /** When the locked-area fade began, on the monotonic clock ({@link System#nanoTime}); NO_FADE for none. */
+    @Getter private volatile long lockedFadeAt = NO_FADE;
+    /** What stepping into a chunk says: a line per area, and the locked alert once per area (U10). */
+    private final LockedAreaAlerts areaAlerts = new LockedAreaAlerts();
 
     private CanonicalChunk lastChunk;
-    /** The decision for the chunk the player was last in, for the once-on-the-way-in alert. */
+    /** The decision for the chunk the player is in, for the sidebar's warnings. */
     private PermissionStatus lastStatus;
     /** Warnings count the sidebar shows, so each change is sent to it once. */
     private int shownWarningCount = -1;
@@ -534,6 +538,9 @@ public class FateLockedPlugin extends Plugin
         decisionsBound = "";
         decisionsPlayer = "";
         lastChunk = null;
+        lastStatus = null;
+        areaAlerts.forget();
+        lockedFadeAt = NO_FADE;
     }
 
     /**
@@ -798,10 +805,11 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Let the account and gear warnings, and the chunk announcement, show once more. */
+    /** Let the account and gear warnings, and the area's line and alert, show once more. */
     private void forgetLoginWarnings()
     {
         lastChunk = null;
+        areaAlerts.forget();
         lastAccountWarned = null;
         warnedOverTier.clear();
     }
@@ -1384,26 +1392,22 @@ public class FateLockedPlugin extends Plugin
             // Only the rules' own answers are announced (B6): never a chunk
             // they don't map (dungeons, instances, every chunk before rules
             // load), nor another character's rules. NOT_READY is owned, so
-            // it reads as unlocked and never alerts.
-            FateLockedConfig.LockedAreaAlert alert = config.lockedAreaAlert();
-            boolean locked = status == PermissionStatus.LOCKED;
-            if (status != PermissionStatus.UNKNOWN && (locked ? alert.chat() : config.announceAreaChanges()))
+            // it never alerts. Lines and alerts are per area, not per chunk.
+            LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label),
+                client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
+            if (alert.isLine())
             {
-                announceEntry(current, label, status != PermissionStatus.LOCKED ? null : entry);
+                announceEntry(current, label, entry);
             }
-            // Flash, sound and notification once on the way INTO locked
-            // territory, not at every chunk inside it, whatever the chat
-            // setting.
-            if (status == PermissionStatus.LOCKED && lastStatus != PermissionStatus.LOCKED)
+            if (alert.isFade())
             {
-                lockedFlashUntil = System.currentTimeMillis() + LOCKED_FLASH_MS;
-                if (alert.sound())
-                {
-                    client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
-                    notifyIfEnabled(label == null
-                        ? "Entered LOCKED chunk (" + current.getCx() + ", " + current.getCy() + ")"
-                        : "Entered LOCKED chunk: " + label);
-                }
+                lockedFadeAt = System.nanoTime();
+            }
+            if (alert.isSound())
+            {
+                client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
+                notifyIfEnabled("You've entered a locked area: "
+                    + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
             }
             lastChunk = current;
             lastStatus = status;
@@ -1562,21 +1566,31 @@ public class FateLockedPlugin extends Plugin
             && ruleDecisions.chunk(action.getChunk()).isLocked();
     }
 
-    /** Chat line for entering a mapped chunk; {@code region} is null for a chunk only the tracker names. */
-    /** One chat line per chunk entered; a locked one says why, in the tracker's words (E8). */
-    private void announceEntry(CanonicalChunk chunk, String region, Decision locked)
+    /**
+     * What groups chunks into one area for chat and alerts: the area's name, else the tracker's
+     * reason, so the sea is one area under "Needs Sailing and Pandemonium", else the chunk.
+     */
+    private static String areaKey(CanonicalChunk chunk, Decision entry, String area)
     {
+        if (area != null) return area;
+        if (entry.getReason() != null) return "reason:" + entry.getReason();
+        return "chunk:" + chunk.getCx() + "," + chunk.getCy();
+    }
+
+    /**
+     * The line for entering an area: its name and its status in words, and why it is locked
+     * or not ready, in the tracker's words (E8). A chunk only the tracker maps is named by its
+     * coordinates. Words, not marks: the game's chat font has no ✓ or ⚠.
+     */
+    private void announceEntry(CanonicalChunk chunk, String area, Decision entry)
+    {
+        String status = Terms.place(entry.getStatus());
+        boolean why = entry.getReason() != null
+            && (entry.getStatus() == PermissionStatus.LOCKED || entry.getStatus() == PermissionStatus.NOT_READY);
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-            .append(ChatColorType.NORMAL).append("Chunk ")
-            .append("(" + chunk.getCx() + ", " + chunk.getCy() + ")");
-        if (region != null)
-        {
-            msg.append(ChatColorType.NORMAL).append(" · ")
-               .append(ChatColorType.HIGHLIGHT).append(region);
-        }
-        msg.append(ChatColorType.NORMAL).append(locked == null ? " ✓ unlocked"
-            : locked.getReason() == null ? " ⚠ LOCKED" : " ⚠ LOCKED: " + locked.getReason());
+            .append(area != null ? area : "Chunk (" + chunk.getCx() + ", " + chunk.getCy() + ")")
+            .append(ChatColorType.NORMAL).append(": " + status + (why ? " — " + entry.getReason() : ""));
 
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)

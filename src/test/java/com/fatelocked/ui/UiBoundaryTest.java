@@ -28,11 +28,11 @@ import org.junit.Test;
 public class UiBoundaryTest
 {
     private static final Set<String> COLOUR_LITERALS = new TreeSet<>(List.of(
-        "FateLockedConfig.java", "FateLockedContentOverlay.java", "FateLockedFlashOverlay.java",
-        "FateLockedHudOverlay.java", "FateLockedPlugin.java", "HudStatus.java"));
+        "FateLockedConfig.java", "FateLockedContentOverlay.java", "FateLockedHudOverlay.java",
+        "FateLockedPlugin.java", "HudStatus.java"));
     private static final Set<String> DERIVED_FONTS = new TreeSet<>();
     private static final Set<String> SYMBOLS = new TreeSet<>(List.of(
-        "ChunkPanelViewModelFactory.java", "FateLockedHudOverlay.java", "FateLockedPlugin.java"));
+        "ChunkPanelViewModelFactory.java", "FateLockedHudOverlay.java"));
 
     /** Marks and arrows RuneLite's RuneScape fonts have no glyph for. */
     private static final String UNDRAWABLE = "✓✔✕✖✗○●⚠"

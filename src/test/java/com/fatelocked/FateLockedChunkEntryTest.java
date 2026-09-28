@@ -1,7 +1,10 @@
 package com.fatelocked;
 
 import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.rules.Decision;
+import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
+import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
@@ -17,6 +20,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,9 +40,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * What crossing into a chunk tells the player: nothing before rules are
- * loaded or in chunks the tracker hasn't mapped, and one locked warning on
- * the way into locked territory, whatever the chat setting. A locked chunk's
- * line says why, in the tracker's words (E8).
+ * loaded or in chunks the tracker hasn't mapped, a line when the area
+ * changes, and one locked warning on the way into a locked area (U10). A
+ * locked area's line says why, in the tracker's words (E8), and in words,
+ * not marks.
  */
 public class FateLockedChunkEntryTest
 {
@@ -112,16 +117,53 @@ public class FateLockedChunkEntryTest
         verify(chat, times(1)).queue(any(QueuedMessage.class));
     }
 
+    /** Decision 6: once per locked area, and the same area again only after a minute. */
     @Test
-    public void theLockedWarningSoundsOnceOnTheWayIn() throws Exception
+    public void theLockedWarningSoundsOncePerAreaAndAgainAfterAMinute() throws Exception
     {
         loadRules();
 
         walk(LUMBRIDGE, FALADOR, FALADOR_EAST, FALADOR);
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
-        verify(notifier, times(1)).notify("Entered LOCKED chunk: Asgarnia");
+        verify(notifier, times(1)).notify("You've entered a locked area: Asgarnia");
 
         walk(LUMBRIDGE, FALADOR);
+        verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
+
+        when(client.getTickCount()).thenReturn(LockedAreaAlerts.QUIET_TICKS);
+        walk(LUMBRIDGE, FALADOR);
+        verify(client, times(2)).playSoundEffect(LOCKED_SOUND);
+    }
+
+    /** U20: the fade starts on the way into a locked area, when the alert setting has one. */
+    @Test
+    public void theFadeFollowsTheAlert() throws Exception
+    {
+        loadRules();
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT_SOUND);
+        walk(LUMBRIDGE, FALADOR);
+        assertEquals("no fade in this setting", FateLockedPlugin.NO_FADE, plugin.getLockedFadeAt());
+
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT_FADE);
+        when(client.getTickCount()).thenReturn(LockedAreaAlerts.QUIET_TICKS);
+        long before = System.nanoTime();
+        walk(LUMBRIDGE, FALADOR);
+        assertTrue("the fade began on this step", plugin.getLockedFadeAt() >= before);
+    }
+
+    /** A login starts afresh: standing in the same locked area, the next step alerts again. */
+    @Test
+    public void aNewSessionAlertsAgain() throws Exception
+    {
+        loadRules();
+        walk(LUMBRIDGE, FALADOR);
+        verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
+
+        Method forget = FateLockedPlugin.class.getDeclaredMethod("forgetLoginWarnings");
+        forget.setAccessible(true);
+        forget.invoke(plugin);
+        walk(FALADOR);
+
         verify(client, times(2)).playSoundEffect(LOCKED_SOUND);
     }
 
@@ -136,7 +178,7 @@ public class FateLockedChunkEntryTest
 
         verify(chat, times(1)).queue(any(QueuedMessage.class));
         verify(client).playSoundEffect(LOCKED_SOUND);
-        verify(notifier).notify("Entered LOCKED chunk: Asgarnia");
+        verify(notifier).notify("You've entered a locked area: Asgarnia");
     }
 
     @Test
@@ -162,7 +204,7 @@ public class FateLockedChunkEntryTest
 
         List<String> lines = chatLines();
         assertEquals(lines.toString(), 1, lines.size());
-        assertTrue(lines.get(0), lines.get(0).endsWith("✓ unlocked"));
+        assertTrue(lines.get(0), lines.get(0).endsWith(": Unlocked"));
         verify(client, never()).playSoundEffect(anyInt());
     }
 
@@ -181,20 +223,63 @@ public class FateLockedChunkEntryTest
         verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
     }
 
-    /** B6: a golden walk warns once, on the way into Rimmington, and announces every step. */
+    /** B6, U10: a golden walk warns once, on the way into Rimmington, and announces each area once. */
     @Test
     public void aGoldenWalkFromLumbridgeToFaladorWarnsOnceAtRimmington() throws Exception
     {
         FateLockedBundle mid = playing("Iron Example");
+        DecisionService decisions = DecisionService.create(RulesSnapshot.of(mid), "iron example", "iron example");
+        List<String> areas = new ArrayList<>();
+        for (CanonicalChunk step : LUMBRIDGE_TO_FALADOR)
+        {
+            String area = decisions.areaName(step);
+            if (areas.isEmpty() || !areas.get(areas.size() - 1).equals(area)) areas.add(area);
+        }
 
         walk(LUMBRIDGE_TO_FALADOR);
 
         List<String> lines = chatLines();
-        assertEquals(LUMBRIDGE_TO_FALADOR.length, lines.size());
-        assertEquals(1, lines.stream().filter(line -> line.contains("⚠ LOCKED")).count());
-        assertTrue(lines.get(4), lines.get(4).contains("(46, 50)") && lines.get(4).endsWith("⚠ LOCKED: Unlock Rimmington"));
+        assertEquals("one line per area: " + areas, areas.size(), lines.size());
+        assertTrue("fewer than one per chunk", lines.size() < LUMBRIDGE_TO_FALADOR.length);
+        List<String> locked = new ArrayList<>();
+        for (String line : lines) if (line.contains(": Locked")) locked.add(line);
+        assertEquals(1, locked.size());
+        assertTrue(locked.get(0), locked.get(0).contains(mid.labelAt(RIMMINGTON))
+            && locked.get(0).endsWith(": Locked — Unlock Rimmington"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
-        verify(notifier).notify("Entered LOCKED chunk: " + mid.labelAt(RIMMINGTON));
+        verify(notifier).notify("You've entered a locked area: " + mid.labelAt(RIMMINGTON));
+    }
+
+    /** The sea has no area names: its chunks are one area under the tracker's reason. */
+    @Test
+    public void theSeaIsOneArea() throws Exception
+    {
+        FateLockedBundle mid = playing("Iron Example");
+        DecisionService decisions = DecisionService.create(RulesSnapshot.of(mid), "iron example", "iron example");
+        CanonicalChunk[] sea = adjacentUnnamed(decisions);
+
+        walk(sea);
+
+        assertEquals(1, chatLines().size());
+        verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
+    }
+
+    /** Two neighbouring locked chunks with no area name and the same reason: open sea. */
+    private static CanonicalChunk[] adjacentUnnamed(DecisionService decisions)
+    {
+        for (CanonicalChunk chunk : decisions.mappedChunks())
+        {
+            CanonicalChunk east = new CanonicalChunk(chunk.getCx() + 1, chunk.getCy());
+            Decision here = decisions.chunk(chunk);
+            Decision there = decisions.chunk(east);
+            if (decisions.areaName(chunk) == null && decisions.areaName(east) == null
+                && here.getStatus() == PermissionStatus.LOCKED && there.getStatus() == PermissionStatus.LOCKED
+                && here.getReason() != null && here.getReason().equals(there.getReason()))
+            {
+                return new CanonicalChunk[] {chunk, east};
+            }
+        }
+        throw new AssertionError("no open sea in vanilla-mid");
     }
 
     /** NOT_READY is owned: it reads as unlocked, never alerts and isn't a warning. */
@@ -208,8 +293,11 @@ public class FateLockedChunkEntryTest
         walk(FALADOR, SOUTH_TAVERLEY, EAST_CATHERBY);
 
         List<String> lines = chatLines();
-        assertTrue(lines.get(2), lines.get(2).contains("(44, 53)") && lines.get(2).endsWith("✓ unlocked"));
-        assertTrue(lines.get(1), lines.get(1).endsWith("⚠ LOCKED: Unlock Taverley"));
+        assertEquals(lines.toString(), 3, lines.size());
+        String why = DecisionService.create(RulesSnapshot.of(mid), "iron example", "iron example")
+            .chunk(EAST_CATHERBY).getReason();
+        assertTrue(lines.get(2), lines.get(2).endsWith(": Not ready" + (why == null ? "" : " — " + why)));
+        assertTrue(lines.get(1), lines.get(1).endsWith(": Locked — Unlock Taverley"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
         verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
         verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
@@ -247,9 +335,9 @@ public class FateLockedChunkEntryTest
 
         List<String> lines = chatLines();
         assertTrue(lines.get(1), lines.get(1).contains("Chunk (16, 44)")
-            && lines.get(1).endsWith("⚠ LOCKED: Needs Sailing and Pandemonium"));
+            && lines.get(1).endsWith(": Locked — Needs Sailing and Pandemonium"));
         assertFalse(lines.get(1), lines.get(1).contains("null"));
-        verify(notifier).notify("Entered LOCKED chunk (16, 44)");
+        verify(notifier).notify("You've entered a locked area: chunk (16, 44)");
     }
 
     /**
@@ -273,10 +361,10 @@ public class FateLockedChunkEntryTest
         enterInstanceOf(null, 6, 7);
 
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
-        verify(notifier).notify("Entered LOCKED chunk: " + mid.labelAt(seers));
+        verify(notifier).notify("You've entered a locked area: " + mid.labelAt(seers));
         List<String> lines = chatLines();
         assertEquals(2, lines.size());
-        assertTrue(lines.get(1), lines.get(1).contains("(42, 54)") && lines.get(1).contains("⚠ LOCKED"));
+        assertTrue(lines.get(1), lines.get(1).contains(mid.labelAt(seers)) && lines.get(1).contains(": Locked"));
     }
 
     /**

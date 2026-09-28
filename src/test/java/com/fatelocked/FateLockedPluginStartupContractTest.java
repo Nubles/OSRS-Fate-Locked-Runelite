@@ -221,6 +221,26 @@ public class FateLockedPluginStartupContractTest
         org.junit.Assert.assertFalse(pause.isPaused());
     }
 
+    /** U10: stopping the plugin forgets the areas alerted and any fade, so a restart alerts afresh. */
+    @Test
+    public void theAreaAlertsAndTheFadeEndWhenThePluginStops() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("alerts"));
+        LockedAreaAlerts alerts = (LockedAreaAlerts) PluginTestSupport.get(harness.plugin, "areaAlerts");
+        FateLockedConfig.LockedAreaAlert all = FateLockedConfig.LockedAreaAlert.CHAT_SOUND_FADE;
+        alerts.enter(com.fatelocked.rules.PermissionStatus.ALLOWED, "Lumbridge", 0, all, false);
+        alerts.enter(com.fatelocked.rules.PermissionStatus.LOCKED, "Falador", 1, all, false);
+        Field fade = FateLockedPlugin.class.getDeclaredField("lockedFadeAt");
+        fade.setAccessible(true);
+        fade.setLong(harness.plugin, System.nanoTime());
+
+        harness.plugin.shutDown();
+
+        assertEquals(FateLockedPlugin.NO_FADE, harness.plugin.getLockedFadeAt());
+        assertEquals(new LockedAreaAlerts.Alert(true, true, true),
+            alerts.enter(com.fatelocked.rules.PermissionStatus.LOCKED, "Falador", 2, all, false));
+    }
+
     private static GameStateChanged gameState(GameState state)
     {
         GameStateChanged event = new GameStateChanged();
