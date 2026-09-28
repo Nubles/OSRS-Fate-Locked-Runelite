@@ -2,6 +2,8 @@ package com.fatelocked;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
@@ -18,6 +20,7 @@ import com.google.gson.Gson;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.awt.image.BufferedImage;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
@@ -168,6 +171,62 @@ public class FateLockedWorldMapOverlayTest
         when(client.getMouseCanvasPosition()).thenReturn(new Point(600, 400));
         render();
         verify(tooltips, never()).add(org.mockito.ArgumentMatchers.any());
+    }
+
+    /** A9: a map at rest reuses its clip and outline; each thing they depend on works them out again. */
+    @Test
+    public void aMapAtRestReusesItsClipAndOutline()
+    {
+        Shape[] first = drawn();
+        Shape[] again = drawn();
+        assertSame("the clip", first[0], again[0]);
+        assertSame("the outline", first[1], again[1]);
+
+        WorldMap worldMap = client.getWorldMap();
+        when(worldMap.getWorldMapPosition()).thenReturn(new Point(3264, 3200));
+        Shape[] east = drawn();
+        assertSame("panning keeps the clip", again[0], east[0]);
+        assertNotSame("but not the outline", again[1], east[1]);
+        when(worldMap.getWorldMapPosition()).thenReturn(new Point(3264, 3264));
+        Shape[] north = drawn();
+        assertNotSame(east[1], north[1]);
+        when(worldMap.getWorldMapZoom()).thenReturn(2f);
+        Shape[] zoomed = drawn();
+        assertNotSame(north[1], zoomed[1]);
+
+        Widget overview = client.getWidget(InterfaceID.Worldmap.OVERVIEW_CONTAINER);
+        when(overview.isHidden()).thenReturn(true);
+        Shape[] closed = drawn();
+        assertNotSame("the overview closed", zoomed[0], closed[0]);
+        assertSame(zoomed[1], closed[1]);
+        Widget selector = widget(new Rectangle(0, 0, 150, 40));
+        when(client.getWidget(InterfaceID.Worldmap.MAPLIST_BOX_GRAPHIC0)).thenReturn(selector);
+        Shape[] selecting = drawn();
+        assertNotSame("the surface selector opened", closed[0], selecting[0]);
+
+        Widget map = client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER);
+        when(map.getBounds()).thenReturn(new Rectangle(10, 0, 700, 470));
+        Shape[] moved = drawn();
+        assertNotSame("the map moved on the screen", selecting[0], moved[0]);
+        assertNotSame(selecting[1], moved[1]);
+
+        when(plugin.decisions()).thenReturn(DecisionService.create(mine.rules(), "iron example", "iron example"));
+        Shape[] rules = drawn();
+        assertSame(moved[0], rules[0]);
+        assertNotSame("new rules, a new outline", moved[1], rules[1]);
+    }
+
+    /** The clip and the outline one frame was drawn with. */
+    private Shape[] drawn()
+    {
+        Graphics2D graphics = mock(Graphics2D.class);
+        overlay.render(graphics);
+        ArgumentCaptor<Shape> clip = ArgumentCaptor.forClass(Shape.class);
+        ArgumentCaptor<Shape> outline = ArgumentCaptor.forClass(Shape.class);
+        verify(graphics).clip(clip.capture());
+        verify(graphics, times(2)).draw(outline.capture());
+        assertSame("the underlay and the edge are one outline", outline.getAllValues().get(0), outline.getValue());
+        return new Shape[] {clip.getValue(), outline.getValue()};
     }
 
     private BufferedImage render()

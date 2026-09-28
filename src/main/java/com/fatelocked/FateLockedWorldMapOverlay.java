@@ -10,6 +10,7 @@ import java.awt.Shape;
 import java.awt.geom.GeneralPath;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
@@ -28,8 +29,10 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
  * outlined with the locked edge's dash. Land only, as the web map shows it; nothing on another
  * character. It draws inside the map only, never over the overview or the surface selector.
  *
- * <p>What to draw is worked out once per decision service ({@link WorldMapModel}); each frame
- * places it with RuneLite's own maths ({@link WorldMapProjection}), so it lines up with the pins.
+ * <p>What to draw is worked out once per decision service ({@link WorldMapModel}), and placed with
+ * RuneLite's own maths ({@link WorldMapProjection}), so it lines up with the pins. The placing, the
+ * clip and the outline are worked out again only when the map moves, the overview or the surface
+ * selector opens or closes, or the rules change (A9): a frame of a map at rest makes no garbage.
  */
 public class FateLockedWorldMapOverlay extends Overlay
 {
@@ -41,6 +44,21 @@ public class FateLockedWorldMapOverlay extends Overlay
     // What the map draws for the rules in force.
     private DecisionService modelDecisions;
     private WorldMapModel model = WorldMapModel.NONE;
+    // Where the map was, and how tiles fell on it.
+    private Rectangle viewBounds;
+    private float viewZoom;
+    private int viewX;
+    private int viewY;
+    private WorldMapProjection projection;
+    // The clip, for the map and whichever of the overview and the selector were shown.
+    private Rectangle clipBounds;
+    private Rectangle clipOverview;
+    private Rectangle clipSelector;
+    private Shape clip;
+    // The outline in canvas pixels, for these rules in this view.
+    private WorldMapModel outlineModel;
+    private WorldMapProjection outlineProjection;
+    private Shape outline;
     // The last tooltip, kept while the mouse stays on one chunk.
     private DecisionService tipDecisions;
     private CanonicalChunk tipChunk;
@@ -78,23 +96,24 @@ public class FateLockedWorldMapOverlay extends Overlay
         float zoom = worldMap.getWorldMapZoom();
         if (bounds == null || centre == null || zoom <= 0) return null;
 
-        WorldMapProjection projection = new WorldMapProjection(bounds, zoom, centre.getX(), centre.getY());
-        Shape clip = WorldMapClip.of(bounds, shown(InterfaceID.Worldmap.OVERVIEW_CONTAINER),
+        WorldMapModel current = model(decisions);
+        WorldMapProjection view = projection(bounds, zoom, centre.getX(), centre.getY());
+        Shape mapClip = clip(bounds, shown(InterfaceID.Worldmap.OVERVIEW_CONTAINER),
             shown(InterfaceID.Worldmap.MAPLIST_BOX_GRAPHIC0));
-        draw(graphics, model(decisions), projection, plugin.palette(), clip);
+        draw(graphics, current, view, plugin.palette(), mapClip, outline(current, view));
         if (mode.tooltip())
         {
-            tooltip(decisions, projection, clip, mode.contents());
+            tooltip(decisions, view, mapClip, mode.contents());
         }
         return null;
     }
 
     /**
      * Draw the model where the projection places it, inside the clip: one fill per run of
-     * chunks in view, and the outline as one path.
+     * chunks in view, then the outline. Called every frame, so it makes no garbage.
      */
     static void draw(Graphics2D graphics, WorldMapModel model, WorldMapProjection projection, Palette palette,
-        Shape clip)
+        Shape clip, Shape outline)
     {
         int west = projection.westChunk();
         int east = projection.eastChunk();
@@ -102,8 +121,10 @@ public class FateLockedWorldMapOverlay extends Overlay
         int north = projection.northChunk();
         Shape before = graphics.getClip();
         graphics.clip(clip);
-        for (WorldMapModel.Run run : model.runs())
+        List<WorldMapModel.Run> runs = model.runs();
+        for (int i = 0; i < runs.size(); i++)
         {
+            WorldMapModel.Run run = runs.get(i);
             if (run.getCy() < south || run.getCy() > north || run.getCx1() < west || run.getCx0() > east)
             {
                 continue;
@@ -116,7 +137,22 @@ public class FateLockedWorldMapOverlay extends Overlay
             int y1 = projection.lineY(run.getCy() << 6);
             graphics.fillRect(x0, y0, x1 - x0, y1 - y0);
         }
+        graphics.setStroke(Palette.UNDERLAY_STROKE);
+        graphics.setColor(Palette.UNDERLAY);
+        graphics.draw(outline);
+        graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
+        graphics.setColor(palette.lockedEdge());
+        graphics.draw(outline);
+        graphics.setClip(before);
+    }
 
+    /** The unlocked land's outline in canvas pixels, kept to the chunks in view, as one path. */
+    static Shape outlinePath(WorldMapModel model, WorldMapProjection projection)
+    {
+        int west = projection.westChunk();
+        int east = projection.eastChunk();
+        int south = projection.southChunk();
+        int north = projection.northChunk();
         GeneralPath outline = new GeneralPath();
         for (WorldMapModel.Edge edge : model.outline())
         {
@@ -144,13 +180,50 @@ public class FateLockedWorldMapOverlay extends Overlay
                 outline.lineTo(projection.lineX(to << 6), y);
             }
         }
-        graphics.setStroke(Palette.UNDERLAY_STROKE);
-        graphics.setColor(Palette.UNDERLAY);
-        graphics.draw(outline);
-        graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
-        graphics.setColor(palette.lockedEdge());
-        graphics.draw(outline);
-        graphics.setClip(before);
+        return outline;
+    }
+
+    /** How tiles fall on the map as shown; worked out again only when it moves or zooms. */
+    private WorldMapProjection projection(Rectangle bounds, float zoom, int x, int y)
+    {
+        if (!bounds.equals(viewBounds) || zoom != viewZoom || x != viewX || y != viewY)
+        {
+            projection = new WorldMapProjection(bounds, zoom, x, y);
+            viewBounds = bounds;
+            viewZoom = zoom;
+            viewX = x;
+            viewY = y;
+        }
+        return projection;
+    }
+
+    /**
+     * Where to draw: worked out again only when the map's bounds change, or the overview or the
+     * selector opens or closes.
+     */
+    private Shape clip(Rectangle bounds, Rectangle overview, Rectangle selector)
+    {
+        if (!bounds.equals(clipBounds) || !Objects.equals(overview, clipOverview)
+            || !Objects.equals(selector, clipSelector))
+        {
+            clip = WorldMapClip.of(bounds, overview, selector);
+            clipBounds = bounds;
+            clipOverview = overview;
+            clipSelector = selector;
+        }
+        return clip;
+    }
+
+    /** The outline for these rules in this view; worked out again only when either changes. */
+    private Shape outline(WorldMapModel current, WorldMapProjection view)
+    {
+        if (current != outlineModel || view != outlineProjection)
+        {
+            outline = outlinePath(current, view);
+            outlineModel = current;
+            outlineProjection = view;
+        }
+        return outline;
     }
 
     /** What the map draws for these rules, worked out again only when they change. */

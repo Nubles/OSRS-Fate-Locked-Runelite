@@ -154,3 +154,20 @@ tasks.register('verifyPluginHubJar') {
 }
 
 check.dependsOn tasks.named('verifyPluginHubJar')
+
+// A9: what runs every frame, or for every option of every menu, makes no garbage. It is counted in
+// a JVM of its own: Mockito's inline mocks rewrite every class a test mocks, for real instances
+// too, so beside the other tests the count would be partly Mockito's.
+tasks.named('test', Test) {
+    exclude '**/A9PerformanceTest.class'
+}
+
+tasks.register('performanceTest', Test) {
+    group = 'verification'
+    description = 'Checks that the per-frame paths make no garbage, in a JVM of their own.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/A9PerformanceTest.class'
+}
+
+check.dependsOn tasks.named('performanceTest')
