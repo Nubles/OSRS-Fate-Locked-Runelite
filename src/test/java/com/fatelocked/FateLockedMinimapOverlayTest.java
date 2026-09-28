@@ -122,6 +122,24 @@ public class FateLockedMinimapOverlayTest
         }
     }
 
+    /**
+     * A tile is a few pixels on the minimap, so its dashes run a third of a chunk's side, not
+     * a third of a tile; and nothing stands in front of anything there.
+     */
+    @Test
+    public void theMinimapsDashesAreAChunksThird()
+    {
+        try (MockedStatic<ChunkBorderRenderer> renderer = mockStatic(ChunkBorderRenderer.class))
+        {
+            FateLockedMinimapOverlay.draw(graphics, new Rectangle(0, 0, 10, 10), eastHalfLocked(),
+                FateLockedConfig.ChunkBorders.LOCKED_EDGES, false, Palette.defaults(), 60, 60, 104, 104,
+                (x, y) -> null);
+            renderer.verify(() -> ChunkBorderRenderer.draw(eq(graphics), any(), any(), eq(false), any(), eq(60),
+                eq(60), eq(104), eq(104), any(), eq(ChunkBorderRenderer.MINIMAP_PERIOD),
+                eq(ChunkBorderRenderer.Occlusion.NONE)));
+        }
+    }
+
     /** A scene whose east half is locked, with a chunk line at 64 tiles both ways. */
     static SceneEdges eastHalfLocked()
     {

@@ -99,7 +99,7 @@ public class FateLockedMinimapOverlay extends Overlay
         FateLockedConfig.ChunkBorders lines = borders == FateLockedConfig.ChunkBorders.ALL_EDGES
             ? FateLockedConfig.ChunkBorders.ALL_EDGES : FateLockedConfig.ChunkBorders.LOCKED_EDGES;
         ChunkBorderRenderer.draw(graphics, scene.edges(), lines, false, palette, playerX, playerY, sizeX, sizeY,
-            projector);
+            projector, ChunkBorderRenderer.MINIMAP_PERIOD, ChunkBorderRenderer.Occlusion.NONE);
         graphics.setClip(before);
     }
 

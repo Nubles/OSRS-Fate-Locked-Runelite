@@ -2,6 +2,7 @@ package com.fatelocked.ui;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -88,6 +89,9 @@ public class PaletteTest
     {
         assertNotNull(Palette.LOCKED_EDGE_STROKE.getDashArray());
         assertTrue(Palette.UNDERLAY_STROKE.getLineWidth() > Palette.LOCKED_EDGE_STROKE.getLineWidth());
+        // The game view's and minimap's dashes are cut on the ground, each drawn whole, as wide as the world map's.
+        assertNull(Palette.LOCKED_DASH_STROKE.getDashArray());
+        assertEquals(Palette.LOCKED_EDGE_STROKE.getLineWidth(), Palette.LOCKED_DASH_STROKE.getLineWidth(), 0);
         assertTrue(Palette.UNDERLAY.getAlpha() >= 128);
         for (Palette palette : BUILT_IN)
         {

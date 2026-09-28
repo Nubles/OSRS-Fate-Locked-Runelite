@@ -92,7 +92,8 @@ once, the first time the plugin starts.
   map, game view, minimap, HUD and sidebar show them.
 - Chunk borders on the ground where locked land starts, dashed over a dark
   underlay with a band of shade on the locked side, and the same on the
-  minimap.
+  minimap. The dashes keep their place on the ground as the camera turns,
+  and a player, NPC, tree or wall in front of the line hides it.
 - The world map shades locked land like fog and outlines your unlocked land
   all the way round, with a tooltip for the chunk under the mouse.
 - Every row in Here has a status. Where the tracker can't see a requirement,

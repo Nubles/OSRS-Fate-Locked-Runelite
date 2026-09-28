@@ -76,6 +76,9 @@ public final class Palette
         BasicStroke.JOIN_ROUND, 10f, new float[]{8f, 5f}, 0f);
     public static final BasicStroke UNDERLAY_STROKE = new BasicStroke(5f, BasicStroke.CAP_BUTT,
         BasicStroke.JOIN_ROUND);
+    /** Each dash of a locked edge on the game view and the minimap, which are cut on the ground, not by the stroke. */
+    public static final BasicStroke LOCKED_DASH_STROKE = new BasicStroke(3f, BasicStroke.CAP_BUTT,
+        BasicStroke.JOIN_ROUND);
     public static final BasicStroke PLAIN_EDGE_STROKE = new BasicStroke(1f);
 
     private static final int PILL_ALPHA = 40;

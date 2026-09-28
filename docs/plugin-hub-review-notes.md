@@ -24,8 +24,16 @@ unchanged. For review:
   drawn only inside the map, never over its overview or surface selector, and
   its projection, clip and outline are kept until the map moves or the rules
   change. Nothing is drawn for another character's rules.
+- **What stands in front of a border isn't drawn over.** RuneLite draws
+  overlays over the finished scene, so each frame the game view reads the
+  outline (`getConvexHull`) of the players, NPCs, objects, walls and wall
+  decorations that stand between the camera and the locked edges or their
+  shade, and leaves out the pieces of line and shade behind them. Only what
+  stands in that corridor is read, never the whole scene, and nothing at all
+  while the borders and shade are off or no locked edge is within 32 tiles.
 - **Less per-frame work.** The overlays draw models worked out when something
-  changes, not each frame. The menu tag skips Walk here, Cancel, Examine and
+  changes, not each frame, but for those outlines, which move with the
+  camera. The menu tag skips Walk here, Cancel, Examine and
   player options before reading them, and `A9PerformanceTest` pins that the
   world map loop and that path allocate nothing.
 - **The menu tag only appends text:** " (Locked)", in the palette's colour.
