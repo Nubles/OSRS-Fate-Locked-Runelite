@@ -319,7 +319,7 @@ public interface FateLockedConfig extends Config
         keyName = "hudMode",
         name = "HUD",
         description = "Compact: where you are, its status and why, Strict Mode, and the nearest bank and shop."
-            + " Detailed adds what's in the chunk.",
+            + " Detailed adds your progress, Keys and Fate Points, and what's in the chunk.",
         section = displaySection,
         position = 0
     )
