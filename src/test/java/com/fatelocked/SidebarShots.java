@@ -29,7 +29,7 @@ import javax.swing.JComponent;
 final class SidebarShots
 {
     private static final Gson GSON = new Gson();
-    private static final String CHARACTER = "Iron Example";
+    static final String CHARACTER = "Iron Example";
 
     private SidebarShots()
     {
@@ -110,7 +110,7 @@ final class SidebarShots
         return shots;
     }
 
-    private static JComponent sidebar(IconSource icons, StatusCardModel status, HereModel here,
+    static JComponent sidebar(IconSource icons, StatusCardModel status, HereModel here,
         StrictModeModel strictMode, RunModel run, ConnectionModel connection)
     {
         Sidebar sidebar = new Sidebar(icons);
@@ -129,35 +129,35 @@ final class SidebarShots
         return sidebar;
     }
 
-    private static StatusCardModel upToDate()
+    static StatusCardModel upToDate()
     {
         return StatusCardModel.of(Tone.GOOD, "Rules up to date", "Synced 2 min ago for " + CHARACTER + ".");
     }
 
-    private static StrictModeModel active()
+    static StrictModeModel active()
     {
         return new StrictModeModel(true, "Active", Tone.GOOD, "Stops a teleport to a place your rules lock.",
             CardAction.PAUSE_STRICT_MODE, Collections.emptyList());
     }
 
-    private static RunModel run()
+    static RunModel run()
     {
         return new RunModel(CHARACTER + " (you)", "…a1b2", 3, 1, 0, 12, "Ritual of Clarity", null,
             "15 of 187 areas unlocked", 15 / 187.0);
     }
 
-    private static ConnectionModel connected()
+    static ConnectionModel connected()
     {
         return new ConnectionModel(true, "…cdef", null, CardAction.REPAIR, true, true, "Online");
     }
 
-    private static ConnectionModel disconnected()
+    static ConnectionModel disconnected()
     {
         return new ConnectionModel(false, null, null, CardAction.CONNECT, false, false, "Off");
     }
 
     /** Here, for one chunk of a golden run, on its own character or another. */
-    private static HereModel here(String scenario, int x, int y, boolean ownCharacter) throws IOException
+    static HereModel here(String scenario, int x, int y, boolean ownCharacter) throws IOException
     {
         String json = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(scenario + ".bundle.json.gz"));
         JsonObject wire = GSON.fromJson(json, JsonObject.class);

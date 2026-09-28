@@ -72,6 +72,19 @@ tasks.register('previews', JavaExec) {
     args layout.buildDirectory.dir('previews').get().asFile.absolutePath
 }
 
+// Renders the sidebar states the web guide shows, with where each callout points, into
+// build/guide-screenshots. Like previews, never part of `check`.
+tasks.register('guideScreenshots', JavaExec) {
+    group = 'documentation'
+    description = "Renders the web guide’s sidebar screenshots into build/guide-screenshots."
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.fatelocked.GuideScreenshots'
+    systemProperty 'java.awt.headless', 'true'
+    systemProperty 'user.timezone', 'UTC'
+    systemProperty 'fatelocked.previewArt', project.findProperty('previewArt') ?: ''
+    args layout.buildDirectory.dir('guide-screenshots').get().asFile.absolutePath
+}
+
 // Checks the jar this build makes. With -PpluginHubJar=<path> it checks that
 // jar instead: CI passes the one the Plugin Hub's own packager built from the
 // same commit (the hub-standard-build job).
