@@ -299,24 +299,33 @@ releases.
 
 ### Phase G: one wording, shared with the web guide (U12)
 
-- [ ] **G1. Web: `data/runeliteWording.ts`.**
+- [x] **G1. Web: `data/runeliteWording.ts`.**
   - It holds terms, words to avoid, the settings list with options, and the sidebar section names.
   - `goldens:write` writes it as `contracts/golden-bundles/runelite-wording.json`.
   - `data/runeliteWording.test.ts` checks the guide against it, and that no avoided word appears in the guide.
-- [ ] **G2. Plugin:** pin the web pull request's head. `WordingContractTest` checks that:
+
+  *Done as* web `c6f90da` on `claude/runelite-guide-stage-3`; the guide checks came with G3. The wording file is
+  compared byte for byte, since its lists are in order.
+- [x] **G2. Plugin:** pin the web pull request's head. `WordingContractTest` checks that:
   - each `Terms` constant equals the contract's term;
   - no avoided word appears in a main-code string literal;
   - the visible `@ConfigItem`s equal the contract's settings.
 
   That makes "the guide's settings list matches the release" a plugin CI failure.
-- [ ] **G3. The web guide:**
+
+  *Done as* `cddd963`, pinned at web `c6f90da`; re-pin at the web branch's head before pushing (its contract files are
+  the same). The sidebar's cards are checked too.
+- [x] **G3. The web guide:**
   - settings, sections, glossary, chapters, troubleshooting, presets, command-palette keywords, and the two untested
     counts;
   - screenshots from `gradle previews`, with a `source` per image and manifest version 2 with hashes;
   - the screenshot policy and its caption;
   - a What's New release.
-- [ ] **G4. Plugin docs:** README, CONTRIBUTING, the Hub review notes, and checklist rows for borders, fog, the fade,
-  alerts per area and the migration.
+
+  *Done as* web `8f70619` (the words), `8e12200` (the pictures) and `1a5c14c` (What's New). The pictures come from a
+  task of their own, `gradle guideScreenshots` (`10a34bd`), which also measures where each marker points.
+- [x] **G4. Plugin docs:** README, CONTRIBUTING, the Hub review notes, and checklist rows for borders, fog, the fade,
+  alerts per area and the migration. *Done as* `e6b50fb`.
 
 ### Phase H: release
 
