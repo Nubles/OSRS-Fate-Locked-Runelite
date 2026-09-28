@@ -241,6 +241,31 @@ public class FateLockedPluginStartupContractTest
             alerts.enter(com.fatelocked.rules.PermissionStatus.LOCKED, "Falador", 2, all, false));
     }
 
+    /** E6: the HUD is gone at the login screen and when the plugin stops. */
+    @Test
+    public void theHudEndsAtTheLoginScreenAndWhenThePluginStops() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("hud"));
+        Field hud = FateLockedPlugin.class.getDeclaredField("hudModel");
+        hud.setAccessible(true);
+        HudModel shown = new HudModel(java.util.Collections.singletonList(
+            new HudModel.Line("Here", "Lumbridge", null)), false);
+        try
+        {
+            hud.set(harness.plugin, shown);
+            harness.plugin.onGameStateChanged(gameState(GameState.LOADING));
+            assertSame("a loading screen is still in game", shown, harness.plugin.hudModel());
+            harness.plugin.onGameStateChanged(gameState(GameState.LOGIN_SCREEN));
+            assertSame(HudModel.NONE, harness.plugin.hudModel());
+            hud.set(harness.plugin, shown);
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+        assertSame(HudModel.NONE, harness.plugin.hudModel());
+    }
+
     private static GameStateChanged gameState(GameState state)
     {
         GameStateChanged event = new GameStateChanged();
@@ -997,7 +1022,6 @@ public class FateLockedPluginStartupContractTest
             set("sceneOverlay", mock(FateLockedSceneOverlay.class));
             set("minimapOverlay", mock(FateLockedMinimapOverlay.class));
             set("hudOverlay", mock(FateLockedHudOverlay.class));
-            set("contentOverlay", mock(FateLockedContentOverlay.class));
             set("flashOverlay", mock(FateLockedFlashOverlay.class));
             set("chatMessageManager", mock(ChatMessageManager.class));
             set("clientToolbar", toolbar);

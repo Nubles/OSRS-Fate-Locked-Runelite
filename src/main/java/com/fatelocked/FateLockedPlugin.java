@@ -11,8 +11,6 @@ import com.fatelocked.rules.ItemTier;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
-import com.fatelocked.panel.ChunkPanelViewModel;
-import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.panel.LocalTimeText;
 import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.HereModel;
@@ -156,7 +154,6 @@ public class FateLockedPlugin extends Plugin
     @Inject private FateLockedSceneOverlay sceneOverlay;
     @Inject private FateLockedMinimapOverlay minimapOverlay;
     @Inject private FateLockedHudOverlay hudOverlay;
-    @Inject private FateLockedContentOverlay contentOverlay;
     @Inject private FateLockedFlashOverlay flashOverlay;
     @Inject private ChatMessageManager chatMessageManager;
     @Inject private ClientToolbar clientToolbar;
@@ -246,8 +243,13 @@ public class FateLockedPlugin extends Plugin
     /** The bound account and character the decision service was built for (client thread). */
     private String decisionsBound = "";
     private String decisionsPlayer = "";
-    private final ChunkPanelViewModelFactory chunkPanelFactory =
-        new ChunkPanelViewModelFactory();
+    /** What the HUD shows, worked out each tick; the overlay draws it as it is (E6). */
+    private volatile HudModel hudModel = HudModel.NONE;
+    // The nearest bank and shop, and the rules and chunk they were found for.
+    private DecisionService nearestDecisions;
+    private CanonicalChunk nearestChunk;
+    private FateLockedBundle.Nearest nearestBank;
+    private FateLockedBundle.Nearest nearestShop;
     /** The sidebar's models, posted only when they change (C7, A9). */
     private SidebarPublisher sidebarModels;
     private final HerePresenter herePresenter = new HerePresenter();
@@ -463,7 +465,6 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(sceneOverlay);
         overlayManager.add(minimapOverlay);
         overlayManager.add(hudOverlay);
-        overlayManager.add(contentOverlay);
         overlayManager.add(flashOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
         travelBlockOverlay.setPalette(this::palette);
@@ -520,7 +521,6 @@ public class FateLockedPlugin extends Plugin
         overlayManager.remove(sceneOverlay);
         overlayManager.remove(minimapOverlay);
         overlayManager.remove(hudOverlay);
-        overlayManager.remove(contentOverlay);
         overlayManager.remove(flashOverlay);
         if (navButton != null)
         {
@@ -541,6 +541,7 @@ public class FateLockedPlugin extends Plugin
         lastStatus = null;
         areaAlerts.forget();
         lockedFadeAt = NO_FADE;
+        hudModel = HudModel.NONE;
     }
 
     /**
@@ -695,6 +696,7 @@ public class FateLockedPlugin extends Plugin
         {
             // Logged out: the next login warns and announces afresh.
             awaitingLogin = true;
+            hudModel = HudModel.NONE;
             forgetLoginWarnings();
             trackerLoggedIn(false);
             refreshDecisions();
@@ -1012,14 +1014,45 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Build the shared compact model for the current chunk. */
-    ChunkPanelViewModel viewModelFor(DecisionService ruleDecisions, CanonicalChunk chunk)
+    /** What the HUD shows now. */
+    HudModel hudModel()
     {
-        if (chunk == null) return null;
-        return chunkPanelFactory.create(
-            ruleDecisions,
-            chunk,
-            trackerPaired() ? trackerLastSync() : null);
+        return hudModel;
+    }
+
+    /**
+     * Work the HUD out again for the player's chunk, null when it can't be found; a model like
+     * the last one is kept, so the overlay builds its panel again only on a change.
+     */
+    private void refreshHud(CanonicalChunk current)
+    {
+        FateLockedConfig.HudMode mode = config.hudMode();
+        DecisionService ruleDecisions = decisions;
+        // The nearest bank and shop are found again only when the chunk or the rules change.
+        boolean near = mode != FateLockedConfig.HudMode.OFF && current != null;
+        if (near && (ruleDecisions != nearestDecisions || !current.equals(nearestChunk)))
+        {
+            nearestDecisions = ruleDecisions;
+            nearestChunk = current;
+            nearestBank = ruleDecisions.nearestBank(current);
+            nearestShop = ruleDecisions.nearestShop(current);
+        }
+        HudModel next = HudPresenter.present(HudPresenter.Facts.builder()
+            .mode(mode)
+            .decisions(ruleDecisions)
+            .chunk(current)
+            .strict(strictModeStatus)
+            .bank(near ? nearestBank : null)
+            .shop(near ? nearestShop : null)
+            .slayerWarning(slayerTaskWarn)
+            .overTier(overTierSummary)
+            .run(getBundle().getState())
+            .here(mode == FateLockedConfig.HudMode.DETAILED ? hereModel(ruleDecisions) : null)
+            .build());
+        if (!next.equals(hudModel))
+        {
+            hudModel = next;
+        }
     }
 
     private String loggedInName()
@@ -1379,40 +1412,42 @@ public class FateLockedPlugin extends Plugin
         checkBoundAccount();
 
         CanonicalChunk current = chunkLocator().player();
-        if (current == null) return;
+        if (current != null && !current.equals(lastChunk))
+        {
+            enter(current);
+        }
+        refreshWarningCount();
+        refreshHud(current);
+    }
 
-        FateLockedBundle b = getBundle();
+    /** The player crossed into this chunk: its line, sound and fade, as the area and the alert setting say. */
+    private void enter(CanonicalChunk current)
+    {
         Decision entry = decisions.chunk(current);
         PermissionStatus status = entry.getStatus();
         String label = decisions.areaName(current);
-
-        boolean changed = !current.equals(lastChunk);
-        if (changed)
+        // Only the rules' own answers are announced (B6): never a chunk
+        // they don't map (dungeons, instances, every chunk before rules
+        // load), nor another character's rules. NOT_READY is owned, so
+        // it never alerts. Lines and alerts are per area, not per chunk.
+        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label),
+            client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
+        if (alert.isLine())
         {
-            // Only the rules' own answers are announced (B6): never a chunk
-            // they don't map (dungeons, instances, every chunk before rules
-            // load), nor another character's rules. NOT_READY is owned, so
-            // it never alerts. Lines and alerts are per area, not per chunk.
-            LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label),
-                client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
-            if (alert.isLine())
-            {
-                announceEntry(current, label, entry);
-            }
-            if (alert.isFade())
-            {
-                lockedFadeAt = System.nanoTime();
-            }
-            if (alert.isSound())
-            {
-                client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
-                notifyIfEnabled("You've entered a locked area: "
-                    + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
-            }
-            lastChunk = current;
-            lastStatus = status;
+            announceEntry(current, label, entry);
         }
-        refreshWarningCount();
+        if (alert.isFade())
+        {
+            lockedFadeAt = System.nanoTime();
+        }
+        if (alert.isSound())
+        {
+            client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
+            notifyIfEnabled("You've entered a locked area: "
+                + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
+        }
+        lastChunk = current;
+        lastStatus = status;
     }
 
     /**

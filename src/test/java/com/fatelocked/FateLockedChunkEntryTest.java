@@ -6,6 +6,7 @@ import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.Scene;
@@ -27,6 +28,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -424,6 +426,85 @@ public class FateLockedChunkEntryTest
     }
 
     /** Stand in each chunk for one game tick. */
+    /** E6: the HUD is worked out each tick for where the player stands, and kept while nothing changes. */
+    @Test
+    public void theHudFollowsThePlayer() throws Exception
+    {
+        loadRules();
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
+
+        walk(LUMBRIDGE);
+        HudModel atLumbridge = plugin.hudModel();
+        assertEquals("Misthalin", HudPresenterTest.lines(atLumbridge).get("Here"));
+        assertEquals("Unlocked", HudPresenterTest.lines(atLumbridge).get("Status"));
+        walk(LUMBRIDGE);
+        assertSame("a model like the last is kept, so the panel isn't built again", atLumbridge, plugin.hudModel());
+
+        walk(FALADOR);
+        assertEquals("Locked", HudPresenterTest.lines(plugin.hudModel()).get("Status"));
+
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.OFF);
+        walk(FALADOR);
+        assertSame(HudModel.NONE, plugin.hudModel());
+
+        // Where the player's chunk can't be found, the HUD says nothing of the last one.
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
+        walk(FALADOR);
+        assertEquals("Locked", HudPresenterTest.lines(plugin.hudModel()).get("Status"));
+        when(player.getLocalLocation()).thenReturn(null);
+        plugin.onGameTick(null);
+        assertSame(HudModel.NONE, plugin.hudModel());
+    }
+
+    /** E6: Detailed lists what the place holds, as the sidebar's Here card does, and the run's progress. */
+    @Test
+    public void theDetailedHudListsWhatThePlaceHolds() throws Exception
+    {
+        playing("Iron Example");
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.DETAILED);
+        walk(LUMBRIDGE);
+
+        HudModel model = plugin.hudModel();
+        assertTrue(model.isDetailed());
+        java.util.Map<String, String> lines = HudPresenterTest.lines(model);
+        assertEquals(ProgressText.hudLine(plugin.decisions().progress()), lines.get("Unlocked"));
+        com.fatelocked.sidebar.HereModel here =
+            new com.fatelocked.sidebar.HerePresenter().present(plugin.decisions(), LUMBRIDGE);
+        assertFalse("Lumbridge holds something", here.getGroups().isEmpty());
+        for (com.fatelocked.sidebar.HereModel.Group group : here.getGroups())
+        {
+            assertTrue(group.getTitle(), lines.containsKey(group.getTitle()));
+        }
+    }
+
+    /** E6: the way to the nearest bank is found again when the player moves, and when the rules change. */
+    @Test
+    public void theHudsNearestBankFollowsThePlayerAndTheRules() throws Exception
+    {
+        // custom-lumbridge-banks-off allows the banks at Lumbridge Castle and South Draynor.
+        String json = GoldenBundleContractTest.gunzip(
+            GoldenBundleContractTest.bytes("custom-lumbridge-banks-off.bundle.json.gz"));
+        set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(), json), FateLockedPlugin.RulesSource.RELAY));
+        when(player.getName()).thenReturn("Iron Example");
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
+        CanonicalChunk draynor = new CanonicalChunk(48, 50);
+
+        walk(draynor);
+        assertEquals("Here", HudPresenterTest.lines(plugin.hudModel()).get("Bank"));
+        walk(new CanonicalChunk(46, 50));
+        assertEquals("Draynor Vill… · 2 E", HudPresenterTest.lines(plugin.hudModel()).get("Bank"));
+        walk(draynor);
+
+        // The tracker locks South Draynor's chunk and bank: in the same chunk, Lumbridge is nearest.
+        JsonObject locked = new Gson().fromJson(json, JsonObject.class);
+        locked.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("48,50").addProperty("entry", "LOCKED");
+        locked.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12338").addProperty("status", "LOCKED");
+        set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(), locked.toString()),
+            FateLockedPlugin.RulesSource.RELAY));
+        walk(draynor);
+        assertEquals("Lumbridge · 2 E", HudPresenterTest.lines(plugin.hudModel()).get("Bank"));
+    }
+
     private void walk(CanonicalChunk... chunks)
     {
         for (CanonicalChunk chunk : chunks)

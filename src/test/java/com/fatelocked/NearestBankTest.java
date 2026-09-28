@@ -127,43 +127,29 @@ public class NearestBankTest
     public void theHudShowsTheNearestAllowedBank() throws Exception
     {
         FateLockedBundle rules = FateLockedBundle.loadFromJson(GSON, wire("custom-lumbridge-banks-off").toString());
-        FateLockedPlugin plugin = org.mockito.Mockito.mock(FateLockedPlugin.class);
-        org.mockito.Mockito.when(plugin.getBundle()).thenReturn(rules);
-        org.mockito.Mockito.when(plugin.decisions()).thenReturn(
-            DecisionService.create(RulesSnapshot.of(rules), "iron example", "iron example"));
-        FateLockedConfig config = org.mockito.Mockito.mock(FateLockedConfig.class);
-        org.mockito.Mockito.when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.COMPACT);
-        net.runelite.api.Client client = org.mockito.Mockito.mock(net.runelite.api.Client.class);
-        net.runelite.api.Player player = org.mockito.Mockito.mock(net.runelite.api.Player.class);
-        org.mockito.Mockito.when(player.getName()).thenReturn("Iron Example");
-        org.mockito.Mockito.when(client.getLocalPlayer()).thenReturn(player);
-        FateLockedHudOverlay hud = new FateLockedHudOverlay(client, plugin, config);
-        hud.setClearChildren(false);
+        DecisionService playing = DecisionService.create(RulesSnapshot.of(rules), "iron example", "iron example");
 
-        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(48 * 64 + 5, 50 * 64 + 5, 0));
-        Map<String, String> atDraynor = HudStatusTest.drawn(hud);
-        assertEquals("here ✓", atDraynor.get("Bank"));
-        assertEquals("none unlocked", atDraynor.get("Shop"));
-        hud.getPanelComponent().getChildren().clear();
-
-        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(46 * 64 + 5, 50 * 64 + 5, 0));
-        assertEquals("Draynor Vill… · 2 E", HudStatusTest.drawn(hud).get("Bank"));
-        hud.getPanelComponent().getChildren().clear();
-
+        Map<String, String> atDraynor = hud(playing, new CanonicalChunk(48, 50));
+        assertEquals("Here", atDraynor.get("Bank"));
+        assertEquals("None unlocked", atDraynor.get("Shop"));
+        assertEquals("Draynor Vill… · 2 E", hud(playing, new CanonicalChunk(46, 50)).get("Bank"));
         // Below the castle, the way is from the cellar's entrance, with no direction when the bank is right there.
-        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(50 * 64 + 5, 150 * 64 + 5, 0));
-        assertEquals("Lumbridge · 1", HudStatusTest.drawn(hud).get("Bank"));
-        hud.getPanelComponent().getChildren().clear();
+        assertEquals("Lumbridge · 1", hud(playing, new CanonicalChunk(50, 150)).get("Bank"));
 
         // The tracker locks South Draynor's chunk and bank: Lumbridge is nearest.
         JsonObject locked = wire("custom-lumbridge-banks-off");
         locked.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("48,50").addProperty("entry", "LOCKED");
         locked.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12338").addProperty("status", "LOCKED");
-        FateLockedBundle lockedRules = FateLockedBundle.loadFromJson(GSON, locked.toString());
-        org.mockito.Mockito.when(plugin.decisions()).thenReturn(
-            DecisionService.create(RulesSnapshot.of(lockedRules), "iron example", "iron example"));
-        TestWorld.standAt(client, player, new net.runelite.api.coords.WorldPoint(48 * 64 + 5, 50 * 64 + 5, 0));
-        assertEquals("Lumbridge · 2 E", HudStatusTest.drawn(hud).get("Bank"));
+        DecisionService lockedPlaying = DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, locked.toString())), "iron example", "iron example");
+        assertEquals("Lumbridge · 2 E", hud(lockedPlaying, new CanonicalChunk(48, 50)).get("Bank"));
+    }
+
+    /** The HUD's Compact lines for a player in this chunk, with the nearest bank and shop. */
+    private static Map<String, String> hud(DecisionService decisions, CanonicalChunk chunk)
+    {
+        return HudPresenterTest.lines(HudPresenter.present(HudPresenterTest.facts(decisions, chunk)
+            .bank(decisions.nearestBank(chunk)).shop(decisions.nearestShop(chunk)).build()));
     }
 
     @Test
