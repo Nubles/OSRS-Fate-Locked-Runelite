@@ -454,7 +454,7 @@ public class FateLockedPlugin extends Plugin
             this::writeTravelChat,
             this::writeTravelAudit,
             (stage, error) -> log.debug(
-                "Travel Guardian {} failed: {}", stage, error.getMessage()),
+                "Strict Mode {} failed: {}", stage, error.getMessage()),
             Clock.systemUTC());
         Runnable pauseStrictMode = () -> started.run(this::pauseStrictModeForSixtySeconds);
         travelBlockOverlay = new FateLockedTravelBlockOverlay(
@@ -515,7 +515,7 @@ public class FateLockedPlugin extends Plugin
             }
             catch (RuntimeException ex)
             {
-                log.debug("Could not fully clean up Travel Guardian overlay: {}",
+                log.debug("Could not fully clean up Strict Mode's overlay: {}",
                     ex.getMessage());
             }
         }

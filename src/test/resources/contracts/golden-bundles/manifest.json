@@ -60,7 +60,7 @@
  "files": {
   "accounts.json": "499612eef58aecc215c9aeff1272bbc774c6b0111239962d7e67f7d53131e921",
   "banks.json": "482152122423706f5783d12088a9d38aca445a6890a242249d9a6875a3791975",
-  "bundle-contract.json": "96b44683015979336c615c20fdd678a01b05ac7a006a87a2009d3b4258417ebf",
+  "bundle-contract.json": "b019b248dc67598c6792b0e4b1361dd76bc73e536f1dd77617f0735af3dfdf81",
   "cases.json": "254e0f7b14b551efba274b2c643454c3485f43197632b272961843d8e87b33bb",
   "chunked-fresh.bundle.json.gz": "043e49f8dcf403322564e1a0eed42eac447edc53b9997688073d6be6bfaa9211",
   "chunked-fresh.expect.json": "e9ebf49a749461aa407dcd8ebedec6085ae4c10cb21a04646ac913609c01bf6b",
@@ -73,6 +73,7 @@
   "custom-none-banks-on.bundle.json.gz": "1885c50b83c03ee4546419bc1488c014c07040af1be520ee095b1a780493614a",
   "custom-none-banks-on.expect.json": "d075af90674ec248ea95febf8249ab1c6ce851820a82abf0db3dc0824baaf089",
   "places.json": "83155136da0f4d10386ded2379b487b818b9495875d0d0cd4a083c0550a92c76",
+  "runelite-wording.json": "d1d1236312e0717ce7fd7fabfdc3cc5e4857a82673c455c89f667311e4ed6059",
   "vanilla-asgarnia-complete.bundle.json.gz": "5f3fb310f05990418e49cd9c42fc79fa50985e38f16b530f3692249462ec408c",
   "vanilla-asgarnia-complete.expect.json": "f09f92fa049f82cfe7713957175fe3c9f64f71a7bac40a443902c309f0e57843",
   "vanilla-continent.bundle.json.gz": "33800c2f40dad3da36eb625185fbb9009bae802aa57aabc039f9110755d25c54",

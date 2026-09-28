@@ -4,7 +4,8 @@
  "version": 4,
  "installedBuilds": {
   "874b9d1": "Stage 0, the first Plugin Hub release",
-  "4e37895": "Stage 1, on the Plugin Hub since 26 September 2026"
+  "4e37895": "Stage 1, on the Plugin Hub since 26 September 2026",
+  "4c2bf97": "Stage 2, on the Plugin Hub since 27 September 2026"
  },
  "readers": {
   "plugin": "The installed builds read the bundle with Gson into fixed classes. A value of another JSON type makes them refuse the whole bundle, and a status they don't know reads as UNKNOWN.",
