@@ -169,9 +169,12 @@ releases.
   no public way to open a plugin's config page, so it's text, not a link.
 - [x] **B3. Preview shots:** every row of the UX status table, and Here in Lumbridge, Falador (locked), an interior and
   the sea, from the golden bundles' fictional "Iron Example" run.
-- [ ] **B4. Owner review.** Send the renders beside today's sidebar, and adjust before wiring. This is the one
+- [x] **B4. Owner review.** Send the renders beside today's sidebar, and adjust before wiring. This is the one
   checkpoint where the owner's taste decides. (Renders sent 27 Sept; the wiring went ahead while the owner's
   reaction is awaited, and any changes land on top.)
+
+  *Done* 28 Sept in RuneLite itself rather than on the renders: the owner reviewed the whole stage in a client of
+  its own, asked for changes in four rounds (listed under H1), and then said "all looks good".
 
 ### Phase C: presenters and wiring
 
@@ -313,8 +316,8 @@ releases.
 
   That makes "the guide's settings list matches the release" a plugin CI failure.
 
-  *Done as* `cddd963`, pinned at web `c6f90da`; re-pin at the web branch's head before pushing (its contract files are
-  the same). The sidebar's cards are checked too.
+  *Done as* `cddd963`, pinned at web `c6f90da`, and re-pinned at the pushed branch's head, `65418f3`, before the
+  pull request (its contract files are the same). The sidebar's cards are checked too.
 - [x] **G3. The web guide:**
   - settings, sections, glossary, chapters, troubleshooting, presets, command-palette keywords, and the two untested
     counts;
@@ -338,6 +341,14 @@ releases.
   picked, came out as Chat and sound, announcements off, rule warnings off, tags off, Detailed, Shading and tooltip,
   All edges, and Custom with the red see-through again; every old key was kept. The owner's own look in the client
   follows.
+
+  *The owner's look*, 28 Sept, logged in to their own account through a review client (Try Stage 3). Four rounds of
+  changes, each committed on its own and mutation-checked, then approved:
+  1. `e726da0`: the world map's line goes all the way round the unlocked land, past Tutorial Island.
+  2. `7b46f7a`: Here opens and closes, Skilling by skill with the game's icons, and every row decided in game.
+  3. `b7d090b`: a clicked Here row puts the game's arrow on the nearest one.
+  4. `f436b84`: the border's dashes are fixed on the ground and hidden behind what stands in front; `37b9417`: with
+     none loaded, a row shows the way to the nearest one seen, with the Shortest Path plugin's route when it runs.
 - [ ] **H2. Pull requests.**
   1. The plugin and web pull requests.
   2. The Plugin Hub pull request once the plugin is merged (ask first).
@@ -346,6 +357,6 @@ releases.
 
 ## Owner decisions and pending steps
 
-- **B4:** the owner's reaction to the renders. Nothing else waits on the owner before the merge clicks.
+- **B4:** approved in RuneLite on 28 Sept. Nothing else waits on the owner before the merge clicks.
 - **Reversible calls:** any decision above can be reversed in review. The ones players will notice are 4, 5, 6, 7, 10
   and 14.
