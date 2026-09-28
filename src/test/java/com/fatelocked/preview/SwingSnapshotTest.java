@@ -33,6 +33,32 @@ public class SwingSnapshotTest
         assertEquals(Color.BLUE.getRGB(), image[0].getRGB(60, 20));
     }
 
+    /** At twice the detail, the layout is the same and every pixel of it becomes four. */
+    @Test
+    public void paintsAtTwiceTheDetailWithTheSameLayout() throws Exception
+    {
+        BufferedImage[] image = new BufferedImage[1];
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.setBackground(Color.RED);
+            JPanel block = new JPanel();
+            block.setPreferredSize(new Dimension(50, 40));
+            block.setBackground(Color.BLUE);
+            panel.add(block, BorderLayout.NORTH);
+            JPanel below = new JPanel();
+            below.setPreferredSize(new Dimension(50, 10));
+            below.setBackground(Color.GREEN);
+            panel.add(below, BorderLayout.SOUTH);
+            image[0] = SwingSnapshot.paint(panel, 120, 0, 2);
+        });
+
+        assertEquals(240, image[0].getWidth());
+        assertEquals(100, image[0].getHeight());
+        assertEquals(Color.BLUE.getRGB(), image[0].getRGB(120, 79));
+        assertEquals(Color.GREEN.getRGB(), image[0].getRGB(120, 80));
+        assertEquals(Color.GREEN.getRGB(), image[0].getRGB(239, 99));
+    }
+
     @Test
     public void anHtmlLabelWrapsToTheWidthItIsGiven() throws Exception
     {

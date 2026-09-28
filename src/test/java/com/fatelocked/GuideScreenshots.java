@@ -8,6 +8,7 @@ import com.fatelocked.sidebar.PointerText;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.Sidebar;
 import com.fatelocked.sidebar.StatusCardModel;
+import com.fatelocked.sidebar.StatusCardView;
 import com.fatelocked.sidebar.StrictModeModel;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette.Tone;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.imageio.ImageIO;
 import javax.swing.AbstractButton;
@@ -47,17 +49,24 @@ import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.laf.RuneLiteLAF;
 
 /**
- * Renders the sidebar states the web guide shows (Stage 3 G3), in RuneLite's own theme, with no
- * client and no display: {@code gradle guideScreenshots} writes the PNGs and
- * {@code guide-screenshots.json} to {@code build/guide-screenshots}. The json says where each of
- * a shot's callouts points, as fractions of the image, from where the components were laid out,
- * so a marker can't drift from what it names.
+ * Renders the sidebar the web guide shows, in RuneLite's own theme, with no client and no
+ * display: {@code gradle guideScreenshots} writes the PNGs and {@code guide-screenshots.json} to
+ * {@code build/guide-screenshots}.
  *
- * <p>Each shot opens only the card its chapter is about. The run is the golden bundles' fictional
- * "Iron Example", so the images show no real player.
+ * <p>Each shot is laid out at the sidebar's own width and drawn at {@link #SCALE} times the
+ * detail, as a high-density screen shows it, then cut to the card its chapter is about, or left
+ * whole for the sidebar at a glance. The json gives, for each of a shot's callouts, the outline of
+ * what it names, as fractions of the image, from where the components were laid out, so a marker
+ * can't drift from what it names. The run is the golden bundles' fictional "Iron Example", so the
+ * images show no real player.
  */
 public final class GuideScreenshots
 {
+    /** Image pixels to each of the sidebar's own. */
+    static final int SCALE = 2;
+    /** The sidebar's background shown round a card cut from it, in its own pixels. */
+    static final int MARGIN = 4;
+
     private GuideScreenshots()
     {
     }
@@ -80,7 +89,9 @@ public final class GuideScreenshots
         for (Shot shot : shots(icons))
         {
             JComponent root = onEdt(shot.build);
-            BufferedImage image = onEdt(() -> SwingSnapshot.paint(root, PluginPanel.PANEL_WIDTH, 0));
+            BufferedImage whole = onEdt(() -> SwingSnapshot.paint(root, PluginPanel.PANEL_WIDTH, 0, SCALE));
+            Rectangle frame = onEdt(() -> shot.frame(root));
+            BufferedImage image = crop(whole, frame);
             byte[] png = png(image);
             Files.write(out.resolve(shot.id + ".png"), png);
 
@@ -93,11 +104,13 @@ public final class GuideScreenshots
             JsonObject anchors = new JsonObject();
             for (Anchor anchor : shot.anchors)
             {
-                double[] at = onEdt(() -> anchor.locate(root, image));
-                JsonArray point = new JsonArray();
-                point.add(at[0]);
-                point.add(at[1]);
-                anchors.add(anchor.name, point);
+                double[] box = onEdt(() -> anchor.locate(root, frame));
+                JsonArray outline = new JsonArray();
+                for (double value : box)
+                {
+                    outline.add(value);
+                }
+                anchors.add(anchor.name, outline);
             }
             entry.add("anchors", anchors);
             entries.add(entry);
@@ -106,6 +119,7 @@ public final class GuideScreenshots
         }
         JsonObject manifest = new JsonObject();
         manifest.addProperty("runeliteVersion", RuneLiteProperties.getVersion());
+        manifest.addProperty("scale", SCALE);
         manifest.add("shots", entries);
         Files.write(out.resolve("guide-screenshots.json"),
             (new GsonBuilder().setPrettyPrinting().create().toJson(manifest) + "\n").getBytes(StandardCharsets.UTF_8));
@@ -113,110 +127,115 @@ public final class GuideScreenshots
 
     private static List<Shot> shots(IconSource icons) throws IOException
     {
-        String firstRun = "Log in to see the place you're standing in.";
         List<Shot> shots = new ArrayList<>();
-        shots.add(new Shot("sidebar-not-connected", () -> SidebarShots.sidebar(icons,
+        shots.add(new Shot("sidebar", () -> open(upToDate(icons), null), null,
+            new Anchor("open-tracker", text("Open tracker")),
+            new Anchor("status", type(StatusCardView.class)),
+            Anchor.all("cards", type(Section.class)),
+            new Anchor("more-settings", startsWith("More settings"))));
+
+        // The status card in each of its states, alone.
+        shots.add(status("status-up-to-date", icons, SidebarShots.upToDate(), true));
+        shots.add(status("status-not-connected", icons,
             StatusCardModel.of(Tone.NEUTRAL, "Not connected", "Connect the tracker to load your run's rules.")
-                .withActions(CardAction.CONNECT, CardAction.USE_BACKUP),
-            HereModel.message(firstRun), StrictModeModel.off(), null, SidebarShots.disconnected()),
-            new Anchor("status", text("Not connected")),
-            new Anchor("connect", text("Connect tracker")),
-            new Anchor("backup", text("Use a backup instead"))));
-        shots.add(new Shot("sidebar-waiting", () -> SidebarShots.sidebar(icons,
+                .withActions(CardAction.CONNECT, CardAction.USE_BACKUP), false));
+        shots.add(status("status-waiting", icons,
             StatusCardModel.of(Tone.PENDING, "Waiting for confirmation",
                 "Confirm this profile in the browser tab RuneLite opened. RuneLite checks every few seconds.")
-                .withActions(CardAction.OPEN_PAGE_AGAIN, CardAction.CANCEL_PAIRING),
-            HereModel.message(firstRun), StrictModeModel.off(), null, SidebarShots.disconnected()),
-            new Anchor("status", text("Waiting for confirmation")),
-            new Anchor("open-again", text("Open page again")),
-            new Anchor("cancel", text("Cancel"))));
-        shots.add(new Shot("sidebar-overview", () -> open(upToDate(icons), null),
-            new Anchor("status", text("Rules up to date")),
-            new Anchor("cards", section("Here")),
-            new Anchor("more-settings", startsWith("More settings"))));
+                .withActions(CardAction.OPEN_PAGE_AGAIN, CardAction.CANCEL_PAIRING), false));
+        shots.add(status("status-out-of-date", icons,
+            StatusCardModel.of(Tone.PENDING, "Rules may be out of date",
+                "Last synced 32 min ago. RuneLite couldn't reach the tracker; next check at 12:35."
+                    + " Strict Mode is inactive until the rules refresh.")
+                .withActions(CardAction.CHECK_NOW, null), true));
+        shots.add(status("status-expired", icons,
+            StatusCardModel.of(Tone.PENDING, "Tracker copy expired",
+                "The tracker hasn't sent your rules in the last 24 hours. Open the web tracker to send them again.")
+                .withActions(CardAction.OPEN_TRACKER, null), true));
+        shots.add(status("status-backup", icons,
+            StatusCardModel.of(Tone.NEUTRAL, "Using a backup",
+                "Rules from the clipboard, exported at 11:58. Strict Mode works for 15 minutes after the"
+                    + " tracker exports them.")
+                .withActions(null, CardAction.CONNECT), false));
+        shots.add(status("status-different-character", icons,
+            StatusCardModel.of(Tone.BAD, "Different character",
+                "This run belongs to " + SidebarShots.CHARACTER + ", and you're logged in as Zezima."
+                    + " Warnings and Strict Mode are off."), true));
+
         HereModel tower = SidebarShots.here("vanilla-mid", 42, 53, true);
         HereModel.Subgroup firstSkill = tower.getGroups().stream()
             .filter(group -> group.getCategory().equals("SKILLING")).findFirst()
             .map(group -> group.getSubgroups().get(0)).orElseThrow(IllegalStateException::new);
-        shots.add(new Shot("sidebar-here", () -> {
+        shots.add(new Shot("here", () -> {
             Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(), tower,
                 SidebarShots.active(), SidebarShots.run(), SidebarShots.connected());
             // Skilling open at its first skill; the rest closed, as they start. Its first row clicked.
             sidebar.here().setOpen(new java.util.TreeSet<>(Arrays.asList("SKILLING", firstSkill.getKey())));
             sidebar.here().showPointer(PointerText.pointing(firstSkill.getRows().get(0).getName(), true), true);
             return open(sidebar, sidebar.here());
-        },
-            new Anchor("status", pill("Locked")),
+        }, Sidebar::here,
+            Anchor.row("place", pill("Locked")),
             new Anchor("reason", text("Unlock Seers' Village")),
             new Anchor("counts", inside("Here", type(StatTiles.class))),
-            new Anchor("arrow", startsWith("The arrow points")),
-            new Anchor("categories", text("Skilling")),
-            new Anchor("skills", text(firstSkill.getTitle()))));
-        shots.add(new Shot("sidebar-strict-mode", () -> {
+            Anchor.row("arrow", startsWith("The arrow points")),
+            Anchor.row("categories", text("Skilling")),
+            Anchor.row("skills", text(firstSkill.getTitle()))));
+        shots.add(new Shot("here-way", () -> {
+            Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(), tower,
+                SidebarShots.active(), SidebarShots.run(), SidebarShots.connected());
+            sidebar.here().showPointer(PointerText.routed(firstSkill.getRows().get(0).getName(), tower.getPlace()),
+                true);
+            return open(sidebar, sidebar.here());
+        }, Sidebar::here,
+            Anchor.row("way", startsWith("Shortest Path shows"))));
+        shots.add(new Shot("strict-mode", () -> {
             Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(),
                 SidebarShots.here("vanilla-mid", 50, 50, true),
                 new StrictModeModel(true, "Paused · 42s", Tone.PENDING, null, CardAction.RESUME_STRICT_MODE,
                     Arrays.asList("Varrock Teleport, 12:02", "Ring of dueling: Emir's Arena, 11:40")),
                 SidebarShots.run(), SidebarShots.connected());
             return open(sidebar, sidebar.strictMode());
-        },
+        }, Sidebar::strictMode,
             new Anchor("switch", inside("Strict Mode", type(ToggleSwitch.class))),
-            new Anchor("paused", pill("Paused · 42s")),
-            new Anchor("resume", text("Resume")),
-            new Anchor("stopped", text("Recently stopped"))));
-        shots.add(new Shot("sidebar-run", () -> {
+            Anchor.row("pause", pill("Paused · 42s")),
+            Anchor.all("stopped", either(text("Recently stopped"), startsWith("Varrock Teleport"),
+                startsWith("Ring of dueling")))));
+        shots.add(new Shot("run", () -> {
             Sidebar sidebar = upToDate(icons);
             return open(sidebar, sidebar.run());
-        },
-            new Anchor("character", text("Iron Example (you)")),
+        }, Sidebar::run,
+            Anchor.row("character", text("Iron Example (you)")),
             new Anchor("progress", text("15 of 187 areas unlocked")),
             new Anchor("keys", type(StatTiles.class)),
-            new Anchor("ritual", text("Ritual of Clarity"))));
-        shots.add(new Shot("sidebar-roll-inbox", () -> {
+            Anchor.row("fate-points", text("Fate Points")),
+            Anchor.row("ritual", text("Ritual of Clarity"))));
+        shots.add(new Shot("roll-inbox", () -> {
             Sidebar sidebar = upToDate(icons);
             sidebar.rollInbox().apply(new RollInboxModel(12, 2, 1, false));
             return open(sidebar, sidebar.rollInbox());
-        },
-            new Anchor("events", text("Local events")),
-            new Anchor("needs-checking", text("Needs checking")),
+        }, Sidebar::rollInbox,
+            Anchor.row("events", text("Local events")),
+            Anchor.row("needs-checking", text("Needs checking")),
+            Anchor.row("warnings", text("Warnings")),
             new Anchor("open", text("Open web Roll Inbox"))));
-        shots.add(new Shot("sidebar-connection", () -> {
+        shots.add(new Shot("connection", () -> {
             Sidebar sidebar = upToDate(icons);
             return open(sidebar, sidebar.connection());
-        },
-            new Anchor("sync", inside("Connection & backup", type(ToggleSwitch.class))),
-            new Anchor("repair", text("Re-pair tracker…")),
+        }, Sidebar::connection,
+            Anchor.row("sync", text("Online sync")),
+            Anchor.row("pairing", text("Re-pair tracker…")),
             new Anchor("check", text("Check now")),
-            new Anchor("clipboard", text("Import from clipboard"))));
-        shots.add(new Shot("sidebar-out-of-date", () -> {
-            Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons,
-                StatusCardModel.of(Tone.PENDING, "Rules may be out of date",
-                    "Last synced 32 min ago. RuneLite couldn't reach the tracker; next check at 12:35."
-                        + " Strict Mode is inactive until the rules refresh.")
-                    .withActions(CardAction.CHECK_NOW, null),
-                SidebarShots.here("vanilla-mid", 50, 50, true),
-                new StrictModeModel(true, "Inactive", Tone.PENDING,
-                    "Not blocking anything: the rules are more than 15 minutes old.", null,
-                    Collections.emptyList()), SidebarShots.run(), SidebarShots.connected());
-            return open(sidebar, sidebar.strictMode());
-        },
-            new Anchor("status", text("Rules may be out of date")),
-            new Anchor("check", text("Check now")),
-            new Anchor("inactive", pill("Inactive"))));
-        shots.add(new Shot("sidebar-different-character", () -> {
-            Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons,
-                StatusCardModel.of(Tone.BAD, "Different character",
-                    "This run belongs to " + SidebarShots.CHARACTER + ", and you're logged in as Zezima."
-                        + " Warnings and Strict Mode are off."),
-                SidebarShots.here("vanilla-mid", 50, 50, false),
-                new StrictModeModel(true, "Inactive", Tone.PENDING,
-                    "Not blocking anything: the rules are for " + SidebarShots.CHARACTER + ".", null,
-                    Collections.emptyList()), SidebarShots.run(), SidebarShots.connected());
-            return open(sidebar, sidebar.here());
-        },
-            new Anchor("status", text("Different character")),
-            new Anchor("here", section("Here"))));
+            Anchor.all("backups", either(text("Import from clipboard"), text("Load newest backup file")))));
         return shots;
+    }
+
+    /** The status card alone, in one state; the run is connected when it says so. */
+    private static Shot status(String id, IconSource icons, StatusCardModel model, boolean connected)
+    {
+        return new Shot(id, () -> open((Sidebar) SidebarShots.sidebar(icons, model,
+            HereModel.message("Log in to see the place you're standing in."), StrictModeModel.off(),
+            connected ? SidebarShots.run() : null, connected ? SidebarShots.connected() : SidebarShots.disconnected()),
+            null), Sidebar::status);
     }
 
     private static Sidebar upToDate(IconSource icons) throws Exception
@@ -241,64 +260,167 @@ public final class GuideScreenshots
     {
         final String id;
         final Callable<JComponent> build;
+        /** The card the shot is cut to, or null for the whole sidebar. */
+        final Function<Sidebar, Component> card;
         final List<Anchor> anchors;
 
-        Shot(String id, Callable<JComponent> build, Anchor... anchors)
+        Shot(String id, Callable<JComponent> build, Function<Sidebar, Component> card, Anchor... anchors)
         {
             this.id = id;
             this.build = build;
+            this.card = card;
             this.anchors = Arrays.asList(anchors);
+        }
+
+        /** Where the shot is cut from the sidebar, in its own pixels: the card and a margin, or all of it. */
+        Rectangle frame(JComponent root)
+        {
+            Rectangle all = new Rectangle(0, 0, root.getWidth(), root.getHeight());
+            if (card == null)
+            {
+                return all;
+            }
+            Component component = card.apply((Sidebar) root);
+            Rectangle bounds = SwingUtilities.convertRectangle(component.getParent(), component.getBounds(), root);
+            bounds.grow(MARGIN, MARGIN);
+            return bounds.intersection(all);
         }
     }
 
-    /** A named point on a shot: the middle of the first shown component that matches. */
+    /**
+     * A named outline on a shot: the first shown component that matches, all of them together,
+     * or the row the first sits in, label and value, so a marker's line to it crosses nothing.
+     */
     private static final class Anchor
     {
         final String name;
         final Predicate<Component> match;
+        final boolean every;
+        final boolean row;
 
         Anchor(String name, Predicate<Component> match)
         {
-            this.name = name;
-            this.match = match;
+            this(name, match, false, false);
         }
 
-        double[] locate(JComponent root, BufferedImage image)
+        private Anchor(String name, Predicate<Component> match, boolean every, boolean row)
         {
-            Component found = find(root, match);
-            if (found == null)
+            this.name = name;
+            this.match = match;
+            this.every = every;
+            this.row = row;
+        }
+
+        static Anchor all(String name, Predicate<Component> match)
+        {
+            return new Anchor(name, match, true, false);
+        }
+
+        static Anchor row(String name, Predicate<Component> match)
+        {
+            return new Anchor(name, match, false, true);
+        }
+
+        /** The outline as {x, y, width, height}, fractions of the frame the shot is cut to. */
+        double[] locate(JComponent root, Rectangle frame)
+        {
+            List<Component> found = new ArrayList<>();
+            collect(root, match, every, found);
+            if (found.isEmpty())
             {
                 throw new IllegalStateException("No component for the callout " + name);
             }
-            Rectangle bounds = SwingUtilities.convertRectangle(found.getParent(), found.getBounds(), root);
+            Rectangle box = null;
+            for (Component match : found)
+            {
+                Rectangle bounds = row ? rowOf(match, root)
+                    : SwingUtilities.convertRectangle(match.getParent(), match.getBounds(), root);
+                box = box == null ? bounds : box.union(bounds);
+            }
+            Rectangle inside = box.intersection(frame);
+            if (inside.isEmpty())
+            {
+                throw new IllegalStateException("The callout " + name + " is outside its shot");
+            }
             return new double[] {
-                round((bounds.x + bounds.width / 2.0) / image.getWidth()),
-                round((bounds.y + bounds.height / 2.0) / image.getHeight())};
+                round((inside.x - frame.x) / (double) frame.width),
+                round((inside.y - frame.y) / (double) frame.height),
+                round(inside.width / (double) frame.width),
+                round(inside.height / (double) frame.height)};
         }
     }
 
-    private static Component find(Container container, Predicate<Component> match)
+    /**
+     * The line a component is on: it and whatever shares its line, at every level up, such as a
+     * row's label and its value, or a status and its button. Nothing taller than the line joins
+     * it, so a card's body never does.
+     */
+    private static Rectangle rowOf(Component match, JComponent root)
+    {
+        Rectangle row = SwingUtilities.convertRectangle(match.getParent(), match.getBounds(), root);
+        Component level = match;
+        while (level.getParent() != null && level.getParent() != root)
+        {
+            Container parent = level.getParent();
+            for (Component sibling : parent.getComponents())
+            {
+                if (sibling == level || !sibling.isVisible() || sibling.getWidth() == 0)
+                {
+                    continue;
+                }
+                Rectangle other = SwingUtilities.convertRectangle(parent, sibling.getBounds(), root);
+                boolean sameLine = other.y < row.y + row.height && row.y < other.y + other.height;
+                if (sameLine && other.height <= row.height * 1.6 + 2)
+                {
+                    row = row.union(other);
+                }
+            }
+            level = parent;
+        }
+        return row;
+    }
+
+    /** A frame of the drawn sidebar, which is {@link #SCALE} times its own size. */
+    private static BufferedImage crop(BufferedImage whole, Rectangle frame)
+    {
+        BufferedImage image = new BufferedImage(frame.width * SCALE, frame.height * SCALE, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = image.createGraphics();
+        try
+        {
+            g.drawImage(whole.getSubimage(frame.x * SCALE, frame.y * SCALE, frame.width * SCALE,
+                frame.height * SCALE), 0, 0, null);
+        }
+        finally
+        {
+            g.dispose();
+        }
+        return image;
+    }
+
+    /** The shown components that match, depth first: the first only, or every one not inside another. */
+    private static void collect(Container container, Predicate<Component> match, boolean every,
+        List<Component> found)
     {
         for (Component child : container.getComponents())
         {
+            if (!every && !found.isEmpty())
+            {
+                return;
+            }
             if (!child.isVisible())
             {
                 continue;
             }
             if (match.test(child))
             {
-                return child;
+                found.add(child);
+                continue;
             }
             if (child instanceof Container)
             {
-                Component found = find((Container) child, match);
-                if (found != null)
-                {
-                    return found;
-                }
+                collect((Container) child, match, every, found);
             }
         }
-        return null;
     }
 
     /** The first match inside the card with this title. */
@@ -322,6 +444,12 @@ public final class GuideScreenshots
     private static Predicate<Component> startsWith(String text)
     {
         return component -> textOf(component) != null && textOf(component).startsWith(text);
+    }
+
+    @SafeVarargs
+    private static Predicate<Component> either(Predicate<Component>... matches)
+    {
+        return component -> Arrays.stream(matches).anyMatch(match -> match.test(component));
     }
 
     private static Predicate<Component> pill(String word)
@@ -359,7 +487,7 @@ public final class GuideScreenshots
 
     private static double round(double fraction)
     {
-        return Math.round(fraction * 100) / 100.0;
+        return Math.round(fraction * 1000) / 1000.0;
     }
 
     private static byte[] png(BufferedImage image) throws Exception
