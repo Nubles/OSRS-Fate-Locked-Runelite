@@ -2,6 +2,7 @@ package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.RulesSnapshot;
+import com.fatelocked.ui.Palette;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -87,23 +88,26 @@ public class WorldMapTooltipTest
     {
         DecisionService mid = playing("vanilla-mid");
 
-        assertEquals("Lumbridge · Misthalin</br><col=2ee59d>Unlocked</col>",
-            WorldMapChunks.tooltip(mid, new CanonicalChunk(50, 50), List.of()));
-        assertTrue(WorldMapChunks.tooltip(mid, new CanonicalChunk(42, 54), List.of())
-            .endsWith("</br><col=ef4444>Locked</col>"));
-        assertTrue(WorldMapChunks.tooltip(mid, new CanonicalChunk(39, 53), List.of())
+        assertEquals("Lumbridge · Misthalin</br><col=34d399>Unlocked</col>",
+            WorldMapChunks.tooltip(mid, new CanonicalChunk(50, 50), List.of(), Palette.defaults()));
+        assertTrue(WorldMapChunks.tooltip(mid, new CanonicalChunk(42, 54), List.of(), Palette.defaults())
+            .endsWith("</br><col=f87171>Locked</col>"));
+        assertTrue(WorldMapChunks.tooltip(mid, new CanonicalChunk(39, 53), List.of(), Palette.defaults())
             .endsWith("</br><col=f59e0b>Not ready</col>"));
         assertEquals("a chunk only the tracker names",
-            "Chunk (16, 44)</br><col=ef4444>Locked</col>",
-            WorldMapChunks.tooltip(mid, new CanonicalChunk(16, 44), List.of()));
-        assertNull("the sea", WorldMapChunks.tooltip(mid, new CanonicalChunk(40, 41), List.of()));
-        assertEquals("Lumbridge · Misthalin</br><col=2ee59d>Unlocked</col>"
-                + "</br><col=a8a8a8>Monsters: Cow</col>",
-            WorldMapChunks.tooltip(mid, new CanonicalChunk(50, 50), List.of("Monsters: Cow")));
+            "Chunk (16, 44)</br><col=f87171>Locked</col>",
+            WorldMapChunks.tooltip(mid, new CanonicalChunk(16, 44), List.of(), Palette.defaults()));
+        assertNull("the sea", WorldMapChunks.tooltip(mid, new CanonicalChunk(40, 41), List.of(), Palette.defaults()));
+        assertEquals("the colours follow the palette", "Lumbridge · Misthalin</br><col=56b4e9>Unlocked</col>",
+            WorldMapChunks.tooltip(mid, new CanonicalChunk(50, 50), List.of(),
+                Palette.of(Palette.Preset.COLOUR_BLIND_SAFE, null, null, null)));
+        assertEquals("Lumbridge · Misthalin</br><col=34d399>Unlocked</col>"
+                + "</br><col=a5a5a5>Monsters: Cow</col>",
+            WorldMapChunks.tooltip(mid, new CanonicalChunk(50, 50), List.of("Monsters: Cow"), Palette.defaults()));
 
         CanonicalChunk next = frontierOf("chunked-walk").iterator().next();
-        assertTrue(WorldMapChunks.tooltip(playing("chunked-walk"), next, List.of())
-            .endsWith("</br><col=f59e0b>Locked — rollable next</col>"));
+        assertTrue(WorldMapChunks.tooltip(playing("chunked-walk"), next, List.of(), Palette.defaults())
+            .endsWith("</br><col=facc15>Locked — rollable next</col>"));
     }
 
     @Test
@@ -113,7 +117,7 @@ public class WorldMapTooltipTest
         DecisionService other = DecisionService.create(
             RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, json)), "iron example", "someone else");
 
-        assertNull(WorldMapChunks.tooltip(other, new CanonicalChunk(50, 50), List.of()));
+        assertNull(WorldMapChunks.tooltip(other, new CanonicalChunk(50, 50), List.of(), Palette.defaults()));
 
         String walk = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("chunked-walk.bundle.json.gz"));
         RulesSnapshot walkRules = RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, walk));
@@ -134,22 +138,35 @@ public class WorldMapTooltipTest
 
         assertEquals(Set.of(new CanonicalChunk(50, 50), new CanonicalChunk(46, 52)), nubles.mappedChunks());
         assertEquals(WorldMapChunks.Fill.UNLOCKED, WorldMapChunks.fill(nubles, new CanonicalChunk(46, 52)));
-        assertEquals("Falador · Asgarnia</br><col=2ee59d>Unlocked</col>",
-            WorldMapChunks.tooltip(nubles, new CanonicalChunk(46, 52), List.of()));
+        assertEquals("Falador · Asgarnia</br><col=34d399>Unlocked</col>",
+            WorldMapChunks.tooltip(nubles, new CanonicalChunk(46, 52), List.of(), Palette.defaults()));
     }
 
-    /** Until B17's boundary test covers every surface: the overlay draws through WorldMapChunks. */
+    /**
+     * Until B17's boundary test covers every surface: the overlay draws through WorldMapChunks,
+     * by way of the model worked out once per decision service (U18). It uses no deprecated
+     * RuneLite API, and never walks every chunk in a frame.
+     */
     @Test
     public void theOverlayDrawsThroughWorldMapChunks() throws Exception
     {
-        String source = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
-            "src", "main", "java", "com", "fatelocked", "FateLockedWorldMapOverlay.java")), StandardCharsets.UTF_8);
-        for (String old : new String[] { "lockStateAt(", "isFrontierChunk(", "labelAt(", "getRegionChunks(" })
+        String source = source("FateLockedWorldMapOverlay.java");
+        for (String old : new String[] { "lockStateAt(", "isFrontierChunk(", "labelAt(", "getRegionChunks(",
+            "getRenderOverview(", "RenderOverview", "ComponentID", "OverlayPriority", "widgets.InterfaceID",
+            "mappedChunks()" })
         {
             assertFalse(old, source.contains(old));
         }
-        assertTrue(source.contains("WorldMapChunks.fill("));
+        assertTrue(source.contains("WorldMapModel.of("));
+        assertTrue(source("WorldMapModel.java").contains("WorldMapChunks.fill("));
         assertTrue(source.contains("WorldMapChunks.tooltip("));
+        assertTrue("the tooltip takes the plugin's palette", source.contains("plugin.palette()"));
+    }
+
+    private static String source(String name) throws Exception
+    {
+        return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+            "src", "main", "java", "com", "fatelocked", name)), StandardCharsets.UTF_8);
     }
 
     private static Set<CanonicalChunk> frontierOf(String id) throws Exception

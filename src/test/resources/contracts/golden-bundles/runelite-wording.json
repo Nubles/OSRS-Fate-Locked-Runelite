@@ -1,0 +1,228 @@
+{
+ "version": 1,
+ "terms": {
+  "UNLOCKED": "Unlocked",
+  "CAN_DO": "Can do",
+  "NOT_READY": "Not ready",
+  "LOCKED": "Locked",
+  "NEEDS_CHECKING": "Needs checking",
+  "UNCHARTED": "Uncharted",
+  "FRONTIER": "Frontier",
+  "STRICT_MODE": "Strict Mode",
+  "KEYS": "Keys",
+  "OMNI_KEYS": "Omni-Keys",
+  "CHAOS_KEYS": "Chaos Keys",
+  "FATE_POINTS": "Fate Points",
+  "DIFFERENT_CHARACTER": "Different character",
+  "LOCKED_TAG": " (Locked)"
+ },
+ "avoidedWords": [
+  {
+   "word": "Guardian",
+   "use": "Strict Mode"
+  },
+  {
+   "word": "Special keys",
+   "use": "Omni-Keys"
+  },
+  {
+   "word": "Omni keys",
+   "use": "Omni-Keys"
+  },
+  {
+   "word": "Omni-keys",
+   "use": "Omni-Keys"
+  },
+  {
+   "word": "Chaos keys",
+   "use": "Chaos Keys"
+  },
+  {
+   "word": "fate points",
+   "use": "Fate Points"
+  },
+  {
+   "word": "Fate points",
+   "use": "Fate Points"
+  },
+  {
+   "word": "content box",
+   "use": "the Detailed HUD"
+  },
+  {
+   "word": "Current chunk",
+   "use": "Here"
+  }
+ ],
+ "settingSections": [
+  "Tracker",
+  "Strict Mode",
+  "Alerts",
+  "Display",
+  "Custom colours",
+  "Backup"
+ ],
+ "settings": [
+  {
+   "key": "trackerNetworkAccess",
+   "section": "Tracker",
+   "name": "Online sync",
+   "defaultValue": "Off"
+  },
+  {
+   "key": "strictMode",
+   "section": "Strict Mode",
+   "name": "Strict Mode",
+   "defaultValue": "Off"
+  },
+  {
+   "key": "pauseStrictModeHotkey",
+   "section": "Strict Mode",
+   "name": "Pause hotkey",
+   "defaultValue": "Not set"
+  },
+  {
+   "key": "lockedAreaAlert",
+   "section": "Alerts",
+   "name": "Locked-area alert",
+   "defaultValue": "Chat, sound and fade",
+   "options": [
+    "Off",
+    "Chat",
+    "Chat and fade",
+    "Chat and sound",
+    "Chat, sound and fade"
+   ]
+  },
+  {
+   "key": "announceAreaChanges",
+   "section": "Alerts",
+   "name": "Announce every area change",
+   "defaultValue": "On"
+  },
+  {
+   "key": "ruleWarnings",
+   "section": "Alerts",
+   "name": "Rule warnings",
+   "defaultValue": "On"
+  },
+  {
+   "key": "tagLockedOptions",
+   "section": "Alerts",
+   "name": "Tag locked right-click options",
+   "defaultValue": "On"
+  },
+  {
+   "key": "rollNudges",
+   "section": "Alerts",
+   "name": "Roll reminders",
+   "defaultValue": "On"
+  },
+  {
+   "key": "useNotifier",
+   "section": "Alerts",
+   "name": "Also send RuneLite notifications",
+   "defaultValue": "Off"
+  },
+  {
+   "key": "hudMode",
+   "section": "Display",
+   "name": "HUD",
+   "defaultValue": "Compact",
+   "options": [
+    "Off",
+    "Compact",
+    "Detailed"
+   ]
+  },
+  {
+   "key": "worldMapMode",
+   "section": "Display",
+   "name": "World map",
+   "defaultValue": "Shading, tooltip and contents",
+   "options": [
+    "Off",
+    "Shading",
+    "Shading and tooltip",
+    "Shading, tooltip and contents"
+   ]
+  },
+  {
+   "key": "worldMapMarkers",
+   "section": "Display",
+   "name": "Pin locked areas on the world map",
+   "defaultValue": "Off"
+  },
+  {
+   "key": "chunkBorders",
+   "section": "Display",
+   "name": "Chunk borders in the game view",
+   "defaultValue": "Locked edges",
+   "options": [
+    "Off",
+    "Locked edges",
+    "All edges"
+   ]
+  },
+  {
+   "key": "shadeNearbyLocked",
+   "section": "Display",
+   "name": "Shade locked land nearby",
+   "defaultValue": "On"
+  },
+  {
+   "key": "drawMinimap",
+   "section": "Display",
+   "name": "Minimap chunk borders",
+   "defaultValue": "On"
+  },
+  {
+   "key": "showInfoBoxes",
+   "section": "Display",
+   "name": "Infoboxes",
+   "defaultValue": "Off"
+  },
+  {
+   "key": "colourPreset",
+   "section": "Display",
+   "name": "Colours",
+   "defaultValue": "Default",
+   "options": [
+    "Default",
+    "Colour-blind safe",
+    "Custom"
+   ]
+  },
+  {
+   "key": "unlockedColor",
+   "section": "Custom colours",
+   "name": "Unlocked",
+   "defaultValue": "#6e10b981"
+  },
+  {
+   "key": "frontierColor",
+   "section": "Custom colours",
+   "name": "Frontier",
+   "defaultValue": "#64f59e0b"
+  },
+  {
+   "key": "lockedColor",
+   "section": "Custom colours",
+   "name": "Locked",
+   "defaultValue": "#6eef4444"
+  },
+  {
+   "key": "reimportHotkey",
+   "section": "Backup",
+   "name": "Import from clipboard hotkey",
+   "defaultValue": "Not set"
+  }
+ ],
+ "sidebarCards": [
+  "Here",
+  "Strict Mode",
+  "Run",
+  "Roll inbox",
+  "Connection & backup"
+ ]
+}

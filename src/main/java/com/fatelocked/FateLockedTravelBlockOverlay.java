@@ -2,10 +2,13 @@ package com.fatelocked;
 
 import com.fatelocked.guardian.travel.TravelBlockNotice;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
+import com.fatelocked.ui.Palette;
 import net.runelite.client.input.MouseListener;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.components.BackgroundComponent;
+import net.runelite.client.ui.overlay.components.ComponentConstants;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -15,14 +18,15 @@ import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
-/** A transient, non-gameplay explanation for a Strict Mode travel block. */
+/**
+ * A transient, non-gameplay explanation for a Strict Mode travel block, on RuneLite's
+ * standard overlay panel: the block in the palette's locked colour, the nearest legal
+ * option in its good colour, and the pause button in the accent.
+ */
 public class FateLockedTravelBlockOverlay extends Overlay implements MouseListener
 {
-    private static final Color PANEL = new Color(17, 24, 39, 235);
-    private static final Color HEADLINE = new Color(239, 68, 68);
-    private static final Color TEXT = new Color(255, 255, 255);
-    private static final Color AMBER = new Color(245, 158, 11);
     /** The banner's button, which names Strict Mode (B15). */
     static final String PAUSE_LABEL = "Pause Strict Mode for 60s";
     private static final int PADDING = 10;
@@ -35,6 +39,8 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
     private final BooleanSupplier strictModeEnabled;
     private final BooleanSupplier strictModePaused;
     private volatile InteractionState interactionState;
+    private volatile Supplier<Palette> palette = Palette::defaults;
+    private final BackgroundComponent background = new BackgroundComponent();
 
     public FateLockedTravelBlockOverlay(
         TravelBlockNoticeStore noticeStore,
@@ -69,6 +75,16 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         {
             interactionState = interactionState.withPauseGuardian(pauseGuardian);
         }
+    }
+
+    /** Where the banner's colours come from: the plugin's palette. */
+    public void setPalette(Supplier<Palette> palette)
+    {
+        if (palette == null)
+        {
+            throw new IllegalArgumentException("a palette is required");
+        }
+        this.palette = palette;
     }
 
     public Rectangle getPauseButtonBounds()
@@ -113,19 +129,21 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         int height = PADDING * 2 + textLines * lineHeight
             + (textLines - 1) * LINE_GAP + LINE_GAP + buttonHeight;
 
-        graphics.setColor(PANEL);
-        graphics.fillRect(0, 0, width, height);
+        Palette colours = palette.get();
+        background.setBackgroundColor(ComponentConstants.STANDARD_BACKGROUND_COLOR);
+        background.setRectangle(new Rectangle(0, 0, width, height));
+        background.render(graphics);
 
         int baseline = PADDING + metrics.getAscent();
-        graphics.setColor(HEADLINE);
+        graphics.setColor(colours.text(Palette.Tone.BAD));
         graphics.drawString(notice.getHeadline(), PADDING, baseline);
         baseline += lineHeight + LINE_GAP;
-        graphics.setColor(TEXT);
+        graphics.setColor(Color.WHITE);
         graphics.drawString(notice.getReason(), PADDING, baseline);
         if (alternativeLine != null)
         {
             baseline += lineHeight + LINE_GAP;
-            graphics.setColor(AMBER);
+            graphics.setColor(colours.text(Palette.Tone.GOOD));
             graphics.drawString(alternativeLine, PADDING, baseline);
         }
 
@@ -135,10 +153,10 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         Rectangle overlayBounds = getBounds();
         canvasButtonBounds.translate(overlayBounds.x, overlayBounds.y);
         publishInteractionState(localButtonBounds, canvasButtonBounds);
-        graphics.setColor(AMBER);
+        graphics.setColor(Palette.ACCENT);
         graphics.fillRect(localButtonBounds.x, localButtonBounds.y,
             localButtonBounds.width, localButtonBounds.height);
-        graphics.setColor(PANEL);
+        graphics.setColor(Palette.ON_ACCENT);
         graphics.drawString(PAUSE_LABEL, localButtonBounds.x + BUTTON_HORIZONTAL_PADDING,
             localButtonBounds.y + BUTTON_VERTICAL_PADDING + metrics.getAscent());
         return new Dimension(width, height);

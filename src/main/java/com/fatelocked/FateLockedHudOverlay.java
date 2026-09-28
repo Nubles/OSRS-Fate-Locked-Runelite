@@ -1,261 +1,76 @@
 package com.fatelocked;
 
-import com.fatelocked.guardian.StrictModeStatusView;
-import com.fatelocked.rules.DecisionService;
-import net.runelite.api.Client;
-import net.runelite.api.Player;
+import com.fatelocked.ui.Palette;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import javax.inject.Inject;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
 
-import javax.inject.Inject;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.util.List;
-
 /**
- * In-game HUD: current keys / fate points / buff / next goal from the bundle's
- * run state, plus the player's current chunk and its lock status — the
- * always-visible version of what the side panel shows.
+ * The in-game HUD (E6), drawing the plugin's {@link HudModel} on RuneLite's own panel: labels
+ * plain, values in the palette's tones, headings in the accent. The model is worked out when
+ * anything changes, and the panel is built again only when it or the palette does.
  */
 public class FateLockedHudOverlay extends OverlayPanel
 {
-    private static final Color GOLD = new Color(245, 158, 11);
-    private static final Color GREEN = new Color(52, 211, 153);
-    private static final Color RED = new Color(248, 113, 113);
-    private static final Color GRAY = new Color(156, 163, 175);
+    private static final int WIDTH = 165;
+    /** Detailed lists what the place holds, which needs more room. */
+    private static final int DETAILED_WIDTH = 210;
 
-    private final Client client;
     private final FateLockedPlugin plugin;
-    private final FateLockedConfig config;
-    private final ChunkLocator locator;
-
-    // Nearest bank/shop cache — recomputed on chunk change or new decisions.
-    private DecisionService cachedDecisions;
-    private CanonicalChunk cachedChunk;
-    private FateLockedBundle.Nearest cachedBank;
-    private FateLockedBundle.Nearest cachedShop;
+    // What the panel shows now.
+    private HudModel shown;
+    private Palette shownIn;
 
     @Inject
-    FateLockedHudOverlay(Client client, FateLockedPlugin plugin, FateLockedConfig config)
+    FateLockedHudOverlay(FateLockedPlugin plugin)
     {
-        this.client = client;
         this.plugin = plugin;
-        this.config = config;
-        this.locator = new ChunkLocator(client);
         setPosition(OverlayPosition.TOP_LEFT);
         setResizable(false);
+        setClearChildren(false);
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.showHud())
+        HudModel model = plugin.hudModel();
+        if (model.getLines().isEmpty()) return null;
+        Palette palette = plugin.palette();
+        if (model != shown || palette != shownIn)
         {
-            return null;
+            build(model, palette);
+            shown = model;
+            shownIn = palette;
         }
-
-        FateLockedBundle bundle = plugin.getBundle();
-        if (bundle.isEmpty()) return null; // no rules yet: nothing to show
-        FateLockedBundle.RunState state = bundle.getState();
-
-        // Fixed width so long area names ("Draynor Village · Misthalin") sit on
-        // one line instead of wrapping to three.
-        panelComponent.setPreferredSize(new Dimension(165, 0));
-        panelComponent.getChildren().add(TitleComponent.builder()
-            .text("Fate Locked")
-            .color(GOLD)
-            .build());
-
-        if (state != null)
-        {
-            StringBuilder keyStr = new StringBuilder(String.valueOf(state.getKeys()));
-            if (state.getSpecialKeys() > 0) keyStr.append(" · O").append(state.getSpecialKeys());
-            if (state.getChaosKeys() > 0) keyStr.append(" · C").append(state.getChaosKeys());
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Keys")
-                .right(keyStr.toString())
-                .rightColor(GOLD)
-                .build());
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Fate")
-                .right(String.valueOf(state.getFatePoints()))
-                .rightColor(Color.WHITE)
-                .build());
-            String buff = state.getActiveBuff();
-            if (buff != null && !"NONE".equals(buff))
-            {
-                panelComponent.getChildren().add(LineComponent.builder()
-                    .left("Buff")
-                    .right(buff)
-                    .rightColor("GREED".equals(buff) ? GOLD : GREEN)
-                    .build());
-            }
-            List<String> goals = state.getPinnedGoals();
-            if (goals != null && !goals.isEmpty())
-            {
-                panelComponent.getChildren().add(LineComponent.builder()
-                    .left("Goal")
-                    .right(truncate(goals.get(0), 20))
-                    .rightColor(Color.WHITE)
-                    .build());
-            }
-            String bound = AccountBinding.boundAccount(bundle);
-            if (bound != null)
-            {
-                Player me = client.getLocalPlayer();
-                String current = me == null ? null : me.getName();
-                boolean match = current == null
-                    || AccountBinding.sameAccount(bound, current);
-                panelComponent.getChildren().add(LineComponent.builder()
-                    .left("Account")
-                    .right(truncate(bound, 14) + (match ? "" : " ⚠"))
-                    .rightColor(match ? GREEN : RED)
-                    .build());
-            }
-        }
-
-        StrictModeStatusView strict = plugin.getStrictModeStatus();
-        if (strict != null && strict.isShownOnHud())
-        {
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Strict")
-                .right(strict.getText())
-                .rightColor(strict.getTone() == StrictModeStatusView.Tone.ACTIVE ? GREEN : GOLD)
-                .build());
-        }
-
-        CanonicalChunk chunk = locator.player();
-        if (chunk != null)
-        {
-            DecisionService decisions = plugin.decisions();
-            String label = decisions.areaName(chunk);
-            HudStatus status = HudStatus.of(decisions.chunk(chunk));
-
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Here")
-                .right(label == null ? "(" + chunk.getCx() + ", " + chunk.getCy() + ")" : truncate(label, 22))
-                .rightColor(Color.WHITE)
-                .build());
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Status")
-                .right(truncate(status.getText(), 22))
-                .rightColor(status.getColor())
-                .build());
-            if (status.getWhy() != null)
-            {
-                panelComponent.getChildren().add(LineComponent.builder()
-                    .left("Why")
-                    .right(truncate(status.getWhy(), 22))
-                    .rightColor(status.getColor())
-                    .build());
-            }
-
-            if (config.showNearest() && decisions.hasNearestData())
-            {
-                // Recompute only when the player crosses a chunk boundary or the
-                // rules or character change — render() runs per frame.
-                if (decisions != cachedDecisions || !chunk.equals(cachedChunk))
-                {
-                    cachedDecisions = decisions;
-                    cachedChunk = chunk;
-                    cachedBank = decisions.nearestBank(chunk);
-                    cachedShop = decisions.nearestShop(chunk);
-                }
-                addNearestLine("Bank", cachedBank, chunk, decisions);
-                addNearestLine("Shop", cachedShop, chunk, decisions);
-            }
-        }
-
-        String progress = ProgressText.hudLine(plugin.decisions().progress());
-        if (progress != null)
-        {
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Unlocked")
-                .right(progress)
-                .rightColor(GOLD)
-                .build());
-        }
-
-        String slayerWarn = plugin.getSlayerTaskWarn();
-        if (slayerWarn != null)
-        {
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Slayer")
-                .right(truncate(slayerWarn, 18) + " ⚠")
-                .leftColor(RED)
-                .rightColor(RED)
-                .build());
-        }
-
-        String overTier = plugin.getOverTierSummary();
-        if (overTier != null)
-        {
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left("Over-tier")
-                .right(truncate(overTier, 20))
-                .leftColor(RED)
-                .rightColor(RED)
-                .build());
-        }
-
         return super.render(graphics);
     }
 
-    /** One "Bank:" / "Shop:" line: "here ✓", "<Area> · <dist> <dir>", or "none unlocked". */
-    private void addNearestLine(String label, FateLockedBundle.Nearest near,
-                                CanonicalChunk from, DecisionService decisions)
+    private void build(HudModel model, Palette palette)
     {
-        if (near == null)
-        {
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left(label)
-                .right("none unlocked")
-                .rightColor(RED)
-                .build());
-            return;
-        }
-        if (near.getDistanceChunks() == 0)
-        {
-            panelComponent.getChildren().add(LineComponent.builder()
-                .left(label)
-                .right("here ✓")
-                .rightColor(GREEN)
-                .build());
-            return;
-        }
-        String area = decisions.areaName(near.getChunk());
-        String name = area == null
-            ? "(" + near.getChunk().getCx() + ", " + near.getChunk().getCy() + ")"
-            : area.split(" · ")[0];
-        // From inside an interior, the way is from its entrance; none when the bank is right there.
-        CanonicalChunk origin = decisions.surfaceOf(from);
-        int dx = near.getChunk().getCx() - origin.getCx();
-        int dy = near.getChunk().getCy() - origin.getCy();
-        String dir = dx == 0 && dy == 0 ? "" : " " + compass(dx, dy);
-        panelComponent.getChildren().add(LineComponent.builder()
-            .left(label)
-            .right(truncate(name, 13) + " · " + near.getDistanceChunks() + dir)
-            .rightColor(Color.WHITE)
+        panelComponent.getChildren().clear();
+        panelComponent.setPreferredSize(new Dimension(model.isDetailed() ? DETAILED_WIDTH : WIDTH, 0));
+        panelComponent.getChildren().add(TitleComponent.builder()
+            .text("Fate Locked")
+            .color(Palette.ACCENT)
             .build());
-    }
-
-    /** 8-way compass point for a chunk delta; a 2:1 dominant axis collapses
-     *  to its cardinal (dx=+5,dy=+1 → "E"; dx=+5,dy=+4 → "NE"). World Y
-     *  grows northward. Never called with dx=dy=0 (distance 0 is "here"). */
-    static String compass(int dx, int dy)
-    {
-        String ns = dy > 0 ? "N" : "S";
-        String ew = dx > 0 ? "E" : "W";
-        if (dy == 0 || Math.abs(dx) >= 2 * Math.abs(dy)) return ew;
-        if (dx == 0 || Math.abs(dy) >= 2 * Math.abs(dx)) return ns;
-        return ns + ew;
-    }
-
-    private static String truncate(String s, int max)
-    {
-        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+        for (HudModel.Line line : model.getLines())
+        {
+            LineComponent.LineComponentBuilder component = LineComponent.builder().left(line.getLabel());
+            if (line.getValue() != null)
+            {
+                component.leftColor(Palette.TITLE)
+                    .right(line.getValue())
+                    .rightColor(line.getTone() == null ? Palette.TITLE : palette.text(line.getTone()));
+            }
+            else
+            {
+                component.leftColor(line.getTone() == null ? Palette.ACCENT : palette.text(line.getTone()));
+            }
+            panelComponent.getChildren().add(component.build());
+        }
     }
 }

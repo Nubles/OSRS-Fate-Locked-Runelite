@@ -1,13 +1,21 @@
 package com.fatelocked;
 
+import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
 
-import java.awt.Color;
-
+/**
+ * Fate Locked's settings, in RuneLite's configuration only (Decision 4, U11). The sidebar
+ * keeps just Strict Mode's switch and online sync's, which carries the player's consent.
+ *
+ * <p>Stage 3 merged 31 settings into these. A changed setting has a new key, never an old
+ * key with a new type: RuneLite overwrites a value it can't read with the default before
+ * the plugin starts. {@link SettingsMigration} carries each player's old choices over.
+ */
 @ConfigGroup(FateLockedConfig.GROUP)
 public interface FateLockedConfig extends Config
 {
@@ -16,19 +24,168 @@ public interface FateLockedConfig extends Config
     String NETWORK_WARNING = "This feature submits your IP address to a 3rd-party server "
         + "not controlled or verified by RuneLite developers.";
 
+    /** When a locked area is entered: which of chat, a sound and a screen fade say so. */
+    enum LockedAreaAlert
+    {
+        OFF("Off", false, false, false),
+        CHAT("Chat", true, false, false),
+        CHAT_FADE("Chat and fade", true, false, true),
+        CHAT_SOUND("Chat and sound", true, true, false),
+        CHAT_SOUND_FADE("Chat, sound and fade", true, true, true);
+
+        private final String label;
+        private final boolean chat;
+        private final boolean sound;
+        private final boolean fade;
+
+        LockedAreaAlert(String label, boolean chat, boolean sound, boolean fade)
+        {
+            this.label = label;
+            this.chat = chat;
+            this.sound = sound;
+            this.fade = fade;
+        }
+
+        public boolean chat()
+        {
+            return chat;
+        }
+
+        public boolean sound()
+        {
+            return sound;
+        }
+
+        public boolean fade()
+        {
+            return fade;
+        }
+
+        @Override
+        public String toString()
+        {
+            return label;
+        }
+    }
+
+    enum HudMode
+    {
+        OFF("Off"),
+        /** Here, its status and why, Strict Mode, and the nearest bank and shop. */
+        COMPACT("Compact"),
+        /** Compact, and what the chunk holds, with progress. */
+        DETAILED("Detailed");
+
+        private final String label;
+
+        HudMode(String label)
+        {
+            this.label = label;
+        }
+
+        @Override
+        public String toString()
+        {
+            return label;
+        }
+    }
+
+    enum WorldMapMode
+    {
+        OFF("Off", false, false, false),
+        SHADING("Shading", true, false, false),
+        SHADING_TOOLTIP("Shading and tooltip", true, true, false),
+        SHADING_TOOLTIP_CONTENTS("Shading, tooltip and contents", true, true, true);
+
+        private final String label;
+        private final boolean shading;
+        private final boolean tooltip;
+        private final boolean contents;
+
+        WorldMapMode(String label, boolean shading, boolean tooltip, boolean contents)
+        {
+            this.label = label;
+            this.shading = shading;
+            this.tooltip = tooltip;
+            this.contents = contents;
+        }
+
+        public boolean shading()
+        {
+            return shading;
+        }
+
+        public boolean tooltip()
+        {
+            return tooltip;
+        }
+
+        public boolean contents()
+        {
+            return contents;
+        }
+
+        @Override
+        public String toString()
+        {
+            return label;
+        }
+    }
+
+    enum ChunkBorders
+    {
+        OFF("Off"),
+        LOCKED_EDGES("Locked edges"),
+        ALL_EDGES("All edges");
+
+        private final String label;
+
+        ChunkBorders(String label)
+        {
+            this.label = label;
+        }
+
+        @Override
+        public String toString()
+        {
+            return label;
+        }
+    }
+
+    enum ColourPreset
+    {
+        DEFAULT("Default"),
+        COLOUR_BLIND_SAFE("Colour-blind safe"),
+        CUSTOM("Custom");
+
+        private final String label;
+
+        ColourPreset(String label)
+        {
+            this.label = label;
+        }
+
+        @Override
+        public String toString()
+        {
+            return label;
+        }
+    }
+
     @ConfigSection(
-        name = "Bundle",
-        description = "Load your run data exported from the Fate Locked web app",
+        name = "Tracker",
+        description = "Getting your run's rules from the Fate Locked web tracker",
         position = 0
     )
-    String bundleSection = "bundleSection";
+    String trackerSection = "trackerSection";
 
     @ConfigItem(
         keyName = NETWORK_ACCESS_KEY,
-        name = "Enable online sync",
-        description = "Allow connections to the Fate Locked relay. Off by default; clipboard and file imports work offline.",
-        section = bundleSection,
-        position = 4,
+        name = "Online sync",
+        description = "Get your rules from the Fate Locked relay. Off by default; imports from the clipboard and backup"
+            + " files work without it.",
+        section = trackerSection,
+        position = 0,
         warning = NETWORK_WARNING
     )
     default boolean trackerNetworkAccess()
@@ -36,202 +193,19 @@ public interface FateLockedConfig extends Config
         return false;
     }
 
-    @ConfigItem(
-        keyName = "reimportHotkey",
-        name = "Re-import hotkey",
-        description = "Hotkey to re-import the bundle from your clipboard — press it after clicking RuneLite in the web app to re-sync without opening the panel",
-        section = bundleSection,
-        position = 3
-    )
-    default Keybind reimportHotkey()
-    {
-        return Keybind.NOT_SET;
-    }
-
     @ConfigSection(
-        name = "Warnings",
-        description = "Chat + HUD alerts for locked-chunk transitions",
+        name = "Strict Mode",
+        description = "Stops a teleport to a place your rules lock",
         position = 1
     )
-    String warningsSection = "warningsSection";
-
-    @ConfigItem(
-        keyName = "chatOnEnter",
-        name = "Chat on chunk entry",
-        description = "Post a chat message each time you enter a chunk on the tracker's map (never for unmapped chunks such as dungeons)",
-        section = warningsSection
-    )
-    default boolean chatOnEnter()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "warnOnLocked",
-        name = "Warn entering locked chunk",
-        description = "Warning sound when you step into a region you haven't unlocked, plus a notification if \"Send RuneLite notifications\" is on. Once per entry, whatever the chat setting",
-        section = warningsSection
-    )
-    default boolean warnOnLocked()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "warnLockedBank",
-        name = "Warn opening a locked bank",
-        description = "Bank-locked runs: chat warning when you open a bank or deposit box you haven't unlocked in the tracker",
-        section = warningsSection
-    )
-    default boolean warnLockedBank()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "flashOnLocked",
-        name = "Screen flash on locked entry",
-        description = "Pulse a red border around the viewport when crossing into locked territory",
-        section = warningsSection
-    )
-    default boolean flashOnLocked()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "warnAccountMismatch",
-        name = "Warn on wrong account",
-        description = "Chat warning when the logged-in character isn't the account this run is bound to",
-        section = warningsSection
-    )
-    default boolean warnAccountMismatch()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "tagLockedMenus",
-        name = "Tag locked right-click targets",
-        description = "Append a red (LOCKED) tag to menu entries for NPCs/objects standing in locked chunks",
-        section = warningsSection
-    )
-    default boolean tagLockedMenus()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "tagLockedTeleports",
-        name = "Tag teleports to locked chunks",
-        description = "Append a red (LOCKED) tag to teleport options (spells, jewellery, tablets) whose destination is in a locked chunk",
-        section = warningsSection
-    )
-    default boolean tagLockedTeleports()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showHud",
-        name = "Show in-game HUD",
-        description = "Overlay with keys, fate points, active buff, next goal and current chunk status",
-        section = warningsSection
-    )
-    default boolean showHud()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showNearest",
-        name = "HUD: nearest bank & shop",
-        description = "Add HUD lines pointing to the closest unlocked bank and shop (straight-line chunk distance — a hint, not a route)",
-        section = warningsSection
-    )
-    default boolean showNearest()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showChunkContentBox",
-        name = "Show \"in this chunk\" box",
-        description = "Draggable overlay listing the current chunk's monsters, shops, farming patches and points of interest — the same content the app's map chunk-info panel shows. Off by default; drag it anywhere.",
-        section = warningsSection
-    )
-    default boolean showChunkContentBox()
-    {
-        return false;
-    }
-
-    @ConfigItem(
-        keyName = "useNotifier",
-        name = "Send RuneLite notifications",
-        description = "Also fire a RuneLite notification (tray / sound, per your global settings) for locked-chunk entry, locked slayer tasks, over-tier gear and wrong-account logins",
-        section = warningsSection
-    )
-    default boolean useNotifier()
-    {
-        return false;
-    }
-
-    @ConfigItem(
-        keyName = "warnLockedSlayer",
-        name = "Warn on locked slayer task",
-        description = "Chat + HUD warning when your assigned slayer monster only lives in chunks you haven't unlocked",
-        section = warningsSection
-    )
-    default boolean warnLockedSlayer()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "warnOverTierGear",
-        name = "Warn on over-tier gear",
-        description = "Chat + HUD warning when you're wearing an item above your unlocked equipment tier for that slot",
-        section = warningsSection
-    )
-    default boolean warnOverTierGear()
-    {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "showInfoBoxes",
-        name = "Show key/fate/progress infoboxes",
-        description = "Add dockable infoboxes for your keys, fate points and unlock progress (native RuneLite infobox row)",
-        section = warningsSection
-    )
-    default boolean showInfoBoxes()
-    {
-        return false;
-    }
-
-    @ConfigItem(
-        keyName = "rollNudges",
-        name = "Roll reminders",
-        description = "Chat reminder on level-up, quest, diary, combat-achievement, boss kill, raid and collection-log completion that it may be worth a roll in the tracker",
-        section = warningsSection
-    )
-    default boolean rollNudges()
-    {
-        return true;
-    }
-
-    @ConfigSection(
-        name = "Guardian",
-        description = "Optional prevention for actions proven to break this run's rules",
-        position = 2
-    )
-    String guardianSection = "guardianSection";
+    String strictModeSection = "strictModeSection";
 
     @ConfigItem(
         keyName = "strictMode",
         name = "Strict Mode",
-        description = "Prevent actions that are certainly against this run's rules. Unknown actions are never prevented. Off by default.",
-        section = guardianSection,
+        description = "Stops a teleport only when it can match the trip exactly and fresh rules for this character lock"
+            + " where it goes. Walking, NPCs, objects, banks and equipment are never stopped. Off by default.",
+        section = strictModeSection,
         position = 0
     )
     default boolean strictMode()
@@ -241,82 +215,138 @@ public interface FateLockedConfig extends Config
 
     @ConfigItem(
         keyName = "pauseStrictModeHotkey",
-        name = "Pause Strict Mode hotkey",
-        description = "Pause Strict Mode for 60 seconds. Not set by default.",
-        section = guardianSection,
+        name = "Pause hotkey",
+        description = "Pauses Strict Mode for 60 seconds. Not set by default.",
+        section = strictModeSection,
         position = 1
     )
     default Keybind pauseStrictModeHotkey()
     {
         return Keybind.NOT_SET;
     }
+
     @ConfigSection(
-        name = "Rendering",
-        description = "How chunks are drawn on the map and in-world",
+        name = "Alerts",
+        description = "What tells you about locked areas and your rules in game",
+        position = 2
+    )
+    String alertsSection = "alertsSection";
+
+    @ConfigItem(
+        keyName = "lockedAreaAlert",
+        name = "Locked-area alert",
+        description = "When you enter a locked area: a chat line, and a sound and a short screen fade if you choose."
+            + " Once per area.",
+        section = alertsSection,
+        position = 0
+    )
+    default LockedAreaAlert lockedAreaAlert()
+    {
+        return LockedAreaAlert.CHAT_SOUND_FADE;
+    }
+
+    @ConfigItem(
+        keyName = "announceAreaChanges",
+        name = "Announce every area change",
+        description = "A chat line whenever you walk into another area the tracker maps, locked or not.",
+        section = alertsSection,
+        position = 1
+    )
+    default boolean announceAreaChanges()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "ruleWarnings",
+        name = "Rule warnings",
+        description = "Chat and HUD warnings for a bank you haven't unlocked, a Slayer task in locked areas, and gear"
+            + " above your unlocked tier. Each needs your rules to cover it.",
+        section = alertsSection,
+        position = 2
+    )
+    default boolean ruleWarnings()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "tagLockedOptions",
+        name = "Tag locked right-click options",
+        description = "Adds (Locked) to right-click options for NPCs, objects and teleports your rules lock.",
+        section = alertsSection,
         position = 3
     )
-    String renderingSection = "renderingSection";
-
-    @ConfigItem(
-        keyName = "drawWorldMap",
-        name = "Draw on world map",
-        description = "Tint authored chunks on the full world map",
-        section = renderingSection
-    )
-    default boolean drawWorldMap()
+    default boolean tagLockedOptions()
     {
         return true;
     }
 
     @ConfigItem(
-        keyName = "drawScene",
-        name = "Draw around player",
-        description = "Tint tiles on the main game view for the player's current chunk",
-        section = renderingSection
+        keyName = "rollNudges",
+        name = "Roll reminders",
+        description = "A chat reminder when a level-up, quest, diary, boss kill or collection log entry may be worth a"
+            + " roll in the tracker.",
+        section = alertsSection,
+        position = 4
     )
-    default boolean drawScene()
+    default boolean rollNudges()
     {
         return true;
     }
 
     @ConfigItem(
-        keyName = "drawMinimap",
-        name = "Draw on minimap",
-        description = "Tint the player's current chunk on the minimap",
-        section = renderingSection
+        keyName = "useNotifier",
+        name = "Also send RuneLite notifications",
+        description = "Also send a RuneLite notification, as your RuneLite settings deliver them, for locked areas and"
+            + " rule warnings.",
+        section = alertsSection,
+        position = 5
     )
-    default boolean drawMinimap()
+    default boolean useNotifier()
     {
-        return true;
+        return false;
+    }
+
+    @ConfigSection(
+        name = "Display",
+        description = "What Fate Locked draws in game and on the maps",
+        position = 3
+    )
+    String displaySection = "displaySection";
+
+    @ConfigItem(
+        keyName = "hudMode",
+        name = "HUD",
+        description = "Compact: where you are, its status and why, Strict Mode, and the nearest bank and shop."
+            + " Detailed adds your progress, Keys and Fate Points, and what's in the chunk.",
+        section = displaySection,
+        position = 0
+    )
+    default HudMode hudMode()
+    {
+        return HudMode.COMPACT;
     }
 
     @ConfigItem(
-        keyName = "highlightLockedBorders",
-        name = "Highlight locked borders",
-        description = "Outline the edges of your current chunk that border a locked chunk",
-        section = renderingSection
+        keyName = "worldMapMode",
+        name = "World map",
+        description = "Shades locked land on the world map, with a tooltip for the chunk under the mouse and, if you"
+            + " choose, what it holds.",
+        section = displaySection,
+        position = 1
     )
-    default boolean highlightLockedBorders()
+    default WorldMapMode worldMapMode()
     {
-        return true;
-    }
-
-    @ConfigItem(
-        keyName = "shadeNearbyLocked",
-        name = "Shade nearby locked chunks",
-        description = "Lightly tint every locked chunk visible around you in the game view and minimap, not just the one you're standing in",
-        section = renderingSection
-    )
-    default boolean shadeNearbyLocked()
-    {
-        return true;
+        return WorldMapMode.SHADING_TOOLTIP_CONTENTS;
     }
 
     @ConfigItem(
         keyName = "worldMapMarkers",
-        name = "Pin locked areas on world map",
-        description = "Place a marker on each authored area you haven't unlocked; click a marker to jump the world map there. Off by default to avoid clutter.",
-        section = renderingSection
+        name = "Pin locked areas on the world map",
+        description = "A pin on each area you haven't unlocked; click one to jump the world map there.",
+        section = displaySection,
+        position = 2
     )
     default boolean worldMapMarkers()
     {
@@ -324,68 +354,130 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "worldMapTooltip",
-        name = "World map hover tooltip",
-        description = "Hover an authored chunk on the world map to see its area name and lock status",
-        section = renderingSection
+        keyName = "chunkBorders",
+        name = "Chunk borders in the game view",
+        description = "Lines on the ground where chunks meet: only where locked land starts, or every chunk edge.",
+        section = displaySection,
+        position = 3
     )
-    default boolean worldMapTooltip()
+    default ChunkBorders chunkBorders()
+    {
+        return ChunkBorders.LOCKED_EDGES;
+    }
+
+    @ConfigItem(
+        keyName = "shadeNearbyLocked",
+        name = "Shade locked land nearby",
+        description = "Darkens locked land beside you in the game view and on the minimap.",
+        section = displaySection,
+        position = 4
+    )
+    default boolean shadeNearbyLocked()
     {
         return true;
     }
 
     @ConfigItem(
-        keyName = "worldMapTooltipContent",
-        name = "Tooltip: what's in the chunk",
-        description = "Also list the chunk's monsters, shops, farming patches and points of interest in the hover tooltip (from the app's chunk-content dataset)",
-        section = renderingSection
+        keyName = "drawMinimap",
+        name = "Minimap chunk borders",
+        description = "Chunk lines and locked land on the minimap.",
+        section = displaySection,
+        position = 5
     )
-    default boolean worldMapTooltipContent()
+    default boolean drawMinimap()
     {
         return true;
     }
 
+    @ConfigItem(
+        keyName = "showInfoBoxes",
+        name = "Infoboxes",
+        description = "RuneLite infoboxes for your keys, Fate Points and unlock progress, each movable on its own.",
+        section = displaySection,
+        position = 6
+    )
+    default boolean showInfoBoxes()
+    {
+        return false;
+    }
+
+    @ConfigItem(
+        keyName = "colourPreset",
+        name = "Colours",
+        description = "Default, a set safe for colour-blind players, or your own colours below.",
+        section = displaySection,
+        position = 7
+    )
+    default ColourPreset colourPreset()
+    {
+        return ColourPreset.DEFAULT;
+    }
+
+    @ConfigSection(
+        name = "Custom colours",
+        description = "Used when Colours is set to Custom",
+        position = 4,
+        closedByDefault = true
+    )
+    String customColoursSection = "customColoursSection";
+
+    @Alpha
     @ConfigItem(
         keyName = "unlockedColor",
-        name = "Unlocked color",
-        description = "Color for chunks inside unlocked regions",
-        section = renderingSection
+        name = "Unlocked",
+        description = "Unlocked land and status, with Colours set to Custom.",
+        section = customColoursSection,
+        position = 0
     )
     default Color unlockedColor()
     {
         return new Color(16, 185, 129, 110);
     }
 
+    @Alpha
     @ConfigItem(
         keyName = "frontierColor",
-        name = "Frontier color (Chunked)",
-        description = "Chunked mode: color for rollable frontier chunks — locked chunks adjacent to one you hold",
-        section = renderingSection
+        name = "Frontier",
+        description = "Chunked mode: the chunks next to yours you can roll, with Colours set to Custom.",
+        section = customColoursSection,
+        position = 1
     )
     default Color frontierColor()
     {
         return new Color(245, 158, 11, 100);
     }
 
+    @Alpha
     @ConfigItem(
         keyName = "lockedColor",
-        name = "Locked color",
-        description = "Color for chunks inside authored-but-not-yet-unlocked regions",
-        section = renderingSection
+        name = "Locked",
+        description = "Locked land, edges and status, with Colours set to Custom.",
+        section = customColoursSection,
+        position = 2
     )
     default Color lockedColor()
     {
         return new Color(239, 68, 68, 110);
     }
 
-    @ConfigItem(
-        keyName = "unauthoredColor",
-        name = "Unauthored color",
-        description = "Color for chunks not claimed by any region (empty-space alert)",
-        section = renderingSection
+    @ConfigSection(
+        name = "Backup",
+        description = "For runs without online sync",
+        position = 5,
+        closedByDefault = true
     )
-    default Color unauthoredColor()
+    String backupSection = "backupSection";
+
+    @ConfigItem(
+        keyName = "reimportHotkey",
+        name = "Import from clipboard hotkey",
+        description = "Imports your rules from the clipboard, as the sidebar's Import from clipboard does: press it"
+            + " after copying them from the web tracker.",
+        section = backupSection,
+        position = 0
+    )
+    default Keybind reimportHotkey()
     {
-        return new Color(107, 114, 128, 60);
+        return Keybind.NOT_SET;
     }
 }

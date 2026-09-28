@@ -5,15 +5,26 @@ import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
+import com.fatelocked.rules.ChunkPermissionRow;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.ItemTier;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
-import com.fatelocked.panel.ChunkPanelViewModel;
-import com.fatelocked.panel.ChunkPanelViewModelFactory;
 import com.fatelocked.panel.LocalTimeText;
+import com.fatelocked.sidebar.CardAction;
+import com.fatelocked.sidebar.GameFacts;
+import com.fatelocked.sidebar.HereModel;
+import com.fatelocked.sidebar.HerePresenter;
+import com.fatelocked.sidebar.PointTarget;
+import com.fatelocked.sidebar.PointerText;
+import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.RowChecks;
+import com.fatelocked.sidebar.StrictModeSectionPresenter;
+import com.fatelocked.ui.Art;
+import com.fatelocked.ui.Palette;
+import com.fatelocked.ui.Terms;
 import com.fatelocked.guardian.GuardedAction;
 import com.fatelocked.guardian.GuardedActionFactory;
 import com.fatelocked.guardian.StrictModeClickHandler;
@@ -53,23 +64,41 @@ import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.NPC;
+import net.runelite.api.NPCComposition;
+import net.runelite.api.ObjectComposition;
+import net.runelite.api.Perspective;
 import net.runelite.api.Player;
+import net.runelite.api.Quest;
+import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
+import net.runelite.api.TileObject;
+import net.runelite.api.WorldType;
+import net.runelite.api.WorldView;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.DecorativeObjectSpawned;
+import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.GroundObjectSpawned;
+import net.runelite.api.events.NpcSpawned;
+import net.runelite.api.events.WallObjectSpawned;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.SpriteID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.Notifier;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
@@ -77,14 +106,19 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.RuneLite;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ProfileChanged;
+import net.runelite.client.task.Schedule;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.util.HotkeyListener;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -110,17 +144,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.Duration;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ScheduledExecutorService;
@@ -143,7 +182,6 @@ public class FateLockedPlugin extends Plugin
     @Inject private FateLockedSceneOverlay sceneOverlay;
     @Inject private FateLockedMinimapOverlay minimapOverlay;
     @Inject private FateLockedHudOverlay hudOverlay;
-    @Inject private FateLockedContentOverlay contentOverlay;
     @Inject private FateLockedFlashOverlay flashOverlay;
     @Inject private ChatMessageManager chatMessageManager;
     @Inject private ClientToolbar clientToolbar;
@@ -153,7 +191,10 @@ public class FateLockedPlugin extends Plugin
     @Inject private ItemManager itemManager;
     @Inject private Notifier notifier;
     @Inject private WorldMapPointManager worldMapPointManager;
+    @Inject private PluginManager pluginManager;
+    @Inject private EventBus eventBus;
     @Inject private InfoBoxManager infoBoxManager;
+    @Inject private SpriteManager spriteManager;
     @Inject private KeyManager keyManager;
     @Inject private MouseManager mouseManager;
     @Inject private OkHttpClient okHttpClient;
@@ -221,22 +262,66 @@ public class FateLockedPlugin extends Plugin
      * overlays read it through this volatile field.
      */
     private volatile DecisionService decisions = DecisionService.create(RulesSnapshot.empty(), null, null);
+    /** Counts scene loads, so overlays work a scene out once (U3). */
+    private volatile int sceneGeneration;
+    /** The loaded scene as the rules draw it, for the game view and the minimap. Client thread. */
+    private final SceneEdgesCache sceneEdgesCache = new SceneEdgesCache();
+    /** The colours the colour settings choose; overlays read it through this volatile field. */
+    private volatile Palette palette = Palette.defaults();
+    /** The parts of Here the player left open, as their profile keeps them: not a setting. */
+    static final String HERE_OPEN = "hereOpen";
+    /** The settings that change the palette. */
+    private static final Set<String> PALETTE_KEYS = new HashSet<>(Arrays.asList(
+        "colourPreset", "unlockedColor", "frontierColor", "lockedColor"));
     /** The bound account and character the decision service was built for (client thread). */
     private String decisionsBound = "";
     private String decisionsPlayer = "";
-    private final ChunkPanelViewModelFactory chunkPanelFactory =
-        new ChunkPanelViewModelFactory();
+    /** What the HUD shows, worked out each tick; the overlay draws it as it is (E6). */
+    private volatile HudModel hudModel = HudModel.NONE;
+    // The nearest bank and shop, and the rules and chunk they were found for.
+    private DecisionService nearestDecisions;
+    private CanonicalChunk nearestChunk;
+    private FateLockedBundle.Nearest nearestBank;
+    private FateLockedBundle.Nearest nearestShop;
+    /** The sidebar's models, posted only when they change (C7, A9). */
+    private SidebarPublisher sidebarModels;
+    private final HerePresenter herePresenter = new HerePresenter();
+    /** Here, as last worked out, for the decision service and chunk it was worked out for. */
+    /** Two tiles, in local units: close enough to the thing the arrow points at. */
+    static final int POINTER_REACHED = 2 * Perspective.LOCAL_TILE_SIZE;
+    /** The arrow the Here card put up, or null. Client thread. */
+    private Pointer pointer;
+    /** Something the arrow's row names has loaded since the last tick, so it's looked for. Client thread. */
+    private boolean pointerLooks;
+    /** Shortest Path, asked for the way to a spot seen before when it runs; made on first use. */
+    private ShortestPathHandOff shortestPath;
+    /** Where what the Here card can point at was seen, for the way back to one out of sight. */
+    private final SpotMemory spots = new SpotMemory();
+    /** Spots seen are saved at most this often, in ticks: half a minute. */
+    static final int SPOTS_SAVE_TICKS = 50;
+    private int spotsSavedTick;
+    /** What each chunk's card can point at, for the rules in {@link #pointablesFor}. Client thread. */
+    private final Map<CanonicalChunk, Pointables> pointables = new HashMap<>();
+    private DecisionService pointablesFor;
+    private HereModel hereModel;
+    private DecisionService hereDecisions;
+    private CanonicalChunk hereChunk;
+    private GameFacts hereFacts = GameFacts.NONE;
+    /** The game's facts as last read, and for which tick, chunk and rules. */
+    private GameFacts lastFacts = GameFacts.NONE;
+    private int factsTick = -1;
+    private CanonicalChunk factsChunk;
+    private DecisionService factsDecisions;
+    /** What Strict Mode stopped lately, newest first, for its section. */
+    private List<String> recentStopped = java.util.Collections.emptyList();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
     /** What a click is, by id in the tracker's travel table: Strict Mode and the tags read the same answer (F4). */
     private final IntentClassifier intentClassifier = new IntentClassifier();
     /** Where the player and menu targets are, for the client this plugin reads (B14). */
     private volatile ChunkLocator chunkLocator;
+    private MenuFactsReader menuFactsReader;
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
-    /** Strict Mode acts only on rules confirmed or exported within this window. */
-    static final Duration FRESH_RULES_WINDOW = Duration.ofMinutes(15);
-    /** How far in the future an export time may be before it is not trusted. */
-    static final Duration EXPORT_CLOCK_SKEW = Duration.ofMinutes(5);
     private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
     /** Strict Mode's status as last worked out, for the HUD; null until then. */
     @Getter private volatile StrictModeStatusView strictModeStatus;
@@ -249,12 +334,15 @@ public class FateLockedPlugin extends Plugin
     private FateLockedTravelBlockOverlay travelBlockOverlay;
     private TravelGuardianOverlayLifecycle travelOverlayLifecycle;
 
-    /** How long the locked-entry screen flash lasts. */
-    public static final long LOCKED_FLASH_MS = 1600;
-    @Getter private volatile long lockedFlashUntil;
+    /** No locked-area fade is showing. */
+    static final long NO_FADE = Long.MIN_VALUE;
+    /** When the locked-area fade began, on the monotonic clock ({@link System#nanoTime}); NO_FADE for none. */
+    @Getter private volatile long lockedFadeAt = NO_FADE;
+    /** What stepping into a chunk says: a line per area, and the locked alert once per area (U10). */
+    private final LockedAreaAlerts areaAlerts = new LockedAreaAlerts();
 
     private CanonicalChunk lastChunk;
-    /** The decision for the chunk the player was last in, for the once-on-the-way-in alert. */
+    /** The decision for the chunk the player is in, for the sidebar's warnings. */
     private PermissionStatus lastStatus;
     /** Warnings count the sidebar shows, so each change is sent to it once. */
     private int shownWarningCount = -1;
@@ -313,8 +401,6 @@ public class FateLockedPlugin extends Plugin
      *  numeric ids, used raw like QUEST_COMPLETED to avoid API-constant churn. */
     private static final int BANK_GROUP_ID = 12;
     private static final int DEPOSIT_BOX_GROUP_ID = 192;
-    /** Crystal key — a gold-key item icon for the Keys infobox. */
-    private static final int KEYS_ICON_ITEM = 989;
     /** Plugin-specific data dir under .runelite/ — all file I/O is confined here. */
     private static final File DATA_DIR = new File(RuneLite.RUNELITE_DIR, "fate-locked");
 
@@ -336,6 +422,8 @@ public class FateLockedPlugin extends Plugin
     }
 
     private BufferedImage lockedPinImage;
+    /** The palette the pin image was drawn in. */
+    private Palette lockedPinPalette;
 
     /** Worn-gear slots currently above your unlocked tier, for the HUD (null = none). */
     @Getter private volatile String overTierSummary;
@@ -380,8 +468,11 @@ public class FateLockedPlugin extends Plugin
     {
         // startUp runs on the Swing thread: everything that reads the game or
         // changes plugin state waits for the client thread, through the gate.
+        // Before anything reads a setting, carry the old ones over (D2).
+        migrateSettings();
         ClientThreadGate started = new ClientThreadGate(clientThread, new PluginSession());
         gate = started;
+        sidebarModels = new SidebarPublisher(panel);
         connectionSettings.clearLegacySettings();
         File dataDirectory = dataDirectory();
         if (!dataDirectory.exists()) dataDirectory.mkdirs();
@@ -397,7 +488,7 @@ public class FateLockedPlugin extends Plugin
             Clock.systemUTC(),
             started::run,
             relayImporter,
-            panel::updateConnection);
+            snapshot -> started.run(this::refreshSidebar));
 
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
@@ -415,7 +506,7 @@ public class FateLockedPlugin extends Plugin
             this::writeTravelChat,
             this::writeTravelAudit,
             (stage, error) -> log.debug(
-                "Travel Guardian {} failed: {}", stage, error.getMessage()),
+                "Strict Mode {} failed: {}", stage, error.getMessage()),
             Clock.systemUTC());
         Runnable pauseStrictMode = () -> started.run(this::pauseStrictModeForSixtySeconds);
         travelBlockOverlay = new FateLockedTravelBlockOverlay(
@@ -428,9 +519,9 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(sceneOverlay);
         overlayManager.add(minimapOverlay);
         overlayManager.add(hudOverlay);
-        overlayManager.add(contentOverlay);
         overlayManager.add(flashOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
+        travelBlockOverlay.setPalette(this::palette);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
             () -> overlayManager.add(travelBlockOverlay),
             () -> mouseManager.registerMouseListener(travelBlockOverlay),
@@ -438,29 +529,30 @@ public class FateLockedPlugin extends Plugin
             () -> overlayManager.remove(travelBlockOverlay));
         travelOverlayLifecycle.start();
 
-        wirePanelActions(
-            panel,
-            this::reimportFromClipboard,
-            this::loadNewestBackupFile,
-            this::connectTracker);
-        panel.setGuardianCallbacks(
-            pauseStrictMode,
-            () -> started.run(() -> { strictPause.resume(); updateStrictModePanel(); }),
-            () -> configManager.setConfiguration(
-                FateLockedConfig.GROUP, "strictModeIntroSeen", true));
-        panel.setCheckNowCallback(this::checkTrackerNow);
+        panel.onAction(this::onSidebarAction);
+        panel.onStrictModeToggle(this::setStrictMode);
+        panel.onSyncToggle(this::setOnlineSync);
+        panel.onIntroDismiss(() -> configManager.setConfiguration(
+            FateLockedConfig.GROUP, "strictModeIntroSeen", true));
+        panel.onHereFold(this::saveHereOpen);
+        panel.openHere(hereOpen());
+        panel.onHerePoint((category, row) -> gate.run(() -> pointTo(category, row)));
+        panel.onHereClearPoint(() -> gate.run(this::clearPointer));
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
 
         started.run(() -> {
+            refreshPalette();
             startSessionTracking();
             updateStrictModePanel();
             updateStrictAuditPanel();
             updatePanelRollInbox();
+            refreshSidebar();
             refreshInfoBoxes();
         });
         loadSavedRules();
+        loadSpots();
         keyManager.registerKeyListener(reimportHotkey);
         keyManager.registerKeyListener(pauseStrictHotkey);
         startTrackerPoll();
@@ -480,7 +572,7 @@ public class FateLockedPlugin extends Plugin
             }
             catch (RuntimeException ex)
             {
-                log.debug("Could not fully clean up Travel Guardian overlay: {}",
+                log.debug("Could not fully clean up Strict Mode's overlay: {}",
                     ex.getMessage());
             }
         }
@@ -488,7 +580,6 @@ public class FateLockedPlugin extends Plugin
         overlayManager.remove(sceneOverlay);
         overlayManager.remove(minimapOverlay);
         overlayManager.remove(hudOverlay);
-        overlayManager.remove(contentOverlay);
         overlayManager.remove(flashOverlay);
         if (navButton != null)
         {
@@ -498,7 +589,10 @@ public class FateLockedPlugin extends Plugin
         keyManager.unregisterKeyListener(reimportHotkey);
         keyManager.unregisterKeyListener(pauseStrictHotkey);
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
+        worldMapPointManager.removeIf(WayPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
+        dropPointer();
+        saveSpots();
         active = ActiveRules.NONE;
         // A pause belongs to this start: turning the plugin off and on ends it.
         strictPause.resume();
@@ -506,6 +600,134 @@ public class FateLockedPlugin extends Plugin
         decisionsBound = "";
         decisionsPlayer = "";
         lastChunk = null;
+        lastStatus = null;
+        areaAlerts.forget();
+        lockedFadeAt = NO_FADE;
+        hudModel = HudModel.NONE;
+    }
+
+    /**
+     * RuneLite writes each profile's defaults on a switch; its old settings are carried over
+     * too, and its colours are drawn.
+     */
+    @Subscribe
+    public void onProfileChanged(ProfileChanged ev)
+    {
+        migrateSettings();
+        gate.run(this::refreshPalette);
+        if (panel != null)
+        {
+            panel.openHere(hereOpen());
+        }
+    }
+
+    /**
+     * The parts of Here the player left open, as their RuneLite profile keeps them; none
+     * when the profile can't be read, which never stops the plugin starting.
+     */
+    Set<String> hereOpen()
+    {
+        String saved;
+        try
+        {
+            saved = configManager.getConfiguration(FateLockedConfig.GROUP, HERE_OPEN);
+        }
+        catch (RuntimeException e)
+        {
+            log.warn("Could not read which parts of Here were left open: {}", e.getMessage());
+            saved = null;
+        }
+        Set<String> open = new TreeSet<>();
+        if (saved != null)
+        {
+            for (String key : saved.split(","))
+            {
+                if (!key.trim().isEmpty())
+                {
+                    open.add(key.trim());
+                }
+            }
+        }
+        return open;
+    }
+
+    private void saveHereOpen(Set<String> open)
+    {
+        if (open.isEmpty())
+        {
+            configManager.unsetConfiguration(FateLockedConfig.GROUP, HERE_OPEN);
+        }
+        else
+        {
+            configManager.setConfiguration(FateLockedConfig.GROUP, HERE_OPEN, String.join(",", open));
+        }
+    }
+
+    /** Which load of the scene this is; it changes whenever a scene loads. */
+    int sceneGeneration()
+    {
+        return sceneGeneration;
+    }
+
+    /** The loaded scene's edges and locked land under these rules, on this plane. Client thread. */
+    SceneEdges sceneEdges(DecisionService rules, WorldView view, int plane)
+    {
+        return sceneEdgesCache.get(rules, view, plane, sceneGeneration, chunkLocator());
+    }
+
+    /** The colours everything is drawn in (U15): a preset, or the player's own. Client thread. */
+    Palette palette()
+    {
+        return palette;
+    }
+
+    /** The palette these settings choose. The custom colours count only under Custom. */
+    static Palette palette(FateLockedConfig config)
+    {
+        return Palette.of(Palette.Preset.valueOf(config.colourPreset().name()),
+            config.unlockedColor(), config.frontierColor(), config.lockedColor());
+    }
+
+    /** Work the palette out again from the settings, hand it to the sidebar, and redraw the pins in it. */
+    private void refreshPalette()
+    {
+        palette = palette(config);
+        SidebarPublisher models = sidebarModels();
+        if (models != null)
+        {
+            models.palette(palette);
+        }
+        if (config.worldMapMarkers())
+        {
+            refreshWorldMapMarkers();
+        }
+    }
+
+    /** Carry each player's settings from before Stage 3 over to the merged ones (D2). */
+    private void migrateSettings()
+    {
+        try
+        {
+            SettingsMigration.migrate(new SettingsMigration.ConfigStore()
+            {
+                @Override
+                public String get(String key)
+                {
+                    return configManager.getConfiguration(FateLockedConfig.GROUP, key);
+                }
+
+                @Override
+                public void set(String key, String value)
+                {
+                    configManager.setConfiguration(FateLockedConfig.GROUP, key, value);
+                }
+            });
+        }
+        catch (RuntimeException error)
+        {
+            // Settings that can't be carried over start at their defaults; the plugin still starts.
+            log.warn("Could not carry old Fate Locked settings over: {}", error.getMessage());
+        }
     }
 
     /**
@@ -517,19 +739,20 @@ public class FateLockedPlugin extends Plugin
     public void onConfigChanged(ConfigChanged ev)
     {
         if (!FateLockedConfig.GROUP.equals(ev.getGroup())) return;
-        panel.refreshConfig(ev.getKey());
         String key = ev.getKey();
         gate.run(() -> applyConfigChange(key));
     }
 
     private void applyConfigChange(String key)
     {
-        if ("warnOverTierGear".equals(key))
+        if (PALETTE_KEYS.contains(key))
         {
-            recomputeOverTierGear();
+            refreshPalette();
         }
-        else if ("warnLockedSlayer".equals(key))
+        else if ("ruleWarnings".equals(key))
         {
+            // One switch warns about both, so each is worked out again.
+            recomputeOverTierGear();
             recomputeSlayer();
         }
         else if ("worldMapMarkers".equals(key))
@@ -557,11 +780,13 @@ public class FateLockedPlugin extends Plugin
             {
                 connectionController.networkAccessChanged();
             }
+            refreshSidebar();
         }
         else if (TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key))
         {
             panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
             updatePanelRollInbox();
+            refreshSidebar();
         }
     }
 
@@ -569,13 +794,25 @@ public class FateLockedPlugin extends Plugin
     public void onGameStateChanged(GameStateChanged ev)
     {
         GameState state = ev.getGameState();
+        if (state == GameState.LOADING)
+        {
+            // A new scene, even at the same base, which instances reuse.
+            sceneGeneration++;
+            return;
+        }
         if (state == GameState.LOGIN_SCREEN)
         {
             // Logged out: the next login warns and announces afresh.
             awaitingLogin = true;
+            hudModel = HudModel.NONE;
+            endWay(pointer);
+            pointer = null;
+            pointerLooks = false;
+            saveSpots();
             forgetLoginWarnings();
             trackerLoggedIn(false);
             refreshDecisions();
+            refreshSidebar();
             return;
         }
         if (state == GameState.LOGGING_IN || state == GameState.HOPPING
@@ -682,10 +919,11 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Let the account and gear warnings, and the chunk announcement, show once more. */
+    /** Let the account and gear warnings, and the area's line and alert, show once more. */
     private void forgetLoginWarnings()
     {
         lastChunk = null;
+        areaAlerts.forget();
         lastAccountWarned = null;
         warnedOverTier.clear();
     }
@@ -807,10 +1045,7 @@ public class FateLockedPlugin extends Plugin
                         }
                     });
                 }
-                if (config.warnLockedSlayer())
-                {
-                    recomputeSlayer();
-                }
+                recomputeSlayer();
             }
         }
     }
@@ -824,10 +1059,10 @@ public class FateLockedPlugin extends Plugin
     }
 
     /** The current slayer task's decision when the rules lock it, else null (B11, R16). */
-    private Decision lockedSlayerTask(DecisionService ruleDecisions)
+    Decision lockedSlayerTask(DecisionService ruleDecisions)
     {
         SlayerAssignment assignment = slayerAssignment;
-        if (!config.warnLockedSlayer() || assignment == null) return null;
+        if (!config.ruleWarnings() || assignment == null) return null;
         // Allowed, not ready or unknown: no warning.
         Decision decision = ruleDecisions.slayerTask(assignment.getMaster(), assignment.getTask(), assignment.getLocation());
         return decision.isLocked() ? decision : null;
@@ -868,7 +1103,7 @@ public class FateLockedPlugin extends Plugin
     {
         // Locked-bank warning is independent of the roll-nudge toggle.
         if ((ev.getGroupId() == BANK_GROUP_ID || ev.getGroupId() == DEPOSIT_BOX_GROUP_ID)
-            && config.warnLockedBank())
+            && config.ruleWarnings())
         {
             warnLockedBankIfNeeded();
         }
@@ -891,14 +1126,45 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Build the shared compact model for the current chunk. */
-    ChunkPanelViewModel viewModelFor(DecisionService ruleDecisions, CanonicalChunk chunk)
+    /** What the HUD shows now. */
+    HudModel hudModel()
     {
-        if (chunk == null) return null;
-        return chunkPanelFactory.create(
-            ruleDecisions,
-            chunk,
-            trackerPaired() ? trackerLastSync() : null);
+        return hudModel;
+    }
+
+    /**
+     * Work the HUD out again for the player's chunk, null when it can't be found; a model like
+     * the last one is kept, so the overlay builds its panel again only on a change.
+     */
+    private void refreshHud(CanonicalChunk current)
+    {
+        FateLockedConfig.HudMode mode = config.hudMode();
+        DecisionService ruleDecisions = decisions;
+        // The nearest bank and shop are found again only when the chunk or the rules change.
+        boolean near = mode != FateLockedConfig.HudMode.OFF && current != null;
+        if (near && (ruleDecisions != nearestDecisions || !current.equals(nearestChunk)))
+        {
+            nearestDecisions = ruleDecisions;
+            nearestChunk = current;
+            nearestBank = ruleDecisions.nearestBank(current);
+            nearestShop = ruleDecisions.nearestShop(current);
+        }
+        HudModel next = HudPresenter.present(HudPresenter.Facts.builder()
+            .mode(mode)
+            .decisions(ruleDecisions)
+            .chunk(current)
+            .strict(strictModeStatus)
+            .bank(near ? nearestBank : null)
+            .shop(near ? nearestShop : null)
+            .slayerWarning(slayerTaskWarn)
+            .overTier(overTierSummary)
+            .run(getBundle().getState())
+            .here(mode == FateLockedConfig.HudMode.DETAILED ? hereModel(ruleDecisions) : null)
+            .build());
+        if (!next.equals(hudModel))
+        {
+            hudModel = next;
+        }
     }
 
     private String loggedInName()
@@ -1151,7 +1417,7 @@ public class FateLockedPlugin extends Plugin
     /** Worn items these rules put above their slot's unlocked tier. */
     private List<OverTierItem> overTierGear(DecisionService ruleDecisions)
     {
-        if (!config.warnOverTierGear()) return Collections.emptyList();
+        if (!config.ruleWarnings()) return Collections.emptyList();
         ItemContainer eq = client.getItemContainer(InventoryID.WORN);
         if (eq == null) return Collections.emptyList();
 
@@ -1219,7 +1485,6 @@ public class FateLockedPlugin extends Plugin
      */
     private void checkBoundAccount()
     {
-        if (!config.warnAccountMismatch()) return;
         String bound = AccountBinding.boundAccount(getBundle());
         if (bound == null) return;
 
@@ -1242,7 +1507,6 @@ public class FateLockedPlugin extends Plugin
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(msg.build())
             .build());
-        client.playSoundEffect(2277);
         notifyIfEnabled("You're logged in as " + current + ", not the bound account " + bound);
     }
 
@@ -1260,43 +1524,44 @@ public class FateLockedPlugin extends Plugin
         checkBoundAccount();
 
         CanonicalChunk current = chunkLocator().player();
-        if (current == null) return;
+        if (current != null && !current.equals(lastChunk))
+        {
+            enter(current);
+        }
+        refreshWarningCount();
+        refreshHud(current);
+        keepPointer(current);
+        saveSpotsIfDue();
+    }
 
-        FateLockedBundle b = getBundle();
+    /** The player crossed into this chunk: its line, sound and fade, as the area and the alert setting say. */
+    private void enter(CanonicalChunk current)
+    {
         Decision entry = decisions.chunk(current);
         PermissionStatus status = entry.getStatus();
         String label = decisions.areaName(current);
-
-        boolean changed = !current.equals(lastChunk);
-        if (changed)
+        // Only the rules' own answers are announced (B6): never a chunk
+        // they don't map (dungeons, instances, every chunk before rules
+        // load), nor another character's rules. NOT_READY is owned, so
+        // it never alerts. Lines and alerts are per area, not per chunk.
+        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label),
+            client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
+        if (alert.isLine())
         {
-            panel.update(b, viewModelFor(decisions, current));
-            // Only the rules' own answers are announced (B6): never a chunk
-            // they don't map (dungeons, instances, every chunk before rules
-            // load), nor another character's rules. NOT_READY is owned, so
-            // it reads as unlocked and never alerts.
-            if (config.chatOnEnter() && status != PermissionStatus.UNKNOWN)
-            {
-                announceEntry(current, label, status != PermissionStatus.LOCKED ? null : entry);
-            }
-            // Flash, sound and notification once on the way INTO locked
-            // territory, not at every chunk inside it, whatever the chat
-            // setting.
-            if (status == PermissionStatus.LOCKED && lastStatus != PermissionStatus.LOCKED)
-            {
-                lockedFlashUntil = System.currentTimeMillis() + LOCKED_FLASH_MS;
-                if (config.warnOnLocked())
-                {
-                    client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
-                    notifyIfEnabled(label == null
-                        ? "Entered LOCKED chunk (" + current.getCx() + ", " + current.getCy() + ")"
-                        : "Entered LOCKED chunk: " + label);
-                }
-            }
-            lastChunk = current;
-            lastStatus = status;
+            announceEntry(current, label, entry);
         }
-        refreshWarningCount();
+        if (alert.isFade())
+        {
+            lockedFadeAt = System.nanoTime();
+        }
+        if (alert.isSound())
+        {
+            client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
+            notifyIfEnabled("You've entered a locked area: "
+                + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
+        }
+        lastChunk = current;
+        lastStatus = status;
     }
 
     /**
@@ -1347,9 +1612,9 @@ public class FateLockedPlugin extends Plugin
 
     private void updateStrictAuditPanel()
     {
-        panel.updateRecentPrevented(
-            StrictModeAuditPresenter.recentPrevented(
-                strictAuditLog == null ? null : strictAuditLog.recent(5)));
+        recentStopped = StrictModeAuditPresenter.recentPrevented(
+            strictAuditLog == null ? null : strictAuditLog.recent(5));
+        refreshSidebar();
     }
     void pauseStrictModeForSixtySeconds()
     {
@@ -1373,7 +1638,7 @@ public class FateLockedPlugin extends Plugin
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
             strictModeReadiness().getReason());
         strictModeStatus = status;
-        panel.updateStrictMode(status);
+        refreshSidebar();
     }
 
     /**
@@ -1403,40 +1668,30 @@ public class FateLockedPlugin extends Plugin
      */
     boolean rulesAreFresh()
     {
-        Instant now = Instant.now();
         ActiveRules current = active;
-        RulesSource source = current.getSource();
-        if (source == RulesSource.NONE) return false;
-        if (source == RulesSource.RELAY && trackerPaired())
-        {
-            Instant confirmed = trackerLastSync();
-            return confirmed != null
-                && Duration.between(confirmed, now).compareTo(FRESH_RULES_WINDOW) < 0;
-        }
-        Instant exported = current.getBundle().exportedAt();
-        if (exported == null || exported.isAfter(now.plus(EXPORT_CLOCK_SKEW))) return false;
-        return Duration.between(exported, now).compareTo(FRESH_RULES_WINDOW) < 0;
+        return FreshnessPolicy.isFresh(current.getSource(), trackerPaired(), trackerLastSync(),
+            current.getBundle().exportedAt(), Instant.now());
     }
     /**
-     * Tag right-click menu entries with a red (LOCKED) marker: the "are you
-     * sure?" before you ever click. The decision service decides (B2), so a
-     * tag never disagrees with the sidebar or Strict Mode, and another
-     * character, or nobody logged in, sees none.
+     * Tag right-click menu entries " (Locked)", in the palette's locked colour: the
+     * "are you sure?" before you ever click. The decision service decides (B2), so a
+     * tag never disagrees with the sidebar or Strict Mode, and another character, or
+     * nobody logged in, sees none.
      */
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
     {
-        if (!config.tagLockedMenus() && !config.tagLockedTeleports()) return;
+        MenuEntry entry = event.getMenuEntry();
+        // Most options could never be tagged: pass them over before reading anything (F1).
+        if (!MenuTagFilter.mayTag(entry.getType()) || !config.tagLockedOptions()) return;
         DecisionService ruleDecisions = decisions;
         if (ruleDecisions.trust() != Trust.TRUSTED) return;
-
-        MenuEntry entry = event.getMenuEntry();
         if (!taggedLocked(entry, ruleDecisions)) return;
         String t = entry.getTarget();
         String base = t == null ? "" : t;
-        if (!base.contains("(LOCKED)"))
+        if (!base.contains(MenuFacts.LOCKED_MARK))
         {
-            entry.setTarget(base + " <col=ef4444>(LOCKED)</col>");
+            entry.setTarget(base + " <col=" + palette.hex(Palette.Tone.BAD) + ">" + MenuFacts.LOCKED_MARK + "</col>");
         }
     }
 
@@ -1449,32 +1704,43 @@ public class FateLockedPlugin extends Plugin
      */
     private boolean taggedLocked(MenuEntry entry, DecisionService ruleDecisions)
     {
-        TravelMatch travel = intentClassifier.classify(new MenuFactsReader(client).read(entry), ruleDecisions.travelTable());
+        MenuFacts facts = menuFacts().read(entry);
+        TravelMatch travel = intentClassifier.classify(facts, ruleDecisions.travelTable());
         if (travel != null)
         {
-            return config.tagLockedTeleports() && travel.getOption().destination() != null
+            return travel.getOption().destination() != null
                 && ruleDecisions.travel(travel.getMethod(), travel.getOption()).isLocked();
         }
-        GuardedAction action = guardedActionFactory.from(entry, chunkLocator());
-        return config.tagLockedMenus() && action.getChunk() != null
+        GuardedAction action = guardedActionFactory.from(facts, entry, chunkLocator());
+        return action.getChunk() != null
             && ruleDecisions.chunk(action.getChunk()).isLocked();
     }
 
-    /** Chat line for entering a mapped chunk; {@code region} is null for a chunk only the tracker names. */
-    /** One chat line per chunk entered; a locked one says why, in the tracker's words (E8). */
-    private void announceEntry(CanonicalChunk chunk, String region, Decision locked)
+    /**
+     * What groups chunks into one area for chat and alerts: the area's name, else the tracker's
+     * reason, so the sea is one area under "Needs Sailing and Pandemonium", else the chunk.
+     */
+    private static String areaKey(CanonicalChunk chunk, Decision entry, String area)
     {
+        if (area != null) return area;
+        if (entry.getReason() != null) return "reason:" + entry.getReason();
+        return "chunk:" + chunk.getCx() + "," + chunk.getCy();
+    }
+
+    /**
+     * The line for entering an area: its name and its status in words, and why it is locked
+     * or not ready, in the tracker's words (E8). A chunk only the tracker maps is named by its
+     * coordinates. Words, not marks: the game's chat font has no ✓ or ⚠.
+     */
+    private void announceEntry(CanonicalChunk chunk, String area, Decision entry)
+    {
+        String status = Terms.place(entry.getStatus());
+        boolean why = entry.getReason() != null
+            && (entry.getStatus() == PermissionStatus.LOCKED || entry.getStatus() == PermissionStatus.NOT_READY);
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-            .append(ChatColorType.NORMAL).append("Chunk ")
-            .append("(" + chunk.getCx() + ", " + chunk.getCy() + ")");
-        if (region != null)
-        {
-            msg.append(ChatColorType.NORMAL).append(" · ")
-               .append(ChatColorType.HIGHLIGHT).append(region);
-        }
-        msg.append(ChatColorType.NORMAL).append(locked == null ? " ✓ unlocked"
-            : locked.getReason() == null ? " ⚠ LOCKED" : " ⚠ LOCKED: " + locked.getReason());
+            .append(area != null ? area : "Chunk (" + chunk.getCx() + ", " + chunk.getCy() + ")")
+            .append(ChatColorType.NORMAL).append(": " + status + (why ? " — " + entry.getReason() : ""));
 
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
@@ -1525,11 +1791,11 @@ public class FateLockedPlugin extends Plugin
     private void useSavedRules(SavedRules saved, ParsedRules rules)
     {
         if (!RulesPrecedence.mayReplace(active.getSource(), RulesPrecedence.Arrival.SAVED)
-            || !switchRules(rules, saved.getSource()))
+            || !switchRules(rules, saved.getSource(), RulesPrecedence.Arrival.SAVED, saved.getSavedAt()))
         {
             return;
         }
-        panel.flashStatus("saved rules from " + LocalTimeText.of(saved.getSavedAt()), true);
+        panel.flashStatus(Notices.restored(saved.getSavedAt(), Instant.now(), ZoneId.systemDefault()), true);
         log.info("Fate Locked rules restored from the last start: {} regions",
             rules.bundle.getRegionChunks().size());
         TrackerConnectionController controller = connectionController;
@@ -1568,8 +1834,7 @@ public class FateLockedPlugin extends Plugin
                 {
                     if (explicit)
                     {
-                        panel.flashStatus(
-                            "no backup file in .runelite/fate-locked — rules unchanged", false);
+                        panel.flashStatus(Notices.NO_BACKUP_FILE, false);
                     }
                     onClient.run(this::refreshPanel);
                     return;
@@ -1582,8 +1847,7 @@ public class FateLockedPlugin extends Plugin
             catch (IOException | RuntimeException ex)
             {
                 log.warn("Failed to load backup file {}: {}", file, ex.getMessage());
-                panel.flashStatus(
-                    "couldn't read the backup file — rules unchanged", false);
+                panel.flashStatus(Notices.BACKUP_UNREADABLE, false);
                 onClient.run(this::refreshPanel);
                 return;
             }
@@ -1601,9 +1865,9 @@ public class FateLockedPlugin extends Plugin
         {
             return;
         }
-        if (!switchRules(parsed, RulesSource.FILE))
+        if (!switchRules(parsed, RulesSource.FILE, arrival, Instant.now()))
         {
-            panel.flashStatus("couldn't read the backup file — rules unchanged", false);
+            panel.flashStatus(Notices.BACKUP_UNREADABLE, false);
             return;
         }
         saveRules(RulesSource.FILE, parsed.text, null);
@@ -1612,8 +1876,8 @@ public class FateLockedPlugin extends Plugin
             file, parsed.bundle.getRegionChunks().size(), parsed.bundle.getUnlockedRegions().size());
         if (explicit)
         {
-            panel.flashStatus(
-                "loaded backup file: " + parsed.bundle.getRegionChunks().size() + " regions", true);
+            panel.flashStatus(Notices.loadedBackupFile(parsed.bundle.exportedAt(), Instant.now(),
+                ZoneId.systemDefault()), true);
         }
     }
 
@@ -1687,12 +1951,12 @@ public class FateLockedPlugin extends Plugin
         }
         catch (Exception ex)
         {
-            panel.flashStatus("couldn't read clipboard", false);
+            panel.flashStatus(Notices.CLIPBOARD_UNREADABLE, false);
             return;
         }
         if (text.isEmpty())
         {
-            panel.flashStatus("clipboard empty", false);
+            panel.flashStatus(Notices.CLIPBOARD_EMPTY, false);
             return;
         }
         importClipboardText(text);
@@ -1716,8 +1980,7 @@ public class FateLockedPlugin extends Plugin
         String trimmed = json == null ? "" : json.trim();
         if (trimmed.matches("[0-9a-f]{32}"))
         {
-            panel.flashStatus(
-                "pairing code detected — use Connect tracker", false);
+            panel.flashStatus(Notices.PAIRING_CODE, false);
             return;
         }
         ClientThreadGate onClient = gate;
@@ -1736,7 +1999,7 @@ public class FateLockedPlugin extends Plugin
                 {
                     log.warn("Clipboard bundle could not be parsed: {}", ex.getMessage());
                 }
-                panel.flashStatus("import failed — using previous rules", false);
+                panel.flashStatus(Notices.IMPORT_FAILED, false);
                 return;
             }
             onClient.run(() -> useClipboardRules(parsed));
@@ -1746,14 +2009,14 @@ public class FateLockedPlugin extends Plugin
     /** On the client thread: switch to rules read from the clipboard. */
     private void useClipboardRules(ParsedRules parsed)
     {
-        if (!switchRules(parsed, RulesSource.IMPORT))
+        if (!switchRules(parsed, RulesSource.IMPORT, RulesPrecedence.Arrival.IMPORT, Instant.now()))
         {
-            panel.flashStatus("import failed — using previous rules", false);
+            panel.flashStatus(Notices.IMPORT_FAILED, false);
             return;
         }
         saveRules(RulesSource.IMPORT, parsed.text, null);
-        panel.flashStatus(
-            "imported " + parsed.bundle.getRegionChunks().size() + " regions", true);
+        panel.flashStatus(Notices.imported(parsed.bundle.exportedAt(), Instant.now(), ZoneId.systemDefault()),
+            true);
         trackerRulesReplaced();
         log.info(
             "Fate Locked bundle imported from the clipboard: {} regions",
@@ -1847,14 +2110,12 @@ public class FateLockedPlugin extends Plugin
     private boolean acceptRelayRules(ParsedRules rules, String version)
     {
         FateLockedBundle parsed = rules.bundle;
-        if (!switchRules(rules, RulesSource.RELAY))
+        if (!switchRules(rules, RulesSource.RELAY, RulesPrecedence.Arrival.RELAY, Instant.now()))
         {
             return false;
         }
         saveRules(RulesSource.RELAY, rules.text, version);
-        panel.flashStatus(
-            "synced " + parsed.getRegionChunks().size()
-                + " regions", true);
+        panel.flashStatus(Notices.SYNCED, true);
         log.info(
             "Fate Locked bundle imported from relay: {} regions",
             parsed.getRegionChunks().size());
@@ -1868,7 +2129,8 @@ public class FateLockedPlugin extends Plugin
      * leaves everything as it was; a failure while showing one change is
      * logged, and neither undoes the switch nor stops the others.
      */
-    private boolean switchRules(ParsedRules candidate, RulesSource source)
+    private boolean switchRules(ParsedRules candidate, RulesSource source, RulesPrecedence.Arrival arrival,
+        Instant arrivedAt)
     {
         RulesEffects effects;
         try
@@ -1880,7 +2142,7 @@ public class FateLockedPlugin extends Plugin
             log.warn("New rules could not be applied: {}", ex.getMessage());
             return false;
         }
-        active = new ActiveRules(candidate.bundle, candidate.snapshot, source);
+        active = new ActiveRules(candidate.bundle, candidate.snapshot, source, arrival, arrivedAt);
         refreshDecisions();
         show(candidate.bundle, effects);
         return true;
@@ -1922,6 +2184,13 @@ public class FateLockedPlugin extends Plugin
         return decisions;
     }
 
+    /** The menu tag's reader of menu entries, made on first use (F1); client thread only. */
+    private MenuFactsReader menuFacts()
+    {
+        if (menuFactsReader == null) menuFactsReader = new MenuFactsReader(client);
+        return menuFactsReader;
+    }
+
     /** The one reader of where the player and menu targets are (B14). */
     ChunkLocator chunkLocator()
     {
@@ -1948,9 +2217,7 @@ public class FateLockedPlugin extends Plugin
      */
     private RulesEffects effectsOf(FateLockedBundle rules, DecisionService ruleDecisions)
     {
-        CanonicalChunk current = chunkLocator().player();
         return new RulesEffects(
-            viewModelFor(ruleDecisions, current),
             overTierGear(ruleDecisions),
             lockedSlayerTask(ruleDecisions));
     }
@@ -1960,10 +2227,7 @@ public class FateLockedPlugin extends Plugin
     {
         overTierSummary = overTierSummary(effects.overTierGear);
         slayerTaskWarn = effects.lockedSlayerTask == null ? null : effects.lockedSlayerTask.getLabel();
-        showIsolated("sidebar", () -> {
-            panel.updateTrackerAccount(AccountBinding.boundAccount(rules));
-            panel.update(rules, effects.view);
-        });
+        showIsolated("sidebar", this::refreshSidebar);
         showIsolated("gear warning", () -> warnOverTierGear(effects.overTierGear));
         showIsolated("Slayer warning", () -> warnLockedSlayerTask(effects.lockedSlayerTask));
     }
@@ -1983,17 +2247,14 @@ public class FateLockedPlugin extends Plugin
     /** Everything a rule set means, worked out before anything changes. */
     private static final class RulesEffects
     {
-        final ChunkPanelViewModel view;
         final List<OverTierItem> overTierGear;
         /** The current Slayer task's decision when the rules lock it; null otherwise. */
         final Decision lockedSlayerTask;
 
         RulesEffects(
-            ChunkPanelViewModel view,
             List<OverTierItem> overTierGear,
             Decision lockedSlayerTask)
         {
-            this.view = view;
             this.overTierGear = overTierGear;
             this.lockedSlayerTask = lockedSlayerTask;
         }
@@ -2055,72 +2316,64 @@ public class FateLockedPlugin extends Plugin
         }
     }
 
-    /** Small red lock-style pin, generated once. */
+    /** A small padlock pin in the palette's locked colour, drawn again only when the palette changes. */
     private BufferedImage lockedPinImage()
     {
-        if (lockedPinImage != null) return lockedPinImage;
+        Palette current = palette;
+        if (lockedPinImage != null && lockedPinPalette == current) return lockedPinImage;
         int s = 15;
         BufferedImage img = new BufferedImage(s, s, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(new Color(239, 68, 68, 235));
+        g.setColor(current.lockedEdge());
         g.fillOval(1, 1, s - 2, s - 2);
-        g.setColor(new Color(20, 20, 20, 200));
+        g.setColor(Palette.UNDERLAY);
         g.drawOval(1, 1, s - 2, s - 2);
         g.setColor(Color.WHITE);
         g.fillRect(s / 2 - 2, s / 2, 5, 4);          // lock body
         g.drawArc(s / 2 - 2, s / 2 - 3, 4, 5, 0, 180); // shackle
         g.dispose();
         lockedPinImage = img;
+        lockedPinPalette = current;
         return img;
     }
 
-    // ── Infoboxes (keys / fate / unlock progress) ─────────────────────────────
+    // ── Infoboxes: Keys, Fate Points and progress (A15, E7) ──────────────────
 
     private void refreshInfoBoxes()
     {
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
         if (!config.showInfoBoxes()) return;
-
-        infoBoxManager.addInfoBox(new FateLockedInfoBox(itemManager.getImage(KEYS_ICON_ITEM), this,
-            new Color(245, 158, 11),
-            () -> { FateLockedBundle.RunState s = getBundle().getState(); return s == null ? "—" : String.valueOf(s.getKeys()); },
-            () -> {
-                FateLockedBundle.RunState s = getBundle().getState();
-                return s == null ? "Fate Locked keys"
-                    : "Keys: " + s.getKeys() + " · Omni " + s.getSpecialKeys() + " · Chaos " + s.getChaosKeys();
-            }));
-
-        infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(168, 85, 247)), this,
-            new Color(196, 145, 255),
-            () -> { FateLockedBundle.RunState s = getBundle().getState(); return s == null ? "—" : String.valueOf(s.getFatePoints()); },
-            () -> "Fate points"));
-
-        infoBoxManager.addInfoBox(new FateLockedInfoBox(discIcon(new Color(52, 211, 153)), this,
-            new Color(52, 211, 153),
-            () -> ProgressText.infoBoxText(decisions.progress()),
-            () -> ProgressText.infoBoxTooltip(decisions.progress())));
-    }
-
-    /** A small filled-disc infobox icon in the given colour. */
-    private static BufferedImage discIcon(Color c)
-    {
-        BufferedImage img = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(c);
-        g.fillOval(1, 1, 14, 14);
-        g.setColor(new Color(0, 0, 0, 140));
-        g.drawOval(1, 1, 14, 14);
-        g.dispose();
-        return img;
-    }
-
-    /** The connect button, on the Swing thread: its job depends on the state shown. */
-    private void connectTracker()
-    {
-        switch (panel.connectAction())
+        for (FateLockedInfoBox.Kind kind : FateLockedInfoBox.Kind.values())
         {
+            FateLockedInfoBox box = new FateLockedInfoBox(kind, this);
+            Art art = kind.art();
+            if (art.kind() == Art.Kind.ITEM)
+            {
+                // RuneLite fills an item's image in once it loads.
+                box.setImage(itemManager.getImage(art.id(), art.detail(), false));
+                infoBoxManager.addInfoBox(box);
+            }
+            else
+            {
+                infoBoxManager.addInfoBox(box);
+                spriteManager.getSpriteAsync(art.id(), art.detail(), image -> {
+                    box.setImage(image);
+                    infoBoxManager.updateInfoBoxImage(box);
+                });
+            }
+        }
+    }
+
+    /** What the player asked for in the sidebar, on the Swing thread. */
+    private void onSidebarAction(CardAction action)
+    {
+        TrackerConnectionController controller = connectionController;
+        switch (action)
+        {
+            case CONNECT:
+                beginTrackerPairing();
+                break;
             case TURN_ON_SYNC:
                 turnOnOnlineSync();
                 break;
@@ -2131,15 +2384,663 @@ public class FateLockedPlugin extends Plugin
                 }
                 break;
             case CANCEL_REPAIR:
-                TrackerConnectionController controller = connectionController;
                 if (controller != null)
                 {
                     controller.cancelRepair();
                 }
                 break;
-            default:
-                beginTrackerPairing();
+            case CANCEL_PAIRING:
+                if (controller != null)
+                {
+                    controller.forgetPairing();
+                }
                 break;
+            case DISCONNECT:
+                if (controller != null && panel.confirmDisconnect())
+                {
+                    controller.forgetPairing();
+                }
+                break;
+            case OPEN_PAGE_AGAIN:
+                String code = controller == null ? "" : controller.activeCode();
+                if (!code.isEmpty())
+                {
+                    launchTrackerBrowser(PairingSupport.trackerPairingUrl(code));
+                }
+                break;
+            case CHECK_NOW:
+                checkTrackerNow();
+                break;
+            case IMPORT_CLIPBOARD:
+                reimportFromClipboard();
+                break;
+            case LOAD_BACKUP_FILE:
+                loadNewestBackupFile();
+                break;
+            case PAUSE_STRICT_MODE:
+                gate.run(this::pauseStrictModeForSixtySeconds);
+                break;
+            case RESUME_STRICT_MODE:
+                gate.run(() -> {
+                    strictPause.resume();
+                    updateStrictModePanel();
+                });
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** Strict Mode's switch in the sidebar, on the Swing thread. */
+    private void setStrictMode(boolean on)
+    {
+        try
+        {
+            configManager.setConfiguration(FateLockedConfig.GROUP, "strictMode", on);
+        }
+        catch (RuntimeException error)
+        {
+            log.warn("Could not save Strict Mode: {}", error.getMessage());
+            panel.flashStatus(Notices.STRICT_NOT_SAVED, false);
+            panel.restoreStrictMode();
+        }
+    }
+
+    /**
+     * The online-sync switch, on the Swing thread. Turning it on asks for consent
+     * first; the pairing is kept either way.
+     */
+    private void setOnlineSync(boolean on)
+    {
+        if (on && !panel.confirmNetworkConnection())
+        {
+            panel.restoreConnection();
+            return;
+        }
+        gate.run(() -> {
+            try
+            {
+                if (on)
+                {
+                    connectionSettings.allowNetworkAccess();
+                }
+                else
+                {
+                    connectionSettings.refuseNetworkAccess();
+                }
+            }
+            catch (RuntimeException error)
+            {
+                log.warn("Could not save online sync: {}", error.getMessage());
+                panel.flashStatus(on ? Notices.SYNC_NOT_ON : Notices.SYNC_NOT_OFF, false);
+                panel.restoreConnection();
+            }
+        });
+    }
+
+    /**
+     * On the client thread: work the sidebar out from the plugin's state (C7) and post
+     * what changed. Cheap enough for every tick; the presenters are pure.
+     */
+    void refreshSidebar()
+    {
+        SidebarPublisher models = sidebarModels();
+        if (models == null)
+        {
+            return;
+        }
+        ActiveRules current = active;
+        DecisionService ruleDecisions = decisions;
+        FateLockedBundle bundle = current.getBundle();
+        TrackerConnectionSnapshot connection = trackerSnapshot();
+        Instant now = Instant.now();
+        ZoneId zone = ZoneId.systemDefault();
+        String player = loggedInName();
+        models.status(StatusCardPresenter.present(StatusFacts.builder()
+            .connection(connection)
+            .source(current.getSource())
+            .arrival(current.getArrival())
+            .arrivedAt(current.getArrivedAt())
+            .exportedAt(bundle.exportedAt())
+            .legacy(current.getSnapshot().isLegacy())
+            .trust(ruleDecisions.trust())
+            .bound(ruleDecisions.isBound())
+            .boundAccount(AccountBinding.boundAccount(bundle))
+            .loggedInAs(player)
+            .paired(trackerPaired())
+            .fresh(rulesAreFresh())
+            .now(now)
+            .zone(zone)
+            .build()));
+        models.here(hereModel(ruleDecisions));
+        StrictModeStatusView strict = strictModeStatus;
+        if (strict != null)
+        {
+            models.strictMode(StrictModeSectionPresenter.present(strict, recentStopped));
+        }
+        models.run(RunPresenter.present(bundle, ruleDecisions, player));
+        TrackerConnectionSettings settings = connectionSettings;
+        models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
+            settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
+    }
+
+    /** The sidebar's publisher: made at startUp, or on first use by a test that sets the panel alone. */
+    private SidebarPublisher sidebarModels()
+    {
+        if (sidebarModels == null && panel != null)
+        {
+            sidebarModels = new SidebarPublisher(panel);
+        }
+        return sidebarModels;
+    }
+
+    /**
+     * Here for the place the player stands in, worked out again only when it, the rules or
+     * what the game says for its undecided rows change.
+     */
+    private HereModel hereModel(DecisionService ruleDecisions)
+    {
+        CanonicalChunk chunk = client.getLocalPlayer() == null ? null : chunkLocator().player();
+        GameFacts facts = gameFacts(ruleDecisions, chunk);
+        if (hereModel == null || ruleDecisions != hereDecisions || !java.util.Objects.equals(chunk, hereChunk)
+            || !facts.equals(hereFacts))
+        {
+            hereModel = herePresenter.present(ruleDecisions, chunk, facts);
+            hereDecisions = ruleDecisions;
+            hereChunk = chunk;
+            hereFacts = facts;
+        }
+        return hereModel;
+    }
+
+    /**
+     * The player clicked a row of Here (the owner's review, 28 Sept): put the game's arrow on
+     * the nearest one in the chunk they stand in, and say so. With none loaded near them, show
+     * the way to the nearest one seen there: the game's arrow on that spot, which the minimap
+     * points the way to, a pin on the world map, and Shortest Path's route when it runs. The
+     * same row again takes it down. Client thread.
+     */
+    void pointTo(String category, String row)
+    {
+        Pointer before = pointer;
+        clearPointer();
+        CanonicalChunk chunk = chunkLocator().player();
+        if (before != null && before.getCategory().equals(category) && before.getRow().equals(row)
+            && before.getChunk().equals(chunk))
+        {
+            return;
+        }
+        PointTarget target = PointTarget.of(category, row);
+        SceneSearch.Found found = target == null ? null : SceneSearch.nearest(client, chunkLocator(), chunk, target);
+        if (found != null)
+        {
+            pointAt(category, row, chunk, found, false, false);
+            return;
+        }
+        WorldPoint from = target == null || chunk == null ? null : chunkLocator().playerWorld();
+        SpotMemory.Spot spot = from == null ? null : spots.nearest(chunk, category, target.getLabel(),
+            new SpotMemory.Spot(from.getX(), from.getY(), from.getPlane()));
+        if (spot == null)
+        {
+            panel.showHerePointer(PointerText.notFound(row), false);
+            return;
+        }
+        WorldPoint to = new WorldPoint(spot.getX(), spot.getY(), spot.getPlane());
+        client.setHintArrow(to);
+        boolean routed = shortestPath().route(from, to);
+        pin(to, row);
+        pointer = new Pointer(category, row, chunk, null, null, client.getHintArrowPoint(), to, true, routed);
+        String place = HerePresenter.placeName(decisions, chunk);
+        panel.showHerePointer(routed ? PointerText.routed(row, place) : PointerText.remembered(row, place), true);
+    }
+
+    /** The game's arrow on something loaded, and the line saying so. */
+    private void pointAt(String category, String row, CanonicalChunk chunk, SceneSearch.Found found,
+        boolean remembered, boolean routed)
+    {
+        if (found.getNpc() != null)
+        {
+            client.setHintArrow(found.getNpc());
+        }
+        else
+        {
+            client.setHintArrow(found.getPoint());
+        }
+        pointer = new Pointer(category, row, chunk, found.getNpc(), found.getPoint(), client.getHintArrowPoint(),
+            null, remembered, routed);
+        panel.showHerePointer(PointerText.pointing(row, found.isSameFloor()), true);
+    }
+
+    /**
+     * Takes down the arrow the card put up, if it's still the one showing, with its pin and
+     * route, and its line. Client thread.
+     */
+    void clearPointer()
+    {
+        Pointer shown = pointer;
+        pointer = null;
+        pointerLooks = false;
+        if (shown != null && ours(shown))
+        {
+            client.clearHintArrow();
+        }
+        endWay(shown);
+        panel.showHerePointer(null, false);
+    }
+
+    /** The way to a spot seen before is over: its pin comes off the world map, and Shortest Path's route down. */
+    private void endWay(Pointer shown)
+    {
+        if (shown == null || !shown.isRemembered())
+        {
+            return;
+        }
+        worldMapPointManager.removeIf(WayPoint.class::isInstance);
+        if (shown.isRouted())
+        {
+            shortestPath().clear();
+        }
+    }
+
+    /**
+     * Each tick, while the card's arrow is up: gone once the player reaches it, or leaves the
+     * chunk when it was on something loaded there all along; forgotten if the game or another
+     * plugin has put up an arrow of its own since. The way to a spot seen before goes on from
+     * place to place (keepWay).
+     */
+    private void keepPointer(CanonicalChunk current)
+    {
+        Pointer shown = pointer;
+        if (shown == null)
+        {
+            return;
+        }
+        if (!ours(shown))
+        {
+            pointer = null;
+            pointerLooks = false;
+            endWay(shown);
+            panel.showHerePointer(null, false);
+            return;
+        }
+        if (shown.getSpot() != null)
+        {
+            keepWay(shown);
+            return;
+        }
+        Player local = client.getLocalPlayer();
+        LocalPoint at = shown.getNpc() != null ? shown.getNpc().getLocalLocation() : shown.getPoint();
+        LocalPoint player = local == null ? null : local.getLocalLocation();
+        if (!shown.isRemembered() && !shown.getChunk().equals(current)
+            || at != null && player != null && player.distanceTo(at) <= POINTER_REACHED)
+        {
+            clearPointer();
+        }
+    }
+
+    /**
+     * On the way to a spot seen before: the arrow moves onto the thing once one loads; and at
+     * the spot with none loaded, it has moved or gone, so the spot is forgotten.
+     */
+    private void keepWay(Pointer shown)
+    {
+        if (pointerLooks)
+        {
+            pointerLooks = false;
+            PointTarget target = PointTarget.of(shown.getCategory(), shown.getRow());
+            SceneSearch.Found found = target == null ? null
+                : SceneSearch.nearest(client, chunkLocator(), shown.getChunk(), target);
+            if (found != null)
+            {
+                pointAt(shown.getCategory(), shown.getRow(), shown.getChunk(), found, true, shown.isRouted());
+                return;
+            }
+        }
+        WorldPoint at = chunkLocator().playerWorld();
+        if (at != null && at.distanceTo(shown.getSpot()) <= POINTER_REACHED / Perspective.LOCAL_TILE_SIZE)
+        {
+            WorldPoint spot = shown.getSpot();
+            spots.forget(shown.getChunk(), shown.getCategory(), shown.getRow(),
+                new SpotMemory.Spot(spot.getX(), spot.getY(), spot.getPlane()));
+            clearPointer();
+            panel.showHerePointer(PointerText.gone(shown.getRow(), HerePresenter.placeName(decisions,
+                shown.getChunk())), false);
+        }
+    }
+
+    /**
+     * Turning the plugin off: its arrow comes down, on the client thread, if it's still the one
+     * showing, with its pin and route.
+     */
+    private void dropPointer()
+    {
+        Pointer shown = pointer;
+        pointer = null;
+        pointerLooks = false;
+        if (shown != null)
+        {
+            clientThread.invoke(() -> {
+                if (ours(shown))
+                {
+                    client.clearHintArrow();
+                }
+                endWay(shown);
+            });
+        }
+    }
+
+    /** Whether the arrow showing is still the card's own. */
+    private boolean ours(Pointer shown)
+    {
+        if (!client.hasHintArrow())
+        {
+            return false;
+        }
+        return shown.getNpc() != null ? client.getHintArrowNpc() == shown.getNpc()
+            : shown.getArrow() != null && shown.getArrow().equals(client.getHintArrowPoint());
+    }
+
+    /** The arrow the card put up: for which row, in which chunk, and on what. */
+    @lombok.Value
+    static class Pointer
+    {
+        String category;
+        String row;
+        CanonicalChunk chunk;
+        /** The NPC it follows, or null for an object's point or a spot. */
+        NPC npc;
+        LocalPoint point;
+        /** Where the game put it, to tell it from an arrow the game or another plugin puts up. */
+        WorldPoint arrow;
+        /** The spot seen before that it shows the way to, until the thing itself loads; else null. */
+        WorldPoint spot;
+        /** Whether it began as the way to a spot seen before: it goes on from place to place, with its pin. */
+        boolean remembered;
+        /** Whether Shortest Path was asked for the way. */
+        boolean routed;
+    }
+
+    /** A pin on the world map at the spot the card shows the way to, with the game's own destination flag. */
+    private void pin(WorldPoint to, String row)
+    {
+        BufferedImage flag = spriteManager == null ? null : spriteManager.getSprite(SpriteID.MAPMARKER, 0);
+        if (flag == null || worldMapPointManager == null)
+        {
+            return;
+        }
+        WayPoint point = new WayPoint(to, flag);
+        point.setName(row);
+        point.setTooltip(row + " (seen here)");
+        point.setTarget(to);
+        point.setJumpOnClick(true);
+        point.setSnapToEdge(true);
+        worldMapPointManager.add(point);
+    }
+
+    /** The world map pin for a spot the card shows the way to, so it can remove exactly its own. */
+    static final class WayPoint extends WorldMapPoint
+    {
+        WayPoint(WorldPoint point, BufferedImage image)
+        {
+            super(point, image);
+        }
+    }
+
+    /** Shortest Path, as RuneLite runs it now. */
+    ShortestPathHandOff shortestPath()
+    {
+        if (shortestPath == null)
+        {
+            shortestPath = new ShortestPathHandOff(pluginManager, eventBus);
+        }
+        return shortestPath;
+    }
+
+    /** An NPC came into view: remembered where the Here card could point at it. */
+    @Subscribe
+    public void onNpcSpawned(NpcSpawned event)
+    {
+        NPC npc = event.getNpc();
+        if (npc == null || decisions.trust() != Trust.TRUSTED)
+        {
+            return;
+        }
+        NPCComposition shown = npc.getTransformedComposition();
+        seen(shown != null ? shown.getName() : npc.getName(), shown != null ? shown.getActions() : null,
+            chunkLocator().world(npc));
+    }
+
+    @Subscribe
+    public void onGameObjectSpawned(GameObjectSpawned event)
+    {
+        seen(event.getGameObject());
+    }
+
+    @Subscribe
+    public void onWallObjectSpawned(WallObjectSpawned event)
+    {
+        seen(event.getWallObject());
+    }
+
+    @Subscribe
+    public void onDecorativeObjectSpawned(DecorativeObjectSpawned event)
+    {
+        seen(event.getDecorativeObject());
+    }
+
+    @Subscribe
+    public void onGroundObjectSpawned(GroundObjectSpawned event)
+    {
+        seen(event.getGroundObject());
+    }
+
+    /** An object loaded: remembered where the Here card could point at it. */
+    private void seen(TileObject object)
+    {
+        if (object == null || decisions.trust() != Trust.TRUSTED)
+        {
+            return;
+        }
+        ObjectComposition shown = SceneSearch.shown(client, object);
+        if (shown != null)
+        {
+            seen(shown.getName(), shown.getActions(), chunkLocator().world(object));
+        }
+    }
+
+    /**
+     * Something seen at a spot, by the name and options it shows: remembered for each row of
+     * its chunk's card that points at it, and looked for at the next tick when it's what the
+     * arrow shows the way to. Only in the real world, and for these rules' own character.
+     */
+    private void seen(String name, String[] options, WorldPoint at)
+    {
+        if (name == null || at == null)
+        {
+            return;
+        }
+        CanonicalChunk chunk = CanonicalChunk.ofTile(at.getX(), at.getY());
+        Pointables here = pointables(chunk);
+        if (!here.names.contains(name.trim().toLowerCase(Locale.ROOT)))
+        {
+            return;
+        }
+        SpotMemory.Spot spot = new SpotMemory.Spot(at.getX(), at.getY(), at.getPlane());
+        Pointer shown = pointer;
+        for (PointTarget target : here.targets)
+        {
+            if (!target.matches(name, options))
+            {
+                continue;
+            }
+            spots.see(chunk, target.getCategory(), target.getLabel(), spot);
+            if (shown != null && shown.getSpot() != null && shown.getChunk().equals(chunk)
+                && shown.getCategory().equals(target.getCategory()) && shown.getRow().equals(target.getLabel()))
+            {
+                pointerLooks = true;
+            }
+        }
+    }
+
+    /** What a chunk's card can point at, read once for the rules in force. */
+    private Pointables pointables(CanonicalChunk chunk)
+    {
+        if (pointablesFor != decisions)
+        {
+            pointables.clear();
+            pointablesFor = decisions;
+        }
+        return pointables.computeIfAbsent(chunk, c -> new Pointables(HerePresenter.pointable(decisions, c)));
+    }
+
+    /** What a chunk's card can point at, and every name those go by, lower case. */
+    private static final class Pointables
+    {
+        final List<PointTarget> targets;
+        final Set<String> names = new HashSet<>();
+
+        Pointables(List<PointTarget> targets)
+        {
+            this.targets = targets;
+            for (PointTarget target : targets)
+            {
+                names.addAll(target.getNames());
+            }
+        }
+    }
+
+    /** Where things were seen, read from this computer as the plugin starts, off the client thread. */
+    private void loadSpots()
+    {
+        Path path = dataDirectory().toPath().resolve(SpotMemory.FILE);
+        fileWriter.submit(() -> {
+            try
+            {
+                spots.load(gson, path);
+            }
+            catch (IOException ex)
+            {
+                log.warn("Could not read where things were seen: {}", ex.getMessage());
+            }
+        });
+    }
+
+    /** Spots seen since the last save are written at most every half minute. */
+    private void saveSpotsIfDue()
+    {
+        int now = client.getTickCount();
+        if (spots.changed() && (now - spotsSavedTick >= SPOTS_SAVE_TICKS || now < spotsSavedTick))
+        {
+            spotsSavedTick = now;
+            saveSpots();
+        }
+    }
+
+    /** Spots seen since the last save, written off the client thread. */
+    private void saveSpots()
+    {
+        if (!spots.changed())
+        {
+            return;
+        }
+        Path path = dataDirectory().toPath().resolve(SpotMemory.FILE);
+        fileWriter.submit(() -> {
+            try
+            {
+                spots.save(gson, path);
+            }
+            catch (IOException ex)
+            {
+                log.warn("Could not save where things were seen: {}", ex.getMessage());
+            }
+        });
+    }
+
+    /**
+     * What the game says, for the rows here the tracker leaves undecided: the quests they
+     * name, quest points, levels, the world, and what the player carries (RowChecks). Read
+     * once a tick, and only where such a row is. Client thread; elsewhere, nothing.
+     */
+    GameFacts gameFacts(DecisionService ruleDecisions, CanonicalChunk chunk)
+    {
+        if (chunk == null || !client.isClientThread() || client.getGameState() != GameState.LOGGED_IN)
+        {
+            return GameFacts.NONE;
+        }
+        int tick = client.getTickCount();
+        if (tick == factsTick && chunk.equals(factsChunk) && ruleDecisions == factsDecisions)
+        {
+            return lastFacts;
+        }
+        List<String> undecided = new ArrayList<>();
+        ruleDecisions.details(chunk).ifPresent(snapshot -> {
+            for (List<ChunkPermissionRow> rows : snapshot.getCategories().values())
+            {
+                for (ChunkPermissionRow row : rows)
+                {
+                    if (row.getStatus() == PermissionStatus.UNKNOWN)
+                    {
+                        undecided.add(row.getDetail());
+                    }
+                }
+            }
+        });
+        GameFacts facts = GameFacts.NONE;
+        if (!undecided.isEmpty())
+        {
+            Map<Quest, QuestState> quests = new EnumMap<>(Quest.class);
+            for (Quest quest : RowChecks.questsNamed(undecided))
+            {
+                quests.put(quest, quest.getState(client));
+            }
+            Map<Skill, Integer> levels = new EnumMap<>(Skill.class);
+            for (Skill skill : Skill.values())
+            {
+                if (!"Overall".equals(skill.getName()))
+                {
+                    levels.put(skill, client.getRealSkillLevel(skill));
+                }
+            }
+            Set<String> carried = new HashSet<>();
+            boolean light = false;
+            for (int id : new int[] {InventoryID.INV, InventoryID.WORN})
+            {
+                ItemContainer container = client.getItemContainer(id);
+                if (container == null)
+                {
+                    continue;
+                }
+                for (Item item : container.getItems())
+                {
+                    if (item.getId() <= 0)
+                    {
+                        continue;
+                    }
+                    carried.add(itemManager.getItemComposition(item.getId()).getName().toLowerCase(Locale.ROOT));
+                    light |= RowChecks.LIGHT_SOURCES.contains(item.getId());
+                }
+            }
+            java.util.EnumSet<WorldType> world = client.getWorldType();
+            facts = new GameFacts(world == null ? null : world.contains(WorldType.MEMBERS),
+                client.getVarpValue(VarPlayerID.QP), levels, quests, carried, light);
+        }
+        factsTick = tick;
+        factsChunk = chunk;
+        factsDecisions = ruleDecisions;
+        lastFacts = facts;
+        return facts;
+    }
+
+    /**
+     * Once a second: at the login screen there are no game ticks, so this keeps ages
+     * ("synced 2 min ago") and a pause's countdown current there.
+     */
+    @Schedule(period = 1, unit = java.time.temporal.ChronoUnit.SECONDS)
+    public void refreshSidebarWhileLoggedOut()
+    {
+        if (client.getGameState() != GameState.LOGGED_IN)
+        {
+            gate.run(this::updateStrictModePanel);
         }
     }
 
@@ -2160,7 +3061,7 @@ public class FateLockedPlugin extends Plugin
             }
             catch (RuntimeException error)
             {
-                panel.flashStatus("couldn't enable online sync", false);
+                panel.flashStatus(Notices.SYNC_NOT_ON, false);
             }
         });
     }
@@ -2182,7 +3083,7 @@ public class FateLockedPlugin extends Plugin
                 }
                 catch (RuntimeException error)
                 {
-                    panel.flashStatus("couldn't enable online sync", false);
+                    panel.flashStatus(Notices.SYNC_NOT_ON, false);
                     return;
                 }
             }
@@ -2218,42 +3119,24 @@ public class FateLockedPlugin extends Plugin
         return expected != null && expected.equals(current);
     }
 
-    private static void wirePanelActions(
-        FateLockedPanel target,
-        Runnable onClipboardImport,
-        Runnable onLoadBackupFile,
-        Runnable onConnect)
-    {
-        target.setCallbacks(onClipboardImport, onLoadBackupFile, onConnect);
-    }
-
     private static NavigationButton buildNavigationButton(FateLockedPanel target)
     {
         return NavigationButton.builder()
             .tooltip("Fate Locked Ironman")
-            .icon(createIcon())
+            .icon(navigationIcon())
             .priority(7)
             .panel(target)
             .build();
     }
 
-    private static BufferedImage createIcon()
+    /**
+     * The sidebar button's icon: the crystal key, the web app's own icon, drawn at the
+     * 16 px RuneLite shows it. RuneLite rescales a larger icon smoothly, which blurred the
+     * old 24 px key, and game art isn't loaded when the button is added.
+     */
+    static BufferedImage navigationIcon()
     {
-        BufferedImage img = new BufferedImage(24, 24, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        // Key bow
-        g.setColor(new Color(245, 158, 11));
-        g.fillOval(2, 7, 11, 11);
-        g.setColor(new Color(15, 17, 21));
-        g.fillOval(5, 10, 5, 5);
-        // Shaft + teeth
-        g.setColor(new Color(245, 158, 11));
-        g.fillRect(12, 11, 10, 3);
-        g.fillRect(17, 14, 2, 4);
-        g.fillRect(20, 14, 2, 4);
-        g.dispose();
-        return img;
+        return ImageUtil.loadImageResource(FateLockedPlugin.class, "nav_icon.png");
     }
 
     private void startTrackerPoll()
@@ -2287,8 +3170,15 @@ public class FateLockedPlugin extends Plugin
 
     private Instant trackerLastSync()
     {
-        return connectionController == null
-            ? null : connectionController.snapshot().getLastSync();
+        return trackerSnapshot().getLastSync();
+    }
+
+    /** The connection as the controller last showed it; not connected before it exists. */
+    private TrackerConnectionSnapshot trackerSnapshot()
+    {
+        TrackerConnectionController controller = connectionController;
+        TrackerConnectionSnapshot shown = controller == null ? null : controller.snapshot();
+        return shown == null ? TrackerConnectionSnapshot.disconnected() : shown;
     }
 
     /**
@@ -2335,9 +3225,11 @@ public class FateLockedPlugin extends Plugin
             if (event.getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
         }
         shownWarningCount = activeWarningCount();
-        panel.updateRollInboxStatus(
-            events.size(), needsReview, shownWarningCount,
-            historySaveFailed);
+        SidebarPublisher models = sidebarModels();
+        if (models != null)
+        {
+            models.rollInbox(new RollInboxModel(events.size(), needsReview, shownWarningCount, historySaveFailed));
+        }
     }
 
     /** Keep the sidebar's Warnings count current as you move, change gear and get tasks. */

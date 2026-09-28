@@ -20,8 +20,6 @@ final class MenuFactsReader
 {
     private static final Pattern WHITESPACE =
         Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
-    /** What {@code onMenuEntryAdded} appends to the target of a locked option. */
-    private static final String LOCKED_TAG = "(LOCKED)";
     /** A worn slot draws its item in its second child. */
     private static final int WORN_ITEM_CHILD = 1;
 
@@ -94,7 +92,7 @@ final class MenuFactsReader
     static String text(String value)
     {
         if (value == null) return "";
-        return WHITESPACE.matcher(Text.removeTags(value).replace(LOCKED_TAG, ""))
+        return WHITESPACE.matcher(Text.removeTags(value).replace(MenuFacts.LOCKED_MARK, ""))
             .replaceAll(" ").trim();
     }
 }

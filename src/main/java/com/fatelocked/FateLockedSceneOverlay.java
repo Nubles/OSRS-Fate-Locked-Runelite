@@ -1,39 +1,55 @@
 package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.Trust;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Shape;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Set;
+import javax.inject.Inject;
+import net.runelite.api.Actor;
 import net.runelite.api.Client;
+import net.runelite.api.DecorativeObject;
+import net.runelite.api.GameObject;
 import net.runelite.api.Perspective;
 import net.runelite.api.Point;
+import net.runelite.api.Scene;
+import net.runelite.api.Tile;
+import net.runelite.api.WallObject;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
-import javax.inject.Inject;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.Polygon;
-import java.awt.Stroke;
-
 /**
- * Tints the player's current chunk on the main game scene. Gives an at-a-glance
- * sense of the chunk's status (green/red/grey) matching the web app's colors.
+ * The chunk lines around the player on the game scene (U3): locked edges dashed over a dark
+ * underlay and, under All edges, every other chunk line thin and faint. With "shade nearby
+ * locked", a short fog lies on the locked side of each locked edge. Nothing fills a chunk, and
+ * nothing is drawn without rules for the character playing.
+ *
+ * <p>Where the edges run is worked out once per scene ({@link SceneEdgesCache}); only the
+ * projection is done each frame, since the camera moves ({@link ChunkBorderRenderer}). So is
+ * what stands in front of the lines, from the players, NPCs and objects between them and the
+ * camera: RuneLite draws over the finished scene, and the lines would cover them.
  */
 public class FateLockedSceneOverlay extends Overlay
 {
-    private static final Stroke STROKE = new BasicStroke(2f);
-    private static final Stroke BORDER_STROKE = new BasicStroke(3.5f);
-
-    @Inject private Client client;
-    @Inject private FateLockedPlugin plugin;
-    @Inject private FateLockedConfig config;
+    private final Client client;
+    private final FateLockedPlugin plugin;
+    private final FateLockedConfig config;
 
     @Inject
-    FateLockedSceneOverlay()
+    FateLockedSceneOverlay(Client client, FateLockedPlugin plugin, FateLockedConfig config)
     {
+        this.client = client;
+        this.plugin = plugin;
+        this.config = config;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_SCENE);
     }
@@ -41,164 +57,122 @@ public class FateLockedSceneOverlay extends Overlay
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.drawScene() && !config.highlightLockedBorders() && !config.shadeNearbyLocked()) return null;
+        FateLockedConfig.ChunkBorders borders = config.chunkBorders();
+        boolean fog = config.shadeNearbyLocked();
+        if (borders == FateLockedConfig.ChunkBorders.OFF && !fog) return null;
         DecisionService decisions = plugin.decisions();
-        if (decisions.rules().isEmpty()) return null; // no rules yet: nothing to tint
-        ChunkLocator locator = plugin.chunkLocator();
-        Located here = locator.playerInScene();
+        // Another character's rules, or none, draw nothing (B6).
+        if (decisions.trust() != Trust.TRUSTED) return null;
         WorldView view = client.getTopLevelWorldView();
-        if (here == null || view == null) return null;
-        // Drawn where the player stands in the scene; tinted as the rules judge it (B14).
-        CanonicalChunk chunk = here.getScene();
+        Located here = plugin.chunkLocator().playerInScene();
+        if (view == null || here == null) return null;
+
         int plane = here.getPlane();
-
-        // Light shading for surrounding locked chunks goes first, under the
-        // current-chunk tint and borders.
-        if (config.shadeNearbyLocked())
+        SceneEdges scene = plugin.sceneEdges(decisions, view, plane);
+        if (scene.edges().isEmpty()) return null;
+        ChunkBorderRenderer.Projector projector = (x, y) ->
         {
-            drawSurroundingLocked(graphics, chunk, plane, decisions, locator, view);
-        }
-
-        if (config.drawScene())
-        {
-            drawChunkOutline(graphics, chunk, plane, view,
-                TintPolicy.color(TintPolicy.at(decisions, here.getRules()), config));
-        }
-
-        if (config.highlightLockedBorders())
-        {
-            drawLockedBorders(graphics, chunk, plane, decisions, locator, view);
-        }
+            Point canvas = Perspective.localToCanvas(client, corner(x, y, view), plane);
+            return canvas == null ? null : new Point2D.Double(canvas.getX(), canvas.getY());
+        };
+        double cameraX = client.getCameraFpX() / Perspective.LOCAL_TILE_SIZE;
+        double cameraY = client.getCameraFpY() / Perspective.LOCAL_TILE_SIZE;
+        boolean[][] corridor = ChunkBorderRenderer.corridor(scene.edges(),
+            borders != FateLockedConfig.ChunkBorders.OFF, fog, here.getSceneX(), here.getSceneY(), view.getSizeX(),
+            view.getSizeY(), cameraX, cameraY, projector);
+        ChunkBorderRenderer.draw(graphics, scene.edges(), borders, fog, plugin.palette(),
+            here.getSceneX(), here.getSceneY(), view.getSizeX(), view.getSizeY(), projector,
+            ChunkBorderRenderer.GROUND_PERIOD, occlusion(view, plane, corridor, cameraX, cameraY));
         return null;
     }
 
-    /**
-     * Trace a bright line along any edge of the current chunk that borders a
-     * locked chunk — the "danger here" cue right where you'd cross over.
-     */
-    private void drawLockedBorders(Graphics2D g, CanonicalChunk chunk, int plane, DecisionService decisions,
-        ChunkLocator locator, WorldView view)
+    /** A tile corner of the scene, exactly on the tile line, where RuneLite has the ground's height. */
+    static LocalPoint corner(int sceneX, int sceneY, WorldView view)
     {
-        int cx = chunk.getCx();
-        int cy = chunk.getCy();
-        int bx = cx << 6;
-        int by = cy << 6;
-
-        Color c = config.lockedColor();
-        g.setStroke(BORDER_STROKE);
-        g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 255));
-
-        if (isLocked(decisions, locator, cx + 1, cy)) drawEdge(g, bx + 63, by, bx + 63, by + 63, plane, view); // east
-        if (isLocked(decisions, locator, cx - 1, cy)) drawEdge(g, bx, by, bx, by + 63, plane, view);           // west
-        if (isLocked(decisions, locator, cx, cy + 1)) drawEdge(g, bx, by + 63, bx + 63, by + 63, plane, view); // north
-        if (isLocked(decisions, locator, cx, cy - 1)) drawEdge(g, bx, by, bx + 63, by, plane, view);           // south
-    }
-
-    /** A neighbouring scene chunk, judged by the rules chunk it is a copy of. */
-    private static boolean isLocked(DecisionService decisions, ChunkLocator locator, int cx, int cy)
-    {
-        return TintPolicy.isLocked(decisions, locator.sceneChunk(new CanonicalChunk(cx, cy)));
+        return new LocalPoint(sceneX << Perspective.LOCAL_COORD_BITS, sceneY << Perspective.LOCAL_COORD_BITS, view);
     }
 
     /**
-     * Lightly tint every locked chunk overlapping the loaded scene (except the
-     * one the player is standing in, which gets the full treatment elsewhere).
+     * What stands in the corridor between the camera and the lines, each by its outline: the
+     * players and NPCs, and the objects, walls and wall decorations on the player's floor.
+     * Nothing elsewhere has its outline worked out.
      */
-    private void drawSurroundingLocked(Graphics2D g, CanonicalChunk current, int plane, DecisionService decisions,
-        ChunkLocator locator, WorldView view)
+    static ChunkBorderRenderer.Occlusion occlusion(WorldView view, int plane, boolean[][] corridor, double cameraX,
+        double cameraY)
     {
-        int baseX = view.getBaseX();
-        int baseY = view.getBaseY();
-        int cxMin = baseX >> 6, cxMax = (baseX + view.getSizeX() - 1) >> 6;
-        int cyMin = baseY >> 6, cyMax = (baseY + view.getSizeY() - 1) >> 6;
-
-        Color light = faint(config.lockedColor());
-        g.setColor(light);
-        for (int cx = cxMin; cx <= cxMax; cx++)
+        if (corridor == null)
         {
-            for (int cy = cyMin; cy <= cyMax; cy++)
+            return ChunkBorderRenderer.Occlusion.NONE;
+        }
+        List<ChunkBorderRenderer.Occluder> occluders = new ArrayList<>();
+        actors(occluders, corridor, view.players());
+        actors(occluders, corridor, view.npcs());
+        Scene scene = view.getScene();
+        Tile[][][] tiles = scene == null ? null : scene.getTiles();
+        if (tiles != null && plane >= 0 && plane < tiles.length)
+        {
+            Set<GameObject> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (int x = 0; x < corridor.length && x < tiles[plane].length; x++)
             {
-                if (cx == current.getCx() && cy == current.getCy()) continue;
-                CanonicalChunk c = new CanonicalChunk(cx, cy);
-                if (!TintPolicy.isLocked(decisions, locator.sceneChunk(c))) continue;
-                Polygon p = chunkScenePolyClamped(c, plane, view);
-                if (p != null) g.fillPolygon(p);
+                for (int y = 0; y < corridor[x].length && y < tiles[plane][x].length; y++)
+                {
+                    Tile tile = corridor[x][y] ? tiles[plane][x][y] : null;
+                    if (tile == null)
+                    {
+                        continue;
+                    }
+                    GameObject[] objects = tile.getGameObjects();
+                    for (int i = 0; objects != null && i < objects.length; i++)
+                    {
+                        GameObject object = objects[i];
+                        // A player or NPC stands on its tile as an object too; it is counted once, as itself.
+                        if (object != null && !(object.getRenderable() instanceof Actor) && seen.add(object))
+                        {
+                            add(occluders, object.getLocalLocation(), object.getConvexHull());
+                        }
+                    }
+                    WallObject wall = tile.getWallObject();
+                    if (wall != null)
+                    {
+                        add(occluders, wall.getLocalLocation(), wall.getConvexHull());
+                        add(occluders, wall.getLocalLocation(), wall.getConvexHull2());
+                    }
+                    DecorativeObject decoration = tile.getDecorativeObject();
+                    if (decoration != null)
+                    {
+                        add(occluders, decoration.getLocalLocation(), decoration.getConvexHull());
+                        add(occluders, decoration.getLocalLocation(), decoration.getConvexHull2());
+                    }
+                }
+            }
+        }
+        return new ChunkBorderRenderer.Occlusion(cameraX, cameraY, occluders);
+    }
+
+    private static void actors(List<ChunkBorderRenderer.Occluder> occluders, boolean[][] corridor,
+        Iterable<? extends Actor> actors)
+    {
+        if (actors == null)
+        {
+            return;
+        }
+        for (Actor actor : actors)
+        {
+            LocalPoint at = actor == null ? null : actor.getLocalLocation();
+            if (at != null && at.getSceneX() >= 0 && at.getSceneY() >= 0 && at.getSceneX() < corridor.length
+                && at.getSceneY() < corridor[at.getSceneX()].length && corridor[at.getSceneX()][at.getSceneY()])
+            {
+                add(occluders, at, actor.getConvexHull());
             }
         }
     }
 
-    /** Chunk outline polygon clipped to the loaded scene, so partly-visible chunks still draw. */
-    private Polygon chunkScenePolyClamped(CanonicalChunk chunk, int plane, WorldView view)
+    private static void add(List<ChunkBorderRenderer.Occluder> occluders, LocalPoint at, Shape hull)
     {
-        int minX = view.getBaseX(), minY = view.getBaseY();
-        int maxX = minX + view.getSizeX() - 1, maxY = minY + view.getSizeY() - 1;
-        int x0 = Math.max(chunk.getCx() << 6, minX);
-        int y0 = Math.max(chunk.getCy() << 6, minY);
-        int x1 = Math.min((chunk.getCx() << 6) + 63, maxX);
-        int y1 = Math.min((chunk.getCy() << 6) + 63, maxY);
-        if (x0 > x1 || y0 > y1) return null; // no overlap with the scene
-
-        int[][] cs = { { x0, y0 }, { x1, y0 }, { x1, y1 }, { x0, y1 } };
-        Polygon p = new Polygon();
-        for (int[] c : cs)
+        if (at != null && hull != null)
         {
-            LocalPoint lp = LocalPoint.fromWorld(view, c[0], c[1]);
-            if (lp == null) return null;
-            Point cv = Perspective.localToCanvas(client, lp, plane);
-            if (cv == null) return null;
-            p.addPoint(cv.getX(), cv.getY());
+            occluders.add(new ChunkBorderRenderer.Occluder(hull, at.getX() / (double) Perspective.LOCAL_TILE_SIZE,
+                at.getY() / (double) Perspective.LOCAL_TILE_SIZE));
         }
-        return p;
-    }
-
-    /** A faint version of a color for subtle background shading. */
-    private static Color faint(Color c)
-    {
-        return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(20, Math.min(c.getAlpha(), 110) / 3));
-    }
-
-    private void drawEdge(Graphics2D g, int x0, int y0, int x1, int y1, int plane, WorldView view)
-    {
-        LocalPoint a = LocalPoint.fromWorld(view, x0, y0);
-        LocalPoint b = LocalPoint.fromWorld(view, x1, y1);
-        if (a == null || b == null) return; // edge off-scene
-        Point ca = Perspective.localToCanvas(client, a, plane);
-        Point cb = Perspective.localToCanvas(client, b, plane);
-        if (ca == null || cb == null) return;
-        g.drawLine(ca.getX(), ca.getY(), cb.getX(), cb.getY());
-    }
-
-    private void drawChunkOutline(Graphics2D g, CanonicalChunk chunk, int plane, WorldView view, Color color)
-    {
-        int baseX = chunk.getCx() << 6;
-        int baseY = chunk.getCy() << 6;
-
-        // Build a polygon around the chunk's perimeter — draw the four corner
-        // tiles and let Perspective do the projection.
-        LocalPoint[] corners = new LocalPoint[] {
-            LocalPoint.fromWorld(view, baseX, baseY),
-            LocalPoint.fromWorld(view, baseX + 63, baseY),
-            LocalPoint.fromWorld(view, baseX + 63, baseY + 63),
-            LocalPoint.fromWorld(view, baseX, baseY + 63)
-        };
-
-        Polygon p = new Polygon();
-        for (LocalPoint lp : corners)
-        {
-            if (lp == null) return; // chunk is off-scene
-            Point canvas = Perspective.localToCanvas(client, lp, plane);
-            if (canvas == null) return;
-            p.addPoint(canvas.getX(), canvas.getY());
-        }
-
-        g.setStroke(STROKE);
-        g.setColor(color);
-        g.fillPolygon(p);
-        g.setColor(new Color(
-            Math.min(color.getRed() + 30, 255),
-            Math.min(color.getGreen() + 30, 255),
-            Math.min(color.getBlue() + 30, 255),
-            220));
-        g.drawPolygon(p);
     }
 }

@@ -2,6 +2,9 @@ package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
+import com.fatelocked.ui.Palette;
+import com.fatelocked.ui.Palette.Tone;
+import com.fatelocked.ui.Terms;
 
 import java.util.List;
 
@@ -40,28 +43,32 @@ final class WorldMapChunks
     }
 
     /**
-     * The hover tooltip: the area, the status and what's there, or null
-     * where the map draws nothing. A chunk only the tracker names shows its
-     * coordinates.
+     * The hover tooltip: the area, the status in the palette's colour and what's there, or
+     * null where the map draws nothing. A chunk only the tracker names shows its coordinates.
      */
-    static String tooltip(DecisionService decisions, CanonicalChunk chunk, List<String> content)
+    static String tooltip(DecisionService decisions, CanonicalChunk chunk, List<String> content, Palette palette)
     {
         Fill fill = fill(decisions, chunk);
         if (fill == null) return null;
         String label = decisions.areaName(chunk);
         StringBuilder tip = new StringBuilder(label != null ? label
             : "Chunk (" + chunk.getCx() + ", " + chunk.getCy() + ")").append("</br>");
-        if (fill == Fill.FRONTIER) tip.append("<col=f59e0b>Locked — rollable next</col>");
-        else if (fill == Fill.LOCKED) tip.append("<col=ef4444>Locked</col>");
+        if (fill == Fill.FRONTIER) coloured(tip, palette, Tone.FRONTIER, Terms.LOCKED + " — rollable next");
+        else if (fill == Fill.LOCKED) coloured(tip, palette, Tone.BAD, Terms.LOCKED);
         else if (decisions.chunk(chunk).getStatus() == PermissionStatus.NOT_READY)
         {
-            tip.append("<col=f59e0b>Not ready</col>");
+            coloured(tip, palette, Tone.PENDING, Terms.NOT_READY);
         }
-        else tip.append("<col=2ee59d>Unlocked</col>");
+        else coloured(tip, palette, Tone.GOOD, Terms.UNLOCKED);
         for (String line : content)
         {
-            tip.append("</br><col=a8a8a8>").append(line).append("</col>");
+            coloured(tip.append("</br>"), palette, Tone.NEUTRAL, line);
         }
         return tip.toString();
+    }
+
+    private static StringBuilder coloured(StringBuilder tip, Palette palette, Tone tone, String text)
+    {
+        return tip.append("<col=").append(palette.hex(tone)).append('>').append(text).append("</col>");
     }
 }

@@ -2,6 +2,7 @@ package com.fatelocked.rules;
 
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
+import com.fatelocked.MenuFacts;
 
 import java.util.Collections;
 import java.util.List;
@@ -573,11 +574,11 @@ public final class DecisionService
         return value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
-    /** Menu text as rows name it: no colour tags, no "(LOCKED)" tag, any case. */
+    /** Menu text as rows name it: no colour tags, no lock tag, any case. */
     private static String normalizeTarget(String value)
     {
         if (value == null) return "";
-        return value.replaceAll("<[^>]+>", "").replace("(LOCKED)", "").trim().toLowerCase(Locale.ROOT);
+        return value.replaceAll("<[^>]+>", "").replace(MenuFacts.LOCKED_MARK, "").trim().toLowerCase(Locale.ROOT);
     }
 
     /** The bundle behind these rules, for the few adapters that still render from it. */

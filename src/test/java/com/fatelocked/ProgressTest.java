@@ -79,7 +79,7 @@ public class ProgressTest
         walk.getAsJsonObject("rules").remove("progress");
         Progress chunked = trusted(FateLockedBundle.loadFromJson(GSON, walk.toString())).progress();
         assertEquals(Progress.CHUNKS, chunked.getUnit());
-        assertEquals("Unlock progress: " + chunked.getChunksUnlocked() + "/" + chunked.getChunksTotal() + " chunks",
+        assertEquals(chunked.getChunksUnlocked() + " of " + chunked.getChunksTotal() + " chunks unlocked",
             ProgressText.infoBoxTooltip(chunked));
     }
 
@@ -90,7 +90,7 @@ public class ProgressTest
         Progress walk = trusted(golden("chunked-walk")).progress();
         assertEquals(new Progress(Progress.CHUNKS, 7, 624, 7, 624), walk);
         assertEquals("7/624 · 1%", ProgressText.hudLine(walk));
-        assertEquals("Unlock progress: 7/624 chunks", ProgressText.infoBoxTooltip(walk));
+        assertEquals("7 of 624 chunks unlocked", ProgressText.infoBoxTooltip(walk));
     }
 
     @Test
@@ -102,42 +102,35 @@ public class ProgressTest
 
         assertEquals("15/187 · " + percent, ProgressText.hudLine(progress));
         assertEquals(percent, ProgressText.infoBoxText(progress));
-        assertEquals("Unlock progress: 15/187 areas · " + progress.getChunksUnlocked() + "/"
+        assertEquals("15 of 187 areas unlocked</br>" + progress.getChunksUnlocked() + " of "
             + progress.getChunksTotal() + " chunks", ProgressText.infoBoxTooltip(progress));
 
         DecisionService other = DecisionService.create(RulesSnapshot.of(mid), "iron example", "someone else");
         assertNull(other.progress());
         assertNull(ProgressText.hudLine(null));
-        assertEquals("—", ProgressText.infoBoxText(null));
-        assertEquals("Unlock progress", ProgressText.infoBoxTooltip(null));
+        assertNull("no box", ProgressText.infoBoxText(null));
+        assertNull(ProgressText.infoBoxTooltip(null));
         assertNull("no chunks, no line", ProgressText.hudLine(new Progress(Progress.AREAS, 0, 0, 0, 0)));
+        assertNull("no chunks, no box", ProgressText.infoBoxText(new Progress(Progress.AREAS, 0, 0, 0, 0)));
         assertEquals(-1, new Progress(Progress.AREAS, 0, 0, 0, 0).percent());
     }
 
-    /** The HUD draws its "Unlocked" line from the decision service. */
+    /** E6: the HUD's "Unlocked" line is Detailed's, from the decision service, for the rules' character only. */
     @Test
-    public void theHudDrawsTheLine() throws Exception
+    public void theDetailedHudShowsTheLine() throws Exception
     {
         FateLockedBundle mid = golden("vanilla-mid");
-        FateLockedPlugin plugin = mock(FateLockedPlugin.class);
-        when(plugin.getBundle()).thenReturn(mid);
-        FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.showHud()).thenReturn(true);
-        Client client = mock(Client.class);
-        Player player = mock(Player.class);
-        when(player.getName()).thenReturn("Iron Example");
-        TestWorld.standAt(client, player, new WorldPoint(3200, 3200, 0));
-        when(client.getLocalPlayer()).thenReturn(player);
-        FateLockedHudOverlay hud = new FateLockedHudOverlay(client, plugin, config);
-        hud.setClearChildren(false);
+        CanonicalChunk lumbridge = new CanonicalChunk(50, 50);
+        DecisionService mine = trusted(mid);
 
-        when(plugin.decisions()).thenReturn(trusted(mid));
-        assertEquals(ProgressText.hudLine(trusted(mid).progress()), HudStatusTest.drawn(hud).get("Unlocked"));
-        hud.getPanelComponent().getChildren().clear();
-
-        when(plugin.decisions()).thenReturn(
-            DecisionService.create(RulesSnapshot.of(mid), "iron example", "someone else"));
-        assertFalse(HudStatusTest.drawn(hud).containsKey("Unlocked"));
+        assertEquals(ProgressText.hudLine(mine.progress()), HudPresenterTest.lines(HudPresenter.present(
+            HudPresenterTest.facts(mine, lumbridge).mode(FateLockedConfig.HudMode.DETAILED).build())).get("Unlocked"));
+        assertFalse("not in Compact", HudPresenterTest.lines(HudPresenter.present(
+            HudPresenterTest.facts(mine, lumbridge).build())).containsKey("Unlocked"));
+        DecisionService other = DecisionService.create(RulesSnapshot.of(mid), "iron example", "someone else");
+        assertFalse(HudPresenterTest.lines(HudPresenter.present(
+            HudPresenterTest.facts(other, lumbridge).mode(FateLockedConfig.HudMode.DETAILED).build()))
+            .containsKey("Unlocked"));
     }
 
     private static DecisionService trusted(FateLockedBundle bundle)

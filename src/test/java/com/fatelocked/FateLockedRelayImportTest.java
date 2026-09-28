@@ -1,6 +1,6 @@
 package com.fatelocked;
 
-import com.fatelocked.panel.ChunkPanelViewModel;
+import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.google.gson.Gson;
@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -84,7 +85,7 @@ public class FateLockedRelayImportTest
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
         verify(testPlugin.panel, times(2)).flashStatus(
-            "pairing code detected — use Connect tracker", false);
+            Notices.PAIRING_CODE, false);
     }
 
     @Test
@@ -101,7 +102,7 @@ public class FateLockedRelayImportTest
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
         verify(testPlugin.panel, times(2)).flashStatus(
-            "import failed — using previous rules", false);
+            Notices.IMPORT_FAILED, false);
     }
 
     @Test
@@ -116,11 +117,11 @@ public class FateLockedRelayImportTest
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(testPlugin.panel);
         order.verify(testPlugin.panel).flashStatus(
-            "import failed — using previous rules", false);
+            Notices.IMPORT_FAILED, false);
         order.verify(testPlugin.panel).flashStatus(
-            org.mockito.ArgumentMatchers.startsWith("imported "), eq(true));
+            org.mockito.ArgumentMatchers.startsWith("Imported rules from the clipboard"), eq(true));
         order.verify(testPlugin.panel).flashStatus(
-            "import failed — using previous rules", false);
+            Notices.IMPORT_FAILED, false);
     }
 
     @Test
@@ -138,8 +139,7 @@ public class FateLockedRelayImportTest
         assertTrue(importFromRelay(
             testPlugin.plugin, fixture("bundles/v4-rules.json")));
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
-        verify(testPlugin.panel, times(1))
-            .update(any(FateLockedBundle.class), any());
+        verify(testPlugin.panel, atLeastOnce()).showRun(any(com.fatelocked.sidebar.RunModel.class));
     }
 
     @Test
@@ -167,9 +167,9 @@ public class FateLockedRelayImportTest
         TestPlugin testPlugin = newPlugin(new FateLockedPlugin()
         {
             @Override
-            ChunkPanelViewModel viewModelFor(DecisionService ruleDecisions, CanonicalChunk chunk)
+            Decision lockedSlayerTask(DecisionService ruleDecisions)
             {
-                throw new IllegalStateException("view failed");
+                throw new IllegalStateException("Slayer failed");
             }
         });
         when(testPlugin.config.worldMapMarkers()).thenReturn(true);
@@ -180,10 +180,10 @@ public class FateLockedRelayImportTest
 
         assertSame(previous, testPlugin.plugin.getBundle());
         assertSame(FateLockedPlugin.RulesSource.FILE, source(testPlugin.plugin));
-        verify(testPlugin.panel, never()).update(any(FateLockedBundle.class), any());
+        verify(testPlugin.panel, never()).showRun(any(com.fatelocked.sidebar.RunModel.class));
         verify(testPlugin.pins, never()).add(any());
         verify(testPlugin.panel, never()).flashStatus(
-            org.mockito.ArgumentMatchers.startsWith("synced "), eq(true));
+            Notices.SYNCED, true);
     }
 
     @Test
@@ -198,7 +198,7 @@ public class FateLockedRelayImportTest
         setSource(testPlugin.plugin, FateLockedPlugin.RulesSource.FILE);
         doThrow(new IllegalStateException("panel failed"))
             .when(testPlugin.panel)
-            .update(any(FateLockedBundle.class), any());
+            .showRun(any(com.fatelocked.sidebar.RunModel.class));
 
         assertTrue(importFromRelay(testPlugin.plugin, withALockedArea()));
 
@@ -207,7 +207,7 @@ public class FateLockedRelayImportTest
         assertSame(FateLockedPlugin.RulesSource.RELAY, source(testPlugin.plugin));
         verify(testPlugin.pins).add(any(FateLockedPlugin.LockedAreaPoint.class));
         verify(testPlugin.panel).flashStatus(
-            org.mockito.ArgumentMatchers.startsWith("synced "), eq(true));
+            Notices.SYNCED, true);
     }
 
     /** The v4 rules plus one authored area they leave locked, which gets a map pin. */

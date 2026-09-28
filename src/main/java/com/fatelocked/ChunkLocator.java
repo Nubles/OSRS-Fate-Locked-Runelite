@@ -7,6 +7,7 @@ import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Scene;
+import net.runelite.api.TileObject;
 import net.runelite.api.WorldEntity;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
@@ -81,25 +82,51 @@ public final class ChunkLocator
         }
         int plane = view.getPlane();
         WorldPoint inScene = WorldPoint.fromLocal(view, point.getX(), point.getY(), plane);
-        return new Located(locate(view, point), WorldChunks.of(inScene), plane);
+        return new Located(locate(view, point), WorldChunks.of(inScene), plane,
+            point.getSceneX(), point.getSceneY());
     }
 
     /**
-     * The rules chunk of a top-level scene chunk, judged by its centre (or
-     * the part of it that is loaded): its template chunk inside an instance,
-     * itself elsewhere. Null when it isn't loaded or can't be known.
+     * The rules chunk of one 8-tile zone of the top-level scene: the chunk it is a copy of
+     * inside an instance, which is copied zone by zone. Zones never straddle a chunk line, so
+     * the zone's first tile decides. Null when it isn't loaded or can't be known.
      */
-    public CanonicalChunk sceneChunk(CanonicalChunk sceneChunk)
+    public CanonicalChunk sceneZone(int zoneX, int zoneY)
     {
         WorldView view = client.getTopLevelWorldView();
-        if (view == null || sceneChunk == null) return null;
-        int x0 = Math.max(sceneChunk.getCx() << 6, view.getBaseX());
-        int y0 = Math.max(sceneChunk.getCy() << 6, view.getBaseY());
-        int x1 = Math.min((sceneChunk.getCx() << 6) + 63, view.getBaseX() + view.getSizeX() - 1);
-        int y1 = Math.min((sceneChunk.getCy() << 6) + 63, view.getBaseY() + view.getSizeY() - 1);
-        if (x0 > x1 || y0 > y1) return null;
-        return locate(view, LocalPoint.fromScene(
-            (x0 + x1) / 2 - view.getBaseX(), (y0 + y1) / 2 - view.getBaseY(), view));
+        if (view == null || zoneX < 0 || zoneY < 0) return null;
+        int x = zoneX * ZONE_TILES;
+        int y = zoneY * ZONE_TILES;
+        if (x >= view.getSizeX() || y >= view.getSizeY()) return null;
+        return locate(view, LocalPoint.fromScene(x, y, view));
+    }
+
+    /**
+     * Where the player stands in the real world, to show the way from; null when nobody is
+     * logged in, inside an instance, whose tiles are copies, or on a boat.
+     */
+    public WorldPoint playerWorld()
+    {
+        return world(client.getLocalPlayer());
+    }
+
+    /** Where an NPC or player stands in the real world, to find it again; null inside an instance or on a boat. */
+    public WorldPoint world(Actor actor)
+    {
+        return actor == null || !realWorld(actor.getWorldView()) ? null : actor.getWorldLocation();
+    }
+
+    /** Where an object stands in the real world, to find it again; null inside an instance or on a boat. */
+    public WorldPoint world(TileObject object)
+    {
+        return object == null || !realWorld(object.getWorldView()) ? null : object.getWorldLocation();
+    }
+
+    /** The main scene, loaded from the world itself: not a boat's deck, and not an instance's copies. */
+    private static boolean realWorld(WorldView view)
+    {
+        Scene scene = view == null ? null : view.getScene();
+        return scene != null && view.isTopLevel() && !scene.isInstance();
     }
 
     /** The chunk a menu option points at: its NPC, or its object's or ground item's tile. */

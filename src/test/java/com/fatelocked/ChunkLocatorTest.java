@@ -157,6 +157,8 @@ public class ChunkLocatorTest
         assertEquals(new CanonicalChunk(50, 50), here.getRules());
         assertEquals(new CanonicalChunk((6400 + 43) >> 6, (6400 + 46) >> 6), here.getScene());
         assertEquals(0, here.getPlane());
+        assertEquals("the player's tile in the scene", 43, here.getSceneX());
+        assertEquals(46, here.getSceneY());
     }
 
     @Test
@@ -177,28 +179,69 @@ public class ChunkLocatorTest
         CanonicalChunk sea = new CanonicalChunk((BASE + 100) >> 6, (BASE + 10) >> 6);
         assertEquals(sea, here.getRules());
         assertEquals(sea, here.getScene());
+        assertEquals("the sea tile under the ship", 100, here.getSceneX());
+        assertEquals(10, here.getSceneY());
         ships();
         assertNull("a deck with no ship", locator.playerInScene());
         when(client.getLocalPlayer()).thenReturn(null);
         assertNull("nobody logged in", locator.playerInScene());
     }
 
+    /** U3: the scene's borders are worked out zone by zone, each judged by what it is a copy of. */
     @Test
-    public void aSceneChunkIsJudgedByTheChunkItIsACopyOf()
+    public void eachSceneZoneIsJudgedByTheChunkItIsACopyOf()
     {
         when(main.getBaseX()).thenReturn(BASE);
         when(main.getBaseY()).thenReturn(BASE);
-        assertEquals("on the surface, itself", new CanonicalChunk(49, 49), locator.sceneChunk(new CanonicalChunk(49, 49)));
-        assertEquals("partly loaded, judged by what is", new CanonicalChunk(50, 50),
-            locator.sceneChunk(new CanonicalChunk(50, 50)));
-        assertNull("not loaded", locator.sceneChunk(new CanonicalChunk(60, 60)));
+        assertEquals("on the surface, its own chunk",
+            new CanonicalChunk((BASE + 8 * 8) >> 6, BASE >> 6), locator.sceneZone(8, 0));
+        assertNull("past the scene", locator.sceneZone(13, 0));
+        assertNull(locator.sceneZone(0, 13));
+        assertNull(locator.sceneZone(-1, 0));
 
-        // The scene chunk at 6400,6400 has its centre (scene tile 31) in zone 3,3, a copy of Lumbridge.
-        instance(3, 3, template(400, 400));
+        instance(5, 5, template(400, 400));
         when(main.getBaseX()).thenReturn(6400);
         when(main.getBaseY()).thenReturn(6400);
-        assertEquals(new CanonicalChunk(50, 50), locator.sceneChunk(new CanonicalChunk(100, 100)));
-        assertNull("its centre zone has no template", locator.sceneChunk(new CanonicalChunk(101, 100)));
+        assertEquals("a copy of Lumbridge", new CanonicalChunk(50, 50), locator.sceneZone(5, 5));
+        assertNull("a zone with no template", locator.sceneZone(5, 6));
+    }
+
+    /**
+     * Where things stand in the real world, for the way back to one: the game's own world
+     * location on the surface; nothing inside an instance, whose tiles are copies, or on a
+     * boat's deck, and nothing for nobody.
+     */
+    @Test
+    public void onlyTheRealWorldHasPlacesToFindAgain()
+    {
+        net.runelite.api.coords.WorldPoint oak = new net.runelite.api.coords.WorldPoint(3210, 3200, 0);
+        net.runelite.api.GameObject tree = mock(net.runelite.api.GameObject.class);
+        when(tree.getWorldView()).thenReturn(main);
+        when(tree.getWorldLocation()).thenReturn(oak);
+        NPC guard = mock(NPC.class);
+        when(guard.getWorldView()).thenReturn(main);
+        when(guard.getWorldLocation()).thenReturn(oak);
+        standAt(main, 40, 40);
+        net.runelite.api.coords.WorldPoint standing = new net.runelite.api.coords.WorldPoint(BASE + 40, BASE + 40, 0);
+        when(client.getLocalPlayer().getWorldLocation()).thenReturn(standing);
+
+        assertEquals(oak, locator.world(tree));
+        assertEquals(oak, locator.world(guard));
+        assertEquals(standing, locator.playerWorld());
+
+        instance(5, 5, template(400, 400));
+        assertNull(locator.world(tree));
+        assertNull(locator.world(guard));
+        assertNull(locator.playerWorld());
+
+        when(scene.isInstance()).thenReturn(false);
+        WorldView deck = deck();
+        when(deck.getScene()).thenReturn(scene);
+        when(tree.getWorldView()).thenReturn(deck);
+        assertNull("on a boat", locator.world(tree));
+        assertNull(locator.world((net.runelite.api.TileObject) null));
+        when(client.getLocalPlayer()).thenReturn(null);
+        assertNull(locator.playerWorld());
     }
 
     private void standAt(WorldView view, int sceneX, int sceneY)

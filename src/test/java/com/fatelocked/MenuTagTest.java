@@ -20,13 +20,19 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * B2: the red "(LOCKED)" menu tags come from the decision service, so they
+ * B2: the " (Locked)" menu tags come from the decision service, so they
  * say what the sidebar says. On a golden bundle a Guard in a locked chunk is
  * tagged, while not ready, allowed and ocean chunks aren't; another
  * character, or nobody logged in, sees no tags; an older export tags as it
@@ -35,7 +41,7 @@ import static org.mockito.Mockito.when;
 public class MenuTagTest
 {
     private static final Gson GSON = new Gson();
-    private static final String TAG = " <col=ef4444>(LOCKED)</col>";
+    private static final String TAG = " <col=f87171>(Locked)</col>";
     /** vanilla-mid: Seers' Village is LOCKED, Glarial's Tomb NOT_READY, Lumbridge Castle ALLOWED. */
     private static final CanonicalChunk SEERS = new CanonicalChunk(42, 54);
     private static final CanonicalChunk GLARIALS_TOMB = new CanonicalChunk(39, 53);
@@ -52,8 +58,7 @@ public class MenuTagTest
     @Before
     public void setUp() throws Exception
     {
-        when(config.tagLockedMenus()).thenReturn(true);
-        when(config.tagLockedTeleports()).thenReturn(true);
+        when(config.tagLockedOptions()).thenReturn(true);
         set("config", config);
         set("client", client);
     }
@@ -75,6 +80,27 @@ public class MenuTagTest
         assertEquals("NOT_READY never tags", "Guard", npcTarget(GLARIALS_TOMB));
         assertEquals("Guard", npcTarget(LUMBRIDGE));
         assertEquals("the sea is locked without Sailing (R1)", "Guard" + TAG, npcTarget(OCEAN));
+    }
+
+    /** E1: the tag is the word players read everywhere, and every reader of menu text removes it. */
+    @Test
+    public void theTagIsTheWordPlayersRead()
+    {
+        assertEquals(com.fatelocked.ui.Terms.LOCKED_TAG, " " + MenuFacts.LOCKED_MARK);
+    }
+
+    /** E1: the tag takes the palette's locked colour, including a player's own. */
+    @Test
+    public void theTagTakesThePalettesLockedColour() throws Exception
+    {
+        playing(golden("vanilla-mid"), "Iron Example");
+        when(config.colourPreset()).thenReturn(FateLockedConfig.ColourPreset.CUSTOM);
+        when(config.unlockedColor()).thenReturn(new java.awt.Color(0, 128, 255, 110));
+        when(config.frontierColor()).thenReturn(new java.awt.Color(255, 255, 0, 100));
+        when(config.lockedColor()).thenReturn(new java.awt.Color(128, 0, 128, 110));
+        GearDecisionTest.configChanged(plugin, "lockedColor");
+
+        assertEquals("Guard <col=800080>(Locked)</col>", npcTarget(SEERS));
     }
 
     @Test
@@ -102,27 +128,56 @@ public class MenuTagTest
         assertEquals("Guard", npcTarget(SEERS));
     }
 
-    /** vanilla-mid's travel table locks Ardougne Teleport: one place, locked (F4). */
+    /**
+     * vanilla-mid's travel table locks Ardougne Teleport: one place, locked (F4). One setting
+     * tags both travel and what stands in a locked chunk (D1), and a tag is added once.
+     */
     @Test
-    public void theSettingsChooseWhatIsTaggedAndATagIsAddedOnce() throws Exception
+    public void theSettingChoosesWhetherToTagAndATagIsAddedOnce() throws Exception
     {
         playing(golden("vanilla-mid"), "Iron Example");
 
         assertEquals("<col=00ff00>Ardougne Teleport</col>" + TAG, target(ardougneTeleport()));
         assertEquals("Guard" + TAG, npcTarget(SEERS));
 
-        when(config.tagLockedTeleports()).thenReturn(false);
+        when(config.tagLockedOptions()).thenReturn(false);
         assertEquals("<col=00ff00>Ardougne Teleport</col>", target(ardougneTeleport()));
-        assertEquals("Guard" + TAG, npcTarget(SEERS));
-
-        when(config.tagLockedMenus()).thenReturn(false);
-        when(config.tagLockedTeleports()).thenReturn(true);
         assertEquals("Guard", npcTarget(SEERS));
 
-        when(config.tagLockedMenus()).thenReturn(true);
+        when(config.tagLockedOptions()).thenReturn(true);
         MenuEntry tagged = npcEntry(SEERS);
         tagged.setTarget("Guard" + TAG);
         assertEquals("Guard" + TAG, target(tagged));
+    }
+
+    /**
+     * F1: an option that could never be tagged is passed over before anything is read, the
+     * setting included; one that could be has its text read once, by one reader.
+     */
+    @Test
+    public void optionsThatCouldNeverBeTaggedReadNothing() throws Exception
+    {
+        playing(golden("vanilla-mid"), "Iron Example");
+        MenuFactsReader reader = spy(new MenuFactsReader(client));
+        set("menuFactsReader", reader);
+        clearInvocations(config);
+
+        for (MenuAction type : new MenuAction[] {MenuAction.WALK, MenuAction.CANCEL, MenuAction.EXAMINE_NPC,
+            MenuAction.EXAMINE_OBJECT, MenuAction.PLAYER_FIRST_OPTION, MenuAction.RUNELITE})
+        {
+            MenuEntry entry = entry("Walk here", "Guard", type);
+            plugin.onMenuEntryAdded(new MenuEntryAdded(entry));
+            verify(entry, never()).getOption();
+            verify(entry, never()).getTarget();
+        }
+        verify(reader, never()).read(any());
+        verify(config, never()).tagLockedOptions();
+
+        MenuEntry guard = npcEntry(SEERS);
+        plugin.onMenuEntryAdded(new MenuEntryAdded(guard));
+        verify(reader, times(1)).read(guard);
+        verify(guard, times(1)).getOption();
+        assertEquals("Guard" + TAG, guard.getTarget());
     }
 
     /** The rules in force, for a character logged in (or nobody), as the plugin refreshes them. */

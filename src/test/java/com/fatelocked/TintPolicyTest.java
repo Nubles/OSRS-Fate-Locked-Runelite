@@ -87,30 +87,30 @@ public class TintPolicyTest
             TintPolicy.at(DecisionService.create(RulesSnapshot.of(v3), "nubles", "zezima"), new CanonicalChunk(46, 52)));
     }
 
-    @Test
-    public void colorsFollowTheSettings()
-    {
-        FateLockedConfig config = mock(FateLockedConfig.class);
-        when(config.unlockedColor()).thenReturn(Color.GREEN);
-        when(config.lockedColor()).thenReturn(Color.RED);
-        when(config.unauthoredColor()).thenReturn(Color.GRAY);
-
-        assertEquals(Color.GREEN, TintPolicy.color(TintPolicy.Tint.UNLOCKED, config));
-        assertEquals(Color.RED, TintPolicy.color(TintPolicy.Tint.LOCKED, config));
-        assertEquals(Color.GRAY, TintPolicy.color(TintPolicy.Tint.UNKNOWN, config));
-    }
-
-    /** Until B17's boundary test covers every surface: both overlays tint through TintPolicy. */
+    /**
+     * Until B17's boundary test covers every surface: the game view and the minimap draw from
+     * one scene, tinted through TintPolicy (U3). Neither fills a chunk, and the game view's
+     * corners are never tile centres.
+     */
     @Test
     public void theSceneAndMinimapTintThroughThePolicy() throws Exception
     {
+        assertTrue(source("SceneEdgesCache.java").contains("TintPolicy.at("));
         for (String overlay : new String[] { "FateLockedSceneOverlay.java", "FateLockedMinimapOverlay.java" })
         {
-            String source = new String(Files.readAllBytes(
-                Paths.get("src", "main", "java", "com", "fatelocked", overlay)), StandardCharsets.UTF_8);
+            String source = source(overlay);
             assertFalse(overlay, source.contains("lockStateAt("));
-            assertTrue(overlay, source.contains("TintPolicy."));
+            assertFalse(overlay, source.contains("fillPolygon("));
+            assertTrue(overlay, source.contains("plugin.sceneEdges("));
         }
+        assertFalse(source("FateLockedSceneOverlay.java").contains("LocalPoint.fromWorld("));
+        assertFalse("the minimap's ids are gameval's", source("FateLockedMinimapOverlay.java").contains("ComponentID"));
+    }
+
+    private static String source(String name) throws Exception
+    {
+        return new String(Files.readAllBytes(Paths.get("src", "main", "java", "com", "fatelocked", name)),
+            StandardCharsets.UTF_8);
     }
 
     private static TintPolicy.Tint tint(String entry)

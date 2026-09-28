@@ -1,10 +1,10 @@
 # Fate Locked Ironman
 
 Fate Locked Ironman is one RuneLite Plugin Hub plugin for the
-[Fate Locked tracker](https://github.com/Nubles/OSRS-Fate-Locked). Its single
-sidebar shows the app-authored rules for the current run, renders chunk
-boundaries and lock state, warns about locked content, and provides the
-optional Strict Mode safety layer.
+[Fate Locked tracker](https://github.com/Nubles/OSRS-Fate-Locked). Its sidebar
+shows the app-authored rules for the current run; in game it draws chunk
+borders and locked land, warns about locked content, and provides the optional
+Strict Mode safety layer.
 
 The plugin is on the RuneLite Plugin Hub. The Hub builds the commit pinned in
 its [entry](https://github.com/runelite/plugin-hub/blob/master/plugins/fate-locked-ironman),
@@ -17,12 +17,13 @@ The normal same-PC setup is:
 
 1. Install the single **Fate Locked Ironman** plugin from the RuneLite
    Plugin Hub.
-2. Open its one sidebar and click **Connect tracker**. Read and accept the
-   third-party network warning to enable online sync.
+2. Open the Fate Locked sidebar (the crystal key) and click **Connect
+   tracker** on the status card. Read and accept the third-party network
+   warning to turn on online sync.
 3. In the GitHub Pages tab RuneLite opens, confirm the current tracker
    profile.
-4. Return to RuneLite and verify that the Fate Locked panel shows
-   **Connected**.
+4. Return to RuneLite: the status card says **Rules up to date** and when
+   it last synced.
 5. Use clipboard or file import only if the relay is unavailable.
 
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
@@ -32,59 +33,88 @@ character, so it can link the two.
 
 Once connected, RuneLite checks the tracker every minute while you play,
 every 5 minutes at the login screen, and at once when you log in. To pick
-up a change you have just made in the web tracker, press **Check now**
-under the connection status; it works once every 10 seconds. When a check
-fails, the line under the status says why and when the next check is,
-never more than 5 minutes away unless the relay asks RuneLite to wait
-longer.
+up a change you have just made in the web tracker, press **Check now** in
+Connection & backup (the status card offers it too when the rules may be
+out of date); it works once every 10 seconds. When a check fails, the
+status card says why and when the next check is, never more than 5 minutes
+away unless the relay asks RuneLite to wait longer.
 
-The same button pairs RuneLite with another tracker profile once it is
-connected: it reads **Re-pair tracker…** and asks first. RuneLite keeps
-your current pairing until the new one sends your rules; if none arrives
-within 10 minutes, or you press **Cancel re-pairing**, nothing changes. With
-online sync off, it reads **Turn on online sync** and picks up the pairing
-you already have.
+**Re-pair tracker…** in Connection & backup pairs RuneLite with another
+tracker profile, and asks first. RuneLite keeps your current pairing until
+the new one sends your rules; if none arrives within 10 minutes, or you
+press **Cancel re-pairing**, nothing changes. With online sync off, the
+status card offers **Turn on online sync**, which picks up the pairing you
+already have. **Disconnect** forgets the pairing and keeps the rules you
+have.
 
-The sidebar's **Pairing** row shows only the last four characters of the
-code in use, as the web tracker's pairing dialog does, so the code stays
-off screen. If you press **Disconnect** in the web tracker, the sidebar
-says "Disconnected in the web tracker"; press **Connect tracker** to pair
+The **Pairing** row shows only the last four characters of the code in
+use, as the web tracker's pairing dialog does, so the code stays off
+screen. If you press **Disconnect** in the web tracker, the status card
+says "Disconnected in the tracker"; press **Connect tracker** to pair
 again.
 
-Online sync is off by default, including for existing pairings after this
-update. No relay requests are made until you accept the warning. Canceling
-leaves sync disabled. Disable **Enable online sync** in the Bundle section
-or RuneLite plugin settings at any time to stop syncing. Clipboard and file
-imports remain available offline.
+Online sync is off by default, including for existing pairings. No relay
+requests are made until you accept the warning. Canceling leaves sync
+disabled. Turn off **Online sync** in Connection & backup, or under Tracker
+in RuneLite's configuration, at any time to stop syncing. Clipboard and
+file imports remain available offline.
 
-## One unified sidebar
+## The sidebar
 
-The plugin has one navigation button and seven independently collapsible
-sections:
+The plugin has one navigation button, a crystal key. Its sidebar leads with
+a status card: whether your rules are current and for the character you're
+on, and the one thing to do about it. Below it, five cards open and close on
+their own:
 
-1. Current chunk
-2. Guardian
-3. Roll inbox
-4. Run
-5. Bundle
-6. Warnings
-7. Rendering
+1. **Here**: the place you're standing in, its status and why, and what it
+   holds, category by category. Each category opens and closes and, closed,
+   says what it holds; Skilling opens skill by skill, with the game's skill
+   icons and your level and cap. What you leave open stays open. Click a
+   skilling spot, monster, bank or shop, and the game's own arrow points at
+   the nearest one around you. With none loaded near you, it shows the way to
+   the nearest one you've seen there: the arrow on that spot, which the
+   minimap points toward, a pin on the world map and, if you run the Shortest
+   Path plugin, its route. Where you've seen things stays on your computer.
+2. **Strict Mode**: its switch, its status, the pause, and what it recently
+   stopped.
+3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate
+   Points, the ritual and the next goal.
+4. **Roll inbox**: local events that may be worth a roll.
+5. **Connection & backup**: online sync, the pairing, and the clipboard and
+   file backups.
 
-Current chunk and Guardian start expanded; the remaining sections start
-collapsed. The existing 30 settings plus online-sync consent are available in these sections,
-including the single Strict Mode toggle.
+Here starts open. Every setting is in RuneLite's configuration, under Fate
+Locked Ironman: 21 settings in six sections (Tracker, Strict Mode, Alerts,
+Display, Custom colours and Backup). Settings from before Stage 3 carry over
+once, the first time the plugin starts.
 
 ## Main features
 
 - Every answer is the tracker's own, for land, the sea, and dungeons and
   other interiors; an instance is judged as the chunk it copies. The world
-  map, scene, minimap and current chunk show them.
-- HUD run state, account binding, unlock progress as the run card counts it,
-  why the chunk you are in is locked, pinned goals, and active warnings.
-- Locked-region, bank, slayer-task, over-tier gear, and account-mismatch
-  warnings.
-- Menu tagging and a four-second warning banner for recognised locked
-  actions.
+  map, game view, minimap, HUD and sidebar show them.
+- Chunk borders on the ground where locked land starts, dashed over a dark
+  underlay with a band of shade on the locked side, and the same on the
+  minimap. The dashes keep their place on the ground as the camera turns,
+  and a player, NPC, tree or wall in front of the line hides it.
+- The world map shades locked land like fog and outlines your unlocked land
+  all the way round, with a tooltip for the chunk under the mouse.
+- Every row in Here has a status. Where the tracker can't see a requirement,
+  such as a quest started, quest points, a free-to-play world or a light
+  source you carry, the plugin checks it in game, and a row that isn't ready
+  names only what's left.
+- A Compact or Detailed HUD: where you are and why it's locked, Strict Mode,
+  and the nearest bank and shop; Detailed adds your progress, Keys, Fate
+  Points and what the place holds.
+- A chat line per area, and on entering locked land a sound and one short
+  fade. Infoboxes for Keys, Fate Points and progress, each movable on its
+  own.
+- Bank, Slayer-task and over-tier gear warnings, and a different-character
+  line at login.
+- (Locked) tags on right-click options the rules lock, and a four-second
+  warning banner for recognised locked travel.
+- Default, colour-blind safe or custom colours for everything the plugin
+  draws.
 - Strict Mode, which blocks only travel the tracker's travel table matches
   by id, to one place it locks, with fail-open safeguards, a status that
   says when it cannot act, a 60-second pause, and a bounded local audit log.
@@ -93,10 +123,10 @@ including the single Strict Mode toggle.
 
 ## Roll Inbox ownership and privacy
 
-The Roll Inbox section counts the observations saved for the logged-in
+The Roll inbox card counts the observations saved for the logged-in
 account, in its own folder of RuneLite's local Fate Locked data directory,
 which keeps the newest 250. Ambiguous observations are counted under
-**Needs review**. Only the character your tracker profile is bound to is
+**Needs checking**. Only the character your tracker profile is bound to is
 tracked, and only on worlds that save to that account, so not Leagues,
 Deadman or speedrunning worlds. A profile bound to no character gets no
 roll reminders. Detection never rolls and never changes the tracker; the
@@ -121,12 +151,12 @@ and a new one is started.
 
 ## Clipboard and file recovery
 
-- **Import from clipboard:** copy a bundle in the tracker, then use the
-  plugin sidebar or its re-import hotkey.
+- **Import from clipboard:** copy your rules in the tracker, then press
+  **Import from clipboard** in Connection & backup, or its hotkey.
 - **Backup file:** place `fate-locked-bundle-*.json` in
   `~/.runelite/fate-locked/` (or
   `%USERPROFILE%\.runelite\fate-locked\` on Windows), then click **Load
-  newest backup file** in the Bundle section. It does not watch the folder.
+  newest backup file** in Connection & backup. It does not watch the folder.
 
 The plugin keeps the last rules it accepted in `saved-rules.json` and
 brings them back when it starts, even offline. It reads the newest backup
@@ -153,10 +183,10 @@ Jewelry Teleports.
 An option that picks its place after the click, such as a jewellery Rub, is
 never blocked. Fairy rings, spirit trees, gliders, charters, boats and the
 other networks are matched too, and an option to one locked place is tagged
-(LOCKED), but they are never blocked in this release. Walking, NPCs, objects
+(Locked), but they are never blocked in this release. Walking, NPCs, objects
 (including doors, stairs and ladders), banks and equipment are never
-blocked; the red (LOCKED) menu tags, the locked-bank warning and the
-over-tier gear warning cover them.
+blocked; the (Locked) menu tags, the locked-bank warning and the over-tier
+gear warning cover them.
 
 Missing, invalid, legacy, future, stale, unbound, wrong-character,
 unmatched, several-place, Allowed, Not ready and Unknown decisions fail

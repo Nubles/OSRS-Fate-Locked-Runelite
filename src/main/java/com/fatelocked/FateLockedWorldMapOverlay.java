@@ -2,161 +2,270 @@ package com.fatelocked;
 
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
-import net.runelite.api.Client;
-import net.runelite.api.Point;
-import net.runelite.api.RenderOverview;
-import net.runelite.api.widgets.ComponentID;
-import net.runelite.api.widgets.InterfaceID;
-import net.runelite.api.widgets.Widget;
-import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayLayer;
-import net.runelite.client.ui.overlay.OverlayPosition;
-import net.runelite.client.ui.overlay.OverlayPriority;
-import net.runelite.client.ui.overlay.tooltip.Tooltip;
-import net.runelite.client.ui.overlay.tooltip.TooltipManager;
-
-import javax.inject.Inject;
-import java.awt.BasicStroke;
-import java.awt.Color;
+import com.fatelocked.ui.Palette;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Shape;
-import java.awt.geom.Area;
-import java.awt.geom.Rectangle2D;
+import java.awt.geom.GeneralPath;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import javax.inject.Inject;
+import net.runelite.api.Client;
+import net.runelite.api.Point;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
+import net.runelite.api.worldmap.WorldMap;
+import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayLayer;
+import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.tooltip.Tooltip;
+import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 
 /**
- * Draws tinted rectangles on the world map widget for every chunk the rules
- * decide (B8): green for owned, red for locked, and the frontier colour for
- * a Chunked run's next rolls. Land only, as the web map; nothing on another
- * character.
+ * The run on the world map (U18, decision 4): locked land shaded dark like fog of war, the
+ * frontier of a Chunked run lightly filled, unlocked land left clear, and the unlocked land
+ * outlined with the locked edge's dash. Land only, as the web map shows it; nothing on another
+ * character. It draws inside the map only, never over the overview or the surface selector.
  *
- * The render math mirrors RuneLite's built-in WorldMapOverlay — we translate
- * world tile coords to world-map viewport pixels via RenderOverview's zoom
- * level and the centre of the currently-displayed map tile.
+ * <p>What to draw is worked out once per decision service ({@link WorldMapModel}), and placed with
+ * RuneLite's own maths ({@link WorldMapProjection}), so it lines up with the pins. The placing, the
+ * clip and the outline are worked out again only when the map moves, the overview or the surface
+ * selector opens or closes, or the rules change (A9): a frame of a map at rest makes no garbage.
  */
 public class FateLockedWorldMapOverlay extends Overlay
 {
-    private static final BasicStroke BORDER = new BasicStroke(1f);
+    private final Client client;
+    private final FateLockedPlugin plugin;
+    private final FateLockedConfig config;
+    private final TooltipManager tooltipManager;
 
-    @Inject private Client client;
-    @Inject private FateLockedPlugin plugin;
-    @Inject private FateLockedConfig config;
-    @Inject private TooltipManager tooltipManager;
+    // What the map draws for the rules in force.
+    private DecisionService modelDecisions;
+    private WorldMapModel model = WorldMapModel.NONE;
+    // Where the map was, and how tiles fell on it.
+    private Rectangle viewBounds;
+    private float viewZoom;
+    private int viewX;
+    private int viewY;
+    private WorldMapProjection projection;
+    // The clip, for the map and whichever of the overview and the selector were shown.
+    private Rectangle clipBounds;
+    private Rectangle clipOverview;
+    private Rectangle clipSelector;
+    private Shape clip;
+    // The outline in canvas pixels, for these rules in this view.
+    private WorldMapModel outlineModel;
+    private WorldMapProjection outlineProjection;
+    private Shape outline;
+    // The last tooltip, kept while the mouse stays on one chunk.
+    private DecisionService tipDecisions;
+    private CanonicalChunk tipChunk;
+    private boolean tipContents;
+    private Palette tipPalette;
+    private String tip;
 
     @Inject
-    FateLockedWorldMapOverlay()
+    FateLockedWorldMapOverlay(Client client, FateLockedPlugin plugin, FateLockedConfig config,
+        TooltipManager tooltipManager)
     {
+        this.client = client;
+        this.plugin = plugin;
+        this.config = config;
+        this.tooltipManager = tooltipManager;
         setPosition(OverlayPosition.DYNAMIC);
-        setPriority(OverlayPriority.LOW);
+        setPriority(Overlay.PRIORITY_LOW);
         setLayer(OverlayLayer.MANUAL);
-        drawAfterInterface(InterfaceID.WORLD_MAP);
+        drawAfterInterface(InterfaceID.WORLDMAP);
     }
 
     @Override
     public Dimension render(Graphics2D graphics)
     {
-        if (!config.drawWorldMap()) return null;
+        FateLockedConfig.WorldMapMode mode = config.worldMapMode();
+        if (!mode.shading()) return null;
         DecisionService decisions = plugin.decisions();
         // No rules, or another character's: the map draws nothing.
         if (decisions.trust() != Trust.TRUSTED) return null;
+        Widget map = client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER);
+        WorldMap worldMap = client.getWorldMap();
+        if (map == null || worldMap == null) return null;
+        Rectangle bounds = map.getBounds();
+        Point centre = worldMap.getWorldMapPosition();
+        float zoom = worldMap.getWorldMapZoom();
+        if (bounds == null || centre == null || zoom <= 0) return null;
 
-        Widget worldMap = client.getWidget(ComponentID.WORLD_MAP_MAPVIEW);
-        if (worldMap == null) return null;
-        RenderOverview ro = client.getRenderOverview();
-        if (ro == null) return null;
-
-        Rectangle bounds = worldMap.getBounds();
-        if (bounds == null) return null;
-
-        Shape prevClip = graphics.getClip();
-        graphics.setClip(bounds);
-        graphics.setStroke(BORDER);
-
-        // Clipping region on the world map
-        Area clip = new Area(bounds);
-
-        for (CanonicalChunk chunk : decisions.mappedChunks())
+        WorldMapModel current = model(decisions);
+        WorldMapProjection view = projection(bounds, zoom, centre.getX(), centre.getY());
+        Shape mapClip = clip(bounds, shown(InterfaceID.Worldmap.OVERVIEW_CONTAINER),
+            shown(InterfaceID.Worldmap.MAPLIST_BOX_GRAPHIC0));
+        draw(graphics, current, view, plugin.palette(), mapClip, outline(current, view));
+        if (mode.tooltip())
         {
-            Rectangle2D rect = worldMapRectForChunk(chunk, bounds, ro);
-            if (rect == null) continue;
-            if (!clip.intersects(rect)) continue;
-            WorldMapChunks.Fill fill = WorldMapChunks.fill(decisions, chunk);
-            if (fill == null) continue;
-
-            Color color = fill == WorldMapChunks.Fill.UNLOCKED ? config.unlockedColor()
-                : fill == WorldMapChunks.Fill.FRONTIER ? config.frontierColor() : config.lockedColor();
-            graphics.setColor(color);
-            graphics.fill(rect);
-            graphics.setColor(color.darker());
-            graphics.draw(rect);
+            tooltip(decisions, view, mapClip, mode.contents());
         }
-
-        if (config.worldMapTooltip())
-        {
-            addHoverTooltip(decisions, bounds, ro);
-        }
-
-        graphics.setClip(prevClip);
         return null;
     }
 
-    /** Show the area name + lock status for the chunk under the cursor. */
-    private void addHoverTooltip(DecisionService decisions, Rectangle bounds, RenderOverview ro)
+    /**
+     * Draw the model where the projection places it, inside the clip: one fill per run of
+     * chunks in view, then the outline. Called every frame, so it makes no garbage.
+     */
+    static void draw(Graphics2D graphics, WorldMapModel model, WorldMapProjection projection, Palette palette,
+        Shape clip, Shape outline)
     {
-        Point mouse = client.getMouseCanvasPosition();
-        if (mouse == null || !bounds.contains(mouse.getX(), mouse.getY())) return;
+        int west = projection.westChunk();
+        int east = projection.eastChunk();
+        int south = projection.southChunk();
+        int north = projection.northChunk();
+        Shape before = graphics.getClip();
+        graphics.clip(clip);
+        List<WorldMapModel.Run> runs = model.runs();
+        for (int i = 0; i < runs.size(); i++)
+        {
+            WorldMapModel.Run run = runs.get(i);
+            if (run.getCy() < south || run.getCy() > north || run.getCx1() < west || run.getCx0() > east)
+            {
+                continue;
+            }
+            graphics.setColor(run.getFill() == WorldMapChunks.Fill.FRONTIER
+                ? palette.frontierFill() : palette.lockedShade());
+            int x0 = projection.lineX(Math.max(run.getCx0(), west) << 6);
+            int x1 = projection.lineX((Math.min(run.getCx1(), east) + 1) << 6);
+            int y0 = projection.lineY((run.getCy() + 1) << 6);
+            int y1 = projection.lineY(run.getCy() << 6);
+            graphics.fillRect(x0, y0, x1 - x0, y1 - y0);
+        }
+        graphics.setStroke(Palette.UNDERLAY_STROKE);
+        graphics.setColor(Palette.UNDERLAY);
+        graphics.draw(outline);
+        graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
+        graphics.setColor(palette.lockedEdge());
+        graphics.draw(outline);
+        graphics.setClip(before);
+    }
 
-        float pixelsPerTile = ro.getWorldMapZoom();
-        if (pixelsPerTile <= 0) return;
-        Point centre = ro.getWorldMapPosition();
-        if (centre == null) return;
+    /** The unlocked land's outline in canvas pixels, kept to the chunks in view, as one path. */
+    static Shape outlinePath(WorldMapModel model, WorldMapProjection projection)
+    {
+        int west = projection.westChunk();
+        int east = projection.eastChunk();
+        int south = projection.southChunk();
+        int north = projection.northChunk();
+        GeneralPath outline = new GeneralPath();
+        for (WorldMapModel.Edge edge : model.outline())
+        {
+            // Kept to the chunks in view, so a long dashed line isn't worked out off the map.
+            int low = edge.isVertical() ? south : west;
+            int high = (edge.isVertical() ? north : east) + 1;
+            int across = edge.isVertical() ? east + 1 : north + 1;
+            int acrossLow = edge.isVertical() ? west : south;
+            int from = Math.max(edge.getFrom(), low);
+            int to = Math.min(edge.getTo(), high);
+            if (edge.getLine() < acrossLow || edge.getLine() > across || from >= to)
+            {
+                continue;
+            }
+            if (edge.isVertical())
+            {
+                int x = projection.lineX(edge.getLine() << 6);
+                outline.moveTo(x, projection.lineY(from << 6));
+                outline.lineTo(x, projection.lineY(to << 6));
+            }
+            else
+            {
+                int y = projection.lineY(edge.getLine() << 6);
+                outline.moveTo(projection.lineX(from << 6), y);
+                outline.lineTo(projection.lineX(to << 6), y);
+            }
+        }
+        return outline;
+    }
 
-        // Invert worldMapRectForChunk: pixel → world tile → chunk.
-        double tileX = centre.getX() + (mouse.getX() - bounds.getCenterX()) / pixelsPerTile;
-        double tileY = centre.getY() - (mouse.getY() - bounds.getCenterY()) / pixelsPerTile;
-        CanonicalChunk hovered = new CanonicalChunk(
-            ((int) Math.floor(tileX)) >> 6, ((int) Math.floor(tileY)) >> 6);
-
-        if (WorldMapChunks.fill(decisions, hovered) == null) return; // nothing drawn there
-
-        // Per-chunk "what's here" from the app's chunk-content dataset —
-        // capped per category so dense chunks stay a tooltip, not a page.
-        List<String> content = config.worldMapTooltipContent()
-            ? plugin.getBundle().contentAt(hovered, 4) : Collections.emptyList();
-        tooltipManager.add(new Tooltip(WorldMapChunks.tooltip(decisions, hovered, content)));
+    /** How tiles fall on the map as shown; worked out again only when it moves or zooms. */
+    private WorldMapProjection projection(Rectangle bounds, float zoom, int x, int y)
+    {
+        if (!bounds.equals(viewBounds) || zoom != viewZoom || x != viewX || y != viewY)
+        {
+            projection = new WorldMapProjection(bounds, zoom, x, y);
+            viewBounds = bounds;
+            viewZoom = zoom;
+            viewX = x;
+            viewY = y;
+        }
+        return projection;
     }
 
     /**
-     * Translate a canonical chunk into world-map pixel coordinates inside the
-     * world-map widget's bounds.
+     * Where to draw: worked out again only when the map's bounds change, or the overview or the
+     * selector opens or closes.
      */
-    private Rectangle2D worldMapRectForChunk(CanonicalChunk chunk, Rectangle bounds, RenderOverview ro)
+    private Shape clip(Rectangle bounds, Rectangle overview, Rectangle selector)
     {
-        float pixelsPerTile = ro.getWorldMapZoom();
-        // RuneLite's RenderOverview.getWorldMapPosition() returns a Point whose
-        // (x, y) are world-tile coordinates of the map centre (not a WorldPoint).
-        Point centre = ro.getWorldMapPosition();
-        if (centre == null) return null;
+        if (!bounds.equals(clipBounds) || !Objects.equals(overview, clipOverview)
+            || !Objects.equals(selector, clipSelector))
+        {
+            clip = WorldMapClip.of(bounds, overview, selector);
+            clipBounds = bounds;
+            clipOverview = overview;
+            clipSelector = selector;
+        }
+        return clip;
+    }
 
-        // The world-map widget shows a rectangular view of world tiles, centered
-        // on `centre`. For a tile at world (tx, ty), its x-pixel on the widget is:
-        //   px = widget.centerX + (tx - centre.x) * pixelsPerTile
-        // y-axis is flipped (increasing y = northward in world, upward on screen):
-        //   py = widget.centerY - (ty - centre.y) * pixelsPerTile
-        double cx = bounds.getCenterX();
-        double cy = bounds.getCenterY();
+    /** The outline for these rules in this view; worked out again only when either changes. */
+    private Shape outline(WorldMapModel current, WorldMapProjection view)
+    {
+        if (current != outlineModel || view != outlineProjection)
+        {
+            outline = outlinePath(current, view);
+            outlineModel = current;
+            outlineProjection = view;
+        }
+        return outline;
+    }
 
-        int tileX = chunk.getCx() << 6;
-        int tileY = chunk.getCy() << 6;
+    /** What the map draws for these rules, worked out again only when they change. */
+    private WorldMapModel model(DecisionService decisions)
+    {
+        if (decisions != modelDecisions)
+        {
+            modelDecisions = decisions;
+            model = WorldMapModel.of(decisions);
+        }
+        return model;
+    }
 
-        double x0 = cx + (tileX - centre.getX()) * pixelsPerTile;
-        double y1 = cy - (tileY - centre.getY()) * pixelsPerTile;
-        double x1 = cx + (tileX + 64 - centre.getX()) * pixelsPerTile;
-        double y0 = cy - (tileY + 64 - centre.getY()) * pixelsPerTile;
+    /** A widget's bounds while it is shown, else null. */
+    private Rectangle shown(int id)
+    {
+        Widget widget = client.getWidget(id);
+        return widget == null || widget.isHidden() ? null : widget.getBounds();
+    }
 
-        return new Rectangle2D.Double(x0, y0, x1 - x0, y1 - y0);
+    /** The area, status and contents of the chunk under the mouse, built again only when it changes. */
+    private void tooltip(DecisionService decisions, WorldMapProjection projection, Shape clip, boolean contents)
+    {
+        Point mouse = client.getMouseCanvasPosition();
+        if (mouse == null || !clip.contains(mouse.getX(), mouse.getY())) return;
+        CanonicalChunk hovered = new CanonicalChunk(projection.tileX(mouse.getX()) >> 6,
+            projection.tileY(mouse.getY()) >> 6);
+        Palette palette = plugin.palette();
+        if (decisions != tipDecisions || !hovered.equals(tipChunk) || contents != tipContents
+            || palette != tipPalette)
+        {
+            tipDecisions = decisions;
+            tipChunk = hovered;
+            tipContents = contents;
+            tipPalette = palette;
+            // Capped per category, so a dense chunk stays a tooltip, not a page.
+            List<String> content = contents ? plugin.getBundle().contentAt(hovered, 4) : Collections.emptyList();
+            tip = WorldMapChunks.tooltip(decisions, hovered, content, palette);
+        }
+        if (tip != null)
+        {
+            tooltipManager.add(new Tooltip(tip));
+        }
     }
 }

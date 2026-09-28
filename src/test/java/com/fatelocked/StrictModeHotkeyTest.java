@@ -52,9 +52,11 @@ public class StrictModeHotkeyTest
         StrictModePause pause = (StrictModePause) PluginTestSupport.get(plugin, "strictPause");
         assertTrue(pause.isPaused());
         assertTrue(pause.remainingSeconds() > 55);
-        ArgumentCaptor<StrictModeStatusView> shown = ArgumentCaptor.forClass(StrictModeStatusView.class);
-        verify(panel).updateStrictMode(shown.capture());
-        assertEquals(StrictModeStatusView.Tone.PAUSED, shown.getValue().getTone());
+        ArgumentCaptor<com.fatelocked.sidebar.StrictModeModel> shown =
+            ArgumentCaptor.forClass(com.fatelocked.sidebar.StrictModeModel.class);
+        verify(panel).showStrictMode(shown.capture());
+        assertTrue(shown.getValue().getWord(), shown.getValue().getWord().startsWith("Paused"));
+        assertEquals(com.fatelocked.sidebar.CardAction.RESUME_STRICT_MODE, shown.getValue().getAction());
         assertEquals(StrictModeStatusView.Tone.PAUSED, plugin.getStrictModeStatus().getTone());
     }
 

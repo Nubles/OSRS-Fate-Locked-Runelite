@@ -1,5 +1,8 @@
 package com.fatelocked;
 
+import static org.mockito.ArgumentMatchers.argThat;
+import com.fatelocked.guardian.StrictModeStatusView;
+import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.detectors.DetectedEvent;
 import com.fatelocked.detectors.SlayerTaskDetector;
 import com.fatelocked.events.EventConfidence;
@@ -88,6 +91,7 @@ public class FateLockedPluginLocalWritesTest
         set("eventHistory", new FateEventHistory(
             gson, history(), dir.resolve("event-outbox.json")));
         set("strictAuditLog", new StrictModeAuditLog(gson, audit()));
+        set("strictModeStatus", StrictModeStatusView.of(true, false, 0, null));
         set("slayerTaskDetector", new SlayerTaskDetector(gson, slayer()));
     }
 
@@ -104,13 +108,12 @@ public class FateLockedPluginLocalWritesTest
             .build());
 
         assertFalse(Files.exists(history()));
-        verify(panel, never()).updateRollInboxStatus(
-            anyInt(), anyInt(), anyInt(), anyBoolean());
+        verify(panel, never()).showRollInbox(any(RollInboxModel.class));
 
         runBackground();
 
         assertTrue(Files.exists(history()));
-        verify(panel).updateRollInboxStatus(1, 0, 0, false);
+        verify(panel).showRollInbox(new RollInboxModel(1, 0, 0, false));
     }
 
     @Test
@@ -121,12 +124,12 @@ public class FateLockedPluginLocalWritesTest
             "Locked destination", "BLOCKED", false, false));
 
         assertFalse(Files.exists(audit()));
-        verify(panel, never()).updateRecentPrevented(anyList());
+        verify(panel, never()).showStrictMode(argThat(section -> !section.getRecent().isEmpty()));
 
         runBackground();
 
         assertTrue(Files.exists(audit()));
-        verify(panel).updateRecentPrevented(anyList());
+        verify(panel).showStrictMode(argThat(section -> section.getRecent().size() == 1));
     }
 
     @Test

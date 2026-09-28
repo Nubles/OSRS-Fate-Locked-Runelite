@@ -11,6 +11,65 @@ Official references checked while preparing this candidate:
 - [Rejected or rolled-back features](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features)
 - [Jagex third-party client guidelines](https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1)
 
+## What Stage 3 changes
+
+Stage 3 changes what the plugin shows, not what it can block. Strict Mode is
+unchanged. For review:
+
+- **No new network.** The one request and its consent are as below. One
+  local file is new, `spots.json`, under Local data.
+- **Drawing stays inside what the game shows.** Chunk borders are drawn tile
+  by tile within 32 tiles of the player, inside the loaded scene, with no
+  chunk fills; a short band of shade marks the locked side. The world map is
+  drawn only inside the map, never over its overview or surface selector, and
+  its projection, clip and outline are kept until the map moves or the rules
+  change. Nothing is drawn for another character's rules.
+- **What stands in front of a border isn't drawn over.** RuneLite draws
+  overlays over the finished scene, so each frame the game view reads the
+  outline (`getConvexHull`) of the players, NPCs, objects, walls and wall
+  decorations that stand between the camera and the locked edges or their
+  shade, and leaves out the pieces of line and shade behind them. Only what
+  stands in that corridor is read, never the whole scene, and nothing at all
+  while the borders and shade are off or no locked edge is within 32 tiles.
+- **Less per-frame work.** The overlays draw models worked out when something
+  changes, not each frame, but for those outlines, which move with the
+  camera. The menu tag skips Walk here, Cancel, Examine and
+  player options before reading them, and `A9PerformanceTest` pins that the
+  world map loop and that path allocate nothing.
+- **The menu tag only appends text:** " (Locked)", in the palette's colour.
+- **Here reads the game to decide its rows, nothing more.** Where the tracker
+  can't see a requirement, the plugin reads, on the client thread, once a
+  tick and only while standing where such a row is: the state of the quests
+  those rows name (RuneLite's `Quest.getState`), quest points, real levels,
+  whether the world is members, and the names of the items carried or worn.
+  It only decides which word the sidebar shows; nothing is stored or sent.
+- **A clicked Here row puts up the game's own hint arrow, nothing more.** On the
+  player's click, the plugin looks through the loaded scene, inside the chunk
+  they stand in and placed through `ChunkLocator`, for the nearest object or NPC
+  by that row's name, and calls `Client.setHintArrow`. The arrow comes down on
+  arrival, on a second click, on leaving the chunk or on shutdown, and an arrow
+  the game or another plugin put up is never taken down. Nothing moves the
+  player or clicks for them.
+- **With none loaded, the way to one seen before.** The plugin notes where
+  the NPCs and objects a Here row names load (`NpcSpawned` and the object
+  spawn events), in the real world only, never in an instance or on a boat,
+  and keeps the spots in `spots.json`. A click with none loaded puts the hint
+  arrow on the nearest spot seen in that chunk (`setHintArrow(WorldPoint)`),
+  whose minimap arrow shows the way, and adds a world map pin with the game's
+  own destination flag. When the Shortest Path plugin is running
+  (`PluginManager.isPluginActive`), it is sent the `PluginMessage` Quest
+  Helper sends: "shortestpath", "path" with the player's tile and the spot,
+  and "clear" when the arrow comes down. The way stays up from chunk to
+  chunk until it is reached, cleared, replaced or the player logs out; the
+  arrow moves onto the thing when it loads, and a spot found empty is
+  forgotten.
+- **Alerts are calmer.** A locked area posts one chat line and, on arrival
+  from unlocked land, a sound and a single 1.1-second fade. The old red border
+  pulsed at 2.5 Hz; it is gone.
+- **Settings moved to RuneLite's configuration.** A one-time migration maps
+  the retired settings to the new ones; the retired keys stay readable for a
+  release, so a rollback finds them.
+
 ## Network boundary
 
 The plugin constructs one request:
@@ -49,7 +108,9 @@ All files stay in RuneLite's own `fate-locked` data directory: the last
 accepted rules (`saved-rules.json`, tagged with a hash of the pairing, never
 the code), and per OSRS account, in `accounts/<account hash>/`, the detected
 event history, the Strict Mode audit log, the Slayer task and the finished
-diary tiers. Two RuneLites sharing the folder merge their writes under a lock
+diary tiers. `spots.json` holds where the things the Here card can point at
+were seen, by chunk and row, at most eight tiles a row, and is written at most
+every half minute. Two RuneLites sharing the folder merge their writes under a lock
 file rather than overwrite each other. Detections are recorded, and roll
 reminders shown, only for the character the rules are bound to, on worlds
 that save to that account (not Leagues, Deadman, speedrunning and similar
@@ -65,7 +126,7 @@ id), the option goes to one destination, and fresh rules bound to the
 logged-in character lock that trip: the destination, or the unlock the trip
 needs, is locked. It never consumes walking, NPC, object (including doors,
 stairs and ladders), bank or equipment clicks; those get only the passive
-(LOCKED) menu tag and chat warnings. Fairy rings, spirit trees, gliders,
+(Locked) menu tag and chat warnings. Fairy rings, spirit trees, gliders,
 charters, boats and the other networks are matched too, and an option to one
 locked place is tagged, but they are never blocked. Because blocking travel
 is behaviorally adjacent to conditional menu-entry restrictions, we request

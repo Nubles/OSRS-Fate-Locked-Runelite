@@ -59,6 +59,8 @@ public class DecisionServiceTest
         assertEquals(PermissionStatus.NOT_READY,
             rules.target(LUMBRIDGE, null, "Cook's Assistant").getStatus());
         assertEquals(PermissionStatus.LOCKED, rules.target(LUMBRIDGE, "NPC", "Goblin").getStatus());
+        assertEquals("the plugin's own tag doesn't change what matches", PermissionStatus.LOCKED,
+            rules.target(LUMBRIDGE, "NPC", "<col=ffff00>Goblin</col> <col=f87171>(Locked)</col>").getStatus());
         assertEquals(PermissionStatus.UNKNOWN, rules.target(LUMBRIDGE, "OBJECT", "Unmapped").getStatus());
         assertNull(rules.target(LUMBRIDGE, "OBJECT", "Unmapped").getReason());
         assertEquals(PermissionStatus.LOCKED, rules.item(4151).getStatus());

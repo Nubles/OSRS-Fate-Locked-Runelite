@@ -75,7 +75,7 @@ public class FateLockedRulesSourceTest
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
         verify(h.controller, never()).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "no backup file in .runelite/fate-locked — rules unchanged", false);
+            Notices.NO_BACKUP_FILE, false);
     }
 
     @Test
@@ -94,7 +94,7 @@ public class FateLockedRulesSourceTest
         assertEquals(FateLockedPlugin.RulesSource.RELAY, h.source());
         verify(h.controller, never()).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "couldn't read the backup file — rules unchanged", false);
+            Notices.BACKUP_UNREADABLE, false);
     }
 
     @Test
@@ -139,9 +139,8 @@ public class FateLockedRulesSourceTest
         assertEquals(FateLockedPlugin.RulesSource.FILE, h.source());
         verify(h.controller).localRulesReplacedTrackerRules();
         verify(h.panel).flashStatus(
-            "loaded backup file: "
-                + h.plugin.getBundle().getRegionChunks().size() + " regions",
-            true);
+            org.mockito.ArgumentMatchers.startsWith("Loaded the newest backup file"),
+            org.mockito.ArgumentMatchers.eq(true));
     }
 
     @Test
@@ -149,9 +148,12 @@ public class FateLockedRulesSourceTest
     {
         Harness h = new Harness(folder.newFolder("clipboard"));
 
+        Instant before = Instant.now();
         PluginTestSupport.importFromClipboard(h.plugin, v4Json(Instant.now()));
 
         assertEquals(FateLockedPlugin.RulesSource.IMPORT, h.source());
+        assertEquals(RulesPrecedence.Arrival.IMPORT, h.active().getArrival());
+        assertFalse(h.active().getArrivedAt().isBefore(before));
         verify(h.controller).localRulesReplacedTrackerRules();
     }
 
@@ -166,6 +168,7 @@ public class FateLockedRulesSourceTest
         when(h.controller.activeCode()).thenReturn(newCode);
 
         assertTrue(PluginTestSupport.importFromRelay(h.plugin, v4Json(Instant.now()), "41"));
+        assertEquals(RulesPrecedence.Arrival.RELAY, h.active().getArrival());
 
         SavedRules saved = h.savedRules();
         assertEquals(FateLockedPlugin.RulesSource.RELAY, saved.getSource());
@@ -222,8 +225,11 @@ public class FateLockedRulesSourceTest
         assertFalse(h.plugin.getBundle().isLegacyRules());
         assertEquals("run-1", h.plugin.getBundle().getRunId());
         assertEquals(FateLockedPlugin.RulesSource.IMPORT, h.source());
+        assertEquals("the status card can say they came from the last start",
+            RulesPrecedence.Arrival.SAVED, h.active().getArrival());
+        assertEquals(h.savedRules().getSavedAt(), h.active().getArrivedAt());
         verify(h.panel).flashStatus(
-            org.mockito.ArgumentMatchers.startsWith("saved rules from "), eq(true));
+            org.mockito.ArgumentMatchers.startsWith("Restored the rules saved at "), eq(true));
         verify(h.controller, never()).seedAcceptedVersion(anyString());
     }
 
@@ -238,6 +244,7 @@ public class FateLockedRulesSourceTest
         h.invoke("loadSavedRules");
 
         assertEquals(FateLockedPlugin.RulesSource.FILE, h.source());
+        assertEquals(RulesPrecedence.Arrival.STARTUP_FILE, h.active().getArrival());
         // From now on the next start finds these as saved rules.
         assertEquals(FateLockedPlugin.RulesSource.FILE, h.savedRules().getSource());
     }
@@ -442,9 +449,14 @@ public class FateLockedRulesSourceTest
 
         FateLockedPlugin.RulesSource source() throws Exception
         {
+            return active().getSource();
+        }
+
+        ActiveRules active() throws Exception
+        {
             Field field = FateLockedPlugin.class.getDeclaredField("active");
             field.setAccessible(true);
-            return ((ActiveRules) field.get(plugin)).getSource();
+            return (ActiveRules) field.get(plugin);
         }
 
         void paired(boolean paired)
