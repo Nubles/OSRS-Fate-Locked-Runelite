@@ -30,7 +30,9 @@ public class HerePresenterGoldenTest
         assertEquals(Tone.GOOD, here.getTone());
         assertNull("an unlocked place needs no reason", here.getReason());
         assertEquals("Lumbridge · Misthalin · 50, 50", here.getWhere());
-        assertEquals(List.of(14, 20, 35),
+        // Six rows the tracker leaves undecided, the caves' monsters, count as not ready: logged out,
+        // the game can't say The Lost Tribe is started.
+        assertEquals(List.of(14, 26, 35),
             here.getCounts().stream().map(HereModel.Count::getValue).collect(Collectors.toList()));
         assertEquals(List.of("Can do", "Not ready", "Locked"),
             here.getCounts().stream().map(HereModel.Count::getLabel).collect(Collectors.toList()));
@@ -46,8 +48,51 @@ public class HerePresenterGoldenTest
         assertEquals("Locked", shop.getWord());
         assertNotNull(shop.getName() + " says why", shop.getReason());
         assertTrue(group(here, "QUESTS").getRows().stream().anyMatch(row -> row.getReason() != null));
-        assertTrue("combat rows say Needs checking, not a cross",
-            group(here, "COMBAT").getRows().stream().anyMatch(row -> "Needs checking".equals(row.getWord())));
+        HereModel.Row guard = group(here, "COMBAT").getRows().stream()
+            .filter(row -> row.getName().equals("Cave goblin guard")).findFirst().orElseThrow(AssertionError::new);
+        assertEquals("Not ready", guard.getWord());
+        assertEquals("The Lost Tribe started", guard.getReason());
+    }
+
+    /** The owner's review, 28 Sept: no row of any golden, anywhere, is left without a status. */
+    @Test
+    public void everyRowHasAStatus() throws Exception
+    {
+        for (Object[] scenario : GoldenBundleContractTest.scenarios())
+        {
+            String id = (String) scenario[0];
+            DecisionService playing = decisions(id, "iron example");
+            for (CanonicalChunk chunk : playing.mappedChunks())
+            {
+                for (HereModel.Group group : PRESENTER.present(playing, chunk).getGroups())
+                {
+                    for (HereModel.Row row : group.getRows())
+                    {
+                        assertTrue(id + " " + chunk + " " + row.getName() + ": " + row.getWord(),
+                            List.of("Can do", "Not ready", "Locked").contains(row.getWord()));
+                    }
+                }
+            }
+        }
+    }
+
+    /** Skilling splits by skill, each with the level and cap the tracker gives; rows keep the level they need. */
+    @Test
+    public void skillingSplitsBySkill() throws Exception
+    {
+        HereModel.Group skilling = group(here("vanilla-mid", "iron example", 50, 50), "SKILLING");
+        List<String> skills = skilling.getSubgroups().stream().map(HereModel.Subgroup::getTitle)
+            .collect(Collectors.toList());
+        assertEquals(List.of("Fishing", "Mining", "Woodcutting"), skills);
+        HereModel.Subgroup woodcutting = skilling.getSubgroups().get(2);
+        assertEquals("SKILLING/Woodcutting", woodcutting.getKey());
+        assertEquals("Woodcutting", woodcutting.getSkill());
+        assertEquals("Level 1 · cap 0", woodcutting.getNote());
+        HereModel.Row yew = woodcutting.getRows().stream().filter(row -> row.getName().equals("Yew tree")).findFirst()
+            .orElseThrow(AssertionError::new);
+        assertEquals("Level 60", yew.getReason());
+        assertEquals("every row, in one skill or another", skilling.getRows().size(),
+            skilling.getSubgroups().stream().mapToInt(subgroup -> subgroup.getRows().size()).sum());
     }
 
     @Test

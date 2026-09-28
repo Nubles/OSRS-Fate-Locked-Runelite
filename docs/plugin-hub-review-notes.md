@@ -29,6 +29,12 @@ unchanged. For review:
   player options before reading them, and `A9PerformanceTest` pins that the
   world map loop and that path allocate nothing.
 - **The menu tag only appends text:** " (Locked)", in the palette's colour.
+- **Here reads the game to decide its rows, nothing more.** Where the tracker
+  can't see a requirement, the plugin reads, on the client thread, once a
+  tick and only while standing where such a row is: the state of the quests
+  those rows name (RuneLite's `Quest.getState`), quest points, real levels,
+  whether the world is members, and the names of the items carried or worn.
+  It only decides which word the sidebar shows; nothing is stored or sent.
 - **Alerts are calmer.** A locked area posts one chat line and, on arrival
   from unlocked land, a sound and a single 1.1-second fade. The old red border
   pulsed at 2.5 Hz; it is gone.

@@ -13,9 +13,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * The Here card from the rules, for the place the player stands in (U13, U16, U21):
@@ -23,7 +25,10 @@ import java.util.Map;
  *   <li>its name as the tracker gives it, with interiors and the sea named from the
  *       rules' places;</li>
  *   <li>its status in a word, and the tracker's reason when it isn't unlocked;</li>
- *   <li>counts, and every row in the tracker's categories with its reason.</li>
+ *   <li>counts, and every row in the tracker's categories with its reason, Skilling
+ *       split by skill;</li>
+ *   <li>a status for every row: one the tracker leaves undecided is decided by what
+ *       the game says ({@link RowChecks}).</li>
  * </ul>
  * Freshness is the status card's job, so the card never says when the rules synced.
  */
@@ -35,6 +40,9 @@ public final class HerePresenter
     static final String UNMAPPED = "The tracker doesn't map this place.";
     /** The tracker's reason for a row whose place is locked: said once, by the card, in a locked place. */
     static final String LOCATION_LOCKED = "Location locked";
+    static final String SKILLING = "SKILLING";
+    /** Skilling rows without a skill. */
+    static final String OTHER = "Other";
 
     private static final List<String> ORDER = Arrays.asList(
         "SKILLING", "BANKS", "SHOPS", "QUESTS", "COMBAT", "TRAVEL", "FARMING", "ACTIVITIES");
@@ -60,6 +68,15 @@ public final class HerePresenter
 
     public HereModel present(DecisionService decisions, CanonicalChunk chunk)
     {
+        return present(decisions, chunk, GameFacts.NONE);
+    }
+
+    /**
+     * @param facts what the game says, for the rows the tracker leaves undecided; they are
+     *              decided by it, so every row has a status ({@link RowChecks})
+     */
+    public HereModel present(DecisionService decisions, CanonicalChunk chunk, GameFacts facts)
+    {
         if (chunk == null)
         {
             return HereModel.message(LOGGED_OUT);
@@ -77,7 +94,7 @@ public final class HerePresenter
         PermissionStatus status = decision.getStatus();
         String reason = decision.getSource() == Decision.Source.UNMAPPED ? UNMAPPED : decision.getReason();
         Map<PermissionStatus, Integer> counts = new EnumMap<>(PermissionStatus.class);
-        List<HereModel.Group> groups = groups(decisions, chunk, counts, status == PermissionStatus.LOCKED);
+        List<HereModel.Group> groups = groups(decisions, chunk, counts, status == PermissionStatus.LOCKED, facts);
         List<HereModel.Count> tiles = groups.isEmpty() ? Collections.emptyList() : Arrays.asList(
             new HereModel.Count(counts.getOrDefault(PermissionStatus.ALLOWED, 0), Terms.CAN_DO, Palette.Tone.GOOD),
             new HereModel.Count(counts.getOrDefault(PermissionStatus.NOT_READY, 0), Terms.NOT_READY,
@@ -87,7 +104,7 @@ public final class HerePresenter
     }
 
     private static List<HereModel.Group> groups(DecisionService decisions, CanonicalChunk chunk,
-        Map<PermissionStatus, Integer> counts, boolean placeLocked)
+        Map<PermissionStatus, Integer> counts, boolean placeLocked, GameFacts facts)
     {
         List<HereModel.Group> groups = new ArrayList<>();
         ChunkPermissionSnapshot snapshot = decisions.details(chunk).orElse(null);
@@ -103,12 +120,14 @@ public final class HerePresenter
                 List<HereModel.Row> rows = new ArrayList<>();
                 for (ChunkPermissionRow row : source)
                 {
-                    PermissionStatus status = row.getStatus();
+                    RowChecks.Decided decided = RowChecks.decide(row.getStatus(), row.getDetail(), facts);
+                    PermissionStatus status = decided.getStatus();
                     counts.merge(status, 1, Integer::sum);
                     rows.add(new HereModel.Row(rowName(row.getName()), Terms.row(status), Palette.tone(status),
-                        rowReason(row.getDetail(), placeLocked)));
+                        rowReason(decided.getDetail(), placeLocked)));
                 }
-                groups.add(new HereModel.Group(id, TITLES.get(id), rows));
+                groups.add(new HereModel.Group(id, TITLES.get(id), rows,
+                    SKILLING.equals(id) ? bySkill(id, rows) : Collections.emptyList()));
             }
             return groups;
         }
@@ -124,8 +143,9 @@ public final class HerePresenter
                 }
                 for (String name : legacy.getOrDefault(key.getKey(), Collections.emptyList()))
                 {
+                    // An older export lists what's here without deciding it: no status to show.
                     counts.merge(PermissionStatus.UNKNOWN, 1, Integer::sum);
-                    rows.add(new HereModel.Row(name, Terms.NEEDS_CHECKING, Palette.Tone.NEUTRAL, null));
+                    rows.add(new HereModel.Row(name, null, Palette.Tone.NEUTRAL, null));
                 }
             }
             if (!rows.isEmpty())
@@ -134,6 +154,49 @@ public final class HerePresenter
             }
         }
         return groups;
+    }
+
+    /**
+     * Skilling split by skill, in the order of their names, each with the player's level
+     * and cap beside it. Each row keeps only the level it needs and what else is left. Rows
+     * without a skill come last, as Other.
+     */
+    static List<HereModel.Subgroup> bySkill(String category, List<HereModel.Row> rows)
+    {
+        Map<String, List<HereModel.Row>> bySkill = new TreeMap<>();
+        Map<String, String> notes = new HashMap<>();
+        List<HereModel.Row> other = new ArrayList<>();
+        for (HereModel.Row row : rows)
+        {
+            List<String> clauses = RowChecks.clauses(row.getReason());
+            SkillLine line = clauses.isEmpty() ? null : SkillLine.parse(clauses.get(0));
+            if (line == null)
+            {
+                other.add(row);
+                continue;
+            }
+            notes.putIfAbsent(line.getSkill(), "Level " + line.getLevel() + " · cap " + line.getCap());
+            List<String> left = new ArrayList<>();
+            left.add("Level " + line.getNeeded());
+            left.addAll(clauses.subList(1, clauses.size()));
+            bySkill.computeIfAbsent(line.getSkill(), skill -> new ArrayList<>())
+                .add(new HereModel.Row(row.getName(), row.getWord(), row.getTone(), String.join("; ", left)));
+        }
+        List<HereModel.Subgroup> subgroups = new ArrayList<>();
+        for (Map.Entry<String, List<HereModel.Row>> skill : bySkill.entrySet())
+        {
+            subgroups.add(new HereModel.Subgroup(category + "/" + skill.getKey(), skill.getKey(), skill.getKey(),
+                notes.get(skill.getKey()), skill.getValue()));
+        }
+        if (subgroups.isEmpty())
+        {
+            return Collections.emptyList();
+        }
+        if (!other.isEmpty())
+        {
+            subgroups.add(new HereModel.Subgroup(category + "/" + OTHER, OTHER, null, null, other));
+        }
+        return subgroups;
     }
 
     /**

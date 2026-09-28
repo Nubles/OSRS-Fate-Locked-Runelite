@@ -64,6 +64,9 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 29 | Set **HUD** to Compact, then Detailed, then Off, in an unlocked and a locked chunk. | Compact shows Here, Status, Why when locked, Strict Mode and the nearest bank and shop. Detailed adds progress, Keys, Fate Points and what the place holds. Off hides it. | |
 | 30 | Turn on **Infoboxes**, then move one of them. | Three boxes, for Keys, Fate Points and progress, each with its own OSRS icon; each moves on its own. On the second character they disappear. | |
 | 31 | Set **Colours** to Colour-blind safe, then back to Default. | The sidebar, HUD, borders, minimap and world map all change colour together, and change back. | |
+| 32 | In Lumbridge Castle, open Here's Skilling, then Woodcutting; walk to Varrock and back; restart RuneLite. | Each category starts closed, saying what it holds ("3 can do · 2 locked"). Skilling lists its skills with their icons, level and cap. What you opened stays open as you walk and after the restart. | |
+| 33 | In Lumbridge Castle before starting The Lost Tribe, open Here's Combat; then start the quest; then carry a lit lantern. | No row says Needs checking. The caves' monsters read Not ready, naming The Lost Tribe; once it's started the guards read Can do, and with the lantern so do the rest the quests allow. | |
+| 34 | Open the world map around Lumbridge and Draynor. | The dashed line runs all the way round your unlocked land, under Wizards' Tower too; Tutorial Island is clear, outside it. | |
 
 Record the commit, the RuneLite version, the date, and a pass or fail (with a
 note for any fail) in each row. Any fail blocks the release until it is fixed

@@ -98,6 +98,13 @@ final class SidebarShots
             sidebar.here().setExpanded(false);
             return sidebar;
         });
+        shots.put("new-13-here-open", () -> {
+            Sidebar sidebar = (Sidebar) sidebar(icons, upToDate(), here("vanilla-mid", 50, 50, true), active(),
+                run(), connected());
+            sidebar.here().setOpen(new java.util.TreeSet<>(Arrays.asList("SKILLING", "SKILLING/Woodcutting", "BANKS")));
+            sidebar.strictMode().setExpanded(false);
+            return sidebar;
+        });
         shots.put("new-11-run-and-connection", () -> {
             Sidebar sidebar = (Sidebar) sidebar(icons, upToDate(), here("vanilla-interiors", 18, 143, true),
                 active(), run(), connected());

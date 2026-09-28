@@ -477,6 +477,31 @@ public class FateLockedChunkEntryTest
         }
     }
 
+    /**
+     * The owner's review, 28 Sept: Here is worked out again when the game says more. The caves'
+     * guard needs only The Lost Tribe started, which the tracker can't see but the game can.
+     */
+    @Test
+    public void hereFollowsWhatTheGameSays() throws Exception
+    {
+        playing("Iron Example");
+        when(config.hudMode()).thenReturn(FateLockedConfig.HudMode.DETAILED);
+        when(client.isClientThread()).thenReturn(true);
+        when(client.getGameState()).thenReturn(net.runelite.api.GameState.LOGGED_IN);
+        when(client.getWorldType()).thenReturn(java.util.EnumSet.of(net.runelite.api.WorldType.MEMBERS));
+        // The quest-state script's answer: 1 is still to start, 0 under way.
+        int[] answer = {1};
+        when(client.getIntStack()).thenReturn(answer);
+        when(client.getTickCount()).thenReturn(1000);
+        walk(LUMBRIDGE);
+        assertEquals("Not ready", HudPresenterTest.lines(plugin.hudModel()).get("Cave goblin guard"));
+
+        answer[0] = 0;
+        when(client.getTickCount()).thenReturn(1001);
+        walk(LUMBRIDGE);
+        assertEquals("Can do", HudPresenterTest.lines(plugin.hudModel()).get("Cave goblin guard"));
+    }
+
     /** E6: the way to the nearest bank is found again when the player moves, and when the rules change. */
     @Test
     public void theHudsNearestBankFollowsThePlayerAndTheRules() throws Exception

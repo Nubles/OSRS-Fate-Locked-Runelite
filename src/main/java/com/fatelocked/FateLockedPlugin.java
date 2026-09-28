@@ -5,6 +5,7 @@ import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
+import com.fatelocked.rules.ChunkPermissionRow;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.ItemTier;
@@ -13,9 +14,11 @@ import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.panel.LocalTimeText;
 import com.fatelocked.sidebar.CardAction;
+import com.fatelocked.sidebar.GameFacts;
 import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
 import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.RowChecks;
 import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.fatelocked.ui.Art;
 import com.fatelocked.ui.Palette;
@@ -60,7 +63,10 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
+import net.runelite.api.Quest;
+import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
+import net.runelite.api.WorldType;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
@@ -73,6 +79,7 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.Notifier;
@@ -127,13 +134,16 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ScheduledExecutorService;
@@ -240,6 +250,8 @@ public class FateLockedPlugin extends Plugin
     private final SceneEdgesCache sceneEdgesCache = new SceneEdgesCache();
     /** The colours the colour settings choose; overlays read it through this volatile field. */
     private volatile Palette palette = Palette.defaults();
+    /** The parts of Here the player left open, as their profile keeps them: not a setting. */
+    static final String HERE_OPEN = "hereOpen";
     /** The settings that change the palette. */
     private static final Set<String> PALETTE_KEYS = new HashSet<>(Arrays.asList(
         "colourPreset", "unlockedColor", "frontierColor", "lockedColor"));
@@ -260,6 +272,12 @@ public class FateLockedPlugin extends Plugin
     private HereModel hereModel;
     private DecisionService hereDecisions;
     private CanonicalChunk hereChunk;
+    private GameFacts hereFacts = GameFacts.NONE;
+    /** The game's facts as last read, and for which tick, chunk and rules. */
+    private GameFacts lastFacts = GameFacts.NONE;
+    private int factsTick = -1;
+    private CanonicalChunk factsChunk;
+    private DecisionService factsDecisions;
     /** What Strict Mode stopped lately, newest first, for its section. */
     private List<String> recentStopped = java.util.Collections.emptyList();
     private final GuardedActionFactory guardedActionFactory = new GuardedActionFactory();
@@ -482,6 +500,8 @@ public class FateLockedPlugin extends Plugin
         panel.onSyncToggle(this::setOnlineSync);
         panel.onIntroDismiss(() -> configManager.setConfiguration(
             FateLockedConfig.GROUP, "strictModeIntroSeen", true));
+        panel.onHereFold(this::saveHereOpen);
+        panel.openHere(hereOpen());
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
@@ -555,6 +575,52 @@ public class FateLockedPlugin extends Plugin
     {
         migrateSettings();
         gate.run(this::refreshPalette);
+        if (panel != null)
+        {
+            panel.openHere(hereOpen());
+        }
+    }
+
+    /**
+     * The parts of Here the player left open, as their RuneLite profile keeps them; none
+     * when the profile can't be read, which never stops the plugin starting.
+     */
+    Set<String> hereOpen()
+    {
+        String saved;
+        try
+        {
+            saved = configManager.getConfiguration(FateLockedConfig.GROUP, HERE_OPEN);
+        }
+        catch (RuntimeException e)
+        {
+            log.warn("Could not read which parts of Here were left open: {}", e.getMessage());
+            saved = null;
+        }
+        Set<String> open = new TreeSet<>();
+        if (saved != null)
+        {
+            for (String key : saved.split(","))
+            {
+                if (!key.trim().isEmpty())
+                {
+                    open.add(key.trim());
+                }
+            }
+        }
+        return open;
+    }
+
+    private void saveHereOpen(Set<String> open)
+    {
+        if (open.isEmpty())
+        {
+            configManager.unsetConfiguration(FateLockedConfig.GROUP, HERE_OPEN);
+        }
+        else
+        {
+            configManager.setConfiguration(FateLockedConfig.GROUP, HERE_OPEN, String.join(",", open));
+        }
     }
 
     /** Which load of the scene this is; it changes whenever a scene loads. */
@@ -2422,17 +2488,98 @@ public class FateLockedPlugin extends Plugin
         return sidebarModels;
     }
 
-    /** Here for the place the player stands in, worked out again only when it or the rules change. */
+    /**
+     * Here for the place the player stands in, worked out again only when it, the rules or
+     * what the game says for its undecided rows change.
+     */
     private HereModel hereModel(DecisionService ruleDecisions)
     {
         CanonicalChunk chunk = client.getLocalPlayer() == null ? null : chunkLocator().player();
-        if (hereModel == null || ruleDecisions != hereDecisions || !java.util.Objects.equals(chunk, hereChunk))
+        GameFacts facts = gameFacts(ruleDecisions, chunk);
+        if (hereModel == null || ruleDecisions != hereDecisions || !java.util.Objects.equals(chunk, hereChunk)
+            || !facts.equals(hereFacts))
         {
-            hereModel = herePresenter.present(ruleDecisions, chunk);
+            hereModel = herePresenter.present(ruleDecisions, chunk, facts);
             hereDecisions = ruleDecisions;
             hereChunk = chunk;
+            hereFacts = facts;
         }
         return hereModel;
+    }
+
+    /**
+     * What the game says, for the rows here the tracker leaves undecided: the quests they
+     * name, quest points, levels, the world, and what the player carries (RowChecks). Read
+     * once a tick, and only where such a row is. Client thread; elsewhere, nothing.
+     */
+    GameFacts gameFacts(DecisionService ruleDecisions, CanonicalChunk chunk)
+    {
+        if (chunk == null || !client.isClientThread() || client.getGameState() != GameState.LOGGED_IN)
+        {
+            return GameFacts.NONE;
+        }
+        int tick = client.getTickCount();
+        if (tick == factsTick && chunk.equals(factsChunk) && ruleDecisions == factsDecisions)
+        {
+            return lastFacts;
+        }
+        List<String> undecided = new ArrayList<>();
+        ruleDecisions.details(chunk).ifPresent(snapshot -> {
+            for (List<ChunkPermissionRow> rows : snapshot.getCategories().values())
+            {
+                for (ChunkPermissionRow row : rows)
+                {
+                    if (row.getStatus() == PermissionStatus.UNKNOWN)
+                    {
+                        undecided.add(row.getDetail());
+                    }
+                }
+            }
+        });
+        GameFacts facts = GameFacts.NONE;
+        if (!undecided.isEmpty())
+        {
+            Map<Quest, QuestState> quests = new EnumMap<>(Quest.class);
+            for (Quest quest : RowChecks.questsNamed(undecided))
+            {
+                quests.put(quest, quest.getState(client));
+            }
+            Map<Skill, Integer> levels = new EnumMap<>(Skill.class);
+            for (Skill skill : Skill.values())
+            {
+                if (!"Overall".equals(skill.getName()))
+                {
+                    levels.put(skill, client.getRealSkillLevel(skill));
+                }
+            }
+            Set<String> carried = new HashSet<>();
+            boolean light = false;
+            for (int id : new int[] {InventoryID.INV, InventoryID.WORN})
+            {
+                ItemContainer container = client.getItemContainer(id);
+                if (container == null)
+                {
+                    continue;
+                }
+                for (Item item : container.getItems())
+                {
+                    if (item.getId() <= 0)
+                    {
+                        continue;
+                    }
+                    carried.add(itemManager.getItemComposition(item.getId()).getName().toLowerCase(Locale.ROOT));
+                    light |= RowChecks.LIGHT_SOURCES.contains(item.getId());
+                }
+            }
+            java.util.EnumSet<WorldType> world = client.getWorldType();
+            facts = new GameFacts(world == null ? null : world.contains(WorldType.MEMBERS),
+                client.getVarpValue(VarPlayerID.QP), levels, quests, carried, light);
+        }
+        factsTick = tick;
+        factsChunk = chunk;
+        factsDecisions = ruleDecisions;
+        lastFacts = facts;
+        return facts;
     }
 
     /**

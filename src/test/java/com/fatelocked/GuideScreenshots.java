@@ -23,6 +23,7 @@ import java.awt.Container;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -109,7 +110,7 @@ public final class GuideScreenshots
             (new GsonBuilder().setPrettyPrinting().create().toJson(manifest) + "\n").getBytes(StandardCharsets.UTF_8));
     }
 
-    private static List<Shot> shots(IconSource icons)
+    private static List<Shot> shots(IconSource icons) throws IOException
     {
         String firstRun = "Log in to see the place you're standing in.";
         List<Shot> shots = new ArrayList<>();
@@ -132,15 +133,22 @@ public final class GuideScreenshots
             new Anchor("status", text("Rules up to date")),
             new Anchor("cards", section("Here")),
             new Anchor("more-settings", startsWith("More settings"))));
+        HereModel tower = SidebarShots.here("vanilla-mid", 42, 53, true);
+        HereModel.Subgroup firstSkill = tower.getGroups().stream()
+            .filter(group -> group.getCategory().equals("SKILLING")).findFirst()
+            .map(group -> group.getSubgroups().get(0)).orElseThrow(IllegalStateException::new);
         shots.add(new Shot("sidebar-here", () -> {
-            Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(),
-                SidebarShots.here("vanilla-mid", 42, 53, true), SidebarShots.active(), SidebarShots.run(),
-                SidebarShots.connected());
+            Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(), tower,
+                SidebarShots.active(), SidebarShots.run(), SidebarShots.connected());
+            // Skilling open at its first skill; the rest closed, as they start.
+            sidebar.here().setOpen(new java.util.TreeSet<>(Arrays.asList("SKILLING", firstSkill.getKey())));
             return open(sidebar, sidebar.here());
         },
             new Anchor("status", pill("Locked")),
             new Anchor("reason", text("Unlock Seers' Village")),
-            new Anchor("counts", inside("Here", type(StatTiles.class)))));
+            new Anchor("counts", inside("Here", type(StatTiles.class))),
+            new Anchor("categories", text("Skilling")),
+            new Anchor("skills", text(firstSkill.getTitle()))));
         shots.add(new Shot("sidebar-strict-mode", () -> {
             Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(),
                 SidebarShots.here("vanilla-mid", 50, 50, true),

@@ -12,6 +12,7 @@ import com.fatelocked.ui.GameArt;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette;
 import java.awt.BorderLayout;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.swing.JOptionPane;
@@ -106,6 +107,18 @@ class FateLockedPanel extends PluginPanel
     void showHere(HereModel model)
     {
         queueOnEdt(() -> sidebar.here().apply(model));
+    }
+
+    /** Called, on the Swing thread, with what's open each time the player opens or closes part of Here. */
+    void onHereFold(Consumer<Set<String>> handler)
+    {
+        sidebar.here().onFold(handler);
+    }
+
+    /** Opens the parts of Here the player left open, such as last time's. */
+    void openHere(Set<String> keys)
+    {
+        queueOnEdt(() -> sidebar.here().setOpen(keys));
     }
 
     void showStrictMode(StrictModeModel model)

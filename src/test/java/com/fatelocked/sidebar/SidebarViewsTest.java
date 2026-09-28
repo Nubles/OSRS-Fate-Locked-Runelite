@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.fatelocked.ui.FlatButton;
+import com.fatelocked.ui.Fold;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.ItemRow;
 import com.fatelocked.ui.Palette.Tone;
@@ -15,9 +16,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import org.junit.Test;
 
@@ -59,19 +63,28 @@ public class SidebarViewsTest
         });
     }
 
+    /** The owner's review, 28 Sept: categories open and close, and say what they hold while closed. */
     @Test
-    public void hereShowsFiveRowsAndMoreOnRequest() throws Exception
+    public void hereStartsClosedAndShowsFiveRowsAndMoreOnRequest() throws Exception
     {
         onEdt(() -> {
             HereView here = new HereView(IconSource.NONE);
+            List<Set<String>> saved = new ArrayList<>();
+            here.onFold(saved::add);
             List<HereModel.Row> rows = IntStream.range(0, 8)
                 .mapToObj(i -> new HereModel.Row("Shop " + i, "Locked", Tone.BAD, null))
                 .collect(Collectors.toList());
             here.apply(new HereModel("Falador", "Locked", Tone.BAD, "Asgarnia", "Unlock Falador",
                 Collections.emptyList(), Collections.singletonList(new HereModel.Group("SHOPS", "Shops", rows)),
                 null));
-            assertEquals(5, all(here, ItemRow.class::isInstance).size());
+            assertEquals("closed at first", 0, all(here, ItemRow.class::isInstance).size());
+            assertEquals("what it holds, while closed", Collections.singletonList("8 locked"), labels(here));
 
+            Fold shops = folds(here).get(0);
+            shops.click();
+            assertEquals(Collections.singletonList(Collections.singleton("SHOPS")), saved);
+            assertTrue("the summary goes once it's open", labels(here).isEmpty());
+            assertEquals(5, all(here, ItemRow.class::isInstance).size());
             FlatButton more = buttons(here).get(0);
             assertEquals("+3 more", more.getText());
             more.doClick();
@@ -80,7 +93,49 @@ public class SidebarViewsTest
 
             here.apply(new HereModel("Taverley", "Locked", Tone.BAD, null, null, Collections.emptyList(),
                 Collections.singletonList(new HereModel.Group("SHOPS", "Shops", rows)), null));
-            assertEquals("a new place starts closed again", 5, all(here, ItemRow.class::isInstance).size());
+            assertEquals("still open at a new place, with the first few again", 5,
+                all(here, ItemRow.class::isInstance).size());
+
+            folds(here).get(0).click();
+            assertEquals(Collections.emptySet(), saved.get(1));
+            assertEquals(0, all(here, ItemRow.class::isInstance).size());
+        });
+    }
+
+    /** Skilling splits by skill, each with the game's own icon and the player's level and cap. */
+    @Test
+    public void skillingOpensSkillBySkill() throws Exception
+    {
+        onEdt(() -> {
+            HereView here = new HereView(IconSource.NONE);
+            List<HereModel.Row> trees = Arrays.asList(new HereModel.Row("Tree", "Can do", Tone.GOOD, "Level 1"),
+                new HereModel.Row("Yew tree", "Not ready", Tone.PENDING, "Level 60"));
+            List<HereModel.Row> spots = Collections.singletonList(
+                new HereModel.Row("Fishing spot", "Not ready", Tone.PENDING, "Level 1; The Lost Tribe started"));
+            List<HereModel.Row> all = new ArrayList<>(spots);
+            all.addAll(trees);
+            here.apply(new HereModel("Lumbridge", "Unlocked", Tone.GOOD, null, null, Collections.emptyList(),
+                Collections.singletonList(new HereModel.Group("SKILLING", "Skilling", all, Arrays.asList(
+                    new HereModel.Subgroup("SKILLING/Fishing", "Fishing", "Fishing", "Level 1 · cap 10", spots),
+                    new HereModel.Subgroup("SKILLING/Woodcutting", "Woodcutting", "Woodcutting", "Level 15 · cap 20",
+                        trees)))), null));
+
+            folds(here).get(0).click();
+            List<Fold> skills = folds(here).subList(1, 3);
+            assertTrue("each skill has its icon", skills.stream().allMatch(fold -> fold.art().getImage() != null));
+            assertEquals(0, all(here, ItemRow.class::isInstance).size());
+            assertTrue(texts(here).containsAll(Arrays.asList("Fishing", "Woodcutting")));
+            assertTrue(all(here, JLabel.class::isInstance).stream().map(label -> ((JLabel) label).getText())
+                .collect(Collectors.toList()).containsAll(Arrays.asList("Level 1 · cap 10", "Level 15 · cap 20")));
+
+            skills.get(1).click();
+            assertEquals(2, all(here, ItemRow.class::isInstance).size());
+            assertEquals(new TreeSet<>(Arrays.asList("SKILLING", "SKILLING/Woodcutting")), here.open());
+
+            HereView again = new HereView(IconSource.NONE);
+            again.setOpen(here.open());
+            again.apply(here.model());
+            assertEquals("remembered from last time", 2, all(again, ItemRow.class::isInstance).size());
         });
     }
 
@@ -182,6 +237,29 @@ public class SidebarViewsTest
     {
         return all(root, com.fatelocked.ui.TextBlock.class::isInstance).stream()
             .map(block -> ((com.fatelocked.ui.TextBlock) block).getText()).collect(Collectors.toList());
+    }
+
+    private static List<Fold> folds(Container root)
+    {
+        return all(root, Fold.class::isInstance).stream().map(Fold.class::cast).collect(Collectors.toList());
+    }
+
+    /** The small labels shown, such as a closed category's summary, leaving out the " · " between. */
+    private static List<String> labels(Container root)
+    {
+        List<String> shown = new ArrayList<>();
+        for (Fold fold : folds(root))
+        {
+            for (Component label : all(fold, JLabel.class::isInstance))
+            {
+                String text = ((JLabel) label).getText();
+                if (!text.isEmpty() && !text.trim().equals("·") && !text.matches("\\d+"))
+                {
+                    shown.add(text);
+                }
+            }
+        }
+        return shown;
     }
 
     private static List<FlatButton> buttons(Container root)

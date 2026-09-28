@@ -67,7 +67,9 @@ on, and the one thing to do about it. Below it, five cards open and close on
 their own:
 
 1. **Here**: the place you're standing in, its status and why, and what it
-   holds.
+   holds, category by category. Each category opens and closes and, closed,
+   says what it holds; Skilling opens skill by skill, with the game's skill
+   icons and your level and cap. What you leave open stays open.
 2. **Strict Mode**: its switch, its status, the pause, and what it recently
    stopped.
 3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate
@@ -89,8 +91,12 @@ once, the first time the plugin starts.
 - Chunk borders on the ground where locked land starts, dashed over a dark
   underlay with a band of shade on the locked side, and the same on the
   minimap.
-- The world map shades locked land like fog and outlines your unlocked land,
-  with a tooltip for the chunk under the mouse.
+- The world map shades locked land like fog and outlines your unlocked land
+  all the way round, with a tooltip for the chunk under the mouse.
+- Every row in Here has a status. Where the tracker can't see a requirement,
+  such as a quest started, quest points, a free-to-play world or a light
+  source you carry, the plugin checks it in game, and a row that isn't ready
+  names only what's left.
 - A Compact or Detailed HUD: where you are and why it's locked, Strict Mode,
   and the nearest bank and shop; Detailed adds your progress, Keys, Fate
   Points and what the place holds.
