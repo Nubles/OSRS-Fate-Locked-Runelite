@@ -69,7 +69,9 @@ their own:
 1. **Here**: the place you're standing in, its status and why, and what it
    holds, category by category. Each category opens and closes and, closed,
    says what it holds; Skilling opens skill by skill, with the game's skill
-   icons and your level and cap. What you leave open stays open.
+   icons and your level and cap. What you leave open stays open. Click a
+   skilling spot, monster, bank or shop, and the game's own arrow points at
+   the nearest one around you.
 2. **Strict Mode**: its switch, its status, the pause, and what it recently
    stopped.
 3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate

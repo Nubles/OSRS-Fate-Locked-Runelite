@@ -1,7 +1,11 @@
 package com.fatelocked.ui;
 
 import java.awt.BorderLayout;
+import java.awt.Cursor;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.PluginPanel;
@@ -63,6 +67,59 @@ public class ItemRow extends JPanel
     public void setPalette(Palette palette)
     {
         pill.setPalette(palette);
+    }
+
+    /**
+     * Makes the row answer a click, as a link does: the hand, a shade under the pointer, and
+     * the action, wherever on the row the click lands.
+     */
+    public ItemRow onClick(Runnable action)
+    {
+        setBackground(Palette.HOVER);
+        setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        MouseAdapter click = new MouseAdapter()
+        {
+            @Override
+            public void mouseClicked(MouseEvent e)
+            {
+                action.run();
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e)
+            {
+                setOpaque(true);
+                repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e)
+            {
+                setOpaque(false);
+                repaint();
+            }
+        };
+        addMouseListener(click);
+        for (JComponent part : new JComponent[] {art, name, pill, reason})
+        {
+            part.addMouseListener(click);
+        }
+        return this;
+    }
+
+    /** Whether a click on the row does something. */
+    public boolean clickable()
+    {
+        return getMouseListeners().length > 0;
+    }
+
+    /** What a click on the row does, as the player's click would. */
+    public void click()
+    {
+        for (java.awt.event.MouseListener listener : getMouseListeners())
+        {
+            listener.mouseClicked(new MouseEvent(this, MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0, 1, false));
+        }
     }
 
     /** The row's name as shown. */

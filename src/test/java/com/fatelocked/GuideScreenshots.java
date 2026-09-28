@@ -4,6 +4,7 @@ import com.fatelocked.preview.FolderArt;
 import com.fatelocked.preview.SwingSnapshot;
 import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.HereModel;
+import com.fatelocked.sidebar.PointerText;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.Sidebar;
 import com.fatelocked.sidebar.StatusCardModel;
@@ -140,13 +141,15 @@ public final class GuideScreenshots
         shots.add(new Shot("sidebar-here", () -> {
             Sidebar sidebar = (Sidebar) SidebarShots.sidebar(icons, SidebarShots.upToDate(), tower,
                 SidebarShots.active(), SidebarShots.run(), SidebarShots.connected());
-            // Skilling open at its first skill; the rest closed, as they start.
+            // Skilling open at its first skill; the rest closed, as they start. Its first row clicked.
             sidebar.here().setOpen(new java.util.TreeSet<>(Arrays.asList("SKILLING", firstSkill.getKey())));
+            sidebar.here().showPointer(PointerText.pointing(firstSkill.getRows().get(0).getName(), true), true);
             return open(sidebar, sidebar.here());
         },
             new Anchor("status", pill("Locked")),
             new Anchor("reason", text("Unlock Seers' Village")),
             new Anchor("counts", inside("Here", type(StatTiles.class))),
+            new Anchor("arrow", startsWith("The arrow points")),
             new Anchor("categories", text("Skilling")),
             new Anchor("skills", text(firstSkill.getTitle()))));
         shots.add(new Shot("sidebar-strict-mode", () -> {

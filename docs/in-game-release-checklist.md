@@ -67,6 +67,7 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 32 | In Lumbridge Castle, open Here's Skilling, then Woodcutting; walk to Varrock and back; restart RuneLite. | Each category starts closed, saying what it holds ("3 can do · 2 locked"). Skilling lists its skills with their icons, level and cap. What you opened stays open as you walk and after the restart. | |
 | 33 | In Lumbridge Castle before starting The Lost Tribe, open Here's Combat; then start the quest; then carry a lit lantern. | No row says Needs checking. The caves' monsters read Not ready, naming The Lost Tribe; once it's started the guards read Can do, and with the lantern so do the rest the quests allow. | |
 | 34 | Open the world map around Lumbridge and Draynor. | The dashed line runs all the way round your unlocked land, under Wizards' Tower too; Tutorial Island is clear, outside it. | |
+| 35 | In Lumbridge, open Here's Skilling and click Oak tree; then click a Fishing spot row; walk to the arrow. Click Bob's Brilliant Axes under Shops, then a row for something in the swamp caves. | The game's yellow arrow points at the nearest oak, then moves to a fishing spot that offers what the row says, and comes down when you reach it. Bob is pointed at. For the caves the card says it can't find it near you. Clicking a row twice takes the arrow down. | |
 
 Record the commit, the RuneLite version, the date, and a pass or fail (with a
 note for any fail) in each row. Any fail blocks the release until it is fixed

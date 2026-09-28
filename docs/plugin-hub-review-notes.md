@@ -35,6 +35,13 @@ unchanged. For review:
   those rows name (RuneLite's `Quest.getState`), quest points, real levels,
   whether the world is members, and the names of the items carried or worn.
   It only decides which word the sidebar shows; nothing is stored or sent.
+- **A clicked Here row puts up the game's own hint arrow, nothing more.** On the
+  player's click, the plugin looks through the loaded scene, inside the chunk
+  they stand in and placed through `ChunkLocator`, for the nearest object or NPC
+  by that row's name, and calls `Client.setHintArrow`. The arrow comes down on
+  arrival, on a second click, on leaving the chunk or on shutdown, and an arrow
+  the game or another plugin put up is never taken down. Nothing moves the
+  player or clicks for them.
 - **Alerts are calmer.** A locked area posts one chat line and, on arrival
   from unlocked land, a sound and a single 1.1-second fade. The old red border
   pulsed at 2.5 Hz; it is gone.

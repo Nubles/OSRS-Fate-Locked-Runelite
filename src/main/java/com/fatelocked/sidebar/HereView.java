@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -28,7 +29,9 @@ import javax.swing.JPanel;
 /**
  * The Here section, drawn from a {@link HereModel}. Each category opens and closes, and
  * Skilling's skills do too; all start closed, each with a line saying what it holds, and
- * the card remembers which the player left open from place to place.
+ * the card remembers which the player left open from place to place. A row of a category
+ * the card can point in answers a click: the plugin puts the game's arrow on the nearest
+ * one, and the card says so under its counts, until it's cleared.
  */
 public class HereView extends Section
 {
@@ -39,6 +42,11 @@ public class HereView extends Section
     /** Categories and skills left open: kept from place to place. */
     private final Set<String> open = new TreeSet<>();
     private final List<Consumer<Set<String>>> foldListeners = new ArrayList<>();
+    private final List<BiConsumer<String, String>> pointListeners = new ArrayList<>();
+    private final List<Runnable> clearListeners = new ArrayList<>();
+    /** What the card says about the arrow, or null; and whether an arrow is up to clear. */
+    private String pointer;
+    private boolean pointing;
     private final IconSource icons;
     private Palette palette = Palette.defaults();
     private HereModel model;
@@ -81,11 +89,40 @@ public class HereView extends Section
         foldListeners.add(listener);
     }
 
+    /** Called with a row's category and name each time the player clicks a row the card can point at. */
+    public void onPoint(BiConsumer<String, String> listener)
+    {
+        pointListeners.add(listener);
+    }
+
+    /** Called when the player clears the arrow. */
+    public void onClearPoint(Runnable listener)
+    {
+        clearListeners.add(listener);
+    }
+
+    /** What to say about the arrow under the counts, or null for nothing; with Clear while one is up. */
+    public void showPointer(String text, boolean active)
+    {
+        pointer = text;
+        pointing = active && text != null;
+        if (model != null)
+        {
+            apply(model);
+        }
+    }
+
     public void apply(HereModel model)
     {
         if (this.model == null || !java.util.Objects.equals(this.model.getPlace(), model.getPlace()))
         {
             expandedGroups.clear();
+            if (this.model != null)
+            {
+                // The arrow belongs to the place the player left.
+                pointer = null;
+                pointing = false;
+            }
         }
         this.model = model;
         JPanel body = body();
@@ -123,6 +160,10 @@ public class HereView extends Section
                 .map(count -> new StatTiles.Tile(count.getValue(), count.getLabel(), count.getTone()))
                 .toArray(StatTiles.Tile[]::new));
             body.add(tiles);
+        }
+        if (pointer != null)
+        {
+            body.add(pointerLine());
         }
         for (HereModel.Group group : model.getGroups())
         {
@@ -188,13 +229,46 @@ public class HereView extends Section
         return fold;
     }
 
+    /** What the arrow points at, in the accent, with Clear while it's up. */
+    private JComponent pointerLine()
+    {
+        JPanel line = new JPanel(new BorderLayout(Space.ICON_GAP, 0));
+        line.setOpaque(false);
+        line.add(Sidebar.text(pointer, Type.small(), Palette.ACCENT, 3), BorderLayout.CENTER);
+        if (pointing)
+        {
+            FlatButton clear = new FlatButton("Clear", FlatButton.Kind.LINK);
+            clear.addActionListener(e -> {
+                for (Runnable listener : clearListeners)
+                {
+                    listener.run();
+                }
+            });
+            JPanel right = new JPanel(new BorderLayout());
+            right.setOpaque(false);
+            right.add(clear, BorderLayout.NORTH);
+            line.add(right, BorderLayout.EAST);
+        }
+        return line;
+    }
+
     /** The rows, the first few until "+N more" is clicked, set in under the line they belong to. */
     private void rows(JPanel into, String key, List<HereModel.Row> shown, int hidden)
     {
+        String category = key.contains("/") ? key.substring(0, key.indexOf('/')) : key;
         for (HereModel.Row row : shown)
         {
             ItemRow item = new ItemRow().show(row.getName(), row.getWord(), row.getTone(), row.getReason());
             item.setPalette(palette);
+            if (PointTarget.pointable(category))
+            {
+                item.onClick(() -> {
+                    for (BiConsumer<String, String> listener : pointListeners)
+                    {
+                        listener.accept(category, row.getName());
+                    }
+                });
+            }
             into.add(indented(item));
         }
         if (hidden > 0)

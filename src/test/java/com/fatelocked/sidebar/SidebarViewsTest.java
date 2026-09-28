@@ -102,6 +102,56 @@ public class SidebarViewsTest
         });
     }
 
+    /**
+     * The owner's review, 28 Sept: a row the card can point at answers a click, and a line
+     * under the counts says what the arrow points at, with Clear while it's up.
+     */
+    @Test
+    public void aRowPointsAndALineSaysWhere() throws Exception
+    {
+        onEdt(() -> {
+            HereView here = new HereView(IconSource.NONE);
+            List<String> points = new ArrayList<>();
+            List<String> clears = new ArrayList<>();
+            here.onPoint((category, row) -> points.add(category + ": " + row));
+            here.onClearPoint(() -> clears.add("clear"));
+            List<HereModel.Row> trees = Collections.singletonList(
+                new HereModel.Row("Oak tree", "Can do", Tone.GOOD, "Level 15"));
+            List<HereModel.Row> quests = Collections.singletonList(
+                new HereModel.Row("Cook's Assistant", "Can do", Tone.GOOD, null));
+            here.setOpen(new TreeSet<>(Arrays.asList("SKILLING", "SKILLING/Woodcutting", "QUESTS")));
+            here.apply(new HereModel("Lumbridge", "Unlocked", Tone.GOOD, null, null, Collections.emptyList(),
+                Arrays.asList(new HereModel.Group("SKILLING", "Skilling", trees, Collections.singletonList(
+                        new HereModel.Subgroup("SKILLING/Woodcutting", "Woodcutting", "Woodcutting", "Level 15 · cap 20",
+                            trees))),
+                    new HereModel.Group("QUESTS", "Quests", quests)), null));
+
+            List<ItemRow> rows = all(here, ItemRow.class::isInstance).stream().map(ItemRow.class::cast)
+                .collect(Collectors.toList());
+            assertTrue("Oak tree", rows.get(0).clickable());
+            assertFalse("a quest has no one thing to point at", rows.get(1).clickable());
+            rows.get(0).click();
+            assertEquals(Collections.singletonList("SKILLING: Oak tree"), points);
+
+            String line = "The arrow points at the nearest Oak tree.";
+            here.showPointer(line, true);
+            assertTrue(texts(here).contains(line));
+            FlatButton clear = buttons(here).stream().filter(button -> button.getText().equals("Clear")).findFirst()
+                .orElseThrow(AssertionError::new);
+            clear.doClick();
+            assertEquals(Collections.singletonList("clear"), clears);
+
+            here.showPointer("Can't find Yew tree near you here.", false);
+            assertTrue(texts(here).contains("Can't find Yew tree near you here."));
+            assertFalse("nothing to clear", buttons(here).stream().anyMatch(button -> button.getText().equals("Clear")));
+
+            here.apply(new HereModel("Draynor", "Unlocked", Tone.GOOD, null, null, Collections.emptyList(),
+                Collections.emptyList(), null));
+            assertFalse("the line belongs to the place the player left",
+                texts(here).contains("Can't find Yew tree near you here."));
+        });
+    }
+
     /** Skilling splits by skill, each with the game's own icon and the player's level and cap. */
     @Test
     public void skillingOpensSkillBySkill() throws Exception

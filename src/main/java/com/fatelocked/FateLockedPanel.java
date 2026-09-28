@@ -13,6 +13,7 @@ import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette;
 import java.awt.BorderLayout;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.swing.JOptionPane;
@@ -119,6 +120,24 @@ class FateLockedPanel extends PluginPanel
     void openHere(Set<String> keys)
     {
         queueOnEdt(() -> sidebar.here().setOpen(keys));
+    }
+
+    /** Called, on the Swing thread, with a Here row's category and name when the player clicks it. */
+    void onHerePoint(BiConsumer<String, String> handler)
+    {
+        sidebar.here().onPoint(handler);
+    }
+
+    /** Called, on the Swing thread, when the player clears Here's arrow. */
+    void onHereClearPoint(Runnable handler)
+    {
+        sidebar.here().onClearPoint(handler);
+    }
+
+    /** What Here says about its arrow, or null for nothing; with Clear while one is up. */
+    void showHerePointer(String text, boolean active)
+    {
+        queueOnEdt(() -> sidebar.here().showPointer(text, active));
     }
 
     void showStrictMode(StrictModeModel model)

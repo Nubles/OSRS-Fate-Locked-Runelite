@@ -17,6 +17,8 @@ import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.GameFacts;
 import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
+import com.fatelocked.sidebar.PointTarget;
+import com.fatelocked.sidebar.PointerText;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.sidebar.RowChecks;
 import com.fatelocked.sidebar.StrictModeSectionPresenter;
@@ -62,12 +64,15 @@ import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.NPC;
+import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldType;
 import net.runelite.api.WorldView;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.VarbitChanged;
@@ -269,6 +274,10 @@ public class FateLockedPlugin extends Plugin
     private SidebarPublisher sidebarModels;
     private final HerePresenter herePresenter = new HerePresenter();
     /** Here, as last worked out, for the decision service and chunk it was worked out for. */
+    /** Two tiles, in local units: close enough to the thing the arrow points at. */
+    static final int POINTER_REACHED = 2 * Perspective.LOCAL_TILE_SIZE;
+    /** The arrow the Here card put up, or null. Client thread. */
+    private Pointer pointer;
     private HereModel hereModel;
     private DecisionService hereDecisions;
     private CanonicalChunk hereChunk;
@@ -502,6 +511,8 @@ public class FateLockedPlugin extends Plugin
             FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         panel.onHereFold(this::saveHereOpen);
         panel.openHere(hereOpen());
+        panel.onHerePoint((category, row) -> gate.run(() -> pointTo(category, row)));
+        panel.onHereClearPoint(() -> gate.run(this::clearPointer));
         panel.setRollInboxLink(FateLockedPanel.TRACKER_URL);
         navButton = buildNavigationButton(panel);
         clientToolbar.addNavigation(navButton);
@@ -553,6 +564,7 @@ public class FateLockedPlugin extends Plugin
         keyManager.unregisterKeyListener(pauseStrictHotkey);
         worldMapPointManager.removeIf(LockedAreaPoint.class::isInstance);
         infoBoxManager.removeIf(b -> b instanceof FateLockedInfoBox);
+        dropPointer();
         active = ActiveRules.NONE;
         // A pause belongs to this start: turning the plugin off and on ends it.
         strictPause.resume();
@@ -765,6 +777,7 @@ public class FateLockedPlugin extends Plugin
             // Logged out: the next login warns and announces afresh.
             awaitingLogin = true;
             hudModel = HudModel.NONE;
+            pointer = null;
             forgetLoginWarnings();
             trackerLoggedIn(false);
             refreshDecisions();
@@ -1486,6 +1499,7 @@ public class FateLockedPlugin extends Plugin
         }
         refreshWarningCount();
         refreshHud(current);
+        keepPointer(current);
     }
 
     /** The player crossed into this chunk: its line, sound and fade, as the area and the alert setting say. */
@@ -2505,6 +2519,119 @@ public class FateLockedPlugin extends Plugin
             hereFacts = facts;
         }
         return hereModel;
+    }
+
+    /**
+     * The player clicked a row of Here (the owner's review, 28 Sept): put the game's arrow on
+     * the nearest one in the chunk they stand in, and say so; the same row again takes it
+     * down. Client thread.
+     */
+    void pointTo(String category, String row)
+    {
+        Pointer before = pointer;
+        clearPointer();
+        if (before != null && before.getCategory().equals(category) && before.getRow().equals(row))
+        {
+            return;
+        }
+        CanonicalChunk chunk = chunkLocator().player();
+        PointTarget target = PointTarget.of(category, row);
+        SceneSearch.Found found = target == null ? null : SceneSearch.nearest(client, chunkLocator(), chunk, target);
+        if (found == null)
+        {
+            panel.showHerePointer(PointerText.notFound(row), false);
+            return;
+        }
+        if (found.getNpc() != null)
+        {
+            client.setHintArrow(found.getNpc());
+        }
+        else
+        {
+            client.setHintArrow(found.getPoint());
+        }
+        pointer = new Pointer(category, row, chunk, found.getNpc(), found.getPoint(), client.getHintArrowPoint());
+        panel.showHerePointer(PointerText.pointing(row, found.isSameFloor()), true);
+    }
+
+    /** Takes down the arrow the card put up, if it's still the one showing, and its line. Client thread. */
+    void clearPointer()
+    {
+        Pointer shown = pointer;
+        pointer = null;
+        if (shown != null && ours(shown))
+        {
+            client.clearHintArrow();
+        }
+        panel.showHerePointer(null, false);
+    }
+
+    /**
+     * Each tick, while the card's arrow is up: gone once the player reaches it or leaves the
+     * chunk; forgotten if the game or another plugin has put up an arrow of its own since.
+     */
+    private void keepPointer(CanonicalChunk current)
+    {
+        Pointer shown = pointer;
+        if (shown == null)
+        {
+            return;
+        }
+        if (!ours(shown))
+        {
+            pointer = null;
+            panel.showHerePointer(null, false);
+            return;
+        }
+        Player local = client.getLocalPlayer();
+        LocalPoint at = shown.getNpc() != null ? shown.getNpc().getLocalLocation() : shown.getPoint();
+        LocalPoint player = local == null ? null : local.getLocalLocation();
+        if (!shown.getChunk().equals(current)
+            || at != null && player != null && player.distanceTo(at) <= POINTER_REACHED)
+        {
+            clearPointer();
+        }
+    }
+
+    /** Turning the plugin off: its arrow comes down, on the client thread, if it's still the one showing. */
+    private void dropPointer()
+    {
+        Pointer shown = pointer;
+        pointer = null;
+        if (shown != null)
+        {
+            clientThread.invoke(() -> {
+                if (ours(shown))
+                {
+                    client.clearHintArrow();
+                }
+            });
+        }
+    }
+
+    /** Whether the arrow showing is still the card's own. */
+    private boolean ours(Pointer shown)
+    {
+        if (!client.hasHintArrow())
+        {
+            return false;
+        }
+        return shown.getNpc() != null ? client.getHintArrowNpc() == shown.getNpc()
+            : shown.getArrow() != null && shown.getArrow().equals(client.getHintArrowPoint());
+    }
+
+    /** The arrow the card put up: for which row, in which chunk, and on what. */
+    @lombok.Value
+    static class Pointer
+    {
+        String category;
+        String row;
+        CanonicalChunk chunk;
+        /** The NPC it follows, or null for an object's point. */
+        NPC npc;
+        LocalPoint point;
+        /** Where the game put it, to tell it from an arrow the game or another plugin puts up. */
+        WorldPoint arrow;
     }
 
     /**
