@@ -56,15 +56,27 @@ public final class SwingSnapshot
      */
     public static BufferedImage paint(JComponent component, int width, int height)
     {
+        return paint(component, width, height, 1);
+    }
+
+    /**
+     * Paints {@code component} laid out at {@code width} by {@code height}, as the client lays
+     * it out, with {@code scale} image pixels to each of its own, as a high-density screen
+     * shows it: text and shapes drawn that much finer, and the game's art that much bigger, pixel
+     * for pixel. A height of 0 means the height it asks for once settled.
+     */
+    public static BufferedImage paint(JComponent component, int width, int height, int scale)
+    {
         int preferred = settle(component, width);
         int h = height > 0 ? height : preferred;
         invalidateTree(component);
         component.setSize(width, h);
         layoutTree(component);
-        BufferedImage image = new BufferedImage(width, h, BufferedImage.TYPE_INT_RGB);
+        BufferedImage image = new BufferedImage(width * scale, h * scale, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
         try
         {
+            g.scale(scale, scale);
             component.printAll(g);
         }
         finally
