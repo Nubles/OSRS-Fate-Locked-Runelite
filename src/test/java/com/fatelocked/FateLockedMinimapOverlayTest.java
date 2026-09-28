@@ -7,7 +7,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -27,6 +29,7 @@ import net.runelite.api.WorldView;
 import net.runelite.api.widgets.Widget;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.MockedStatic;
 
 /** U3: the minimap draws the same scene as the game view, inside the minimap, for the rules' character. */
 public class FateLockedMinimapOverlayTest
@@ -88,8 +91,39 @@ public class FateLockedMinimapOverlayTest
         assertFalse("no fog when it's off", has(allEdges, palette.lockedShade()));
     }
 
-    /** The minimap's scene over a flat projection: the east half locked, a chunk line at 64 tiles both ways. */
-    private static BufferedImage draw(FateLockedConfig.ChunkBorders borders, boolean fog)
+    /** The fog follows its own setting here too, and the lines the game view's, as the player left them. */
+    @Test
+    public void theSettingsReachTheDrawing()
+    {
+        Widget minimap = mock(Widget.class);
+        when(minimap.getBounds()).thenReturn(new Rectangle(500, 0, 400, 400));
+        when(client.getWidget(anyInt())).thenReturn(minimap);
+        ChunkLocator locator = mock(ChunkLocator.class);
+        when(plugin.chunkLocator()).thenReturn(locator);
+        when(locator.playerInScene()).thenReturn(new Located(null, null, 0, 60, 60));
+        SceneEdges scene = eastHalfLocked();
+        when(plugin.sceneEdges(eq(mine), any(), eq(0))).thenReturn(scene);
+        when(plugin.palette()).thenReturn(Palette.defaults());
+        when(config.chunkBorders()).thenReturn(FateLockedConfig.ChunkBorders.ALL_EDGES);
+
+        try (MockedStatic<FateLockedMinimapOverlay> drawn = mockStatic(FateLockedMinimapOverlay.class))
+        {
+            when(config.shadeNearbyLocked()).thenReturn(false);
+            overlay.render(graphics);
+            drawn.verify(() -> FateLockedMinimapOverlay.draw(eq(graphics), any(), eq(scene),
+                eq(FateLockedConfig.ChunkBorders.ALL_EDGES), eq(false), any(), eq(60), eq(60), anyInt(), anyInt(),
+                any()));
+
+            when(config.chunkBorders()).thenReturn(FateLockedConfig.ChunkBorders.OFF);
+            when(config.shadeNearbyLocked()).thenReturn(true);
+            overlay.render(graphics);
+            drawn.verify(() -> FateLockedMinimapOverlay.draw(eq(graphics), any(), eq(scene),
+                eq(FateLockedConfig.ChunkBorders.OFF), eq(true), any(), eq(60), eq(60), anyInt(), anyInt(), any()));
+        }
+    }
+
+    /** A scene whose east half is locked, with a chunk line at 64 tiles both ways. */
+    static SceneEdges eastHalfLocked()
     {
         SceneEdges.Zone[][] zones = new SceneEdges.Zone[13][13];
         for (int zx = 0; zx < 13; zx++)
@@ -100,9 +134,15 @@ public class FateLockedMinimapOverlayTest
                     new CanonicalChunk(50 + zx / 8, 50 + zy / 8));
             }
         }
+        return SceneEdges.of(zones);
+    }
+
+    /** The minimap's scene over a flat projection. */
+    private static BufferedImage draw(FateLockedConfig.ChunkBorders borders, boolean fog)
+    {
         BufferedImage image = new BufferedImage(1100, 1100, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
-        FateLockedMinimapOverlay.draw(graphics, new Rectangle(500, 0, 400, 1100), SceneEdges.of(zones), borders, fog,
+        FateLockedMinimapOverlay.draw(graphics, new Rectangle(500, 0, 400, 1100), eastHalfLocked(), borders, fog,
             Palette.defaults(), 60, 60, 104, 104, (x, y) -> new Point2D.Double(x * 10, y * 10));
         assertNull("the clip is put back", graphics.getClip());
         graphics.dispose();

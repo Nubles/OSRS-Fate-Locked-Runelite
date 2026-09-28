@@ -2,7 +2,12 @@ package com.fatelocked;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -10,6 +15,7 @@ import static org.mockito.Mockito.when;
 
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.RulesSnapshot;
+import com.fatelocked.ui.Palette;
 import com.google.gson.Gson;
 import java.awt.Graphics2D;
 import net.runelite.api.Client;
@@ -17,6 +23,7 @@ import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.MockedStatic;
 
 /** U3: the scene overlay draws the rules' edges on the tile lines, and nothing for anyone else. */
 public class FateLockedSceneOverlayTest
@@ -60,6 +67,61 @@ public class FateLockedSceneOverlayTest
         real.onGameStateChanged(loading);
 
         assertEquals(2, real.sceneGeneration());
+    }
+
+    /** The lines and the fog are the player's to turn off: with both off, the game view draws nothing. */
+    @Test
+    public void bordersAndShadingOffDrawNothing()
+    {
+        when(config.chunkBorders()).thenReturn(FateLockedConfig.ChunkBorders.OFF);
+        when(config.shadeNearbyLocked()).thenReturn(false);
+        Graphics2D graphics = mock(Graphics2D.class);
+
+        assertNull(overlay.render(graphics));
+
+        verifyNoInteractions(graphics);
+        verify(plugin, never()).decisions();
+    }
+
+    /** Turning the lines off leaves the fog to its own setting. */
+    @Test
+    public void shadingAloneStillDraws()
+    {
+        when(config.chunkBorders()).thenReturn(FateLockedConfig.ChunkBorders.OFF);
+        when(config.shadeNearbyLocked()).thenReturn(true);
+        when(plugin.decisions()).thenReturn(DecisionService.create(mine.rules(), "iron example", "someone else"));
+
+        overlay.render(mock(Graphics2D.class));
+
+        verify(plugin).decisions();
+    }
+
+    /** The lines and the fog reach the drawing as the player left them, each on its own. */
+    @Test
+    public void theSettingsReachTheDrawing()
+    {
+        ChunkLocator locator = mock(ChunkLocator.class);
+        when(plugin.decisions()).thenReturn(mine);
+        when(plugin.chunkLocator()).thenReturn(locator);
+        when(locator.playerInScene()).thenReturn(new Located(null, null, 0, 60, 60));
+        when(plugin.sceneEdges(mine, view, 0)).thenReturn(FateLockedMinimapOverlayTest.eastHalfLocked());
+        when(plugin.palette()).thenReturn(Palette.defaults());
+        Graphics2D graphics = mock(Graphics2D.class);
+
+        try (MockedStatic<ChunkBorderRenderer> renderer = mockStatic(ChunkBorderRenderer.class))
+        {
+            when(config.shadeNearbyLocked()).thenReturn(false);
+            overlay.render(graphics);
+            renderer.verify(() -> ChunkBorderRenderer.draw(eq(graphics), anyList(),
+                eq(FateLockedConfig.ChunkBorders.LOCKED_EDGES), eq(false), any(), eq(60), eq(60), anyInt(), anyInt(),
+                any()));
+
+            when(config.chunkBorders()).thenReturn(FateLockedConfig.ChunkBorders.OFF);
+            when(config.shadeNearbyLocked()).thenReturn(true);
+            overlay.render(graphics);
+            renderer.verify(() -> ChunkBorderRenderer.draw(eq(graphics), anyList(),
+                eq(FateLockedConfig.ChunkBorders.OFF), eq(true), any(), eq(60), eq(60), anyInt(), anyInt(), any()));
+        }
     }
 
     @Test
