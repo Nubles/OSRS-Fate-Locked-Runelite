@@ -20,9 +20,15 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -142,6 +148,36 @@ public class MenuTagTest
         MenuEntry tagged = npcEntry(SEERS);
         tagged.setTarget("Guard" + TAG);
         assertEquals("Guard" + TAG, target(tagged));
+    }
+
+    /**
+     * F1: an option that could never be tagged is passed over before anything is read, the
+     * setting included; one that could be has its text read once, by one reader.
+     */
+    @Test
+    public void optionsThatCouldNeverBeTaggedReadNothing() throws Exception
+    {
+        playing(golden("vanilla-mid"), "Iron Example");
+        MenuFactsReader reader = spy(new MenuFactsReader(client));
+        set("menuFactsReader", reader);
+        clearInvocations(config);
+
+        for (MenuAction type : new MenuAction[] {MenuAction.WALK, MenuAction.CANCEL, MenuAction.EXAMINE_NPC,
+            MenuAction.EXAMINE_OBJECT, MenuAction.PLAYER_FIRST_OPTION, MenuAction.RUNELITE})
+        {
+            MenuEntry entry = entry("Walk here", "Guard", type);
+            plugin.onMenuEntryAdded(new MenuEntryAdded(entry));
+            verify(entry, never()).getOption();
+            verify(entry, never()).getTarget();
+        }
+        verify(reader, never()).read(any());
+        verify(config, never()).tagLockedOptions();
+
+        MenuEntry guard = npcEntry(SEERS);
+        plugin.onMenuEntryAdded(new MenuEntryAdded(guard));
+        verify(reader, times(1)).read(guard);
+        verify(guard, times(1)).getOption();
+        assertEquals("Guard" + TAG, guard.getTarget());
     }
 
     /** The rules in force, for a character logged in (or nobody), as the plugin refreshes them. */

@@ -267,6 +267,7 @@ public class FateLockedPlugin extends Plugin
     private final IntentClassifier intentClassifier = new IntentClassifier();
     /** Where the player and menu targets are, for the client this plugin reads (B14). */
     private volatile ChunkLocator chunkLocator;
+    private MenuFactsReader menuFactsReader;
     private final StrictModeClickHandler strictClickHandler =
         new StrictModeClickHandler(new StrictModeGuard());
     private final StrictModePause strictPause = new StrictModePause(System::nanoTime);
@@ -1568,11 +1569,11 @@ public class FateLockedPlugin extends Plugin
     @Subscribe
     public void onMenuEntryAdded(MenuEntryAdded event)
     {
-        if (!config.tagLockedOptions()) return;
+        MenuEntry entry = event.getMenuEntry();
+        // Most options could never be tagged: pass them over before reading anything (F1).
+        if (!MenuTagFilter.mayTag(entry.getType()) || !config.tagLockedOptions()) return;
         DecisionService ruleDecisions = decisions;
         if (ruleDecisions.trust() != Trust.TRUSTED) return;
-
-        MenuEntry entry = event.getMenuEntry();
         if (!taggedLocked(entry, ruleDecisions)) return;
         String t = entry.getTarget();
         String base = t == null ? "" : t;
@@ -1591,13 +1592,14 @@ public class FateLockedPlugin extends Plugin
      */
     private boolean taggedLocked(MenuEntry entry, DecisionService ruleDecisions)
     {
-        TravelMatch travel = intentClassifier.classify(new MenuFactsReader(client).read(entry), ruleDecisions.travelTable());
+        MenuFacts facts = menuFacts().read(entry);
+        TravelMatch travel = intentClassifier.classify(facts, ruleDecisions.travelTable());
         if (travel != null)
         {
             return travel.getOption().destination() != null
                 && ruleDecisions.travel(travel.getMethod(), travel.getOption()).isLocked();
         }
-        GuardedAction action = guardedActionFactory.from(entry, chunkLocator());
+        GuardedAction action = guardedActionFactory.from(facts, entry, chunkLocator());
         return action.getChunk() != null
             && ruleDecisions.chunk(action.getChunk()).isLocked();
     }
@@ -2068,6 +2070,13 @@ public class FateLockedPlugin extends Plugin
     DecisionService decisions()
     {
         return decisions;
+    }
+
+    /** The menu tag's reader of menu entries, made on first use (F1); client thread only. */
+    private MenuFactsReader menuFacts()
+    {
+        if (menuFactsReader == null) menuFactsReader = new MenuFactsReader(client);
+        return menuFactsReader;
     }
 
     /** The one reader of where the player and menu targets are (B14). */

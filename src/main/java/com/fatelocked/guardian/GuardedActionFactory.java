@@ -9,6 +9,7 @@ import net.runelite.api.NPC;
 import net.runelite.client.util.Text;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * What a menu option is on, for the chunk tags. Travel isn't read here: the
@@ -16,12 +17,27 @@ import java.util.Locale;
  */
 public final class GuardedActionFactory
 {
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
+
     /** What a menu option is on, placed by the chunk locator (instances and boats, B14). */
     public GuardedAction from(MenuEntry entry, ChunkLocator locator)
     {
         if (entry == null) return unknown("", "");
-        String option = normalize(entry.getOption());
-        String target = normalize(entry.getTarget());
+        return from(entry, normalize(entry.getOption()), normalize(entry.getTarget()), locator);
+    }
+
+    /**
+     * The same, from the option's facts, whose text is already read without tags (F1): the
+     * menu tag reads each entry's text once.
+     */
+    public GuardedAction from(MenuFacts facts, MenuEntry entry, ChunkLocator locator)
+    {
+        return from(entry, facts.getOption().toLowerCase(Locale.ROOT), facts.getTarget().toLowerCase(Locale.ROOT),
+            locator);
+    }
+
+    private GuardedAction from(MenuEntry entry, String option, String target, ChunkLocator locator)
+    {
         MenuAction type = entry.getType();
         if (option.startsWith("examine")) return unknown(option, target);
         if (type == MenuAction.WALK)
@@ -70,12 +86,12 @@ public final class GuardedActionFactory
             GuardedAction.Kind.UNKNOWN, option, target, null, null);
     }
 
+    /** Menu text as {@link MenuFacts} holds it, in lower case. */
     private static String normalize(String value)
     {
         if (value == null) return "";
-        return Text.removeTags(value)
-            .replace(MenuFacts.LOCKED_MARK, "")
-            .replaceAll("\\s+", " ")
+        return WHITESPACE.matcher(Text.removeTags(value).replace(MenuFacts.LOCKED_MARK, ""))
+            .replaceAll(" ")
             .trim()
             .toLowerCase(Locale.ROOT);
     }
