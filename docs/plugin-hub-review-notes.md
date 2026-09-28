@@ -11,6 +11,31 @@ Official references checked while preparing this candidate:
 - [Rejected or rolled-back features](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features)
 - [Jagex third-party client guidelines](https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1)
 
+## What Stage 3 changes
+
+Stage 3 changes what the plugin shows, not what it can block. Strict Mode is
+unchanged. For review:
+
+- **No new network or files.** The one request, its consent and the local
+  files are as below.
+- **Drawing stays inside what the game shows.** Chunk borders are drawn tile
+  by tile within 32 tiles of the player, inside the loaded scene, with no
+  chunk fills; a short band of shade marks the locked side. The world map is
+  drawn only inside the map, never over its overview or surface selector, and
+  its projection, clip and outline are kept until the map moves or the rules
+  change. Nothing is drawn for another character's rules.
+- **Less per-frame work.** The overlays draw models worked out when something
+  changes, not each frame. The menu tag skips Walk here, Cancel, Examine and
+  player options before reading them, and `A9PerformanceTest` pins that the
+  world map loop and that path allocate nothing.
+- **The menu tag only appends text:** " (Locked)", in the palette's colour.
+- **Alerts are calmer.** A locked area posts one chat line and, on arrival
+  from unlocked land, a sound and a single 1.1-second fade. The old red border
+  pulsed at 2.5 Hz; it is gone.
+- **Settings moved to RuneLite's configuration.** A one-time migration maps
+  the retired settings to the new ones; the retired keys stay readable for a
+  release, so a rollback finds them.
+
 ## Network boundary
 
 The plugin constructs one request:
@@ -65,7 +90,7 @@ id), the option goes to one destination, and fresh rules bound to the
 logged-in character lock that trip: the destination, or the unlock the trip
 needs, is locked. It never consumes walking, NPC, object (including doors,
 stairs and ladders), bank or equipment clicks; those get only the passive
-(LOCKED) menu tag and chat warnings. Fairy rings, spirit trees, gliders,
+(Locked) menu tag and chat warnings. Fairy rings, spirit trees, gliders,
 charters, boats and the other networks are matched too, and an option to one
 locked place is tagged, but they are never blocked. Because blocking travel
 is behaviorally adjacent to conditional menu-entry restrictions, we request

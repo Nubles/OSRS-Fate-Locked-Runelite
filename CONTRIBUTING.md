@@ -16,6 +16,33 @@ The standard jar is produced in `build/libs/`. For a local developer-mode
 test, copy that jar to RuneLite's `sideloaded-plugins` directory. Do not add a
 fat-jar or shading plugin.
 
+`check` also runs `performanceTest`: `A9PerformanceTest`, which counts the
+bytes the world map loop and the menu tag's pass over Walk here, Cancel,
+Examine and player options allocate, in a JVM of its own. Mockito's inline
+mocks rewrite every class a test mocks, for real instances too, so beside the
+other tests the count would be partly Mockito's.
+
+Two tasks render the sidebar headless, in RuneLite's own theme, and stay out of
+`check` because the theme is global to the JVM:
+
+- `gradle previews` renders every sidebar state into `build/previews`, for
+  design review.
+- `gradle guideScreenshots` renders the web guide's sidebar screenshots into
+  `build/guide-screenshots`, with `guide-screenshots.json`: each image's size,
+  its SHA-256, and where each callout points, measured from the laid-out
+  components.
+
+Pass `-PpreviewArt=<folder>` to draw OSRS art: a folder of PNGs named after
+the `ui.Art` constants.
+
+## Look and words
+
+The sidebar and every overlay take their colours from `ui.Palette`, their fonts
+from `ui.Type`, their words from `ui.Terms` and their marks from OSRS art in
+`ui.Art`. `UiBoundaryTest` holds these in place: no colour written out except
+the settings' defaults, no derived fonts, and no symbol RuneLite's fonts can't
+draw, such as a tick or a warning sign. Say statuses in words.
+
 ## Run it in a real client
 
 ```powershell
@@ -178,6 +205,14 @@ with `--check` and fails if the copy differs. `GoldenBundleContractTest`,
 `GoldenBundleCasesTest`, `RelayContractFixtureTest`,
 `RelayTransportFixtureTest` and `RelayFixtureStatesTest` check the plugin
 against them.
+
+Since Stage 3 the golden files include the wording contract,
+`runelite-wording.json`, which the web app writes from `data/runeliteWording.ts`:
+the plugin's terms, the words neither says, the settings with their sections,
+names, defaults and choices, and the sidebar's cards. `WordingContractTest`
+fails when the plugin's own differ, and the web app holds its RuneLite guide to
+the same file. To rename a setting or a term, change the web app's contract
+first, pin its commit, then change the plugin.
 
 The fields installed Plugin Hub builds read are frozen:
 `contracts/golden-bundles/bundle-contract.json` lists them, and the web

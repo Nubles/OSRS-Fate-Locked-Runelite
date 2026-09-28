@@ -1,5 +1,9 @@
 # Inbound-only Plugin Hub manual matrix
 
+*A record of the first Plugin Hub release's validation, in July 2026. Its
+sidebar sections and settings are that release's; later releases are checked
+with the [in-game release checklist](in-game-release-checklist.md).*
+
 Automated evidence identifies the regression supporting each row. Manual
 results below were recorded during the final same-PC validation on 2026-07-28.
 `Blocked` means the scenario needs a logged-in game session or controlled fault
