@@ -14,7 +14,9 @@ import lombok.Value;
  * What the world map draws for a run (U18, decision 4), worked out once per decision service:
  * its locked land and frontier as runs along each chunk row, and the outline of its unlocked
  * land. Unlocked land is left clear, so the map reads as fog over what is still locked. The
- * outline carries "locked" without relying on colour (U15).
+ * outline carries "locked" without relying on colour (U15), and goes all the way round: it
+ * also follows unlocked land where the tracker's map stops, such as at Tutorial Island, which
+ * is free but left off the map because no one can go back.
  */
 final class WorldMapModel
 {
@@ -60,7 +62,7 @@ final class WorldMapModel
         return runs;
     }
 
-    /** The outline where unlocked land meets locked land. */
+    /** The outline of the unlocked land: every side where it meets land that isn't unlocked. */
     List<Edge> outline()
     {
         return outline;
@@ -128,10 +130,10 @@ final class WorldMapModel
             }
             int cx = chunk.getKey().getCx();
             int cy = chunk.getKey().getCy();
-            if (locked(fills, cx - 1, cy)) unit(vertical, cx, cy);
-            if (locked(fills, cx + 1, cy)) unit(vertical, cx + 1, cy);
-            if (locked(fills, cx, cy - 1)) unit(horizontal, cy, cx);
-            if (locked(fills, cx, cy + 1)) unit(horizontal, cy + 1, cx);
+            if (!unlocked(fills, cx - 1, cy)) unit(vertical, cx, cy);
+            if (!unlocked(fills, cx + 1, cy)) unit(vertical, cx + 1, cy);
+            if (!unlocked(fills, cx, cy - 1)) unit(horizontal, cy, cx);
+            if (!unlocked(fills, cx, cy + 1)) unit(horizontal, cy + 1, cx);
         }
         List<Edge> outline = new ArrayList<>();
         join(outline, true, vertical);
@@ -139,10 +141,10 @@ final class WorldMapModel
         return Collections.unmodifiableList(outline);
     }
 
-    private static boolean locked(Map<CanonicalChunk, WorldMapChunks.Fill> fills, int cx, int cy)
+    /** Unlocked land; the rest is locked, the frontier, or off the tracker's map. */
+    private static boolean unlocked(Map<CanonicalChunk, WorldMapChunks.Fill> fills, int cx, int cy)
     {
-        WorldMapChunks.Fill fill = fills.get(new CanonicalChunk(cx, cy));
-        return fill == WorldMapChunks.Fill.LOCKED || fill == WorldMapChunks.Fill.FRONTIER;
+        return fills.get(new CanonicalChunk(cx, cy)) == WorldMapChunks.Fill.UNLOCKED;
     }
 
     private static void unit(TreeMap<Integer, TreeSet<Integer>> lines, int line, int at)

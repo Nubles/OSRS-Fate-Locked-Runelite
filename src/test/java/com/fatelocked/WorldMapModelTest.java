@@ -84,7 +84,23 @@ public class WorldMapModelTest
         assertTrue(hidden.contains(20, 20));
     }
 
-    /** Each unit of outline wanted: every side where unlocked land meets locked land or the frontier. */
+    /**
+     * Tutorial Island is free but off the tracker's map, so the map leaves it clear. The line
+     * still goes all the way round the unlocked land, along Wizards' Tower's south side.
+     */
+    @Test
+    public void theOutlineClosesWhereTheTrackersMapStops() throws Exception
+    {
+        DecisionService playing = playing("vanilla-fresh");
+        CanonicalChunk wizardsTower = new CanonicalChunk(48, 49);
+        CanonicalChunk tutorialIsland = new CanonicalChunk(48, 48);
+        assertEquals(WorldMapChunks.Fill.UNLOCKED, WorldMapChunks.fill(playing, wizardsTower));
+        assertNull("off the tracker's map", WorldMapChunks.fill(playing, tutorialIsland));
+
+        assertTrue(units(WorldMapModel.of(playing)).contains("H49,48"));
+    }
+
+    /** Each unit of outline wanted: every side where unlocked land meets land that isn't unlocked. */
     private static Set<String> outline(Map<CanonicalChunk, WorldMapChunks.Fill> fills)
     {
         Set<String> units = new HashSet<>();
@@ -93,18 +109,17 @@ public class WorldMapModelTest
             if (chunk.getValue() != WorldMapChunks.Fill.UNLOCKED) continue;
             int cx = chunk.getKey().getCx();
             int cy = chunk.getKey().getCy();
-            if (locked(fills, cx - 1, cy)) units.add("V" + cx + "," + cy);
-            if (locked(fills, cx + 1, cy)) units.add("V" + (cx + 1) + "," + cy);
-            if (locked(fills, cx, cy - 1)) units.add("H" + cy + "," + cx);
-            if (locked(fills, cx, cy + 1)) units.add("H" + (cy + 1) + "," + cx);
+            if (!unlocked(fills, cx - 1, cy)) units.add("V" + cx + "," + cy);
+            if (!unlocked(fills, cx + 1, cy)) units.add("V" + (cx + 1) + "," + cy);
+            if (!unlocked(fills, cx, cy - 1)) units.add("H" + cy + "," + cx);
+            if (!unlocked(fills, cx, cy + 1)) units.add("H" + (cy + 1) + "," + cx);
         }
         return units;
     }
 
-    private static boolean locked(Map<CanonicalChunk, WorldMapChunks.Fill> fills, int cx, int cy)
+    private static boolean unlocked(Map<CanonicalChunk, WorldMapChunks.Fill> fills, int cx, int cy)
     {
-        WorldMapChunks.Fill fill = fills.get(new CanonicalChunk(cx, cy));
-        return fill == WorldMapChunks.Fill.LOCKED || fill == WorldMapChunks.Fill.FRONTIER;
+        return fills.get(new CanonicalChunk(cx, cy)) == WorldMapChunks.Fill.UNLOCKED;
     }
 
     /** The model's outline, cut back into units; stretches that meet are joined. */
