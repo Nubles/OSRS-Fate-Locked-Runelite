@@ -349,11 +349,16 @@ releases.
   3. `b7d090b`: a clicked Here row puts the game's arrow on the nearest one.
   4. `f436b84`: the border's dashes are fixed on the ground and hidden behind what stands in front; `37b9417`: with
      none loaded, a row shows the way to the nearest one seen, with the Shortest Path plugin's route when it runs.
-- [ ] **H2. Pull requests.**
+- [x] **H2. Pull requests.**
   1. The plugin and web pull requests.
   2. The Plugin Hub pull request once the plugin is merged (ask first).
   3. The web merge once the Hub has merged.
   4. The re-pin.
+
+  *Done* on 28 September 2026: the plugin merged as `0240704` (#23), with its main build and the Hub packager
+  green; runelite/plugin-hub#17280 merged at 19:15 UTC, so the Hub builds `0240704`; the web guide, held as a draft
+  until then, merged as `5a3f772` (web #57); and the contracts are pinned at that merge commit (the same files as
+  the branch's head, `65418f3`).
 
 ## Owner decisions and pending steps
 
