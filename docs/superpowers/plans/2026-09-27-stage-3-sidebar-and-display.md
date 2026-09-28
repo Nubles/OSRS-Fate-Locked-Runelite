@@ -285,12 +285,17 @@ releases.
 
 ### Phase F: performance (A9)
 
-- [ ] **F1. Menu tags filter by `MenuAction` first.**
+- [x] **F1. Menu tags filter by `MenuAction` first.**
   - Walk here, Cancel, player options and Examine allocate nothing.
   - Text is normalised once, with precompiled patterns.
   - A characterisation test covers every `MenuAction`, and a seam counts reader calls.
-- [ ] **F2. What remains of the per-frame work,** after E2–E6. `A9PerformanceTest` pins zero allocation in the world
+
+  *Done as* `ea6ba66`: `MenuTagFilter` lets through 18 types; `MenuTagFilterTest` is the characterisation, and a spy
+  reader in `MenuTagTest` the seam.
+- [x] **F2. What remains of the per-frame work,** after E2–E6. `A9PerformanceTest` pins zero allocation in the world
   map loop and the tag fast path, using `ThreadMXBean`.
+  *Done as* `07c11fb`: the world map keeps its projection, clip and outline until the view or the rules change.
+  `A9PerformanceTest` runs in a JVM of its own (`performanceTest`, part of `check`), away from Mockito's inline mocks.
 
 ### Phase G: one wording, shared with the web guide (U12)
 
