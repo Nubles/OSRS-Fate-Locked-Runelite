@@ -329,8 +329,15 @@ releases.
 
 ### Phase H: release
 
-- [ ] **H1. Client tests.** A login-screen run with an empty RuneLite home. Then a run on a profile seeded with Stage 2's
+- [x] **H1. Client tests.** A login-screen run with an empty RuneLite home. Then a run on a profile seeded with Stage 2's
   keys at non-default values, checking each migrated setting in RuneLite's config panel.
+
+  *Done* 28 Sept on RuneLite 1.12.39 at `0efc835`, read from the profile each run saved. The empty home started clean,
+  with no warnings, and all 21 settings at their defaults. The Stage 2 profile, with chat on entry, the fade, the rule
+  warnings and the tags off, the content box on, the tooltip without contents, locked borders off and a solid red
+  picked, came out as Chat and sound, announcements off, rule warnings off, tags off, Detailed, Shading and tooltip,
+  All edges, and Custom with the red see-through again; every old key was kept. The owner's own look in the client
+  follows.
 - [ ] **H2. Pull requests.**
   1. The plugin and web pull requests.
   2. The Plugin Hub pull request once the plugin is merged (ask first).
