@@ -135,8 +135,9 @@ reversed. The owner approved the plan on 28 September with two changes, decision
 5. **One event per level gained, oldest first.** The web's own level-up adds one level at a time, so a jump pasted in
    rolls as often as logging each level by hand.
 6. **An event's id comes from what it is:** the character, the run, the type, the key and a count. The count is the
-   level, the kill count, the clue count, or the Slayer streak. Seeing the same thing twice records it once, and
-   pasting twice is harmless.
+   level, the kill count under the game's name for it, or the clue count. Seeing the same thing twice records it once,
+   and pasting twice is harmless. A collection log item and a Slayer task get an id of their own each time: the game
+   names 18 chompy bird hats alike, and a streak reset repeats a task at the same streak.
 7. **RuneLite keeps each character's events for the current run,** marked New, Copied or Dismissed, and forgets them
    after 30 days, as the web does.
 8. **Events recorded before this release are never offered.** They have no status, some carry old labels, and a boss
@@ -188,7 +189,7 @@ Web pull request 1 comes first (W), then the plugin (A–D), then web pull reque
   - the 48 diary tier ids.
 
   `detectorContractVersion` becomes 2. The relay's size budget is checked, and the goldens are rewritten.
-- [ ] **W6. The card's words** move to Phase P (P0): the wording test wants every shared word in the guide's
+- [x] **W6. The card's words** moved to Phase P (P0): the wording test wants every shared word in the guide's
   glossary, so they ship with the guide.
 
 *Done* on web branch `claude/stage-4-contract`, local, 29 September:
@@ -209,42 +210,66 @@ hats "Chompy bird hat", so a plain name with no item of its own now offers every
 
 - [ ] **A1. Re-pin** at web pull request 1's merge. `DetectedEventsContractTest` runs the corpus through the detectors;
   it starts with every case listed as pending, and each Phase B task clears its own.
-- [ ] **A2. Signals:** one adapter turns RuneLite events into plain signals. Chat lines have their tags stripped;
-  levels are real levels; quest states come as a snapshot; varbits, varps, popups and loot events come as they are.
-  All parsing leaves `FateLockedPlugin`.
-- [ ] **A3. Event ids from content** (decision 6), with `PairingSupport`'s SHA-256 helper. `FateEventFactoryTest` pins
+- [x] **A2. Signals:** the plugin turns RuneLite's events into plain signals (`detection.Signal`), and all parsing
+  leaves `FateLockedPlugin`:
+  - chat lines, popups, level changes and varbit changes as they come;
+  - a session's first reading once its files are open and detection is on: real levels, diary tiers, the quests'
+    states and the Slayer task;
+  - the quests again after the quest scroll and every minute, and Slayer after its variables changed.
+
+  No loot event is read (decision 11).
+- [x] **A3. Event ids from content** (decision 6), with `PairingSupport`'s SHA-256 helper. `FateEventFactoryTest` pins
   the new form.
-- [ ] **A4. The store** (decisions 7 and 8):
+- [x] **A4. The store** (decisions 7 and 8):
   - New, Copied and Dismissed, where Copied and Dismissed win a merge;
   - duplicates dropped by id, and the 30-day cut;
   - filtered to the current run;
   - nulls kept on export, and bad entries dropped on load;
   - older events kept but never offered;
   - pet drops kept but not offered yet (decision 13).
-- [ ] **A5. The gate** (decision 9): a linked run as today, an unlinked run for whoever is logged in, and other game
-  worlds shut. Diary, quest and Slayer memories change only when the gate is open.
+- [x] **A5. The gate** (decision 9): a linked run as today, an unlinked run for whoever is logged in, and other game
+  worlds shut. The quest and diary memories change only while the gate is open. Slayer needs no memory: the game's
+  variables hold the task.
+
+*Done* on plugin branch `claude/stage-4-detected-events`, local, 29 September: `fd3e4e8` A3, `c6408cf` A4, `ef779b5`
+A4 and A5 in the plugin, and `6b4b07f` A2. A1 waits for web pull request 1.
 
 ### Phase B: the detectors, one commit each
 
-Each detector is pure, reads plain signals, clears its cases in the corpus, and gets its own mutation run.
+The detectors are one pure suite, `detection.Detectors`, which reads plain signals and clears the corpus's cases. The
+suite, the bundle's tables and the wiring each got a mutation run.
 
-- [ ] **B1. Skill** (D18): the baseline comes from real levels at login and when the plugin starts; one event per
-  level; the count is the level.
-- [ ] **B2. Quest** (D6): FINISHED transitions of the game's quest states, remembered per character like diaries. The
-  quest scroll triggers a fresh read. Names map to web ids through the bundle's table, and the widget scraping goes.
-- [ ] **B3. Combat task** (D3): the popup path (`CA_TASK_POPUP` off, then the notification script's text), and version
-  2.
-- [ ] **B4. Collection log** (D10): tags stripped, exact names, and the popup path (`OPTION_COLLECTION_NEW_ITEM`).
-- [ ] **B5. Clue** (D7, D17): "You have completed 12 hard Treasure Trails.", counted. Loot Tracker's event stays as a
-  fallback.
-- [ ] **B6. Bosses and raids** (D4, D17): the kill-count line through the bundle's table, counted. Raids are raid
-  completions. The nine-name list and the Loot Tracker path go.
-- [ ] **B7. Slayer** (D8): `SLAYER_COUNT`, `SLAYER_TARGET`, `SLAYER_MASTER` and `SLAYER_TASKS_COMPLETED`, with the
-  task's name from the game's Slayer task table. The chat regexes go. The master's values are checked in game before
-  release; until they are, the web asks for the master.
-- [ ] **B8. Diary** (D9): the varbit and tier tables move into the detector, and every tier id is checked against the
-  bundle's list. Karamja's completed value is checked in game.
-- [ ] **B9. Reminders** (decision 15), behind the gate, only after a save.
+- [x] **B1. Skill** (D18): the baseline comes from real levels at the session's first reading; one event per level.
+  The level is in the label.
+- [x] **B2. Quest** (D6): FINISHED transitions of the game's quest states, remembered per character in `quests.json`
+  beside `diary-tiers.json`. The quest scroll, and a minute, trigger a fresh read. Names map to web ids through the
+  bundle's table; 212 of RuneLite's 213 quests do, all but the whole of Recipe for Disaster, whose last part is RFD:
+  Finale. The widget scraping went.
+- [x] **B3. Combat task** (D3): the popup path (the notification script's title and text, as RuneLite's Screenshot
+  plugin reads them), and version 2. The chat line and the popup share one id, so no setting needs reading.
+- [x] **B4. Collection log** (D10): tags stripped, exact names, and the popup path. `OPTION_COLLECTION_NEW_ITEM` says
+  which notification stands for the item: the chat line only at 1, as RuneLite's Screenshot plugin reads it.
+- [x] **B5. Clue** (D7, D17): "You have completed 12 hard Treasure Trails.", counted. No loot event (decision 11).
+- [x] **B6. Bosses and raids** (D4, D17): the kill-count line through the bundle's table, counted, with "Your
+  completion count for TzHaar-Ket-Rak's First Challenge is: 3." too. Raids are raid completions. The nine-name list
+  and the Loot Tracker path went.
+- [x] **B7. Slayer** (D8): `SLAYER_COUNT`, `SLAYER_TARGET`, `SLAYER_COUNT_ORIGINAL`, `SLAYER_MASTER` and the streak,
+  as RuneLite's Slayer plugin reads them: Krystilia's and Mortimer's streaks are their own, a boss task is task 98, and
+  the task's name comes from the game's Slayer task table. The amount and the streak may change apart, and a streak
+  read for another master is another task's. The chat regexes went. RuneLite names masters 7 (Krystilia) and 10
+  (Mortimer); the rest are checked in game before release, and until then the web asks for the master.
+- [x] **B8. Diary** (D9): the varbit and tier tables moved into `detection.DiaryTiers`, and every tier id is checked
+  against the bundle's list. Karamja's easy, medium and hard varbits are 2 once done and 1 once started (the OSRS
+  Wiki's varbits 3578, 3599 and 3611). The released plugin reminds "Diary complete" when one is started; this fixes
+  it. The value is still checked in game (C5).
+- [x] **B9. Reminders** (decision 15): "Attack level 71: added to your Roll inbox.", behind the gate, only after a
+  save, with the Roll reminders setting. A pet gets none (decision 13).
+
+*Done* on the plugin branch, local, 29 September: `390e3db` the suite (84 mutants caught), `1c08292` the bundle's
+`rules.detection`, and `6b4b07f` the wiring. The corpus test (A1) runs once the plugin pins web pull request 1. Writing
+the suite added eight cases to the corpus, on the web branch as `a1b2656`: Karamja's value, a change before the
+reading, a boss task, the amount and streak apart, another master's streak, the popup setting, two chompy bird hats,
+and the TzHaar-Ket-Rak line.
 
 ### Phase C: the card and the copy
 
@@ -273,8 +298,9 @@ Each detector is pure, reads plain signals, clears its cases in the corpus, and 
 
 ### Phase P: the paste, on the web (pull request 2)
 
-- [ ] **P0. The card's words** (from W6) in `data/runeliteWording.ts`, the byte-compared contract, and the guide's
-  glossary. The plugin pins this pull request's head commit.
+- [x] **P0. The card's words** (from W6) in `data/runeliteWording.ts`, the byte-compared contract, and the guide's
+  glossary. The plugin pins this pull request's head commit. `962479b` on web branch `claude/stage-4-paste`, from
+  pull request 1's head, local.
 - [ ] **P1. Paste from RuneLite** in the Roll Inbox. It reads the clipboard, with a box to paste into where the browser
   won't allow that. It takes up to 250 events and says what it did: "Added 5. 2 were already here. 1 was too old."
 - [ ] **P2. A paste into an unlinked run** (decision 9): it names the character the events came from, and each
@@ -291,8 +317,9 @@ Each detector is pure, reads plain signals, clears its cases in the corpus, and 
 ## Owner decisions and pending steps
 
 - The owner approved the plan on 28 September, with decisions 1 and 13 as their changes. Players will see
-  decisions 1, 5, 8, 9 and 13.
+  decisions 1, 5, 8, 9, 13 and 15.
 - Pets wait for the poll on rewarding an Omni-Key instead of a Key. Once it's decided, pets join the hand-off with
   whichever reward wins, as a change of their own.
 - Real messages for the corpus come first from RuneLite's own fixtures. The owner's review in RuneLite (C5) confirms
-  the Slayer master values, Karamja's diary value, and the combat task and collection log popups.
+  the Slayer master values, Karamja's diary value (2, by the OSRS Wiki), and the combat task and collection log
+  popups.
