@@ -14,6 +14,10 @@
   "CHAOS_KEYS": "Chaos Keys",
   "FATE_POINTS": "Fate Points",
   "DIFFERENT_CHARACTER": "Different character",
+  "COPY_FOR_TRACKER": "Copy for tracker",
+  "PASTE_FROM_RUNELITE": "Paste from RuneLite",
+  "NEW": "New",
+  "COPIED": "Copied",
   "LOCKED_TAG": " (Locked)"
  },
  "avoidedWords": [
