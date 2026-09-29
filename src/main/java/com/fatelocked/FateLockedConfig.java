@@ -342,11 +342,24 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "worldMapOutline",
+        name = "World map borders",
+        description = "A dashed line on the world map where your unlocked land meets locked land. Off keeps the"
+            + " shading and the tooltip.",
+        section = displaySection,
+        position = 2
+    )
+    default boolean worldMapOutline()
+    {
+        return true;
+    }
+
+    @ConfigItem(
         keyName = "worldMapMarkers",
         name = "Pin locked areas on the world map",
         description = "A pin on each area you haven't unlocked; click one to jump the world map there.",
         section = displaySection,
-        position = 2
+        position = 3
     )
     default boolean worldMapMarkers()
     {
@@ -358,7 +371,7 @@ public interface FateLockedConfig extends Config
         name = "Chunk borders in the game view",
         description = "Lines on the ground where chunks meet: only where locked land starts, or every chunk edge.",
         section = displaySection,
-        position = 3
+        position = 4
     )
     default ChunkBorders chunkBorders()
     {
@@ -370,7 +383,7 @@ public interface FateLockedConfig extends Config
         name = "Shade locked land nearby",
         description = "Darkens locked land beside you in the game view and on the minimap.",
         section = displaySection,
-        position = 4
+        position = 5
     )
     default boolean shadeNearbyLocked()
     {
@@ -382,7 +395,7 @@ public interface FateLockedConfig extends Config
         name = "Minimap chunk borders",
         description = "Chunk lines and locked land on the minimap.",
         section = displaySection,
-        position = 5
+        position = 6
     )
     default boolean drawMinimap()
     {
@@ -394,7 +407,7 @@ public interface FateLockedConfig extends Config
         name = "Infoboxes",
         description = "RuneLite infoboxes for your keys, Fate Points and unlock progress, each movable on its own.",
         section = displaySection,
-        position = 6
+        position = 7
     )
     default boolean showInfoBoxes()
     {
@@ -406,7 +419,7 @@ public interface FateLockedConfig extends Config
         name = "Colours",
         description = "Default, a set safe for colour-blind players, or your own colours below.",
         section = displaySection,
-        position = 7
+        position = 8
     )
     default ColourPreset colourPreset()
     {

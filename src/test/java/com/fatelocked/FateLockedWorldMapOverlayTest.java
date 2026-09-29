@@ -58,6 +58,7 @@ public class FateLockedWorldMapOverlayTest
         when(plugin.palette()).thenReturn(Palette.defaults());
         when(plugin.getBundle()).thenReturn(mid);
         when(config.worldMapMode()).thenReturn(FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS);
+        when(config.worldMapOutline()).thenReturn(true);
         Widget map = widget(MAP);
         Widget overview = widget(OVERVIEW);
         when(client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER)).thenReturn(map);
@@ -123,6 +124,44 @@ public class FateLockedWorldMapOverlayTest
         BufferedImage image = render();
 
         assertTrue(near(image.getRGB(middleX(frontier), middleY(frontier)), Palette.defaults().frontierFill()));
+    }
+
+    /** World map borders off: the fog and the tooltip stay, and the dashed outline goes. */
+    @Test
+    public void bordersOffKeepTheShadingAndTheTooltipWithoutTheOutline()
+    {
+        CanonicalChunk locked = inView(WorldMapChunks.Fill.LOCKED);
+        when(client.getMouseCanvasPosition()).thenReturn(new Point(middleX(locked), middleY(locked)));
+        when(config.worldMapOutline()).thenReturn(false);
+        Graphics2D graphics = mock(Graphics2D.class);
+
+        overlay.render(graphics);
+
+        verify(graphics, org.mockito.Mockito.atLeastOnce()).fillRect(org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt());
+        verify(graphics, never()).draw(org.mockito.ArgumentMatchers.any());
+        verify(tooltips).add(org.mockito.ArgumentMatchers.any());
+        assertTrue("locked land is still fog", near(render().getRGB(middleX(locked), middleY(locked)),
+            Palette.defaults().lockedShade()));
+
+        when(config.worldMapOutline()).thenReturn(true);
+        drawn();
+    }
+
+    /** The clip goes back as it was, for whatever RuneLite draws next. */
+    @Test
+    public void theClipIsPutBack()
+    {
+        BufferedImage image = new BufferedImage(MAP.width, MAP.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        Rectangle before = new Rectangle(5, 5, 600, 400);
+        graphics.setClip(before);
+
+        overlay.render(graphics);
+
+        assertEquals(before, graphics.getClip());
+        graphics.dispose();
     }
 
     @Test

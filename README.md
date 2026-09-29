@@ -98,7 +98,8 @@ once, the first time the plugin starts.
   minimap. The dashes keep their place on the ground as the camera turns,
   and a player, NPC, tree or wall in front of the line hides it.
 - The world map shades locked land like fog and outlines your unlocked land
-  all the way round, with a tooltip for the chunk under the mouse.
+  all the way round, with a tooltip for the chunk under the mouse. World map
+  borders turns the outline off and keeps the shading.
 - Every row in Here has a status. Where the tracker can't see a requirement,
   such as a quest started, quest points, a free-to-play world or a light
   source you carry, the plugin checks it in game, and a row that isn't ready

@@ -26,7 +26,8 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 /**
  * The run on the world map (U18, decision 4): locked land shaded dark like fog of war, the
  * frontier of a Chunked run lightly filled, unlocked land left clear, and the unlocked land
- * outlined with the locked edge's dash. Land only, as the web map shows it; nothing on another
+ * outlined with the locked edge's dash, which World map borders turns off on its own (a player's
+ * request, 29 Sept). Land only, as the web map shows it; nothing on another
  * character. It draws inside the map only, never over the overview or the surface selector.
  *
  * <p>What to draw is worked out once per decision service ({@link WorldMapModel}), and placed with
@@ -100,7 +101,8 @@ public class FateLockedWorldMapOverlay extends Overlay
         WorldMapProjection view = projection(bounds, zoom, centre.getX(), centre.getY());
         Shape mapClip = clip(bounds, shown(InterfaceID.Worldmap.OVERVIEW_CONTAINER),
             shown(InterfaceID.Worldmap.MAPLIST_BOX_GRAPHIC0));
-        draw(graphics, current, view, plugin.palette(), mapClip, outline(current, view));
+        draw(graphics, current, view, plugin.palette(), mapClip,
+            config.worldMapOutline() ? outline(current, view) : null);
         if (mode.tooltip())
         {
             tooltip(decisions, view, mapClip, mode.contents());
@@ -110,7 +112,7 @@ public class FateLockedWorldMapOverlay extends Overlay
 
     /**
      * Draw the model where the projection places it, inside the clip: one fill per run of
-     * chunks in view, then the outline. Called every frame, so it makes no garbage.
+     * chunks in view, then the outline, if there is one. Called every frame, so it makes no garbage.
      */
     static void draw(Graphics2D graphics, WorldMapModel model, WorldMapProjection projection, Palette palette,
         Shape clip, Shape outline)
@@ -137,12 +139,15 @@ public class FateLockedWorldMapOverlay extends Overlay
             int y1 = projection.lineY(run.getCy() << 6);
             graphics.fillRect(x0, y0, x1 - x0, y1 - y0);
         }
-        graphics.setStroke(Palette.UNDERLAY_STROKE);
-        graphics.setColor(Palette.UNDERLAY);
-        graphics.draw(outline);
-        graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
-        graphics.setColor(palette.lockedEdge());
-        graphics.draw(outline);
+        if (outline != null)
+        {
+            graphics.setStroke(Palette.UNDERLAY_STROKE);
+            graphics.setColor(Palette.UNDERLAY);
+            graphics.draw(outline);
+            graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
+            graphics.setColor(palette.lockedEdge());
+            graphics.draw(outline);
+        }
         graphics.setClip(before);
     }
 

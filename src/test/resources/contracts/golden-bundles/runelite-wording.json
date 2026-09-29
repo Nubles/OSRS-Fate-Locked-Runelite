@@ -152,6 +152,12 @@
    ]
   },
   {
+   "key": "worldMapOutline",
+   "section": "Display",
+   "name": "World map borders",
+   "defaultValue": "On"
+  },
+  {
    "key": "worldMapMarkers",
    "section": "Display",
    "name": "Pin locked areas on the world map",
