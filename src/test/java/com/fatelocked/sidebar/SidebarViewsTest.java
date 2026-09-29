@@ -4,12 +4,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.fatelocked.events.FateEventType;
+import com.fatelocked.ui.DismissButton;
 import com.fatelocked.ui.FlatButton;
 import com.fatelocked.ui.Fold;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.ItemRow;
 import com.fatelocked.ui.Palette.Tone;
 import com.fatelocked.ui.Section;
+import com.fatelocked.ui.Terms;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.ArrayList;
@@ -234,22 +237,102 @@ public class SidebarViewsTest
     }
 
     @Test
-    public void theRollInboxCountsWarningsAndSaysWhenSavingFailed() throws Exception
+    public void anEmptyRollInboxSaysSoAndOffersNoCopy() throws Exception
     {
         onEdt(() -> {
-            RollInboxView inbox = new RollInboxView();
+            RollInboxView inbox = new RollInboxView(IconSource.NONE);
             inbox.setExpanded(true);
             int[] opened = new int[1];
             inbox.onOpen(() -> opened[0]++);
-            inbox.apply(new RollInboxModel(4, 1, 2, true));
+            inbox.apply(RollInboxModel.builder().warnings(2).saveFailed(true).build());
+
+            assertEquals(null, inbox.getCount());
+            assertTrue(texts(inbox).contains(RollInboxView.EMPTY));
             assertTrue(texts(inbox).contains("Saving the local history failed."));
-            assertTrue(texts(inbox).contains(RollInboxView.LOCAL_ONLY));
+            assertTrue(texts(inbox).contains(RollInboxView.NOTE));
+            assertEquals(List.of("Open web Roll Inbox"), buttonTexts(inbox));
             buttons(inbox).get(0).doClick();
             assertEquals(1, opened[0]);
 
-            inbox.apply(new RollInboxModel(4, 1, 0, false));
+            inbox.apply(RollInboxModel.builder().build());
             assertFalse(texts(inbox).contains("Saving the local history failed."));
         });
+    }
+
+    @Test
+    public void theRollInboxListsWhatItNoticedToCopyOrDismiss() throws Exception
+    {
+        onEdt(() -> {
+            RollInboxView inbox = new RollInboxView(IconSource.NONE);
+            inbox.setExpanded(true);
+            int[] copies = new int[1];
+            List<String> dismissed = new ArrayList<>();
+            inbox.onCopy(() -> copies[0]++);
+            inbox.onDismiss(dismissed::add);
+            RollInboxModel.Row copiedRow = new RollInboxModel.Row("c", FateEventType.QUEST, "Cook's Assistant", null,
+                false, true);
+            inbox.apply(RollInboxModel.builder()
+                .rows(List.of(
+                    new RollInboxModel.Row("a", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, false),
+                    new RollInboxModel.Row("b", FateEventType.DIARY_TASK, "Varrock Easy", null, true, false),
+                    copiedRow))
+                .more(4).newEvents(2).copied(5).character("Zezima").notice("Copied 5 events.").build());
+
+            assertEquals("2 new", inbox.getCount());
+            List<ItemRow> rows = all(inbox, ItemRow.class::isInstance).stream().map(ItemRow.class::cast)
+                .collect(Collectors.toList());
+            assertEquals(List.of("Attack Level 71", "Varrock Easy", "Cook's Assistant"),
+                rows.stream().map(ItemRow::title).collect(Collectors.toList()));
+            assertEquals(List.of(Terms.NEW, Terms.NEEDS_CHECKING, Terms.COPIED),
+                rows.stream().map(row -> row.pill().getWord()).collect(Collectors.toList()));
+            assertEquals(List.of(Tone.PENDING, Tone.NEUTRAL, Tone.GOOD),
+                rows.stream().map(row -> row.pill().getTone()).collect(Collectors.toList()));
+            assertTrue(texts(inbox).containsAll(List.of("Events for Zezima", "+4 more", "Copied 5 events.")));
+            assertFalse(texts(inbox).contains(RollInboxView.EMPTY));
+            assertEquals(List.of(Terms.COPY_FOR_TRACKER, "Open web Roll Inbox"), buttonTexts(inbox));
+            buttons(inbox).get(0).doClick();
+            assertEquals(1, copies[0]);
+
+            List<Component> crosses = all(inbox, DismissButton.class::isInstance);
+            assertEquals(3, crosses.size());
+            assertEquals(DismissButton.LABEL, ((DismissButton) crosses.get(1)).getToolTipText());
+            ((DismissButton) crosses.get(1)).doClick();
+            assertEquals(List.of("b"), dismissed);
+
+            // All copied: no count, and Copy again copies them again.
+            inbox.apply(RollInboxModel.builder().rows(List.of(copiedRow)).copied(5).build());
+            assertEquals(null, inbox.getCount());
+            assertTrue(texts(inbox).contains(Terms.COPIED + " 5"));
+            assertFalse(texts(inbox).contains("Events for Zezima"));
+            assertFalse(texts(inbox).stream().anyMatch(text -> text.startsWith("+")));
+            assertEquals(List.of(RollInboxView.COPY_AGAIN, "Open web Roll Inbox"), buttonTexts(inbox));
+            buttons(inbox).get(0).doClick();
+            assertEquals(2, copies[0]);
+        });
+    }
+
+    @Test
+    public void eachRowShowsItsTypesArt()
+    {
+        assertEquals(com.fatelocked.ui.Art.QUESTS, RollInboxView.art(row(FateEventType.QUEST)));
+        assertEquals(com.fatelocked.ui.Art.COMBAT_TASK, RollInboxView.art(row(FateEventType.COMBAT_ACHIEVEMENT)));
+        assertEquals(com.fatelocked.ui.Art.COLLECTION_LOG, RollInboxView.art(row(FateEventType.COLLECTION_LOG)));
+        assertEquals(com.fatelocked.ui.Art.CLUE, RollInboxView.art(row(FateEventType.CLUE_CASKET)));
+        assertEquals(com.fatelocked.ui.Art.COMBAT, RollInboxView.art(row(FateEventType.BOSS_KILL)));
+        assertEquals(com.fatelocked.ui.Art.RAID, RollInboxView.art(row(FateEventType.RAID_COMPLETION)));
+        assertEquals(com.fatelocked.ui.Art.DIARY, RollInboxView.art(row(FateEventType.DIARY_TASK)));
+        assertEquals(null, RollInboxView.art(row(FateEventType.SKILL_LEVEL)));
+        assertEquals(null, RollInboxView.art(row(null)));
+    }
+
+    private static RollInboxModel.Row row(FateEventType type)
+    {
+        return new RollInboxModel.Row("id", type, "Label", null, false, false);
+    }
+
+    private static List<String> buttonTexts(Container root)
+    {
+        return buttons(root).stream().map(FlatButton::getText).collect(Collectors.toList());
     }
 
     @Test

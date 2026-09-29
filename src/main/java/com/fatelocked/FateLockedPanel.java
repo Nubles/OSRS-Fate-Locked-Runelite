@@ -12,6 +12,9 @@ import com.fatelocked.ui.GameArt;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette;
 import java.awt.BorderLayout;
+import java.awt.HeadlessException;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -158,6 +161,36 @@ class FateLockedPanel extends PluginPanel
     void showRollInbox(RollInboxModel model)
     {
         queueOnEdt(() -> sidebar.rollInbox().apply(model));
+    }
+
+    /** Called, on the Swing thread, when the player copies the Roll inbox's events for the tracker. */
+    void onCopyForTracker(Runnable handler)
+    {
+        sidebar.rollInbox().onCopy(handler);
+    }
+
+    /** Called, on the Swing thread, with the id of an event the player dismissed from the Roll inbox. */
+    void onDismissEvent(Consumer<String> handler)
+    {
+        sidebar.rollInbox().onDismiss(handler);
+    }
+
+    /**
+     * The plugin's one clipboard write (Stage 4, C2): the Roll inbox's events, as the tracker's
+     * Paste from RuneLite reads them, from the card's button on the Swing thread. False when the
+     * clipboard can't be had, such as while another program holds it.
+     */
+    boolean copyToClipboard(String text)
+    {
+        try
+        {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+            return true;
+        }
+        catch (IllegalStateException | HeadlessException | SecurityException unavailable)
+        {
+            return false;
+        }
     }
 
     void setPalette(Palette palette)

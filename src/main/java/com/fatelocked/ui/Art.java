@@ -28,6 +28,16 @@ public enum Art
     FARMING(Kind.SPRITE, SpriteID.Mapfunction.FARMING_PATCH, 0),
     ACTIVITIES(Kind.SPRITE, SpriteID.Mapfunction.MINIGAME, 0),
 
+    // What the Roll inbox lists (Stage 4); levels and Slayer tasks take their skill's icon.
+    /** A combat task: the game's sword for a hard task, as its Combat Achievements tab draws it. */
+    COMBAT_TASK(Kind.SPRITE, SpriteID.CaTierSwordsSmall._2, 0),
+    COLLECTION_LOG(Kind.ITEM, ItemID.COLLECTION_LOG, 1),
+    /** A clue scroll, as every tier's looks. */
+    CLUE(Kind.ITEM, ItemID.TRAIL_CLUE_EASY_SIMPLE001, 1),
+    RAID(Kind.SPRITE, SpriteID.Mapfunction.RAIDS_LOBBY, 0),
+    /** The quest journal's achievement diary tab. */
+    DIARY(Kind.SPRITE, SpriteID.AchievementDiaryIcons.GREEN_ACHIEVEMENT_DIARIES, 0),
+
     KEYS(Kind.ITEM, ItemID.CRYSTAL_KEY, 1),
     OMNI_KEYS(Kind.ITEM, ItemID.PRIF_CRYSTAL_KEY, 1),
     CHAOS_KEYS(Kind.ITEM, ItemID.KONAR_KEY, 1),

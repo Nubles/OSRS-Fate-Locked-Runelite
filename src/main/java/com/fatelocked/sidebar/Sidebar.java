@@ -41,7 +41,7 @@ public class Sidebar extends JPanel
     private final StrictModeView strictMode;
     private final RunView run;
     private final ConnectionView connection = new ConnectionView();
-    private final RollInboxView rollInbox = new RollInboxView();
+    private final RollInboxView rollInbox;
     private final TextBlock notice = new TextBlock(Type.small(), Palette.TEXT_MUTED, 2, TEXT_WIDTH);
     private final Timer noticeTimer = new Timer(NOTICE_MILLIS, e -> clearNotice());
     private Palette palette = Palette.defaults();
@@ -52,6 +52,7 @@ public class Sidebar extends JPanel
         here = new HereView(icons);
         strictMode = new StrictModeView(icons);
         run = new RunView(icons);
+        rollInbox = new RollInboxView(icons);
         icons.load(Art.MARK, mark::setImage);
         setBackground(Palette.PANEL);
         setBorder(new EmptyBorder(Space.EDGE, Space.EDGE, Space.EDGE, Space.EDGE));

@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
-import com.fatelocked.events.EventConfidence;
 import com.fatelocked.rules.ChunkPermissionRow;
 import com.fatelocked.rules.Decision;
 import com.fatelocked.rules.DecisionService;
@@ -19,7 +18,7 @@ import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
 import com.fatelocked.sidebar.PointTarget;
 import com.fatelocked.sidebar.PointerText;
-import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.RollInboxPresenter;
 import com.fatelocked.sidebar.RowChecks;
 import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.fatelocked.ui.Art;
@@ -214,7 +213,10 @@ public class FateLockedPlugin extends Plugin
     /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
     private final RepeatedValueLimiter trackerTickFailureLimiter =
         new RepeatedValueLimiter(TimeUnit.MINUTES.toMillis(15));
-    private DetectedEventStore detectedEvents;
+    /** The logged-in account's events; read on the Swing thread too, for Copy for tracker. */
+    private volatile DetectedEventStore detectedEvents;
+    /** What the Roll inbox's last copy did, until a new event or a dismissal; null for nothing. */
+    private volatile String rollInboxNotice;
     private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
     /** The account the history, audit log and memories belong to. */
@@ -506,6 +508,8 @@ public class FateLockedPlugin extends Plugin
         panel.onIntroDismiss(() -> configManager.setConfiguration(
             FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         panel.onHereFold(this::saveHereOpen);
+        panel.onCopyForTracker(this::copyForTracker);
+        panel.onDismissEvent(this::dismissEvent);
         panel.openHere(hereOpen());
         panel.onHerePoint((category, row) -> gate.run(() -> pointTo(category, row)));
         panel.onHereClearPoint(() -> gate.run(this::clearPointer));
@@ -1336,6 +1340,8 @@ public class FateLockedPlugin extends Plugin
                 else if (result)
                 {
                     historySaveFailed = false;
+                    // A new event: what the last copy did is behind it now.
+                    rollInboxNotice = null;
                     remind(detected);
                 }
                 updatePanelRollInbox();
@@ -3214,20 +3220,88 @@ public class FateLockedPlugin extends Plugin
     private void updatePanelRollInbox()
     {
         FateLockedBundle rules = getBundle();
-        List<DetectedEventStore.Entry> events = detectedEvents == null
+        DetectedEventStore store = detectedEvents;
+        List<DetectedEventStore.Entry> events = store == null
             ? java.util.Collections.<DetectedEventStore.Entry>emptyList()
-            : detectedEvents.offered(rules == null ? null : rules.getRunId());
-        int needsReview = 0;
-        for (DetectedEventStore.Entry entry : events)
-        {
-            if (entry.getEvent().getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
-        }
+            : store.offered(rules == null ? null : rules.getRunId());
         shownWarningCount = activeWarningCount();
         SidebarPublisher models = sidebarModels();
         if (models != null)
         {
-            models.rollInbox(new RollInboxModel(events.size(), needsReview, shownWarningCount, historySaveFailed));
+            models.rollInbox(RollInboxPresenter.present(events, shownWarningCount, historySaveFailed,
+                AccountBinding.boundAccount(rules) != null, rollInboxNotice));
         }
+    }
+
+    /** Why a copy didn't happen. */
+    static final String COPY_FAILED = "Couldn't copy: the clipboard is busy. Try again.";
+
+    /** What a copy did, and where the player pastes it. */
+    static String copied(int events)
+    {
+        return "Copied " + events + (events == 1 ? " event" : " events") + ". In the tracker's Roll Inbox, choose "
+            + Terms.PASTE_FROM_RUNELITE + ".";
+    }
+
+    /**
+     * Copy for tracker (Stage 4, C2), from the card's button on the Swing thread: every event the Roll
+     * inbox offers, in the form the tracker's Paste from RuneLite reads. They turn Copied only once
+     * the clipboard has them. The tracker keeps an event it has once, so copying again is harmless.
+     */
+    private void copyForTracker()
+    {
+        DetectedEventStore store = detectedEvents;
+        FateLockedBundle rules = getBundle();
+        List<DetectedEventStore.Entry> offered = store == null || rules == null
+            ? java.util.Collections.<DetectedEventStore.Entry>emptyList()
+            : store.offered(rules.getRunId());
+        if (offered.isEmpty()) return;
+        List<FateEvent> events = new ArrayList<>();
+        List<String> ids = new ArrayList<>();
+        for (DetectedEventStore.Entry entry : offered)
+        {
+            events.add(entry.getEvent());
+            ids.add(entry.getEvent().getEventId());
+        }
+        ClientThreadGate onClient = gate;
+        if (!panel.copyToClipboard(store.copyOf(events)))
+        {
+            rollInboxNotice = COPY_FAILED;
+            onClient.run(this::updatePanelRollInbox);
+            return;
+        }
+        rollInboxNotice = copied(events.size());
+        fileWriter.submit(() -> {
+            try
+            {
+                store.mark(ids, DetectedEventStore.Status.COPIED);
+            }
+            catch (IOException ex)
+            {
+                log.warn("Could not mark the copied events", ex);
+            }
+            onClient.run(this::updatePanelRollInbox);
+        });
+    }
+
+    /** Dismiss, on a row of the Roll inbox, from the Swing thread: the event isn't offered again. */
+    private void dismissEvent(String eventId)
+    {
+        DetectedEventStore store = detectedEvents;
+        if (store == null || eventId == null) return;
+        rollInboxNotice = null;
+        ClientThreadGate onClient = gate;
+        fileWriter.submit(() -> {
+            try
+            {
+                store.mark(java.util.Collections.singletonList(eventId), DetectedEventStore.Status.DISMISSED);
+            }
+            catch (IOException ex)
+            {
+                log.warn("Could not dismiss a detected event", ex);
+            }
+            onClient.run(this::updatePanelRollInbox);
+        });
     }
 
     /** Keep the sidebar's Warnings count current as you move, change gear and get tasks. */

@@ -68,6 +68,12 @@ public class Section extends JPanel
         header.repaint();
     }
 
+    /** The count or state shown after the title, or null. */
+    public String getCount()
+    {
+        return header.count;
+    }
+
     /** A control at the right of the header, such as a toggle, or null. */
     public void setTrailing(JComponent control)
     {

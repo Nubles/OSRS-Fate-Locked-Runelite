@@ -113,7 +113,7 @@ public class FateLockedPluginLocalWritesTest
         runBackground();
 
         assertTrue(Files.exists(history()));
-        verify(panel).showRollInbox(new RollInboxModel(1, 0, 0, false));
+        verify(panel).showRollInbox(argThat(model -> model.getNewEvents() == 1 && !model.isSaveFailed()));
     }
 
     @Test

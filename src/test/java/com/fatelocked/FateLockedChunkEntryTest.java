@@ -216,13 +216,13 @@ public class FateLockedChunkEntryTest
         loadRules();
 
         walk(LUMBRIDGE);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 0, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().build());
         walk(FALADOR);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
         walk(FALADOR_EAST);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
         walk(LUMBRIDGE);
-        verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
+        verify(panel, times(2)).showRollInbox(RollInboxModel.builder().build());
     }
 
     /** B6, U10: a golden walk warns once, on the way into Rimmington, and announces each area once. */
@@ -301,8 +301,8 @@ public class FateLockedChunkEntryTest
         assertTrue(lines.get(2), lines.get(2).endsWith(": Not ready" + (why == null ? "" : " — " + why)));
         assertTrue(lines.get(1), lines.get(1).endsWith(": Locked — Unlock Taverley"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
-        verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
+        verify(panel, times(2)).showRollInbox(RollInboxModel.builder().build());
     }
 
     /**
@@ -323,7 +323,7 @@ public class FateLockedChunkEntryTest
         // Notifications are on here, so that line is also the one notification.
         verify(notifier, times(1)).notify(anyString());
         verify(notifier).notify("You're logged in as Someone Else, not the bound account Iron Example");
-        verify(panel, never()).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(panel, never()).showRollInbox(RollInboxModel.builder().warnings(1).build());
     }
 
     /** A chunk the tracker locks outside the old area lists is announced without an area. */

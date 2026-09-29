@@ -59,6 +59,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -82,7 +84,7 @@ public class FateLockedPluginLocalHistoryTest
         assertEquals(1, events(harness).size());
         assertEquals("Dragon Slayer",
             events(harness).get(0).getCanonicalLabel());
-        verify(harness.panel).showRollInbox(new RollInboxModel(1, 0, 0, false));
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1 && !model.isSaveFailed()));
     }
 
     @Test
@@ -635,12 +637,121 @@ public class FateLockedPluginLocalHistoryTest
         assertSame(bundleBefore, harness.plugin.getBundle());
         assertEquals(1, events(harness).size());
         assertEquals(1, new DetectedEventStore(harness.gson, harness.historyPath).entries().size());
-        verify(harness.panel).showRollInbox(new RollInboxModel(1, 0, 0, true));
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1 && model.isSaveFailed()));
 
         Files.delete(temporary);
         invokeRecord(harness.plugin, detected("Demon Slayer"));
         assertEquals(2, events(harness).size());
-        verify(harness.panel).showRollInbox(new RollInboxModel(2, 0, 0, false));
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 2 && !model.isSaveFailed()));
+    }
+
+    @Test
+    public void copyForTrackerCopiesTheRunsEventsWhichThenAreCopied() throws Exception
+    {
+        Harness harness = harness("copy");
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 13 hard Treasure Trails."));
+        when(harness.panel.copyToClipboard(anyString())).thenReturn(true);
+
+        invokeNoArg(harness.plugin, "copyForTracker");
+
+        ArgumentCaptor<String> copy = ArgumentCaptor.forClass(String.class);
+        verify(harness.panel).copyToClipboard(copy.capture());
+        JsonObject pasted = harness.gson.fromJson(copy.getValue(), JsonObject.class);
+        assertEquals(DetectedEventStore.FORMAT, pasted.get("format").getAsString());
+        assertEquals(2, pasted.getAsJsonArray("events").size());
+        assertEquals(List.of(DetectedEventStore.Status.COPIED, DetectedEventStore.Status.COPIED), statuses(harness));
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 0 && model.getCopied() == 2
+            && FateLockedPlugin.copied(2).equals(model.getNotice())));
+
+        // A new event: what the copy said is behind it.
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 14 hard Treasure Trails."));
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1 && model.getCopied() == 2
+            && model.getNotice() == null));
+    }
+
+    @Test
+    public void aCopySaysHowManyAndWhereToPasteThem()
+    {
+        assertEquals("Copied 1 event. In the tracker's Roll Inbox, choose Paste from RuneLite.",
+            FateLockedPlugin.copied(1));
+        assertEquals("Copied 5 events. In the tracker's Roll Inbox, choose Paste from RuneLite.",
+            FateLockedPlugin.copied(5));
+    }
+
+    @Test
+    public void aCopyTheClipboardRefusedLeavesTheEventsNew() throws Exception
+    {
+        Harness harness = harness("copy-refused");
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+        when(harness.panel.copyToClipboard(anyString())).thenReturn(false);
+
+        invokeNoArg(harness.plugin, "copyForTracker");
+
+        assertEquals(List.of(DetectedEventStore.Status.NEW), statuses(harness));
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1
+            && FateLockedPlugin.COPY_FAILED.equals(model.getNotice())));
+    }
+
+    @Test
+    public void nothingToCopyLeavesTheClipboardAlone() throws Exception
+    {
+        Harness harness = harness("copy-nothing");
+
+        invokeNoArg(harness.plugin, "copyForTracker");
+        setField(harness.plugin, "detectedEvents", null);
+        invokeNoArg(harness.plugin, "copyForTracker");
+
+        verify(harness.panel, never()).copyToClipboard(anyString());
+    }
+
+    @Test
+    public void aDismissedEventIsOfferedNoMore() throws Exception
+    {
+        Harness harness = harness("dismiss");
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 13 hard Treasure Trails."));
+        String first = events(harness).get(0).getEventId();
+        when(harness.panel.copyToClipboard(anyString())).thenReturn(false);
+        invokeNoArg(harness.plugin, "copyForTracker");
+
+        Method dismiss = FateLockedPlugin.class.getDeclaredMethod("dismissEvent", String.class);
+        dismiss.setAccessible(true);
+        dismiss.invoke(harness.plugin, first);
+        dismiss.invoke(harness.plugin, (Object) null);
+
+        assertEquals(List.of(DetectedEventStore.Status.DISMISSED, DetectedEventStore.Status.NEW), statuses(harness));
+        assertEquals(1, harness.history.offered(harness.plugin.getBundle().getRunId()).size());
+        // What the refused copy said goes with the dismissal.
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1 && model.getRows().size() == 1
+            && !first.equals(model.getRows().get(0).getEventId()) && model.getNotice() == null));
+    }
+
+    @Test
+    public void anUnlinkedRunsCardSaysWhoseEventsItHolds() throws Exception
+    {
+        Harness harness = harness("unlinked-card");
+        JsonObject unlinked = harness.gson.fromJson(fixture("bundles/v4-rules.json"), JsonObject.class);
+        unlinked.getAsJsonObject("rules").add("account", JsonNull.INSTANCE);
+        setField(harness.plugin, "active", new ActiveRules(
+            FateLockedBundle.loadFromJson(harness.gson, unlinked.toString()), FateLockedPlugin.RulesSource.NONE));
+        Player anyone = mock(Player.class);
+        when(anyone.getName()).thenReturn("Zezima");
+        when(harness.client.getLocalPlayer()).thenReturn(anyone);
+        readForDetectors(harness);
+
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+
+        verify(harness.panel).showRollInbox(argThat(model -> "Zezima".equals(model.getCharacter())));
+    }
+
+    /** The statuses of the events the store holds, oldest first. */
+    private static List<DetectedEventStore.Status> statuses(Harness harness)
+    {
+        return harness.history.entries().stream().map(DetectedEventStore.Entry::getStatus).collect(Collectors.toList());
     }
 
     /** Lumbridge & Draynor Easy's varbit. */
