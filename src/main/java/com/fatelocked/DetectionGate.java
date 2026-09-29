@@ -7,13 +7,32 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Whether a detection counts, and may be recorded or earn a roll reminder:
- * rules for a run are loaded, they are bound to the logged-in character,
- * and the world's progress is that account's own. An unbound tracker
- * profile gets no reminders (owner decision, 25 September).
+ * What a detection may do here. It counts only with rules for a run loaded, on a world whose
+ * progress is the account's own, for a logged-in character:
+ * <ul>
+ *   <li>the character the rules are bound to: it is recorded and earns a roll reminder;</li>
+ *   <li>any character, while the rules are bound to none: it is recorded, for the Roll inbox to
+ *   copy (Stage 4, plan decision 9), but earns no reminder (owner decision, 25 September);</li>
+ *   <li>another character than the bound one: nothing.</li>
+ * </ul>
  */
 final class DetectionGate
 {
+    enum Detection
+    {
+        OFF, RECORD, RECORD_AND_REMIND;
+
+        boolean records()
+        {
+            return this != OFF;
+        }
+
+        boolean reminds()
+        {
+            return this == RECORD_AND_REMIND;
+        }
+    }
+
     /**
      * Worlds whose progress isn't the account's own: Leagues, Deadman,
      * tournament, beta and no-save worlds, Fresh Start worlds, quest
@@ -28,15 +47,19 @@ final class DetectionGate
     {
     }
 
-    static boolean allows(FateLockedBundle rules, String loggedInName, Set<WorldType> worldTypes)
+    static Detection decide(FateLockedBundle rules, String loggedInName, Set<WorldType> worldTypes)
     {
-        if (rules == null || rules.getRunId() == null || rules.getRunId().trim().isEmpty())
+        if (rules == null || rules.getRunId() == null || rules.getRunId().trim().isEmpty()
+            || AccountBinding.normalize(loggedInName).isEmpty()
+            || (worldTypes != null && !Collections.disjoint(worldTypes, OTHER_GAMES)))
         {
-            return false;
+            return Detection.OFF;
         }
         String bound = AccountBinding.boundAccount(rules);
-        return bound != null
-            && AccountBinding.sameAccount(bound, loggedInName)
-            && (worldTypes == null || Collections.disjoint(worldTypes, OTHER_GAMES));
+        if (bound == null)
+        {
+            return Detection.RECORD;
+        }
+        return AccountBinding.sameAccount(bound, loggedInName) ? Detection.RECORD_AND_REMIND : Detection.OFF;
     }
 }

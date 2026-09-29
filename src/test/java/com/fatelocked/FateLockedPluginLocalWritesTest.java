@@ -6,7 +6,7 @@ import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.detectors.DetectedEvent;
 import com.fatelocked.detectors.SlayerTaskDetector;
 import com.fatelocked.events.EventConfidence;
-import com.fatelocked.events.FateEventHistory;
+import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.FateEventType;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
@@ -88,8 +88,7 @@ public class FateLockedPluginLocalWritesTest
         set("active", new ActiveRules(
             FateLockedBundle.loadFromJson(gson, fixture("bundles/v4-rules.json")),
             FateLockedPlugin.RulesSource.NONE));
-        set("eventHistory", new FateEventHistory(
-            gson, history(), dir.resolve("event-outbox.json")));
+        set("detectedEvents", new DetectedEventStore(gson, history()));
         set("strictAuditLog", new StrictModeAuditLog(gson, audit()));
         set("strictModeStatus", StrictModeStatusView.of(true, false, 0, null));
         set("slayerTaskDetector", new SlayerTaskDetector(gson, slayer()));
@@ -156,7 +155,7 @@ public class FateLockedPluginLocalWritesTest
 
     private Path history()
     {
-        return dir.resolve("event-history.json");
+        return dir.resolve(DetectedEventStore.FILE);
     }
 
     private Path audit()

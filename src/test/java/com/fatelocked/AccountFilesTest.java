@@ -1,9 +1,9 @@
 package com.fatelocked;
 
 import com.fatelocked.detectors.SlayerTaskDetector;
+import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.events.FateEvent;
-import com.fatelocked.events.FateEventHistory;
 import com.fatelocked.events.FateEventType;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
@@ -43,34 +43,30 @@ public class AccountFilesTest
     @Test
     public void eachAccountHasItsOwnFiles() throws Exception
     {
-        AccountFiles ironman = AccountFiles.open(gson, data, 1L, "Nubles", true);
-        AccountFiles main = AccountFiles.open(gson, data, 2L, "Zezima", false);
+        AccountFiles ironman = AccountFiles.open(gson, data, 1L, true);
+        AccountFiles main = AccountFiles.open(gson, data, 2L, false);
 
-        ironman.history.record(event("ironman-1", "Nubles"));
+        ironman.detected.record(event("ironman-1", "Nubles"));
 
-        assertEquals(1, ironman.history.events().size());
-        assertEquals(0, main.history.events().size());
-        assertTrue(Files.exists(data.resolve("accounts/1/event-history.json")));
-        assertFalse(Files.exists(data.resolve(AccountFiles.HISTORY)));
+        assertEquals(1, ironman.detected.entries().size());
+        assertEquals(0, main.detected.entries().size());
+        assertTrue(Files.exists(data.resolve("accounts/1/" + DetectedEventStore.FILE)));
+        assertFalse(Files.exists(data.resolve(DetectedEventStore.FILE)));
     }
 
     @Test
-    public void aNewFolderStartsFromTheSharedHistorysEventsForThatCharacterOnly() throws Exception
+    public void detectedEventsStartEmptyAndTheOldHistoryIsLeftAsItIs() throws Exception
     {
-        Path shared = data.resolve(AccountFiles.HISTORY);
-        FateEventHistory before = new FateEventHistory(gson, shared, null);
-        before.record(event("nubles-1", "Nubles"));
-        before.record(event("zezima-1", "Zezima"));
-        byte[] sharedBytes = Files.readAllBytes(shared);
+        // Stage 4 never reads the event-history.json files of earlier versions (plan decision 8).
+        byte[] old = "{\"events\":[{\"eventId\":\"old\",\"eventType\":\"QUEST\"}]}".getBytes(StandardCharsets.UTF_8);
+        Path shared = Files.write(data.resolve("event-history.json"), old);
+        Path own = Files.write(Files.createDirectories(AccountFiles.folder(data, 1L)).resolve("event-history.json"), old);
 
-        AccountFiles ironman = AccountFiles.open(gson, data, 1L, " nubles ", true);
+        AccountFiles ironman = AccountFiles.open(gson, data, 1L, true);
 
-        assertEquals(List.of("nubles-1"), ids(ironman.history.events()));
-        // The shared file is only read.
-        assertArrayEquals(sharedBytes, Files.readAllBytes(shared));
-        // A folder in use doesn't take them again.
-        assertEquals(List.of("nubles-1"),
-            ids(AccountFiles.open(gson, data, 1L, "Nubles", true).history.events()));
+        assertEquals(0, ironman.detected.entries().size());
+        assertArrayEquals(old, Files.readAllBytes(shared));
+        assertArrayEquals(old, Files.readAllBytes(own));
     }
 
     @Test
@@ -81,8 +77,8 @@ public class AccountFilesTest
         new SlayerTaskDetector(gson, data.resolve(AccountFiles.SLAYER))
             .assignment("Kurask", null, 120, false);
 
-        AccountFiles bound = AccountFiles.open(gson, data, 1L, "Nubles", true);
-        AccountFiles other = AccountFiles.open(gson, data, 2L, "Zezima", false);
+        AccountFiles bound = AccountFiles.open(gson, data, 1L, true);
+        AccountFiles other = AccountFiles.open(gson, data, 2L, false);
 
         assertEquals(1, bound.auditLog.recent(10).size());
         assertEquals(0, other.auditLog.recent(10).size());
@@ -94,12 +90,12 @@ public class AccountFilesTest
     public void damagedAccountFilesAreKeptAsideAndStillOpen() throws Exception
     {
         Path own = Files.createDirectories(AccountFiles.folder(data, 1L));
-        Files.write(own.resolve(AccountFiles.HISTORY), "[".getBytes(StandardCharsets.UTF_8));
+        Files.write(own.resolve(DetectedEventStore.FILE), "[".getBytes(StandardCharsets.UTF_8));
         Files.write(own.resolve(AccountFiles.SLAYER), "{\"name\":".getBytes(StandardCharsets.UTF_8));
 
-        AccountFiles files = AccountFiles.open(gson, data, 1L, "Nubles", true);
+        AccountFiles files = AccountFiles.open(gson, data, 1L, true);
 
-        assertNotNull(files.history);
+        assertNotNull(files.detected);
         assertNotNull(files.auditLog);
         assertNotNull(files.slayer);
         try (Stream<Path> kept = Files.list(own))
@@ -120,7 +116,7 @@ public class AccountFilesTest
             .eventType(FateEventType.QUEST)
             .canonicalLabel("Dragon Slayer")
             .confidence(EventConfidence.EXACT)
-            .occurredAt(1_000L)
+            .occurredAt(System.currentTimeMillis())
             .sessionSequence(1)
             .bundleVersion(4)
             .rulesVersion("1")
@@ -128,8 +124,8 @@ public class AccountFilesTest
             .build();
     }
 
-    private static List<String> ids(List<FateEvent> events)
+    private static List<String> ids(List<DetectedEventStore.Entry> entries)
     {
-        return events.stream().map(FateEvent::getEventId).collect(Collectors.toList());
+        return entries.stream().map(entry -> entry.getEvent().getEventId()).collect(Collectors.toList());
     }
 }

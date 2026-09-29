@@ -3,9 +3,12 @@ package com.fatelocked;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.detectors.DetectedEvent;
 import com.fatelocked.events.EventConfidence;
-import com.fatelocked.events.FateEventHistory;
+import com.fatelocked.events.DetectedEventStore;
+import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.FateEventType;
 import com.google.gson.Gson;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.WorldType;
@@ -31,6 +34,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -57,9 +62,9 @@ public class FateLockedPluginLocalHistoryTest
         assertFalse(harness.connectionSettings.isPaired());
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
 
-        assertEquals(1, harness.history.events().size());
+        assertEquals(1, events(harness).size());
         assertEquals("Dragon Slayer",
-            harness.history.events().get(0).getCanonicalLabel());
+            events(harness).get(0).getCanonicalLabel());
         verify(harness.panel).showRollInbox(new RollInboxModel(1, 0, 0, false));
     }
 
@@ -74,8 +79,8 @@ public class FateLockedPluginLocalHistoryTest
         harness.plugin.onLootReceived(new LootReceived("Clue Scroll (Hard)", 0, LootRecordType.EVENT,
             java.util.List.of(new ItemStack(COINS, 5000)), 1, null));
 
-        assertEquals(1, harness.history.events().size());
-        assertEquals("Clue Scroll (Hard)", harness.history.events().get(0).getCanonicalLabel());
+        assertEquals(1, events(harness).size());
+        assertEquals("Clue Scroll (Hard)", events(harness).get(0).getCanonicalLabel());
     }
 
     @Test
@@ -87,8 +92,8 @@ public class FateLockedPluginLocalHistoryTest
         invokeNoArg(harness.plugin, "openAccountFiles");
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
 
-        assertTrue(Files.exists(harness.dataDirectory.resolve("accounts/7/event-history.json")));
-        assertEquals(0, harness.history.events().size());
+        assertTrue(Files.exists(harness.dataDirectory.resolve("accounts/7/detected-events.json")));
+        assertEquals(0, events(harness).size());
     }
 
     @Test
@@ -100,7 +105,7 @@ public class FateLockedPluginLocalHistoryTest
 
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
 
-        assertEquals(0, harness.history.events().size());
+        assertEquals(0, events(harness).size());
     }
 
     @Test
@@ -111,7 +116,7 @@ public class FateLockedPluginLocalHistoryTest
 
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
 
-        assertEquals(0, harness.history.events().size());
+        assertEquals(0, events(harness).size());
     }
 
     @Test
@@ -130,7 +135,7 @@ public class FateLockedPluginLocalHistoryTest
 
         harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
 
-        assertEquals(0, harness.history.events().size());
+        assertEquals(0, events(harness).size());
         verify(chat, never()).queue(any(QueuedMessage.class));
 
         // The rules' own character gets both.
@@ -138,8 +143,36 @@ public class FateLockedPluginLocalHistoryTest
         when(bound.getName()).thenReturn("Nubles");
         when(harness.client.getLocalPlayer()).thenReturn(bound);
         harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY + 1, 1));
-        assertEquals(1, harness.history.events().size());
+        assertEquals(1, events(harness).size());
         verify(chat).queue(any(QueuedMessage.class));
+    }
+
+    @Test
+    public void aRunLinkedToNoOneRecordsForWhoeverIsLoggedInButNeverReminds() throws Exception
+    {
+        Harness harness = harness("unlinked");
+        JsonObject unlinked = harness.gson.fromJson(fixture("bundles/v4-rules.json"), JsonObject.class);
+        unlinked.getAsJsonObject("rules").add("account", JsonNull.INSTANCE);
+        setField(harness.plugin, "active", new ActiveRules(
+            FateLockedBundle.loadFromJson(harness.gson, unlinked.toString()), FateLockedPlugin.RulesSource.NONE));
+        assertEquals(null, AccountBinding.boundAccount(harness.plugin.getBundle()));
+        FateLockedConfig config = (FateLockedConfig) PluginTestSupport.get(harness.plugin, "config");
+        when(config.rollNudges()).thenReturn(true);
+        ChatMessageManager chat = mock(ChatMessageManager.class);
+        setField(harness.plugin, "chatMessageManager", chat);
+        Player anyone = mock(Player.class);
+        when(anyone.getName()).thenReturn("Zezima");
+        when(harness.client.getLocalPlayer()).thenReturn(anyone);
+        useDiaryMemory(harness);
+        readDiaryTiers(harness);
+
+        harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
+
+        // Stage 4: recorded for the Roll inbox to copy, and the paste says whose it is.
+        assertEquals(1, events(harness).size());
+        assertEquals("Zezima", events(harness).get(0).getAccount());
+        // An unbound profile gets no reminders (owner decision, 25 September).
+        verify(chat, never()).queue(any(QueuedMessage.class));
     }
 
     @Test
@@ -152,9 +185,9 @@ public class FateLockedPluginLocalHistoryTest
 
         harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
 
-        assertEquals(1, harness.history.events().size());
+        assertEquals(1, events(harness).size());
         // A diary event names its tier in the evidence; the tracker picks the task.
-        assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+        assertEquals("Lumbridge Easy", events(harness).get(0).getEvidence().get("tierId"));
     }
 
     @Test
@@ -168,8 +201,8 @@ public class FateLockedPluginLocalHistoryTest
 
         readDiaryTiers(harness);
 
-        assertEquals(1, harness.history.events().size());
-        assertEquals("Lumbridge Easy", harness.history.events().get(0).getEvidence().get("tierId"));
+        assertEquals(1, events(harness).size());
+        assertEquals("Lumbridge Easy", events(harness).get(0).getEvidence().get("tierId"));
     }
 
     @Test
@@ -185,7 +218,7 @@ public class FateLockedPluginLocalHistoryTest
         readDiaryTiers(harness);
         harness.plugin.onVarbitChanged(varbit(LUMBRIDGE_EASY, 1));
 
-        assertEquals(0, harness.history.events().size());
+        assertEquals(0, events(harness).size());
     }
 
     @Test
@@ -199,7 +232,7 @@ public class FateLockedPluginLocalHistoryTest
 
         harness.plugin.onGameTick(new GameTick());
 
-        assertEquals(1, harness.history.events().size());
+        assertEquals(1, events(harness).size());
     }
 
     /** The account's diary memory in the harness's folder. */
@@ -238,7 +271,7 @@ public class FateLockedPluginLocalHistoryTest
         when(harness.client.getLocalPlayer()).thenReturn(null);
         invokeRecord(harness.plugin, detected("Dragon Slayer"));
 
-        assertEquals(0, harness.history.events().size());
+        assertEquals(0, events(harness).size());
     }
 
     @Test
@@ -250,12 +283,12 @@ public class FateLockedPluginLocalHistoryTest
         Harness relay = harness("relay-source");
         assertTrue(PluginTestSupport.importFromRelay(relay.plugin, rules));
         invokeRecord(relay.plugin, detected("Dragon Slayer"));
-        assertEquals(1, relay.history.events().size());
+        assertEquals(1, events(relay).size());
 
         Harness clipboard = harness("clipboard-source");
         PluginTestSupport.importFromClipboard(clipboard.plugin, rules);
         invokeRecord(clipboard.plugin, detected("Dragon Slayer"));
-        assertEquals(1, clipboard.history.events().size());
+        assertEquals(1, events(clipboard).size());
 
         Harness file = harness("file-source");
         Files.write(
@@ -263,14 +296,14 @@ public class FateLockedPluginLocalHistoryTest
             rules.getBytes(StandardCharsets.UTF_8));
         invokeNoArg(file.plugin, "loadNewestBackupFile");
         invokeRecord(file.plugin, detected("Dragon Slayer"));
-        assertEquals(1, file.history.events().size());
+        assertEquals(1, events(file).size());
 
         assertEquals(
-            relay.history.events().get(0).getCanonicalLabel(),
-            clipboard.history.events().get(0).getCanonicalLabel());
+            events(relay).get(0).getCanonicalLabel(),
+            events(clipboard).get(0).getCanonicalLabel());
         assertEquals(
-            relay.history.events().get(0).getCanonicalLabel(),
-            file.history.events().get(0).getCanonicalLabel());
+            events(relay).get(0).getCanonicalLabel(),
+            events(file).get(0).getCanonicalLabel());
     }
 
     @Test
@@ -290,15 +323,13 @@ public class FateLockedPluginLocalHistoryTest
         invokeRecord(harness.plugin, detected("Cook's Assistant"));
 
         assertSame(bundleBefore, harness.plugin.getBundle());
-        assertEquals(1, harness.history.events().size());
-        assertEquals(1, new FateEventHistory(
-            harness.gson, harness.historyPath, harness.legacyPath)
-            .events().size());
+        assertEquals(1, events(harness).size());
+        assertEquals(1, new DetectedEventStore(harness.gson, harness.historyPath).entries().size());
         verify(harness.panel).showRollInbox(new RollInboxModel(1, 0, 0, true));
 
         Files.delete(temporary);
         invokeRecord(harness.plugin, detected("Demon Slayer"));
-        assertEquals(2, harness.history.events().size());
+        assertEquals(2, events(harness).size());
         verify(harness.panel).showRollInbox(new RollInboxModel(2, 0, 0, false));
     }
 
@@ -315,12 +346,8 @@ public class FateLockedPluginLocalHistoryTest
         ConfigManager configManager = mock(ConfigManager.class);
         TrackerConnectionSettings connectionSettings =
             new TrackerConnectionSettings(configManager);
-        Path historyPath = dataDirectory.toPath()
-            .resolve("event-history.json");
-        Path legacyPath = dataDirectory.toPath()
-            .resolve("event-outbox.json");
-        FateEventHistory history =
-            new FateEventHistory(gson, historyPath, legacyPath);
+        Path historyPath = dataDirectory.toPath().resolve(DetectedEventStore.FILE);
+        DetectedEventStore history = new DetectedEventStore(gson, historyPath);
 
         PluginTestSupport.runQueuedWorkInline(plugin);
         setField(plugin, "client", client);
@@ -330,14 +357,20 @@ public class FateLockedPluginLocalHistoryTest
         setField(plugin, "worldMapPointManager",
             mock(WorldMapPointManager.class));
         setField(plugin, "connectionSettings", connectionSettings);
-        setField(plugin, "eventHistory", history);
+        setField(plugin, "detectedEvents", history);
         setField(plugin, "active", new ActiveRules(
             FateLockedBundle.loadFromJson(gson, fixture("bundles/v4-rules.json")),
             FateLockedPlugin.RulesSource.NONE));
 
         return new Harness(
             plugin, panel, client, connectionSettings, history,
-            gson, dataDirectory.toPath(), historyPath, legacyPath);
+            gson, dataDirectory.toPath(), historyPath);
+    }
+
+    /** The events the store holds, oldest first. */
+    private static List<FateEvent> events(Harness harness)
+    {
+        return harness.history.entries().stream().map(DetectedEventStore.Entry::getEvent).collect(Collectors.toList());
     }
 
     private static DetectedEvent detected(String label)
@@ -397,22 +430,20 @@ public class FateLockedPluginLocalHistoryTest
         private final FateLockedPanel panel;
         private final Client client;
         private final TrackerConnectionSettings connectionSettings;
-        private final FateEventHistory history;
+        private final DetectedEventStore history;
         private final Gson gson;
         private final Path dataDirectory;
         private final Path historyPath;
-        private final Path legacyPath;
 
         private Harness(
             FateLockedPlugin plugin,
             FateLockedPanel panel,
             Client client,
             TrackerConnectionSettings connectionSettings,
-            FateEventHistory history,
+            DetectedEventStore history,
             Gson gson,
             Path dataDirectory,
-            Path historyPath,
-            Path legacyPath)
+            Path historyPath)
         {
             this.plugin = plugin;
             this.panel = panel;
@@ -422,7 +453,6 @@ public class FateLockedPluginLocalHistoryTest
             this.gson = gson;
             this.dataDirectory = dataDirectory;
             this.historyPath = historyPath;
-            this.legacyPath = legacyPath;
         }
     }
 

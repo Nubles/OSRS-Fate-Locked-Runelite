@@ -10,6 +10,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 
+import static com.fatelocked.DetectionGate.Detection.OFF;
+import static com.fatelocked.DetectionGate.Detection.RECORD;
+import static com.fatelocked.DetectionGate.Detection.RECORD_AND_REMIND;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -18,46 +22,56 @@ public class DetectionGateTest
     private static final Gson GSON = new Gson();
 
     @Test
-    public void countsForTheBoundCharacterOnANormalWorld() throws Exception
+    public void recordsAndRemindsForTheBoundCharacterOnANormalWorld() throws Exception
     {
         FateLockedBundle rules = rulesBoundTo("Nubles");
 
-        assertTrue(DetectionGate.allows(rules, "Nubles", EnumSet.of(WorldType.MEMBERS)));
-        assertTrue(DetectionGate.allows(rules, " nubles ", EnumSet.noneOf(WorldType.class)));
+        assertEquals(RECORD_AND_REMIND, DetectionGate.decide(rules, "Nubles", EnumSet.of(WorldType.MEMBERS)));
+        assertEquals(RECORD_AND_REMIND, DetectionGate.decide(rules, " nubles ", EnumSet.noneOf(WorldType.class)));
         // PvP and high-risk worlds save to the account like any other.
-        assertTrue(DetectionGate.allows(rules, "Nubles",
+        assertEquals(RECORD_AND_REMIND, DetectionGate.decide(rules, "Nubles",
             EnumSet.of(WorldType.MEMBERS, WorldType.PVP, WorldType.HIGH_RISK)));
     }
 
     @Test
-    public void notForAnotherCharacterOrAnUnboundProfile() throws Exception
+    public void recordsForWhoeverIsLoggedInWhileTheRunIsLinkedToNoOneButNeverReminds() throws Exception
     {
-        assertFalse(DetectionGate.allows(rulesBoundTo("Nubles"), "Zezima",
-            EnumSet.of(WorldType.MEMBERS)));
-        assertFalse(DetectionGate.allows(rulesBoundTo("Nubles"), null,
-            EnumSet.of(WorldType.MEMBERS)));
-        assertFalse(DetectionGate.allows(rulesBoundTo(null), "Nubles",
-            EnumSet.of(WorldType.MEMBERS)));
+        // Stage 4: the Roll inbox copies them, and the paste shows whose they are.
+        assertEquals(RECORD, DetectionGate.decide(rulesBoundTo(null), "Nubles", EnumSet.of(WorldType.MEMBERS)));
+        assertEquals(RECORD, DetectionGate.decide(rulesBoundTo(null), "Zezima", EnumSet.of(WorldType.MEMBERS)));
+        assertTrue(RECORD.records());
+        assertFalse(RECORD.reminds());
     }
 
     @Test
-    public void notOnAWorldWhoseProgressIsNotTheAccountsOwn() throws Exception
+    public void doesNothingForAnotherCharacterOrNoOne() throws Exception
     {
-        FateLockedBundle rules = rulesBoundTo("Nubles");
-        for (WorldType other : EnumSet.of(WorldType.SEASONAL, WorldType.DEADMAN,
-            WorldType.TOURNAMENT_WORLD, WorldType.BETA_WORLD, WorldType.NOSAVE_MODE,
-            WorldType.FRESH_START_WORLD, WorldType.QUEST_SPEEDRUNNING,
-            WorldType.LAST_MAN_STANDING, WorldType.PVP_ARENA))
+        assertEquals(OFF, DetectionGate.decide(rulesBoundTo("Nubles"), "Zezima", EnumSet.of(WorldType.MEMBERS)));
+        assertEquals(OFF, DetectionGate.decide(rulesBoundTo("Nubles"), null, EnumSet.of(WorldType.MEMBERS)));
+        assertEquals(OFF, DetectionGate.decide(rulesBoundTo(null), " ", EnumSet.of(WorldType.MEMBERS)));
+        assertFalse(OFF.records());
+    }
+
+    @Test
+    public void doesNothingOnAWorldWhoseProgressIsNotTheAccountsOwn() throws Exception
+    {
+        for (FateLockedBundle rules : new FateLockedBundle[]{rulesBoundTo("Nubles"), rulesBoundTo(null)})
         {
-            assertFalse(other.name(), DetectionGate.allows(rules, "Nubles",
-                EnumSet.of(WorldType.MEMBERS, other)));
+            for (WorldType other : EnumSet.of(WorldType.SEASONAL, WorldType.DEADMAN,
+                WorldType.TOURNAMENT_WORLD, WorldType.BETA_WORLD, WorldType.NOSAVE_MODE,
+                WorldType.FRESH_START_WORLD, WorldType.QUEST_SPEEDRUNNING,
+                WorldType.LAST_MAN_STANDING, WorldType.PVP_ARENA))
+            {
+                assertEquals(other.name(), OFF, DetectionGate.decide(rules, "Nubles",
+                    EnumSet.of(WorldType.MEMBERS, other)));
+            }
         }
     }
 
     @Test
-    public void notWithoutRulesForARun()
+    public void doesNothingWithoutRulesForARun()
     {
-        assertFalse(DetectionGate.allows(null, "Nubles", EnumSet.of(WorldType.MEMBERS)));
+        assertEquals(OFF, DetectionGate.decide(null, "Nubles", EnumSet.of(WorldType.MEMBERS)));
     }
 
     /** The v4 fixture, bound to this account, or to none. */

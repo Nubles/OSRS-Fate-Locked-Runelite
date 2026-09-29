@@ -1,7 +1,7 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
-import com.fatelocked.events.FateEventHistory;
+import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
 import com.fatelocked.events.EventConfidence;
@@ -215,7 +215,7 @@ public class FateLockedPlugin extends Plugin
     /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
     private final RepeatedValueLimiter trackerTickFailureLimiter =
         new RepeatedValueLimiter(TimeUnit.MINUTES.toMillis(15));
-    private FateEventHistory eventHistory;
+    private DetectedEventStore detectedEvents;
     private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
     /** The account the history, audit log and Slayer task files belong to. */
@@ -881,7 +881,7 @@ public class FateLockedPlugin extends Plugin
         Path dataPath = dataDirectory().toPath();
         ClientThreadGate onClient = gate;
         fileWriter.submit(() -> {
-            AccountFiles files = AccountFiles.open(gson, dataPath, accountHash, name, boundCharacter);
+            AccountFiles files = AccountFiles.open(gson, dataPath, accountHash, boundCharacter);
             onClient.run(() -> useAccountFiles(files));
         });
     }
@@ -891,8 +891,8 @@ public class FateLockedPlugin extends Plugin
         // Another account logged in while these opened: its own are coming.
         if (client.getAccountHash() != files.accountHash) return;
         accountFilesHash = files.accountHash;
-        eventHistory = files.history;
-        historySaveFailed = files.history == null;
+        detectedEvents = files.detected;
+        historySaveFailed = files.detected == null;
         strictAuditLog = files.auditLog;
         slayerTaskDetector = files.slayer;
         diaryTiers = files.diaryTiers;
@@ -1319,26 +1319,26 @@ public class FateLockedPlugin extends Plugin
 
     private void record(DetectedEvent detected)
     {
-        if (detected == null || eventHistory == null || !accountFilesInUse()
-            || !detectionCounts()) return;
+        if (detected == null || detectedEvents == null || !accountFilesInUse()
+            || !detection().records()) return;
         FateLockedBundle currentBundle = getBundle();
         String account = loggedInName();
         FateEvent event = eventFactory.create(
             detected.getType(), detected.getCanonicalLabel(), detected.getConfidence(),
             detected.getEvidence(), currentBundle, account,
             detected.getDetectorId(), detected.getDetectorVersion(), detected.getCount());
-        FateEventHistory history = eventHistory;
+        DetectedEventStore store = detectedEvents;
         ClientThreadGate onClient = gate;
         fileWriter.submit(() -> {
             // Null: the write failed; false: a duplicate, nothing written.
             Boolean recorded;
             try
             {
-                recorded = history.record(event);
+                recorded = store.record(event);
             }
             catch (IOException ex)
             {
-                log.warn("Could not persist local Fate event history", ex);
+                log.warn("Could not save a detected event", ex);
                 recorded = null;
             }
             Boolean result = recorded;
@@ -1369,21 +1369,21 @@ public class FateLockedPlugin extends Plugin
         if (config.useNotifier()) notifier.notify(text);
     }
 
-    /** Queue a one-line informational chat nudge (client-side only). */
     /**
-     * Whether detections count here: the rules' bound character, logged in on
-     * a world whose progress is the account's own. Detections and reminders
-     * both go through it, so a main account or a Leagues world sharing this
+     * What detections may do here (DetectionGate): with the rules' bound character, logged in on
+     * a world whose progress is the account's own, they are recorded and remind; while the rules
+     * are bound to no one, they are only recorded. A main account or a Leagues world sharing this
      * RuneLite gets neither.
      */
-    private boolean detectionCounts()
+    private DetectionGate.Detection detection()
     {
-        return DetectionGate.allows(getBundle(), loggedInName(), client.getWorldType());
+        return DetectionGate.decide(getBundle(), loggedInName(), client.getWorldType());
     }
 
+    /** Queue a one-line informational chat nudge (client-side only). */
     private void nudge(String text)
     {
-        if (!detectionCounts()) return;
+        if (!detection().reminds()) return;
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append(text);
@@ -3216,13 +3216,14 @@ public class FateLockedPlugin extends Plugin
 
     private void updatePanelRollInbox()
     {
-        List<FateEvent> events = eventHistory == null
-            ? java.util.Collections.<FateEvent>emptyList()
-            : eventHistory.events();
+        FateLockedBundle rules = getBundle();
+        List<DetectedEventStore.Entry> events = detectedEvents == null
+            ? java.util.Collections.<DetectedEventStore.Entry>emptyList()
+            : detectedEvents.offered(rules == null ? null : rules.getRunId());
         int needsReview = 0;
-        for (FateEvent event : events)
+        for (DetectedEventStore.Entry entry : events)
         {
-            if (event.getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
+            if (entry.getEvent().getConfidence() == EventConfidence.UNCERTAIN) needsReview++;
         }
         shownWarningCount = activeWarningCount();
         SidebarPublisher models = sidebarModels();

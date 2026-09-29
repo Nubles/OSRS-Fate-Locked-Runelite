@@ -1,8 +1,7 @@
 package com.fatelocked;
 
 import com.fatelocked.detectors.SlayerTaskDetector;
-import com.fatelocked.events.FateEvent;
-import com.fatelocked.events.FateEventHistory;
+import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.guardian.StrictModeAuditLog;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
@@ -10,32 +9,29 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The local files one OSRS account owns, in accounts/&lt;account hash&gt;/:
- * its detected-event history, its Strict Mode audit log, its Slayer task
+ * its detected events, its Strict Mode audit log, its Slayer task
  * and its finished diary tiers. A main account and an ironman played in one RuneLite no longer
  * share them. A file that fails to open leaves its feature off for that
  * account, and never stops the plugin.
  *
  * <p>An account's folder starts from the shared files older versions kept,
- * which are only ever read: the history's events for that character, and,
- * since they name no account, the audit log and Slayer task only for the
- * character the rules are bound to.
+ * which are only ever read: since they name no account, the audit log and
+ * Slayer task only for the character the rules are bound to. The detected
+ * events start empty: the event-history.json files of earlier versions are
+ * left as they are, and never read (Stage 4, plan decision 8).
  */
 @Slf4j
 final class AccountFiles
 {
-    static final String HISTORY = "event-history.json";
-    static final String LEGACY_OUTBOX = "event-outbox.json";
     static final String AUDIT_LOG = "strict-mode-events.json";
     static final String SLAYER = "slayer-assignment.json";
 
     final long accountHash;
     /** Null when it couldn't be opened. */
-    final FateEventHistory history;
+    final DetectedEventStore detected;
     /** Null when it couldn't be opened. */
     final StrictModeAuditLog auditLog;
     /** Null when it couldn't be opened. */
@@ -43,11 +39,11 @@ final class AccountFiles
     /** The diary tiers the account has finished. */
     final DiaryTierMemory diaryTiers;
 
-    private AccountFiles(long accountHash, FateEventHistory history,
+    private AccountFiles(long accountHash, DetectedEventStore detected,
         StrictModeAuditLog auditLog, SlayerTaskDetector slayer, DiaryTierMemory diaryTiers)
     {
         this.accountHash = accountHash;
-        this.history = history;
+        this.detected = detected;
         this.auditLog = auditLog;
         this.slayer = slayer;
         this.diaryTiers = diaryTiers;
@@ -58,15 +54,19 @@ final class AccountFiles
         return dataDirectory.resolve("accounts").resolve(Long.toUnsignedString(accountHash));
     }
 
-    /**
-     * @param accountName the character's name, whose events the shared history gives
-     * @param boundCharacter whether the rules are bound to this character
-     */
-    static AccountFiles open(Gson gson, Path dataDirectory, long accountHash,
-        String accountName, boolean boundCharacter)
+    /** @param boundCharacter whether the rules are bound to this character */
+    static AccountFiles open(Gson gson, Path dataDirectory, long accountHash, boolean boundCharacter)
     {
         Path folder = folder(dataDirectory, accountHash);
-        FateEventHistory history = openHistory(gson, dataDirectory, folder, accountName);
+        DetectedEventStore detected = null;
+        try
+        {
+            detected = new DetectedEventStore(gson, folder.resolve(DetectedEventStore.FILE));
+        }
+        catch (IOException | RuntimeException error)
+        {
+            log.warn("Could not open the detected events", error);
+        }
         StrictModeAuditLog auditLog = null;
         try
         {
@@ -87,41 +87,8 @@ final class AccountFiles
         {
             log.warn("Could not open the Slayer task state", error);
         }
-        return new AccountFiles(accountHash, history, auditLog, slayer,
+        return new AccountFiles(accountHash, detected, auditLog, slayer,
             new DiaryTierMemory(gson, folder.resolve(DiaryTierMemory.FILE)));
-    }
-
-    private static FateEventHistory openHistory(
-        Gson gson, Path dataDirectory, Path folder, String accountName)
-    {
-        Path target = folder.resolve(HISTORY);
-        boolean fresh = !Files.exists(target);
-        try
-        {
-            FateEventHistory history = new FateEventHistory(gson, target, null);
-            if (fresh)
-            {
-                List<FateEvent> ours = new ArrayList<>();
-                for (FateEvent event : FateEventHistory.readOnly(gson,
-                    dataDirectory.resolve(HISTORY), dataDirectory.resolve(LEGACY_OUTBOX)))
-                {
-                    if (AccountBinding.sameAccount(event.getAccount(), accountName))
-                    {
-                        ours.add(event);
-                    }
-                }
-                if (!ours.isEmpty())
-                {
-                    history.adopt(ours);
-                }
-            }
-            return history;
-        }
-        catch (IOException | RuntimeException error)
-        {
-            log.warn("Could not open the local Fate event history", error);
-            return null;
-        }
     }
 
     /** Copy a shared file into a new folder, for the bound character only; the shared one stays. */
