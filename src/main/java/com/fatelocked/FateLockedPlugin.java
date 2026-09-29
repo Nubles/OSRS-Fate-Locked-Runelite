@@ -1326,7 +1326,7 @@ public class FateLockedPlugin extends Plugin
         FateEvent event = eventFactory.create(
             detected.getType(), detected.getCanonicalLabel(), detected.getConfidence(),
             detected.getEvidence(), currentBundle, account,
-            detected.getDetectorId(), detected.getDetectorVersion());
+            detected.getDetectorId(), detected.getDetectorVersion(), detected.getCount());
         FateEventHistory history = eventHistory;
         ClientThreadGate onClient = gate;
         fileWriter.submit(() -> {
