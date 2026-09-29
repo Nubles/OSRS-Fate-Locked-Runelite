@@ -273,7 +273,7 @@ and the TzHaar-Ket-Rak line.
 
 ### Phase C: the card and the copy
 
-- [ ] **C1. `RollInboxPresenter`** (pure):
+- [x] **C1. `RollInboxPresenter`** (pure), with C2 and C3 in `98346e8`:
   - the header counts New events;
   - rows show newest first, five then "+N more", each with its type's OSRS icon, its label, and "Needs checking" where
     the web will ask;
@@ -281,12 +281,12 @@ and the TzHaar-Ket-Rak line.
   - Dismiss on each row is quiet;
   - **Open web Roll Inbox** and the warnings row stay;
   - the note becomes "Copied only when you click. RuneLite doesn't upload anything."
-- [ ] **C2. The copy:** the one `setContents` call, on the Swing thread, from the card's action. Events turn Copied only
-  after the write succeeds. The notice reads "Copied 5 events. In the companion's Roll Inbox, choose Paste from
+- [x] **C2. The copy:** the one `setContents` call, on the Swing thread, from the card's action. Events turn Copied only
+  after the write succeeds. The notice reads "Copied 5 events. In the tracker's Roll Inbox, choose Paste from
   RuneLite." A boundary test pins the single clipboard write.
-- [ ] **C3. An unlinked run's card** says whose events it holds (decision 9).
-- [ ] **C4. Pictures:** previews for an empty card, New rows, Needs checking, and Copied; the guide's `roll-inbox` shot
-  anchors on the new parts.
+- [x] **C3. An unlinked run's card** says whose events it holds (decision 9).
+- [x] **C4. Pictures:** previews for an empty card, New rows, Needs checking, and Copied; the guide's `roll-inbox` shot
+  anchors on the new parts. The previews add an unlinked run and a copy the clipboard refused.
 - [ ] **C5. Owner review in RuneLite,** with real messages captured where the game allows.
 
 ### Phase D: release (plugin)
@@ -300,12 +300,12 @@ and the TzHaar-Ket-Rak line.
 
 - [x] **P0. The card's words** (from W6) in `data/runeliteWording.ts`, the byte-compared contract, and the guide's
   glossary. The plugin pins this pull request's head commit. `962479b` on web branch `claude/stage-4-paste`, from
-  pull request 1's head, local.
-- [ ] **P1. Paste from RuneLite** in the Roll Inbox. It reads the clipboard, with a box to paste into where the browser
+  pull request 1's head; the branch is web #61, a draft, and pull request 1 is web #60.
+- [x] **P1. Paste from RuneLite** in the Roll Inbox. It reads the clipboard, with a box to paste into where the browser
   won't allow that. It takes up to 250 events and says what it did: "Added 5. 2 were already here. 1 was too old."
-- [ ] **P2. A paste into an unlinked run** (decision 9): it names the character the events came from, and each
+- [x] **P2. A paste into an unlinked run** (decision 9): it names the character the events came from, and each
   row can be rolled or skipped as usual. Nothing asks to link the run.
-- [ ] **P3. The Roll Inbox's words:**
+- [x] **P3. The Roll Inbox's words** (P1 to P3 in `fc96ef9` on the same branch):
   - the empty state: "In RuneLite, open the Roll inbox card and choose Copy for tracker, then paste here.";
   - the coach hint;
   - "Skip any you've already logged by hand", since logging by hand stays open (decision 1).
