@@ -43,17 +43,13 @@ import com.fatelocked.guardian.travel.TravelAvailability;
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
 import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
-import com.fatelocked.detectors.CollectionLogDetector;
-import com.fatelocked.detectors.ClueCompletionDetector;
-import com.fatelocked.detectors.CombatAchievementDetector;
+import com.fatelocked.detection.DetectionTables;
+import com.fatelocked.detection.Detectors;
+import com.fatelocked.detection.DiaryTiers;
+import com.fatelocked.detection.RollReminder;
+import com.fatelocked.detection.Signal;
 import com.fatelocked.detectors.DetectedEvent;
-import com.fatelocked.detectors.QuestDetector;
-import com.fatelocked.detectors.RaidDetector;
-import com.fatelocked.detectors.SkillLevelDetector;
-import com.fatelocked.detectors.SlayerTaskDetector;
-import com.fatelocked.detectors.DiaryTierReviewDetector;
 import com.fatelocked.detectors.PetDropDetector;
-import com.fatelocked.detectors.BossKillDetectorV2;
 import com.google.inject.Provides;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +67,7 @@ import net.runelite.api.Perspective;
 import net.runelite.api.Player;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
+import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.TileObject;
 import net.runelite.api.WorldType;
@@ -89,13 +86,15 @@ import net.runelite.api.events.WallObjectSpawned;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.ScriptPreFired;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.gameval.DBTableID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.SpriteID;
+import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
-import net.runelite.client.plugins.loottracker.LootReceived;
 import net.runelite.client.Notifier;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
@@ -218,19 +217,31 @@ public class FateLockedPlugin extends Plugin
     private DetectedEventStore detectedEvents;
     private boolean historySaveFailed;
     private StrictModeAuditLog strictAuditLog;
-    /** The account the history, audit log and Slayer task files belong to. */
+    /** The account the history, audit log and memories belong to. */
     private long accountFilesHash;
     private final FateEventFactory eventFactory = new FateEventFactory();
-    private final SkillLevelDetector skillLevelDetector = new SkillLevelDetector();
-    private final QuestDetector questDetector = new QuestDetector();
-    private final CombatAchievementDetector combatAchievementDetector = new CombatAchievementDetector();
-    private final CollectionLogDetector collectionLogDetector = new CollectionLogDetector();
-    private final ClueCompletionDetector clueCompletionDetector = new ClueCompletionDetector();
-    private final RaidDetector raidDetector = new RaidDetector();
-    private final BossKillDetectorV2 bossKillDetectorV2 = new BossKillDetectorV2();
-    private final DiaryTierReviewDetector diaryTierReviewDetector = new DiaryTierReviewDetector();
     private final PetDropDetector petDropDetector = new PetDropDetector();
-    private SlayerTaskDetector slayerTaskDetector;
+    /** The logged-in account's finished quests and diary tiers; null until its files open, or unread. */
+    private FinishedMemory questMemory;
+    private FinishedMemory tierMemory;
+    /** What the memories hold, as last read or written, so only a change is written. */
+    private Set<String> questsRemembered;
+    private Set<String> tiersRemembered;
+    /**
+     * The logged-in character's detectors for this session (Stage 4); null until the session's
+     * first reading, once its files are open and detection is on.
+     */
+    private Detectors detectors;
+    /** Whether this session's first reading of levels, diaries, quests and Slayer is still to come. */
+    private boolean sessionReadingDue = true;
+    /** Whether the quests are to be read again: the quest scroll showed. */
+    private boolean questReadingDue;
+    /** The tick the quests were last read on. */
+    private int questsReadTick;
+    /** Whether a Slayer variable changed since the last reading. */
+    private boolean slayerReadingDue;
+    /** Whether the game's notification popup has started, as RuneLite's Screenshot plugin reads it. */
+    private boolean notificationStarted;
     /** Optional hotkey, unset by default: pause Strict Mode for 60 seconds (B16). */
     private final HotkeyListener pauseStrictHotkey = new HotkeyListener(() -> config.pauseStrictModeHotkey())
     {
@@ -348,53 +359,16 @@ public class FateLockedPlugin extends Plugin
     private int shownWarningCount = -1;
     private NavigationButton navButton;
 
-    /** Achievement-diary completion varbits (1 = that tier done), watched for 0→1. */
-    private static final int[] DIARY_VARBITS = {
-        VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE, VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE, VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE, VarbitID.ARDOUGNE_DIARY_ELITE_COMPLETE,
-        VarbitID.DESERT_DIARY_EASY_COMPLETE, VarbitID.DESERT_DIARY_MEDIUM_COMPLETE, VarbitID.DESERT_DIARY_HARD_COMPLETE, VarbitID.DESERT_DIARY_ELITE_COMPLETE,
-        VarbitID.FALADOR_DIARY_EASY_COMPLETE, VarbitID.FALADOR_DIARY_MEDIUM_COMPLETE, VarbitID.FALADOR_DIARY_HARD_COMPLETE, VarbitID.FALADOR_DIARY_ELITE_COMPLETE,
-        VarbitID.FREMENNIK_DIARY_EASY_COMPLETE, VarbitID.FREMENNIK_DIARY_MEDIUM_COMPLETE, VarbitID.FREMENNIK_DIARY_HARD_COMPLETE, VarbitID.FREMENNIK_DIARY_ELITE_COMPLETE,
-        VarbitID.KANDARIN_DIARY_EASY_COMPLETE, VarbitID.KANDARIN_DIARY_MEDIUM_COMPLETE, VarbitID.KANDARIN_DIARY_HARD_COMPLETE, VarbitID.KANDARIN_DIARY_ELITE_COMPLETE,
-        VarbitID.ATJUN_EASY_DONE, VarbitID.ATJUN_MED_DONE, VarbitID.ATJUN_HARD_DONE, VarbitID.KARAMJA_DIARY_ELITE_COMPLETE,
-        VarbitID.KOUREND_DIARY_EASY_COMPLETE, VarbitID.KOUREND_DIARY_MEDIUM_COMPLETE, VarbitID.KOUREND_DIARY_HARD_COMPLETE, VarbitID.KOUREND_DIARY_ELITE_COMPLETE,
-        VarbitID.LUMBRIDGE_DIARY_EASY_COMPLETE, VarbitID.LUMBRIDGE_DIARY_MEDIUM_COMPLETE, VarbitID.LUMBRIDGE_DIARY_HARD_COMPLETE, VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE,
-        VarbitID.MORYTANIA_DIARY_EASY_COMPLETE, VarbitID.MORYTANIA_DIARY_MEDIUM_COMPLETE, VarbitID.MORYTANIA_DIARY_HARD_COMPLETE, VarbitID.MORYTANIA_DIARY_ELITE_COMPLETE,
-        VarbitID.VARROCK_DIARY_EASY_COMPLETE, VarbitID.VARROCK_DIARY_MEDIUM_COMPLETE, VarbitID.VARROCK_DIARY_HARD_COMPLETE, VarbitID.VARROCK_DIARY_ELITE_COMPLETE,
-        VarbitID.WESTERN_DIARY_EASY_COMPLETE, VarbitID.WESTERN_DIARY_MEDIUM_COMPLETE, VarbitID.WESTERN_DIARY_HARD_COMPLETE, VarbitID.WESTERN_DIARY_ELITE_COMPLETE,
-        VarbitID.WILDERNESS_DIARY_EASY_COMPLETE, VarbitID.WILDERNESS_DIARY_MEDIUM_COMPLETE, VarbitID.WILDERNESS_DIARY_HARD_COMPLETE, VarbitID.WILDERNESS_DIARY_ELITE_COMPLETE,
-    };
-    /** The logged-in account's finished diary tiers; null until its files open. */
-    private DiaryTierMemory diaryTiers;
-    /** Whether this session's full reading of the diary tiers is still to come. */
-    private boolean diaryReadingDue = true;
-    /**
-     * Diary regions in DIARY_VARBITS order (4 tiers each): the name the
-     * tracker's tier ids use, then the region's full name.
-     */
-    private static final String[][] DIARY_REGIONS = {
-        {"Ardougne", "Ardougne"}, {"Desert", "Desert"}, {"Falador", "Falador"},
-        {"Fremennik", "Fremennik"}, {"Kandarin", "Kandarin"}, {"Karamja", "Karamja"},
-        {"Kourend", "Kourend & Kebos"}, {"Lumbridge", "Lumbridge & Draynor"},
-        {"Morytania", "Morytania"}, {"Varrock", "Varrock"},
-        {"Western", "Western Provinces"}, {"Wilderness", "Wilderness"},
-    };
-    private static final String[] DIARY_TIERS = { "Easy", "Medium", "Hard", "Elite" };
-    /** Varbit id → the tracker's tier id ("Lumbridge Easy"); key set doubles as the per-event filter. */
-    private static final Map<Integer, String> DIARY_TIER_IDS = new HashMap<>();
-    /** Varbit id → the tier's full name ("Lumbridge & Draynor Easy"), for chat. */
-    private static final Map<Integer, String> DIARY_VARBIT_NAMES = new HashMap<>();
-    /** The tracker's tier id → the tier's full name. */
-    private static final Map<String, String> DIARY_TIER_NAMES = new HashMap<>();
-    static
-    {
-        for (int i = 0; i < DIARY_VARBITS.length; i++)
-        {
-            String tier = " " + DIARY_TIERS[i % 4];
-            DIARY_TIER_IDS.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4][0] + tier);
-            DIARY_VARBIT_NAMES.put(DIARY_VARBITS[i], DIARY_REGIONS[i / 4][1] + tier);
-            DIARY_TIER_NAMES.put(DIARY_REGIONS[i / 4][0] + tier, DIARY_REGIONS[i / 4][1] + tier);
-        }
-    }
+    /** The quests are read again this often, in ticks (a minute), for any finished without the quest scroll. */
+    static final int QUEST_READING_TICKS = 100;
+    /** The Slayer variables a task's reading is made of, as RuneLite's Slayer plugin watches them. */
+    private static final Set<Integer> SLAYER_VARPS = new HashSet<>(Arrays.asList(VarPlayerID.SLAYER_COUNT,
+        VarPlayerID.SLAYER_TARGET, VarPlayerID.SLAYER_COUNT_ORIGINAL, VarPlayerID.SLAYER_MORTIMER_TASKS_COMPLETED));
+    private static final Set<Integer> SLAYER_VARBITS = new HashSet<>(Arrays.asList(VarbitID.SLAYER_MASTER,
+        VarbitID.SLAYER_TASKS_COMPLETED, VarbitID.SLAYER_WILDERNESS_TASKS_COMPLETED, VarbitID.SLAYER_TARGET_BOSSID,
+        VarbitID.SLAYER_MODIFIER_ID, VarbitID.SLAYER_MODIFIER_VALUE, VarbitID.SLAYER_MODIFIER_NEGATIVE));
+    /** The game's Slayer task id for a boss task, from its helper script. */
+    private static final int SLAYER_BOSS_TASK = 98;
     /** Widget group shown when a quest is completed (the reward scroll). */
     private static final int QUEST_COMPLETED_GROUP_ID = 153;
     /** Interface group ids for the bank (12) and deposit box (192) — stable
@@ -430,9 +404,6 @@ public class FateLockedPlugin extends Plugin
     /** Item ids already warned about this session, to avoid chat spam. */
     private final Set<Integer> warnedOverTier = new HashSet<>();
 
-    /** The client's own broadcast on a new Collection Log entry: "New item added to your collection log: X". */
-    private static final Pattern COLLECTION_LOG_ITEM =
-        Pattern.compile("new item added to your collection log:\\s*(.+)", Pattern.CASE_INSENSITIVE);
     /** The Slayer task the last task message stated, this character's; or null. */
     private SlayerAssignment slayerAssignment;
     /** The locked slayer task to show on the HUD, or null. */
@@ -894,8 +865,10 @@ public class FateLockedPlugin extends Plugin
         detectedEvents = files.detected;
         historySaveFailed = files.detected == null;
         strictAuditLog = files.auditLog;
-        slayerTaskDetector = files.slayer;
-        diaryTiers = files.diaryTiers;
+        questMemory = files.quests;
+        tierMemory = files.diaryTiers;
+        questsRemembered = questMemory == null ? null : questMemory.finished();
+        tiersRemembered = tierMemory == null ? null : tierMemory.finished();
         updatePanelRollInbox();
         updateStrictAuditPanel();
     }
@@ -930,35 +903,24 @@ public class FateLockedPlugin extends Plugin
 
     /**
      * The client sends every skill and varbit again after a login, hop or
-     * reconnect; clearing here lets those set the baseline without nudges.
+     * reconnect: the session's detectors start again from the next reading,
+     * so those set the baseline without events.
      */
     private void resetBaselines()
     {
-        skillLevelDetector.clear();
-        diaryReadingDue = true;
+        detectors = null;
+        sessionReadingDue = true;
     }
 
-    // ── Roll reminders ────────────────────────────────────────────────────────
-    // Read-only nudges: a chat line when something that may grant a roll in the
-    // tracker happens (level-up, quest, diary, combat achievement). Purely
-    // informational — the plugin never acts on the player's behalf.
+    // ── Detection (Stage 4) ───────────────────────────────────────────────────
+    // RuneLite's events become the detectors' plain signals; what they make of
+    // them is recorded for the Roll inbox. Read-only: the plugin never acts on
+    // the player's behalf.
 
     @Subscribe
     public void onStatChanged(StatChanged ev)
     {
-        Skill skill = ev.getSkill();
-        int level = ev.getLevel();
-        java.util.Optional<DetectedEvent> detected =
-            skillLevelDetector.detect(skillName(skill), level);
-        if (detected.isPresent())
-        {
-            record(detected.get());
-            if (config.rollNudges())
-            {
-                nudge("Leveled " + skillName(skill) + " to " + level
-                    + " — may be worth a roll.");
-            }
-        }
+        detect(new Signal.Level(skillName(ev.getSkill()), ev.getLevel()));
     }
 
     @Subscribe
@@ -970,59 +932,9 @@ public class FateLockedPlugin extends Plugin
 
         petDropDetector.detect(Text.removeTags(raw), System.currentTimeMillis())
             .ifPresent(this::record);
-        if (slayerTaskDetector != null && accountFilesInUse()
-            && (m.contains("completed your task") || m.contains("return to a slayer master")))
-        {
-            SlayerTaskDetector detector = slayerTaskDetector;
-            String signature = Text.removeTags(raw);
-            ClientThreadGate onClient = gate;
-            fileWriter.submit(() -> {
-                Optional<DetectedEvent> completed;
-                try
-                {
-                    completed = detector.completion(signature);
-                }
-                catch (IOException ex)
-                {
-                    log.debug("Could not update Slayer state", ex);
-                    return;
-                }
-                completed.ifPresent(event -> onClient.run(() -> record(event)));
-            });
-        }
+        detect(new Signal.Chat(ev.getType().name(), raw));
 
-        // Combat achievements stay on chat (their varbits are progress counts with
-        // totals that shift as Jagex adds tasks). Diaries are detected via varbit
-        // (onVarbitChanged), quests via the reward widget — both more reliable.
-        if (m.contains("combat task:"))
-        {
-            // The raw line: its closing tag marks where the task's name ends.
-            DetectedEvent detected = combatAchievementDetector.detect(raw);
-            record(detected);
-            if (config.rollNudges())
-            {
-                String task = detected.getCanonicalLabel();
-                nudge(task != null
-                    ? "Combat achievement: " + task + " — may be worth a roll."
-                    : "Combat achievement complete — may be worth a roll.");
-            }
-        }
-
-        if (m.contains("new item added to your collection log"))
-        {
-            Matcher mat = COLLECTION_LOG_ITEM.matcher(raw);
-            String item = mat.find() ? mat.group(1).trim() : null;
-            // RuneLite has the observed label but not the app's canonical item-id
-            // index, so delivery stays conservative until the app confirms it.
-            record(collectionLogDetector.detect(item, false));
-            if (config.rollNudges())
-            {
-                nudge(item != null
-                    ? "Collection log: " + item + " — may be worth a roll."
-                    : "Collection log entry added — may be worth a roll.");
-            }
-        }
-        // Slayer assignment / task-check messages mention the monster.
+        // Slayer assignment / task-check messages mention the monster: the rules may lock the task.
         if (m.contains("to kill"))
         {
             SlayerAssignment assignment = SlayerAssignment.fromChat(
@@ -1030,21 +942,6 @@ public class FateLockedPlugin extends Plugin
             if (assignment != null)
             {
                 slayerAssignment = assignment;
-                if (slayerTaskDetector != null && accountFilesInUse())
-                {
-                    SlayerTaskDetector detector = slayerTaskDetector;
-                    String task = assignment.getTask();
-                    fileWriter.submit(() -> {
-                        try
-                        {
-                            detector.assignment(task, null, 0, false);
-                        }
-                        catch (IOException ex)
-                        {
-                            log.debug("Could not save Slayer assignment", ex);
-                        }
-                    });
-                }
                 recomputeSlayer();
             }
         }
@@ -1110,19 +1007,8 @@ public class FateLockedPlugin extends Plugin
 
         if (ev.getGroupId() == QUEST_COMPLETED_GROUP_ID)
         {
-            // The scroll's text arrives after the widget loads.
-            gate.runNextTick(() ->
-            {
-                DetectedEvent detected = questDetector.detect(extractQuestName());
-                record(detected);
-                if (config.rollNudges())
-                {
-                    nudge(detected.getCanonicalLabel() == null
-                        ? "Quest complete — may be worth a roll."
-                        : "Quest complete: " + detected.getCanonicalLabel()
-                            + " — may be worth a roll.");
-                }
-            });
+            // A quest is done: the game's quest states are read on the next tick.
+            questReadingDue = true;
         }
     }
 
@@ -1197,123 +1083,223 @@ public class FateLockedPlugin extends Plugin
         notifyIfEnabled(where + " is locked");
     }
 
-    /** Reads the quest name off the reward scroll widget, or null if it can't be found. */
-    private String extractQuestName()
-    {
-        try
-        {
-            for (int child = 0; child < 10; child++)
-            {
-                net.runelite.api.widgets.Widget w = client.getWidget(QUEST_COMPLETED_GROUP_ID, child);
-                if (w == null || w.getText() == null) continue;
-                String name = QuestDetector.questName(Text.removeTags(w.getText()));
-                if (name != null) return name;
-            }
-        }
-        catch (Exception ignored) { /* layout mismatch — fall back to generic label */ }
-        return null;
-    }
-
-    /**
-     * Precise boss/raid kill detection — fires on the actual loot drop rather
-     * than inferring a kill from chunk content, so it's reliable even for
-     * bosses the chunk dataset doesn't cover. EVENT-type loot (CoX/ToB/ToA
-     * reward chests) always nudges; for NPC loot the boss detectors decide
-     * which kills count.
-     */
-    @Subscribe
-    public void onLootReceived(LootReceived ev)
-    {
-        String type = ev.getType() == null ? "" : ev.getType().name();
-        clueCompletionDetector.detect(type, ev.getName()).ifPresent(this::record);
-        java.util.Optional<DetectedEvent> detected =
-            bossKillDetectorV2.detect(type, ev.getName(), client.getGameCycle());
-        if (!detected.isPresent())
-        {
-            detected = raidDetector.detect(type, ev.getName(), ev.getCombatLevel());
-        }
-        if (detected.isPresent())
-        {
-            record(detected.get());
-            if (config.rollNudges())
-            {
-                nudge(detected.get().getType() == com.fatelocked.events.FateEventType.RAID_COMPLETION
-                    ? "Raid loot (" + ev.getName() + ") — may be worth a roll."
-                    : "Boss kill (" + ev.getName() + ") — may be worth a roll.");
-            }
-        }
-    }
-
     @Subscribe
     public void onVarbitChanged(VarbitChanged ev)
     {
-        // A diary tier's varbit becomes 1 when the tier is finished.
-        // VarbitChanged fires for every varbit in the game, so this is a
-        // set-lookup filter.
-        String tierId = DIARY_TIER_IDS.get(ev.getVarbitId());
-        if (tierId == null || ev.getValue() != 1) return;
-        DiaryTierMemory memory = diaryTiers;
-        // Until this session's full reading, changes are the login's own
-        // tiers arriving from the server; the reading covers them.
-        if (diaryReadingDue || memory == null || !accountFilesInUse()) return;
-        ClientThreadGate onClient = gate;
-        fileWriter.submit(() -> {
-            boolean fresh;
-            try
-            {
-                fresh = memory.finishedNow(tierId);
-            }
-            catch (IOException ex)
-            {
-                log.debug("Could not save the finished diary tiers", ex);
-                return;
-            }
-            if (fresh) onClient.run(() -> diaryTierFinished(tierId));
-        });
+        // VarbitChanged fires for every varbit in the game, so these are set lookups.
+        int varbit = ev.getVarbitId();
+        if (DiaryTiers.TIER_IDS.containsKey(varbit) || varbit == VarbitID.OPTION_COLLECTION_NEW_ITEM)
+        {
+            detect(new Signal.Varbit(varbit, ev.getValue()));
+        }
+        if (SLAYER_VARBITS.contains(varbit) || SLAYER_VARPS.contains(ev.getVarpId()))
+        {
+            // Read once the tick's changes are in: the amount and the streak can come apart.
+            slayerReadingDue = true;
+        }
+    }
+
+    /** The game's notification popup, as RuneLite's Screenshot plugin reads it: its title and text once shown. */
+    @Subscribe
+    public void onScriptPreFired(ScriptPreFired ev)
+    {
+        if (ev.getScriptId() == ScriptID.NOTIFICATION_START)
+        {
+            notificationStarted = true;
+        }
+        else if (ev.getScriptId() == ScriptID.NOTIFICATION_DELAY && notificationStarted)
+        {
+            notificationStarted = false;
+            detect(new Signal.Popup(client.getVarcStrValue(VarClientID.NOTIFICATION_TITLE),
+                client.getVarcStrValue(VarClientID.NOTIFICATION_MAIN)));
+        }
     }
 
     /**
-     * At the first tick of a session once the account's files are open,
-     * when every tier has come from the server: read all 48 tiers. Tiers
-     * finished since the account was last seen, even with RuneLite closed,
-     * count now.
+     * What the session's detectors make of this signal, recorded. Nothing before the session's
+     * first reading or while detection is off, so a memory changes only while the gate is open.
      */
-    private void readDiaryTiersIfDue()
+    private void detect(Signal signal)
     {
-        DiaryTierMemory memory = diaryTiers;
-        if (!diaryReadingDue || memory == null || !accountFilesInUse()) return;
-        diaryReadingDue = false;
-        List<String> finished = new ArrayList<>();
-        for (int id : DIARY_VARBITS)
+        Detectors session = detectors;
+        if (session == null || signal == null || !accountFilesInUse() || !detection().records()) return;
+        session.useTables(detectionTables());
+        for (DetectedEvent event : session.on(signal))
         {
-            if (client.getVarbitValue(id) == 1) finished.add(DIARY_TIER_IDS.get(id));
+            record(event);
         }
-        ClientThreadGate onClient = gate;
-        fileWriter.submit(() -> {
-            List<String> fresh;
-            try
-            {
-                fresh = memory.reading(finished);
-            }
-            catch (IOException ex)
-            {
-                log.debug("Could not read the finished diary tiers", ex);
-                return;
-            }
-            for (String tier : fresh)
-            {
-                onClient.run(() -> diaryTierFinished(tier));
-            }
-        });
+        remember(session);
     }
 
-    private void diaryTierFinished(String tierId)
+    /**
+     * Once a tick, with the account's own files open and detection on: the session's first
+     * reading, then the quests again after the quest scroll or a minute, and Slayer after its
+     * variables changed.
+     */
+    private void readForDetectors()
     {
-        diaryTierReviewDetector.onVarbit(tierId, 0, 1).ifPresent(this::record);
-        if (config.rollNudges())
+        if (detectedEvents == null || !accountFilesInUse() || !detection().records()) return;
+        if (detectors == null)
         {
-            nudge("Diary complete: " + DIARY_TIER_NAMES.get(tierId)
-                + " — may be worth a roll; log it in the tracker.");
+            detectors = new Detectors(detectionTables(), questsRemembered, tiersRemembered);
+        }
+        int tick = client.getTickCount();
+        if (sessionReadingDue)
+        {
+            sessionReadingDue = false;
+            questReadingDue = true;
+            slayerReadingDue = true;
+            detect(levelsReading());
+            detect(diaryReading());
+        }
+        if (questReadingDue || tick - questsReadTick >= QUEST_READING_TICKS)
+        {
+            questReadingDue = false;
+            questsReadTick = tick;
+            detect(questsReading());
+        }
+        if (slayerReadingDue)
+        {
+            slayerReadingDue = false;
+            detect(slayerReading());
+        }
+    }
+
+    /** Every skill's real level: the levels' baseline. */
+    private Signal levelsReading()
+    {
+        Map<String, Integer> levels = new LinkedHashMap<>();
+        for (Skill skill : Skill.values())
+        {
+            if (!"Overall".equals(skill.getName()))
+            {
+                levels.put(skillName(skill), client.getRealSkillLevel(skill));
+            }
+        }
+        return new Signal.Levels(levels);
+    }
+
+    /** Every diary tier's varbit, and the collection log's notification setting. */
+    private Signal diaryReading()
+    {
+        Map<Integer, Integer> values = new LinkedHashMap<>();
+        for (int varbit : DiaryTiers.TIER_IDS.keySet())
+        {
+            values.put(varbit, client.getVarbitValue(varbit));
+        }
+        values.put(VarbitID.OPTION_COLLECTION_NEW_ITEM, client.getVarbitValue(VarbitID.OPTION_COLLECTION_NEW_ITEM));
+        return new Signal.Varbits(values);
+    }
+
+    /** Every quest the game says is finished, by RuneLite's name for it; null when the game can't say. */
+    private Signal questsReading()
+    {
+        Set<String> finished = new HashSet<>();
+        try
+        {
+            for (Quest quest : Quest.values())
+            {
+                if (questState(quest) == QuestState.FINISHED) finished.add(quest.getName());
+            }
+        }
+        catch (RuntimeException error)
+        {
+            log.debug("Could not read the quests' states", error);
+            return null;
+        }
+        return new Signal.Quests(finished);
+    }
+
+    /** A quest's state, from the game's own script. */
+    QuestState questState(Quest quest)
+    {
+        return quest.getState(client);
+    }
+
+    /** The Slayer task as the game's variables give it, read as RuneLite's Slayer plugin reads them. */
+    private Signal slayerReading()
+    {
+        int amount = client.getVarpValue(VarPlayerID.SLAYER_COUNT);
+        int master = client.getVarbitValue(VarbitID.SLAYER_MASTER);
+        int streak = master == Detectors.KRYSTILIA ? client.getVarbitValue(VarbitID.SLAYER_WILDERNESS_TASKS_COMPLETED)
+            : master == Detectors.MORTIMER ? client.getVarpValue(VarPlayerID.SLAYER_MORTIMER_TASKS_COMPLETED)
+            : client.getVarbitValue(VarbitID.SLAYER_TASKS_COMPLETED);
+        int target = client.getVarpValue(VarPlayerID.SLAYER_TARGET);
+        int assigned = client.getVarpValue(VarPlayerID.SLAYER_COUNT_ORIGINAL);
+        if (client.getVarbitValue(VarbitID.SLAYER_MODIFIER_ID) == 2)
+        {
+            int modifier = client.getVarbitValue(VarbitID.SLAYER_MODIFIER_VALUE);
+            assigned += client.getVarbitValue(VarbitID.SLAYER_MODIFIER_NEGATIVE) == 1 ? -modifier : modifier;
+        }
+        return new Signal.Slayer(amount > 0 ? slayerTaskName(target) : null, amount, assigned, master, streak,
+            target == SLAYER_BOSS_TASK);
+    }
+
+    /** The task's name from the game's Slayer task table, found as RuneLite's Slayer plugin finds it; null when not. */
+    private String slayerTaskName(int taskId)
+    {
+        try
+        {
+            int row;
+            if (taskId == SLAYER_BOSS_TASK)
+            {
+                List<Integer> bosses = client.getDBRowsByValue(DBTableID.SlayerTaskSublist.ID,
+                    DBTableID.SlayerTaskSublist.COL_TASK_SUBTABLE_ID, 0,
+                    client.getVarbitValue(VarbitID.SLAYER_TARGET_BOSSID));
+                if (bosses == null || bosses.isEmpty()) return null;
+                row = (Integer) client.getDBTableField(bosses.get(0), DBTableID.SlayerTaskSublist.COL_TASK, 0)[0];
+            }
+            else
+            {
+                List<Integer> tasks = client.getDBRowsByValue(DBTableID.SlayerTask.ID, DBTableID.SlayerTask.COL_ID, 0, taskId);
+                if (tasks == null || tasks.isEmpty()) return null;
+                row = tasks.get(0);
+            }
+            Object[] name = client.getDBTableField(row, DBTableID.SlayerTask.COL_NAME_UPPERCASE, 0);
+            return name != null && name.length > 0 && name[0] instanceof String ? (String) name[0] : null;
+        }
+        catch (RuntimeException error)
+        {
+            log.debug("Could not read the Slayer task's name", error);
+            return null;
+        }
+    }
+
+    /** The tracker's names for what RuneLite notices, from the rules in force; null without them. */
+    private DetectionTables detectionTables()
+    {
+        FateLockedBundle bundle = getBundle();
+        return bundle == null || bundle.getRules() == null ? null : bundle.getRules().getDetection();
+    }
+
+    /** Keep what the session found finished in the character's memories, when that changed. */
+    private void remember(Detectors session)
+    {
+        Set<String> quests = session.finishedQuests();
+        FinishedMemory questFile = questMemory;
+        if (quests != null && questFile != null && !quests.equals(questsRemembered))
+        {
+            questsRemembered = quests;
+            fileWriter.submit(() -> write(questFile, quests));
+        }
+        Set<String> tiers = session.finishedTiers();
+        FinishedMemory tierFile = tierMemory;
+        if (tiers != null && tierFile != null && !tiers.equals(tiersRemembered))
+        {
+            tiersRemembered = tiers;
+            fileWriter.submit(() -> write(tierFile, tiers));
+        }
+    }
+
+    private static void write(FinishedMemory memory, Set<String> finished)
+    {
+        try
+        {
+            memory.remember(finished);
+        }
+        catch (IOException ex)
+        {
+            log.debug("Could not save what the character has finished", ex);
         }
     }
 
@@ -1350,10 +1336,21 @@ public class FateLockedPlugin extends Plugin
                 else if (result)
                 {
                     historySaveFailed = false;
+                    remind(detected);
                 }
                 updatePanelRollInbox();
             });
         });
+    }
+
+    /** One chat line for a saved event, with the Roll reminders setting on (plan decision 15). */
+    private void remind(DetectedEvent detected)
+    {
+        String text = RollReminder.text(detected);
+        if (text != null && config.rollNudges())
+        {
+            nudge(text);
+        }
     }
 
     /** Friendly skill name, e.g. "Woodcutting" from the WOODCUTTING enum. */
@@ -1517,7 +1514,7 @@ public class FateLockedPlugin extends Plugin
         if (local == null) return;
 
         refreshDecisions();
-        readDiaryTiersIfDue();
+        readForDetectors();
         updateStrictModePanel();
 
         // Once per login, flag if the character doesn't match the bound account.

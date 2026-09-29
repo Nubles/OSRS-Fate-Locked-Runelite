@@ -51,13 +51,17 @@ public final class Detectors
      */
     static final int COLLECTION_LOG_OPTION = VarbitID.OPTION_COLLECTION_NEW_ITEM;
 
+    /** The Slayer masters whose streaks the game keeps apart, by the game's value for them (RuneLite's Slayer plugin). */
+    public static final int KRYSTILIA = 7;
+    public static final int MORTIMER = 10;
+
     /**
      * Slayer masters by the game's value, as RuneLite's own Slayer plugin names them. The rest are
      * left out until they are checked in game, and the tracker asks for the master instead.
      */
     private static final Map<Integer, String> SLAYER_MASTERS = slayerMasters();
 
-    private final DetectionTables tables;
+    private DetectionTables tables;
     private final Map<String, Integer> levels = new HashMap<>();
     /** Finished quests by RuneLite's name; null until the first reading, without a memory. */
     private Set<String> finishedQuests;
@@ -80,6 +84,12 @@ public final class Detectors
         this.tables = tables == null ? DetectionTables.none() : tables;
         this.finishedQuests = rememberedQuests == null ? null : new HashSet<>(rememberedQuests);
         this.finishedTiers = rememberedTiers == null ? null : new HashSet<>(rememberedTiers);
+    }
+
+    /** The bundle's tables as they are now: a newer bundle can bring them mid-session. */
+    public void useTables(DetectionTables tables)
+    {
+        this.tables = tables == null ? DetectionTables.none() : tables;
     }
 
     /** The events this signal makes, in order; none for most. */
@@ -290,9 +300,8 @@ public final class Detectors
     private static Map<Integer, String> slayerMasters()
     {
         Map<Integer, String> masters = new HashMap<>();
-        // RuneLite SlayerPlugin: KRYSTILIA_SLAYER_MASTER = 7, MORTIMER_SLAYER_MASTER = 10.
-        masters.put(7, "Krystilia");
-        masters.put(10, "Mortimer");
+        masters.put(KRYSTILIA, "Krystilia");
+        masters.put(MORTIMER, "Mortimer");
         return Collections.unmodifiableMap(masters);
     }
 }

@@ -91,6 +91,20 @@ public class DetectorsTest
     }
 
     @Test
+    public void aNewerBundleBringsItsTables()
+    {
+        Detectors detectors = new Detectors(null, null, null);
+        Signal line = chat("Your Corporeal Beast kill count is: <col=ff0000>4</col>.");
+        assertEquals(List.of(), detectors.on(line));
+
+        detectors.useTables(TABLES);
+        assertEquals(List.of("Corporeal Beast"), labels(detectors.on(line)));
+
+        detectors.useTables(null);
+        assertEquals(List.of(), detectors.on(line));
+    }
+
+    @Test
     public void onlyTheGamesOwnMessagesCount()
     {
         String line = "Your Corporeal Beast kill count is: <col=ff0000>5</col>.";

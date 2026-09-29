@@ -1,6 +1,5 @@
 package com.fatelocked;
 
-import com.fatelocked.detectors.SlayerTaskDetector;
 import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.guardian.StrictModeAuditLog;
 import com.google.gson.Gson;
@@ -12,40 +11,40 @@ import java.nio.file.Path;
 
 /**
  * The local files one OSRS account owns, in accounts/&lt;account hash&gt;/:
- * its detected events, its Strict Mode audit log, its Slayer task
- * and its finished diary tiers. A main account and an ironman played in one RuneLite no longer
- * share them. A file that fails to open leaves its feature off for that
- * account, and never stops the plugin.
+ * its detected events, its Strict Mode audit log, and the quests and diary
+ * tiers it has finished. A main account and an ironman played in one
+ * RuneLite no longer share them. A file that fails to open leaves its
+ * feature off for that account, and never stops the plugin.
  *
- * <p>An account's folder starts from the shared files older versions kept,
- * which are only ever read: since they name no account, the audit log and
- * Slayer task only for the character the rules are bound to. The detected
- * events start empty: the event-history.json files of earlier versions are
- * left as they are, and never read (Stage 4, plan decision 8).
+ * <p>An account's folder starts from the shared audit log older versions
+ * kept, which is only ever read: since it names no account, only for the
+ * character the rules are bound to. The detected events start empty: the
+ * event-history.json files of earlier versions are left as they are, and
+ * never read (Stage 4, plan decision 8). So are their Slayer task files:
+ * the game's own variables say what the task is.
  */
 @Slf4j
 final class AccountFiles
 {
     static final String AUDIT_LOG = "strict-mode-events.json";
-    static final String SLAYER = "slayer-assignment.json";
 
     final long accountHash;
     /** Null when it couldn't be opened. */
     final DetectedEventStore detected;
     /** Null when it couldn't be opened. */
     final StrictModeAuditLog auditLog;
-    /** Null when it couldn't be opened. */
-    final SlayerTaskDetector slayer;
-    /** The diary tiers the account has finished. */
-    final DiaryTierMemory diaryTiers;
+    /** The quests the account has finished; null when they couldn't be read. */
+    final FinishedMemory quests;
+    /** The diary tiers the account has finished; null when they couldn't be read. */
+    final FinishedMemory diaryTiers;
 
     private AccountFiles(long accountHash, DetectedEventStore detected,
-        StrictModeAuditLog auditLog, SlayerTaskDetector slayer, DiaryTierMemory diaryTiers)
+        StrictModeAuditLog auditLog, FinishedMemory quests, FinishedMemory diaryTiers)
     {
         this.accountHash = accountHash;
         this.detected = detected;
         this.auditLog = auditLog;
-        this.slayer = slayer;
+        this.quests = quests;
         this.diaryTiers = diaryTiers;
     }
 
@@ -77,18 +76,22 @@ final class AccountFiles
         {
             log.warn("Could not open the Strict Mode audit log", error);
         }
-        SlayerTaskDetector slayer = null;
+        return new AccountFiles(accountHash, detected, auditLog,
+            memory(gson, folder.resolve(FinishedMemory.QUESTS), "quests"),
+            memory(gson, folder.resolve(FinishedMemory.DIARY_TIERS), "diary tiers"));
+    }
+
+    private static FinishedMemory memory(Gson gson, Path path, String what)
+    {
         try
         {
-            startFromShared(dataDirectory, folder, SLAYER, boundCharacter);
-            slayer = new SlayerTaskDetector(gson, folder.resolve(SLAYER));
+            return FinishedMemory.open(gson, path);
         }
         catch (IOException | RuntimeException error)
         {
-            log.warn("Could not open the Slayer task state", error);
+            log.warn("Could not read the finished " + what, error);
+            return null;
         }
-        return new AccountFiles(accountHash, detected, auditLog, slayer,
-            new DiaryTierMemory(gson, folder.resolve(DiaryTierMemory.FILE)));
     }
 
     /** Copy a shared file into a new folder, for the bound character only; the shared one stays. */

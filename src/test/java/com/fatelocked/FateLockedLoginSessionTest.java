@@ -1,6 +1,7 @@
 package com.fatelocked;
 
-import com.fatelocked.detectors.SkillLevelDetector;
+import com.fatelocked.detection.Detectors;
+import com.fatelocked.detection.Signal;
 import com.fatelocked.rules.Trust;
 import com.google.gson.Gson;
 import net.runelite.api.Client;
@@ -14,6 +15,7 @@ import java.lang.reflect.Field;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -26,8 +28,8 @@ import static org.mockito.Mockito.when;
 /**
  * RuneLite reports LOGGED_IN after every loading screen as well as after a
  * login. Only a login, a hop, a reconnect or a different account may reset
- * the once-per-login warnings and the level and diary baselines; a teleport
- * must not repeat the account warning or swallow the next level-up.
+ * the once-per-login warnings and start the session's detectors afresh; a
+ * teleport must not repeat the account warning or swallow the next level-up.
  */
 public class FateLockedLoginSessionTest
 {
@@ -58,9 +60,8 @@ public class FateLockedLoginSessionTest
         }
 
         assertWarningsKept();
-        assertFalse("diary reading kept", (Boolean) get("diaryReadingDue"));
-        assertTrue("a level-up after a teleport still counts",
-            detector().detect("Attack", 51).isPresent());
+        assertFalse("session reading kept", (Boolean) get("sessionReadingDue"));
+        assertTrue("a level-up after a teleport still counts", levelsUp());
     }
 
     @Test
@@ -73,11 +74,10 @@ public class FateLockedLoginSessionTest
             fire(interruption, GameState.LOADING, GameState.LOGGED_IN);
 
             assertWarningsKept();
-            assertTrue(interruption + " re-reads diaries",
-                (Boolean) get("diaryReadingDue"));
+            assertTrue(interruption + " reads the game again",
+                (Boolean) get("sessionReadingDue"));
             // The client re-sends every skill, which must not read as a level-up.
-            assertFalse(interruption + " re-baselines skills",
-                detector().detect("Attack", 51).isPresent());
+            assertNull(interruption + " starts the detectors afresh", get("detectors"));
         }
     }
 
@@ -90,8 +90,8 @@ public class FateLockedLoginSessionTest
         assertWarningsForgotten();
 
         fire(GameState.LOGGING_IN, GameState.LOGGED_IN);
-        assertTrue((Boolean) get("diaryReadingDue"));
-        assertFalse(detector().detect("Attack", 51).isPresent());
+        assertTrue((Boolean) get("sessionReadingDue"));
+        assertNull(get("detectors"));
     }
 
     @Test
@@ -103,8 +103,8 @@ public class FateLockedLoginSessionTest
         fire(GameState.LOADING, GameState.LOGGED_IN);
 
         assertWarningsForgotten();
-        assertTrue((Boolean) get("diaryReadingDue"));
-        assertFalse(detector().detect("Attack", 51).isPresent());
+        assertTrue((Boolean) get("sessionReadingDue"));
+        assertNull(get("detectors"));
     }
 
     @Test
@@ -115,14 +115,14 @@ public class FateLockedLoginSessionTest
 
         startSessionTracking();
         assertWarningsForgotten();
-        assertTrue((Boolean) get("diaryReadingDue"));
-        assertFalse(detector().detect("Attack", 50).isPresent());
+        assertTrue((Boolean) get("sessionReadingDue"));
+        assertNull(get("detectors"));
 
         // Already logged in, so its next loading screen is not a new login.
         play();
         fire(GameState.LOADING, GameState.LOGGED_IN);
         assertWarningsKept();
-        assertTrue(detector().detect("Attack", 51).isPresent());
+        assertTrue(levelsUp());
     }
 
     /** Rules bound to one character are answered only for that character. */
@@ -155,9 +155,10 @@ public class FateLockedLoginSessionTest
     /** What a few minutes of play leaves behind. */
     private void play() throws Exception
     {
-        detector().clear();
-        detector().detect("Attack", 50);
-        set("diaryReadingDue", false);
+        Detectors session = new Detectors(null, null, null);
+        session.on(new Signal.Levels(Map.of("Attack", 50)));
+        set("detectors", session);
+        set("sessionReadingDue", false);
         set("lastAccountWarned", "zezima");
         set("lastChunk", LUMBRIDGE);
         warnedOverTier().clear();
@@ -195,9 +196,11 @@ public class FateLockedLoginSessionTest
         method.invoke(plugin);
     }
 
-    private SkillLevelDetector detector() throws Exception
+    /** Whether the session's detectors, as play left them, count the next Attack level. */
+    private boolean levelsUp() throws Exception
     {
-        return (SkillLevelDetector) get("skillLevelDetector");
+        Detectors session = (Detectors) get("detectors");
+        return session != null && !session.on(new Signal.Level("Attack", 51)).isEmpty();
     }
 
     @SuppressWarnings("unchecked")

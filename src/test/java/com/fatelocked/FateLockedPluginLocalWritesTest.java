@@ -4,17 +4,16 @@ import static org.mockito.ArgumentMatchers.argThat;
 import com.fatelocked.guardian.StrictModeStatusView;
 import com.fatelocked.sidebar.RollInboxModel;
 import com.fatelocked.detectors.DetectedEvent;
-import com.fatelocked.detectors.SlayerTaskDetector;
+import com.fatelocked.detection.Detectors;
+import com.fatelocked.detection.Signal;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.FateEventType;
 import com.fatelocked.guardian.StrictModeAuditEntry;
 import com.fatelocked.guardian.StrictModeAuditLog;
 import com.google.gson.Gson;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
-import net.runelite.api.events.ChatMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPointManager;
 import org.junit.Before;
@@ -30,8 +29,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,8 +48,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Local files are written by one background worker, never on the game
- * thread: the history, the Strict Mode audit log and the Slayer assignment
- * all wait for it.
+ * thread: the history, the Strict Mode audit log and what the character has
+ * finished all wait for it.
  */
 public class FateLockedPluginLocalWritesTest
 {
@@ -91,7 +93,6 @@ public class FateLockedPluginLocalWritesTest
         set("detectedEvents", new DetectedEventStore(gson, history()));
         set("strictAuditLog", new StrictModeAuditLog(gson, audit()));
         set("strictModeStatus", StrictModeStatusView.of(true, false, 0, null));
-        set("slayerTaskDetector", new SlayerTaskDetector(gson, slayer()));
     }
 
     @Test
@@ -132,17 +133,34 @@ public class FateLockedPluginLocalWritesTest
     }
 
     @Test
-    public void aSlayerAssignmentIsWrittenInTheBackground()
+    public void whatTheCharacterFinishedIsRememberedInTheBackground() throws Exception
     {
-        ChatMessage message = new ChatMessage();
-        message.setType(ChatMessageType.GAMEMESSAGE);
-        message.setMessage("You're assigned to kill goblins; only 20 more to go.");
+        set("questMemory", FinishedMemory.open(new Gson(), quests()));
+        set("detectors", new Detectors(null, null, null));
 
-        plugin.onChatMessage(message);
-        assertFalse(Files.exists(slayer()));
+        invoke("detect", Signal.class, new Signal.Quests(Set.of("Cook's Assistant")));
+        assertFalse(Files.exists(quests()));
 
         runBackground();
-        assertTrue(Files.exists(slayer()));
+        assertEquals(Set.of("Cook's Assistant"), FinishedMemory.open(new Gson(), quests()).finished());
+
+        invoke("detect", Signal.class, new Signal.Quests(Set.of("Cook's Assistant")));
+        assertTrue("an unchanged memory isn't written again", background.isEmpty());
+    }
+
+    @Test
+    public void aDiaryTierIsRememberedInTheBackgroundOnce() throws Exception
+    {
+        set("tierMemory", FinishedMemory.open(new Gson(), tiers()));
+        set("detectors", new Detectors(null, null, null));
+
+        invoke("detect", Signal.class, new Signal.Varbits(Map.of(4495, 1)));
+        assertFalse(Files.exists(tiers()));
+        runBackground();
+        assertEquals(Set.of("Lumbridge Easy"), FinishedMemory.open(new Gson(), tiers()).finished());
+
+        invoke("detect", Signal.class, new Signal.Varbits(Map.of(4495, 1)));
+        assertTrue("an unchanged memory isn't written again", background.isEmpty());
     }
 
     private void runBackground()
@@ -163,9 +181,14 @@ public class FateLockedPluginLocalWritesTest
         return dir.resolve("strict-mode-events.json");
     }
 
-    private Path slayer()
+    private Path quests()
     {
-        return dir.resolve("slayer-assignment.json");
+        return dir.resolve(FinishedMemory.QUESTS);
+    }
+
+    private Path tiers()
+    {
+        return dir.resolve(FinishedMemory.DIARY_TIERS);
     }
 
     private <T> void invoke(String name, Class<T> type, T argument) throws Exception

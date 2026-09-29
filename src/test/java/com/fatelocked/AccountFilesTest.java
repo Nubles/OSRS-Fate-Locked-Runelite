@@ -1,6 +1,5 @@
 package com.fatelocked;
 
-import com.fatelocked.detectors.SlayerTaskDetector;
 import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.EventConfidence;
 import com.fatelocked.events.FateEvent;
@@ -17,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -24,6 +24,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class AccountFilesTest
@@ -70,20 +71,39 @@ public class AccountFilesTest
     }
 
     @Test
-    public void theSharedAuditLogAndSlayerTaskComeOnlyToTheBoundCharacter() throws Exception
+    public void theSharedAuditLogComesOnlyToTheBoundCharacter() throws Exception
     {
         new StrictModeAuditLog(gson, data.resolve(AccountFiles.AUDIT_LOG)).append(
             new StrictModeAuditEntry(1, "TRAVEL", "goblin", "50,50", "locked"));
-        new SlayerTaskDetector(gson, data.resolve(AccountFiles.SLAYER))
-            .assignment("Kurask", null, 120, false);
+        // Earlier versions' Slayer task file: the game's variables say what the task is now.
+        byte[] slayer = "{\"name\":\"Kurask\"}".getBytes(StandardCharsets.UTF_8);
+        Path shared = Files.write(data.resolve("slayer-assignment.json"), slayer);
 
         AccountFiles bound = AccountFiles.open(gson, data, 1L, true);
         AccountFiles other = AccountFiles.open(gson, data, 2L, false);
 
         assertEquals(1, bound.auditLog.recent(10).size());
         assertEquals(0, other.auditLog.recent(10).size());
-        assertTrue(bound.slayer.completion("task complete").isPresent());
-        assertFalse(other.slayer.completion("task complete").isPresent());
+        assertArrayEquals(slayer, Files.readAllBytes(shared));
+        assertFalse(Files.exists(AccountFiles.folder(data, 1L).resolve("slayer-assignment.json")));
+    }
+
+    @Test
+    public void eachAccountRemembersItsOwnQuestsAndDiaryTiers() throws Exception
+    {
+        AccountFiles ironman = AccountFiles.open(gson, data, 1L, true);
+        ironman.quests.remember(List.of("Cook's Assistant"));
+        ironman.diaryTiers.remember(List.of("Lumbridge Easy"));
+
+        AccountFiles again = AccountFiles.open(gson, data, 1L, true);
+        AccountFiles main = AccountFiles.open(gson, data, 2L, false);
+
+        assertEquals(Set.of("Cook's Assistant"), again.quests.finished());
+        assertEquals(Set.of("Lumbridge Easy"), again.diaryTiers.finished());
+        assertNull(main.quests.finished());
+        assertNull(main.diaryTiers.finished());
+        assertTrue(Files.exists(data.resolve("accounts/1/" + FinishedMemory.QUESTS)));
+        assertTrue(Files.exists(data.resolve("accounts/1/" + FinishedMemory.DIARY_TIERS)));
     }
 
     @Test
@@ -91,13 +111,14 @@ public class AccountFilesTest
     {
         Path own = Files.createDirectories(AccountFiles.folder(data, 1L));
         Files.write(own.resolve(DetectedEventStore.FILE), "[".getBytes(StandardCharsets.UTF_8));
-        Files.write(own.resolve(AccountFiles.SLAYER), "{\"name\":".getBytes(StandardCharsets.UTF_8));
+        Files.write(own.resolve(FinishedMemory.QUESTS), "{\"finished\":".getBytes(StandardCharsets.UTF_8));
 
         AccountFiles files = AccountFiles.open(gson, data, 1L, true);
 
         assertNotNull(files.detected);
         assertNotNull(files.auditLog);
-        assertNotNull(files.slayer);
+        assertNull(files.quests.finished());
+        assertNull(files.diaryTiers.finished());
         try (Stream<Path> kept = Files.list(own))
         {
             assertEquals(2, kept.filter(path -> path.getFileName().toString().contains(".corrupt-"))
