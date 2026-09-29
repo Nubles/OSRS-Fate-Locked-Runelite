@@ -56,7 +56,8 @@ public class WorldMapModelTest
                 previous = run;
             }
             assertEquals(id, want, drawn);
-            assertEquals(id + " outlines its unlocked land", outline(fills), units(model));
+            assertEquals(id + " outlines its unlocked land", outline(fills), units(model.outline()));
+            assertEquals(id + " grids every chunk it draws", grid(fills), units(model.grid()));
         }
     }
 
@@ -67,6 +68,7 @@ public class WorldMapModelTest
         WorldMapModel model = WorldMapModel.of(other);
         assertTrue(model.runs().isEmpty());
         assertTrue(model.outline().isEmpty());
+        assertTrue(model.grid().isEmpty());
     }
 
     /** The map is clipped as RuneLite clips it: never over the overview or the surface selector. */
@@ -97,7 +99,7 @@ public class WorldMapModelTest
         assertEquals(WorldMapChunks.Fill.UNLOCKED, WorldMapChunks.fill(playing, wizardsTower));
         assertNull("off the tracker's map", WorldMapChunks.fill(playing, tutorialIsland));
 
-        assertTrue(units(WorldMapModel.of(playing)).contains("H49,48"));
+        assertTrue(units(WorldMapModel.of(playing).outline()).contains("H49,48"));
     }
 
     /** Each unit of outline wanted: every side where unlocked land meets land that isn't unlocked. */
@@ -117,17 +119,33 @@ public class WorldMapModelTest
         return units;
     }
 
+    /** Each unit of grid wanted: every side of every chunk the map draws. */
+    private static Set<String> grid(Map<CanonicalChunk, WorldMapChunks.Fill> fills)
+    {
+        Set<String> units = new HashSet<>();
+        for (CanonicalChunk chunk : fills.keySet())
+        {
+            int cx = chunk.getCx();
+            int cy = chunk.getCy();
+            units.add("V" + cx + "," + cy);
+            units.add("V" + (cx + 1) + "," + cy);
+            units.add("H" + cy + "," + cx);
+            units.add("H" + (cy + 1) + "," + cx);
+        }
+        return units;
+    }
+
     private static boolean unlocked(Map<CanonicalChunk, WorldMapChunks.Fill> fills, int cx, int cy)
     {
         return fills.get(new CanonicalChunk(cx, cy)) == WorldMapChunks.Fill.UNLOCKED;
     }
 
-    /** The model's outline, cut back into units; stretches that meet are joined. */
-    private static Set<String> units(WorldMapModel model)
+    /** A model's edges, cut back into units; stretches that meet are joined. */
+    private static Set<String> units(java.util.List<WorldMapModel.Edge> edges)
     {
         Set<String> units = new HashSet<>();
         WorldMapModel.Edge previous = null;
-        for (WorldMapModel.Edge edge : model.outline())
+        for (WorldMapModel.Edge edge : edges)
         {
             assertFalse("stretches that meet are joined: " + edge, previous != null
                 && previous.isVertical() == edge.isVertical() && previous.getLine() == edge.getLine()

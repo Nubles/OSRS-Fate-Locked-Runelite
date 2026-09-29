@@ -342,16 +342,16 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
-        keyName = "worldMapOutline",
+        keyName = "worldMapBorders",
         name = "World map borders",
-        description = "A dashed line on the world map where your unlocked land meets locked land. Off keeps the"
-            + " shading and the tooltip.",
+        description = "Lines on the world map: where your unlocked land meets locked land, or every chunk edge as"
+            + " well. Off keeps the shading and the tooltip.",
         section = displaySection,
         position = 2
     )
-    default boolean worldMapOutline()
+    default ChunkBorders worldMapBorders()
     {
-        return true;
+        return ChunkBorders.LOCKED_EDGES;
     }
 
     @ConfigItem(

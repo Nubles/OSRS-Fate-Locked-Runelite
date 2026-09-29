@@ -152,10 +152,15 @@
    ]
   },
   {
-   "key": "worldMapOutline",
+   "key": "worldMapBorders",
    "section": "Display",
    "name": "World map borders",
-   "defaultValue": "On"
+   "defaultValue": "Locked edges",
+   "options": [
+    "Off",
+    "Locked edges",
+    "All edges"
+   ]
   },
   {
    "key": "worldMapMarkers",

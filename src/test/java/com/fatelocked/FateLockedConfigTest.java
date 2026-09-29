@@ -41,7 +41,7 @@ public class FateLockedConfigTest
         new Object[]{"hudMode", FateLockedConfig.displaySection, 0, FateLockedConfig.HudMode.COMPACT},
         new Object[]{"worldMapMode", FateLockedConfig.displaySection, 1,
             FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS},
-        new Object[]{"worldMapOutline", FateLockedConfig.displaySection, 2, true},
+        new Object[]{"worldMapBorders", FateLockedConfig.displaySection, 2, FateLockedConfig.ChunkBorders.LOCKED_EDGES},
         new Object[]{"worldMapMarkers", FateLockedConfig.displaySection, 3, false},
         new Object[]{"chunkBorders", FateLockedConfig.displaySection, 4, FateLockedConfig.ChunkBorders.LOCKED_EDGES},
         new Object[]{"shadeNearbyLocked", FateLockedConfig.displaySection, 5, true},
