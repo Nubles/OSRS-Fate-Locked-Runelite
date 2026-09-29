@@ -75,10 +75,11 @@ re-read both repositories on 28 September: plugin `9b6b5d3` and web `1e860dc`.
     touch the web clone's own working tree.
 - **Order of release.**
   1. **Web pull request 1**, which players can't see: the contract and its real messages, the new detector policies,
-     the detection tables in the bundle, the two blockers, and the card's words in the wording contract. It merges
-     first; older plugins ignore the new bundle fields.
-  2. **The plugin** re-pins at that merge. The owner tries it in RuneLite before anything is pushed. The owner merges it,
-     and the Plugin Hub pull request follows.
+     the detection tables in the bundle, and the two blockers. It merges first; older plugins ignore the new bundle
+     fields.
+  2. **The plugin** pins web pull request 2's head commit, which holds the card's words with the guide that uses them
+     (Stage 3 did the same). The owner tries it in RuneLite before anything is pushed. The owner merges it, and the
+     Plugin Hub pull request follows.
   3. **Web pull request 2**, which players see: Paste from RuneLite, linking a run from a paste, the Roll Inbox copy,
      the guide and What's New. It merges after the Hub serves the plugin.
 - **Network boundary.** The plugin's only request stays the consent-gated relay `GET`. The copy is a local clipboard
@@ -147,15 +148,16 @@ reversed. The owner approved the plan on 28 September with two changes, decision
 10. **Every row of a paste can roll** (blocker 1). An event from an earlier revision of the same run and character is
     checked against the run as it is now. A reviewed row keeps its review.
 11. **Kills come from the game's kill-count line** (for example "Your Vorkath kill count is: 12."), so the Loot Tracker
-    plugin isn't needed. Raids and clues use their completion lines. Loot events stay as a fallback only where the
-    game prints no count.
+    plugin isn't needed. Raids and clues use their completion lines too, so no loot event is read at all: a loot
+    fallback beside a count line would record one clue twice.
 12. **Slayer comes from the game's Slayer variables** (task, count, master and streak), as RuneLite's own Slayer
     plugin does. A task completes when its count reaches 0 and the streak rises.
 13. **Pets are left as they are for now** (the owner, 28 September). A poll is deciding whether a pet rewards an
     Omni-Key instead of a Key. Until it has, RuneLite doesn't copy pet drops, and nothing about pets changes on the
     web; players log pets by hand as today.
-14. **The words come from the web first:** Copy for tracker, Paste from RuneLite, New, Copied and Dismiss join the
-    wording contract. The plugin then re-pins.
+14. **The words come from the web first:** Copy for tracker, Paste from RuneLite, New and Copied join the wording
+    contract with the guide's glossary, in web pull request 2, whose head the plugin pins. Dismiss stays an ordinary
+    button label.
 15. **One chat reminder per recorded event:** "Attack level 71: added to your Roll inbox." It follows the existing
     Roll reminders setting, and only an event that was saved gets one.
 
@@ -165,28 +167,43 @@ Web pull request 1 comes first (W), then the plugin (A–D), then web pull reque
 
 ### Phase W: the contract, on the web (pull request 1)
 
-- [ ] **W1. The detected-events contract.** `contracts/detected-events/corpus.json` pairs real game signals with the
+- [x] **W1. The detected-events contract.** `contracts/detected-events/corpus.json` pairs real game signals with the
   events they must produce. The signals are chat lines, level changes, quest states, varbits, varps, popups and loot
   events. They start from RuneLite's own test fixtures and the review's cases. The goldens manifest lists the file, so
   the plugin's pin picks it up. The web test parses and classifies every expected event against a golden run, and
   expects the verdict the case names.
-- [ ] **W2. Detector policies:** the new ids and versions this plan ships, all exact except Slayer and diary;
+- [x] **W2. Detector policies:** the new ids and versions this plan ships, all exact except Slayer and diary;
   `clue-completion-loot-v1` approved; the retired ids refused.
-- [ ] **W3. Every row of a paste can roll, and manual play is untouched** (decisions 1 and 10): the classifier,
+- [x] **W3. Every row of a paste can roll, and manual play is untouched** (decisions 1 and 10): the classifier,
   `detectedEventIdentityMatches` and `RollInboxDriver`. `RollInbox.test.tsx` flips its pin. A new test pins decision
   1: with rows waiting in the inbox, a level-up logged by hand, a manual roll and spending a Key all work as before,
   and a paste changes nothing in the run until the player clicks Roll.
-- [ ] **W4. No dead ends.** Every event in the corpus lands Ready, or Needs checking with choices:
+- [x] **W4. No dead ends.** Every event in the corpus lands Ready, or Needs checking with choices:
   - clue tiers map to the casket keys;
   - a collection log name on several pages offers its pages;
   - a Slayer task pre-selects its master's tier.
-- [ ] **W5. `rules.detection`** in the bundle:
+- [x] **W5. `rules.detection`** in the bundle:
   - bosses and raids by kill-count names, with every boss key covered and Brutus included;
   - quest ids with the game's names where they differ;
   - the 48 diary tier ids.
 
   `detectorContractVersion` becomes 2. The relay's size budget is checked, and the goldens are rewritten.
-- [ ] **W6. The card's words** in `data/runeliteWording.ts` and the byte-compared contract.
+- [ ] **W6. The card's words** move to Phase P (P0): the wording test wants every shared word in the guide's
+  glossary, so they ship with the guide.
+
+*Done* on web branch `claude/stage-4-contract`, local, 29 September:
+- `fdf0dfc` W3, with a `preparedRevision` guard so a stale prepared roll still can't land;
+- `6944c94` W2;
+- `ec44d84` W4;
+- `f0c1b0c` W5;
+- `3813f94` W1.
+
+Also:
+- `9812bc5` What's New, "Groundwork for RuneLite's Roll Inbox";
+- `1172a03` loads the detection names only at export time, keeping the startup file in its budget.
+
+Every commit's mutants were caught. Writing W1 found a dead end the plan hadn't: the game calls all 18 chompy bird
+hats "Chompy bird hat", so a plain name with no item of its own now offers every item it can be.
 
 ### Phase A: foundations in the plugin (no visible change)
 
@@ -256,6 +273,8 @@ Each detector is pure, reads plain signals, clears its cases in the corpus, and 
 
 ### Phase P: the paste, on the web (pull request 2)
 
+- [ ] **P0. The card's words** (from W6) in `data/runeliteWording.ts`, the byte-compared contract, and the guide's
+  glossary. The plugin pins this pull request's head commit.
 - [ ] **P1. Paste from RuneLite** in the Roll Inbox. It reads the clipboard, with a box to paste into where the browser
   won't allow that. It takes up to 250 events and says what it did: "Added 5. 2 were already here. 1 was too old."
 - [ ] **P2. A paste into an unlinked run** (decision 9): it names the character the events came from, and each
