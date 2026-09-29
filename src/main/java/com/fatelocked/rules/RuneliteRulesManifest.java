@@ -1,5 +1,6 @@
 package com.fatelocked.rules;
 
+import com.fatelocked.detection.DetectionTables;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
@@ -33,6 +34,8 @@ public final class RuneliteRulesManifest
     public static final String FREE_AREAS = "freeAreas";
     /** The capability for the travel table: each travel method, matched by id, and its options' decisions (F1). */
     public static final String TRAVEL = "travel";
+    /** The capability for the tracker's names for what RuneLite notices: bosses by kill count, quests and diary tiers (Stage 4). */
+    public static final String DETECTION = "detection";
 
     private String rulesVersion;
     private int contentVersion;
@@ -99,6 +102,11 @@ public final class RuneliteRulesManifest
     @SerializedName("travel")
     private JsonElement travelDeclaration;
     private transient TravelTable travel;
+    /** Stage 4: the tracker's names for what RuneLite notices; null when the bundle doesn't send them, or they aren't an object. */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("detection")
+    private JsonElement detectionDeclaration;
+    private transient DetectionTables detection;
 
     public RuneliteRulesManifest normalized()
     {
@@ -160,6 +168,8 @@ public final class RuneliteRulesManifest
             : freeAreas != null ? freeAreas : stringItems(freeAreasDeclaration);
         copy.travel = !copy.capabilities.contains(TRAVEL) ? null
             : travel != null ? travel : TravelTable.parse(travelDeclaration);
+        copy.detection = !copy.capabilities.contains(DETECTION) ? null
+            : detection != null ? detection : DetectionTables.parse(detectionDeclaration);
         return copy;
     }
 
