@@ -6,7 +6,7 @@ import lombok.Value;
 import java.util.Map;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class FateEvent
 {
     int protocolVersion;
