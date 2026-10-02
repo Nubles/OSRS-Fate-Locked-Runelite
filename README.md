@@ -79,7 +79,8 @@ their own:
    stopped.
 3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate
    Points, the ritual and the next goal.
-4. **Roll inbox**: local events that may be worth a roll.
+4. **Roll inbox**: what RuneLite noticed that may be worth a roll, with
+   **Copy for tracker** to paste it into the tracker's Roll Inbox.
 5. **Connection & backup**: online sync, the pairing, and the clipboard and
    file backups.
 
@@ -96,11 +97,12 @@ once, the first time the plugin starts.
 - Chunk borders on the ground where locked land starts, dashed over a dark
   underlay with a band of shade on the locked side, and the same on the
   minimap. The dashes keep their place on the ground as the camera turns,
-  and a player, NPC, tree or wall in front of the line hides it.
+  and a player, NPC, tree or wall in front of the line hides it. Chunk
+  borders in the game view picks the lines: the locked edges, the chunk
+  grid (a faint line on every chunk edge), both, or none.
 - The world map shades locked land like fog and outlines your unlocked land
   all the way round, with a tooltip for the chunk under the mouse. World map
-  borders picks the lines: that outline, a faint line on every chunk edge as
-  well, or none.
+  borders picks the lines: that outline, the chunk grid, both, or none.
 - Every row in Here has a status. Where the tracker can't see a requirement,
   such as a quest started, quest points, a free-to-play world or a light
   source you carry, the plugin checks it in game, and a row that isn't ready
@@ -120,34 +122,43 @@ once, the first time the plugin starts.
 - Strict Mode, which blocks only travel the tracker's travel table matches
   by id, to one place it locks, with fail-open safeguards, a status that
   says when it cannot act, a 60-second pause, and a bounded local audit log.
-- Local detection of supported skill, quest, diary, combat achievement,
-  collection, clue, boss, raid, pet, and Slayer observations.
+- What RuneLite notices, listed in the Roll inbox card for the tracker:
+  levels, quests, finished diary tiers, combat achievements, collection log
+  items, clues, boss and raid kills, and Slayer tasks.
 
 ## Roll Inbox ownership and privacy
 
-The Roll inbox card counts the observations saved for the logged-in
-account, in its own folder of RuneLite's local Fate Locked data directory,
-which keeps the newest 250. Ambiguous observations are counted under
-**Needs checking**. Only the character your tracker profile is bound to is
-tracked, and only on worlds that save to that account, so not Leagues,
-Deadman or speedrunning worlds. A profile bound to no character gets no
-roll reminders. Detection never rolls and never changes the tracker; the
-player still reviews the result and presses Roll in the web app.
+The Roll inbox card lists what RuneLite noticed for the logged-in account
+that may be worth a roll: levels, quests, finished diary tiers, combat
+achievements, collection log items (only with the game's own collection
+log notification on), clues, boss and raid kills, and Slayer tasks. Each
+shows New until it's copied; Dismiss hides one. **Copy for tracker** puts
+them on the clipboard, and the tracker's Roll Inbox reads them with
+**Paste from RuneLite**: nothing rolls until you choose Roll there, and
+logging by hand stays open. Events older than 30 days go, as the tracker
+refuses them, and the newest 250 stay.
 
-**Local only — RuneLite does not upload gameplay data.**
+RuneLite notices only with your run's rules loaded, and only on worlds that
+save to the account, so not Leagues, Deadman or speedrunning worlds: for the
+character your run is linked to, with a roll reminder; for whoever plays
+while the run is linked to no one, without reminders; and nothing for any
+other character. When it notices nothing, the card says why. Detection
+never rolls and never changes the tracker.
 
-**Open web Roll Inbox** opens a separate browser view. It does not transfer
-RuneLite's local history to that view.
+**Local only — RuneLite does not upload gameplay data.** Events leave
+RuneLite only when you click Copy for tracker, by the clipboard.
 
-Each account's history, Strict Mode log, Slayer task and finished diary
-tiers live in `accounts/<account id>/` in the data directory, so a main
-account and an ironman played in one RuneLite keep them apart, and two
-RuneLites on one account merge their writes rather than overwrite each
-other. A diary tier finished while RuneLite was closed counts at the next
-login. The first time an account is used, its history starts from the
-shared history (or the older queue) that earlier versions kept, taking
-only that character's observations; the Strict Mode log and Slayer task
-come along only for the character the rules are bound to. The shared files
+**Open web Roll Inbox** opens the tracker's Roll Inbox in the browser. It
+carries no events; paste them there.
+
+Each account's events, Strict Mode log and finished quests and diary tiers
+live in `accounts/<account id>/` in the data directory, so a main account
+and an ironman played in one RuneLite keep them apart, and two RuneLites on
+one account merge their writes rather than overwrite each other. A diary
+tier finished while RuneLite was closed counts at the next login. The first
+time an account is used, its Strict Mode log starts from the shared one
+earlier versions kept, for the character the rules are bound to only.
+Events recorded before this version are never offered. The shared files
 are left unchanged. A malformed file is preserved with a corruption suffix
 and a new one is started.
 

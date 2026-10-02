@@ -287,12 +287,17 @@ and the TzHaar-Ket-Rak line.
 - [x] **C3. An unlinked run's card** says whose events it holds (decision 9).
 - [x] **C4. Pictures:** previews for an empty card, New rows, Needs checking, and Copied; the guide's `roll-inbox` shot
   anchors on the new parts. The previews add an unlinked run and a copy the clipboard refused.
-- [ ] **C5. Owner review in RuneLite,** with real messages captured where the game allows.
+- [x] **C5. Owner review in RuneLite,** with real messages captured where the game allows. On 2 October the owner
+  pasted a real copy into the tracker (it read in, a second paste added nothing, and another run's event was held),
+  and asked for a chunk grid without the dashed line: Chunk grid in both border settings (`be4105a`), which the owner
+  then confirmed.
 
 ### Phase D: release (plugin)
 
-- [ ] **D1. Docs:** README, CONTRIBUTING, the Hub review notes and the review checklist.
-- [ ] **D2. Checks:** clean check, the mutation runs, and the owner's "all good".
+- [x] **D1. Docs:** README, CONTRIBUTING, the Hub review notes and the review checklist (rows 39 to 41 for Stage 4,
+  and Chunk grid in rows 27 and 38).
+- [x] **D2. Checks:** clean check, the mutation runs, and the owner's "all good" ("the chunk grid works, start the
+  release", 2 October).
 - [ ] **D3. Pull request and Plugin Hub:** push and open the pull request after the owner's OK. After the owner merges,
   open the Hub pull request with the merge commit.
 

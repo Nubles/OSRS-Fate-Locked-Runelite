@@ -137,13 +137,14 @@ through `SerialFileWriter`.
 ## Local files
 
 Each OSRS account's files live in `accounts/<account hash>/` in the data
-directory: `event-history.json` (the newest 250 detected events),
-`strict-mode-events.json` (the newest 100 Strict Mode audit entries),
-`slayer-assignment.json` and `diary-tiers.json` (the diary tiers the account
-has finished). They open when the account logs in; until then its detections
-are dropped rather than written into another account's files. A file that
-fails to open leaves its feature off for that account and never stops the
-plugin.
+directory: `detected-events.json` (what RuneLite noticed, each New, Copied or
+Dismissed, for 30 days, the newest 250), `strict-mode-events.json` (the
+newest 100 Strict Mode audit entries), and `quests.json` and
+`diary-tiers.json` (the quests and diary tiers the account has finished, so
+a finish isn't noticed twice). They open when the account logs in; until
+then its detections are dropped rather than written into another account's
+files. A file that fails to open leaves its feature off for that account
+and never stops the plugin.
 
 Every write goes through `LocalFileMerge`: under an exclusive lock on a
 `<file>.lock` sidecar it re-reads the file, merges this client's change into
@@ -153,17 +154,19 @@ in-memory state changes only after the write succeeds. A damaged file is
 renamed with a `.corrupt-<millis>` suffix and a fresh one starts; it is never
 written over.
 
-An account's folder starts, once, from the shared files earlier versions
-kept (`event-history.json`, or the older `event-outbox.json` queue, and the
-shared audit log and Slayer task). The shared files are only read: the
-history gives only that character's events, and the audit log and Slayer
-task, which name no account, come along only for the character the rules are
-bound to.
+An account's folder starts, once, from the shared Strict Mode audit log
+earlier versions kept, which is only read and, since it names no account,
+comes along only for the character the rules are bound to. Detected events
+start empty: earlier versions' `event-history.json` files and Slayer task
+files are left as they are and never read (the game's own variables say
+what the task is).
 
-Detectors record facts only, through one `DetectionGate`: rules for a run are
-loaded, bound to the logged-in character, on a world that saves to that
-account. They never roll, mutate the tracker, or transfer the local history
-to the web Roll Inbox.
+Detectors record facts only, through one `DetectionGate`: with rules for a
+run loaded, on a world that saves to the account, for the character the
+rules are bound to, with a roll reminder, or for any character while they
+are bound to none, without one. They never roll or change the tracker. The
+Roll inbox card's **Copy for tracker** puts its events on the clipboard when
+the player clicks, the plugin's only clipboard write (`ClipboardBoundaryTest`).
 
 ## Bundle and rule ownership
 

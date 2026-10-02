@@ -11,6 +11,39 @@ Official references checked while preparing this candidate:
 - [Rejected or rolled-back features](https://github.com/runelite/runelite/wiki/Rejected-or-Rolled-Back-Features)
 - [Jagex third-party client guidelines](https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1)
 
+## What Stage 4 changes
+
+Stage 4 changes what the plugin notices and lets the player hand to the
+tracker, not what it can block. Strict Mode stops the same travel as before;
+only its descriptions say more exactly what that is. For review:
+
+- **No new network.** The one request and its consent are as below.
+- **One clipboard write, on the player's click.** The Roll inbox card lists
+  what RuneLite noticed, with **Copy for tracker**. On that click, on the
+  Swing thread, the plugin writes those events as text to the system
+  clipboard (`setContents`), its only clipboard write
+  (`ClipboardBoundaryTest`); an event turns Copied only after the write
+  succeeds. The player pastes them into the tracker's Roll Inbox; nothing is
+  sent, and nothing rolls until the player chooses Roll there.
+- **It notices from what the client already shows.** Levels (`StatChanged`),
+  quests (RuneLite's quest states, read when the quest-complete scroll opens
+  and every 100 ticks), finished diary tiers (varbits), combat tasks and
+  collection log items (their chat lines and popups), and clue, boss and raid
+  counts and Slayer tasks (chat lines and vars). It reads; it never clicks,
+  moves or changes anything.
+- **Who it notices for.** Only with a run's rules loaded, on worlds that
+  save to the account: the character the rules are bound to, with a roll
+  reminder; any character while the rules are bound to no one, recorded for
+  the card without reminders; nobody else.
+- **Local files.** Per account: `detected-events.json` (New, Copied or
+  Dismissed; 30 days; the newest 250), and `quests.json` and
+  `diary-tiers.json`, so a finish isn't noticed twice. They're written only
+  when something changes. Events from before Stage 4 are never offered.
+- **Display.** World map borders and Chunk borders in the game view each
+  choose Off, Locked edges, Chunk grid or All edges. Chunk grid draws the
+  faint line on every chunk edge without the dashed one; the drawing is as
+  Stage 3 describes.
+
 ## What Stage 3 changes
 
 Stage 3 changes what the plugin shows, not what it can block. Strict Mode is
@@ -99,22 +132,22 @@ verified by RuneLite developers. Declining leaves sync disabled; existing
 pairings also require consent. Disabling the setting blocks subsequent polls
 and invalidates pending imports. Clipboard and file imports remain local.
 
-Detected events remain in a bounded local history. The web Roll Inbox link
-does not include the pairing code and does not transfer that history.
+Detected events stay in a bounded local history. They leave it only when the
+player clicks Copy for tracker, by the clipboard. The web Roll Inbox link does
+not include the pairing code and does not transfer that history.
 
 ## Local data
 
 All files stay in RuneLite's own `fate-locked` data directory: the last
 accepted rules (`saved-rules.json`, tagged with a hash of the pairing, never
 the code), and per OSRS account, in `accounts/<account hash>/`, the detected
-event history, the Strict Mode audit log, the Slayer task and the finished
-diary tiers. `spots.json` holds where the things the Here card can point at
+events, the Strict Mode audit log and the finished quests and diary tiers. `spots.json` holds where the things the Here card can point at
 were seen, by chunk and row, at most eight tiles a row, and is written at most
 every half minute. Two RuneLites sharing the folder merge their writes under a lock
-file rather than overwrite each other. Detections are recorded, and roll
-reminders shown, only for the character the rules are bound to, on worlds
-that save to that account (not Leagues, Deadman, speedrunning and similar
-worlds).
+file rather than overwrite each other. Detections are recorded only on
+worlds that save to the account (not Leagues, Deadman, speedrunning and
+similar worlds): with roll reminders for the character the rules are bound
+to, and without, for any character, while they're bound to no one.
 
 ## Strict Mode pre-clearance request
 
