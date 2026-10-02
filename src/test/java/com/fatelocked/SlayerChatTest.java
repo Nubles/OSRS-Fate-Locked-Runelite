@@ -99,6 +99,7 @@ public class SlayerChatTest
         List<String> lines = say(GEM_CHECK, 7);
         assertEquals(1, lines.size());
         assertTrue(lines.get(0), lines.get(0).contains("bears") && lines.get(0).contains("is locked: Area locked."));
+        assertTrue("Slayer, as the game writes it", lines.get(0).contains("Your Slayer task ("));
         assertEquals("bears", plugin.getSlayerTaskWarn());
 
         // Not ready (Slayer 85) never alerts.

@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSyntaxException;
+import com.fatelocked.detection.DetectionTables;
 import com.fatelocked.rules.ChunkPermissionSnapshot;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.PermissionStatus;
@@ -22,6 +23,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -244,6 +246,29 @@ public class FateLockedBundleTest
     }
 
     /**
+     * Stage 4: the tracker's names for what RuneLite notices come under their capability, and
+     * only as an object; the detectors notice no boss or quest without them.
+     */
+    @Test
+    public void theRulesNameWhatRuneLiteNoticesUnderTheirCapability() throws Exception
+    {
+        JsonObject detection = new Gson().fromJson("{\"bosses\":[{\"key\":\"Vorkath\",\"raid\":false,"
+            + "\"killCounts\":[\"Vorkath\"]}],\"quests\":[{\"id\":\"Cook's Assistant\",\"name\":\"Cook's Assistant\"}],"
+            + "\"diaryTiers\":[\"Varrock Easy\"]}", JsonObject.class);
+
+        DetectionTables tables = withDetection(strings("banks", "detection"), detection).getRules().getDetection();
+        assertEquals("Vorkath", tables.bossForKillCount("Vorkath").getKey());
+        assertEquals("Cook's Assistant", tables.questId("Cook's Assistant"));
+        assertTrue(tables.isDiaryTier("Varrock Easy"));
+        assertFalse(tables.isDiaryTier("Varrock Hard"));
+
+        assertNull(withDetection(null, detection).getRules().getDetection());
+        assertNull(withDetection(strings("banks"), detection).getRules().getDetection());
+        assertNull(withDetection(strings("detection"), new JsonPrimitive("detection")).getRules().getDetection());
+        assertNull(withDetection(strings("detection"), null).getRules().getDetection());
+    }
+
+    /**
      * E7 (R15): rulesVersion is informational. A newer tracker's rules, with
      * a later version and a section this plugin doesn't know, give the same
      * answers everywhere the golden pins one.
@@ -289,6 +314,17 @@ public class FateLockedBundleTest
         JsonObject rules = root.getAsJsonObject("rules");
         if (capabilities != null) rules.add("capabilities", capabilities);
         if (named != null) rules.add("freeAreas", named);
+        return FateLockedBundle.loadFromJson(new Gson(), root.toString());
+    }
+
+    /** The v4 fixture with these capabilities and this detection section (none when null). */
+    private FateLockedBundle withDetection(JsonElement capabilities, JsonElement detection) throws Exception
+    {
+        JsonObject root = new Gson().fromJson(
+            new String(fixtureBytes("bundles/v4-rules.json"), StandardCharsets.UTF_8), JsonObject.class);
+        JsonObject rules = root.getAsJsonObject("rules");
+        if (capabilities != null) rules.add("capabilities", capabilities);
+        if (detection != null) rules.add("detection", detection);
         return FateLockedBundle.loadFromJson(new Gson(), root.toString());
     }
 

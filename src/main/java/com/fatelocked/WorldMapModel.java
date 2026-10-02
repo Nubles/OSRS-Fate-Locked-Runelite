@@ -16,12 +16,14 @@ import lombok.Value;
  * land. Unlocked land is left clear, so the map reads as fog over what is still locked. The
  * outline carries "locked" without relying on colour (U15), and goes all the way round: it
  * also follows unlocked land where the tracker's map stops, such as at Tutorial Island, which
- * is free but left off the map because no one can go back.
+ * is free but left off the map because no one can go back. Every chunk's sides, joined, make
+ * the grid that All edges draws faintly under the outline.
  */
 final class WorldMapModel
 {
     /** Nothing to draw: no rules, or another character's. */
-    static final WorldMapModel NONE = new WorldMapModel(Collections.emptyList(), Collections.emptyList());
+    static final WorldMapModel NONE = new WorldMapModel(Collections.emptyList(), Collections.emptyList(),
+        Collections.emptyList());
 
     /** Chunks in one row with the same fill, from column cx0 to cx1, both included. */
     @Value
@@ -49,11 +51,13 @@ final class WorldMapModel
 
     private final List<Run> runs;
     private final List<Edge> outline;
+    private final List<Edge> grid;
 
-    private WorldMapModel(List<Run> runs, List<Edge> outline)
+    private WorldMapModel(List<Run> runs, List<Edge> outline, List<Edge> grid)
     {
         this.runs = runs;
         this.outline = outline;
+        this.grid = grid;
     }
 
     /** The locked land and the frontier, row by row from the south. */
@@ -68,6 +72,12 @@ final class WorldMapModel
         return outline;
     }
 
+    /** Every side of every chunk the map draws, each once. */
+    List<Edge> grid()
+    {
+        return grid;
+    }
+
     static WorldMapModel of(DecisionService decisions)
     {
         Map<CanonicalChunk, WorldMapChunks.Fill> fills = new HashMap<>();
@@ -79,7 +89,7 @@ final class WorldMapModel
                 fills.put(chunk, fill);
             }
         }
-        return new WorldMapModel(runs(fills), outline(fills));
+        return new WorldMapModel(runs(fills), outline(fills), grid(fills));
     }
 
     private static List<Run> runs(Map<CanonicalChunk, WorldMapChunks.Fill> fills)
@@ -139,6 +149,25 @@ final class WorldMapModel
         join(outline, true, vertical);
         join(outline, false, horizontal);
         return Collections.unmodifiableList(outline);
+    }
+
+    private static List<Edge> grid(Map<CanonicalChunk, WorldMapChunks.Fill> fills)
+    {
+        TreeMap<Integer, TreeSet<Integer>> vertical = new TreeMap<>();
+        TreeMap<Integer, TreeSet<Integer>> horizontal = new TreeMap<>();
+        for (CanonicalChunk chunk : fills.keySet())
+        {
+            int cx = chunk.getCx();
+            int cy = chunk.getCy();
+            unit(vertical, cx, cy);
+            unit(vertical, cx + 1, cy);
+            unit(horizontal, cy, cx);
+            unit(horizontal, cy + 1, cx);
+        }
+        List<Edge> grid = new ArrayList<>();
+        join(grid, true, vertical);
+        join(grid, false, horizontal);
+        return Collections.unmodifiableList(grid);
     }
 
     /** Unlocked land; the rest is locked, the frontier, or off the tracker's map. */

@@ -638,9 +638,20 @@ public class FateLockedBundle
      */
     public Set<CanonicalChunk> slayerChunks(String key)
     {
-        if (key == null || key.trim().isEmpty()) return null;
-        Set<CanonicalChunk> chunks = slayerChunks.get(normMonster(key));
+        Set<CanonicalChunk> chunks = atSlayerKey(slayerChunks, key);
         return chunks == null ? null : Collections.unmodifiableSet(chunks);
+    }
+
+    /**
+     * What the tracker keys under a Slayer task, named as the game names it ("abyssal demons -
+     * Abyss") or as the tracker already wrote it, its trailing s dropped ("abyssal demons -
+     * abys"), so a key read back finds itself. Null when it keys nothing there.
+     */
+    public static <T> T atSlayerKey(Map<String, T> keyed, String key)
+    {
+        if (key == null || key.trim().isEmpty()) return null;
+        T found = keyed.get(normMonster(key));
+        return found != null ? found : keyed.get(key.toLowerCase().trim());
     }
 
     /** The chunks whose slim monster lists name a monster; empty when none do. */
@@ -670,12 +681,6 @@ public class FateLockedBundle
             }
         }
         monsterIndex = idx;
-    }
-
-    /** A Slayer task as slayerChunks and the rules' slayerTasks key it: "krystilia:abyssal demon". */
-    public static String slayerKey(String task)
-    {
-        return task == null ? null : normMonster(task);
     }
 
     /** Lowercase + drop a trailing 's' so slayer plurals match singular monster names. */

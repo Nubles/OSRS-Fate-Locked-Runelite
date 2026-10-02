@@ -4,8 +4,8 @@ import lombok.Value;
 
 /**
  * How much of the run is unlocked, as the run card counts it: named areas,
- * or chunks in a Chunked run, with the land chunks owned for the percentage.
- * The tracker's own counts (R9), or for older rules the rules' area lists.
+ * or chunks in a Chunked run, and the land chunks owned besides. The
+ * tracker's own counts (R9), or for older rules the rules' area lists.
  */
 @Value
 public class Progress
@@ -20,9 +20,12 @@ public class Progress
     int chunksUnlocked;
     int chunksTotal;
 
-    /** Percent of chunks unlocked, rounded; -1 when there are none. */
+    /**
+     * Percent unlocked of what the count counts, rounded, so "15 of 187 areas" is 8% (the
+     * owner's call T7: it was 7%, of the map's chunks); -1 when there is nothing to count.
+     */
     public int percent()
     {
-        return chunksTotal <= 0 ? -1 : (int) Math.round(100.0 * chunksUnlocked / chunksTotal);
+        return total <= 0 ? -1 : (int) Math.round(100.0 * unlocked / total);
     }
 }

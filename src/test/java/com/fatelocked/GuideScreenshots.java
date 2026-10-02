@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.events.FateEventType;
 import com.fatelocked.preview.FolderArt;
 import com.fatelocked.preview.SwingSnapshot;
 import com.fatelocked.sidebar.CardAction;
@@ -15,6 +16,7 @@ import com.fatelocked.ui.Palette.Tone;
 import com.fatelocked.ui.Section;
 import com.fatelocked.ui.StatTiles;
 import com.fatelocked.ui.StatusPill;
+import com.fatelocked.ui.Terms;
 import com.fatelocked.ui.TextBlock;
 import com.fatelocked.ui.ToggleSwitch;
 import com.google.gson.GsonBuilder;
@@ -211,11 +213,19 @@ public final class GuideScreenshots
             Anchor.row("ritual", text("Ritual of Clarity"))));
         shots.add(new Shot("roll-inbox", () -> {
             Sidebar sidebar = upToDate(icons);
-            sidebar.rollInbox().apply(new RollInboxModel(12, 2, 1, false));
+            sidebar.rollInbox().apply(RollInboxModel.builder()
+                .rows(Arrays.asList(
+                    new RollInboxModel.Row("1", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, false),
+                    new RollInboxModel.Row("2", FateEventType.BOSS_KILL, "Vorkath", null, false, false),
+                    new RollInboxModel.Row("3", FateEventType.SLAYER_TASK, "Gargoyles", "Slayer", true, false),
+                    new RollInboxModel.Row("4", FateEventType.QUEST, "Cook's Assistant", null, false, true)))
+                .newEvents(3).copied(1).warnings(1).build());
             return open(sidebar, sidebar.rollInbox());
         }, Sidebar::rollInbox,
-            Anchor.row("events", text("Local events")),
-            Anchor.row("needs-checking", text("Needs checking")),
+            Anchor.row("events", text("Attack Level 71")),
+            Anchor.row("needs-checking", pill(Terms.NEEDS_CHECKING)),
+            Anchor.row("copied", pill(Terms.COPIED)),
+            new Anchor("copy", text(Terms.COPY_FOR_TRACKER)),
             Anchor.row("warnings", text("Warnings")),
             new Anchor("open", text("Open web Roll Inbox"))));
         shots.add(new Shot("connection", () -> {

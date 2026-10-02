@@ -58,6 +58,7 @@ public class FateLockedWorldMapOverlayTest
         when(plugin.palette()).thenReturn(Palette.defaults());
         when(plugin.getBundle()).thenReturn(mid);
         when(config.worldMapMode()).thenReturn(FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS);
+        when(config.worldMapBorders()).thenReturn(FateLockedConfig.ChunkBorders.LOCKED_EDGES);
         Widget map = widget(MAP);
         Widget overview = widget(OVERVIEW);
         when(client.getWidget(InterfaceID.Worldmap.MAP_CONTAINER)).thenReturn(map);
@@ -123,6 +124,97 @@ public class FateLockedWorldMapOverlayTest
         BufferedImage image = render();
 
         assertTrue(near(image.getRGB(middleX(frontier), middleY(frontier)), Palette.defaults().frontierFill()));
+    }
+
+    /** World map borders off: the fog and the tooltip stay, and the dashed outline goes. */
+    @Test
+    public void bordersOffKeepTheShadingAndTheTooltipWithoutTheOutline()
+    {
+        CanonicalChunk locked = inView(WorldMapChunks.Fill.LOCKED);
+        when(client.getMouseCanvasPosition()).thenReturn(new Point(middleX(locked), middleY(locked)));
+        when(config.worldMapBorders()).thenReturn(FateLockedConfig.ChunkBorders.OFF);
+        Graphics2D graphics = mock(Graphics2D.class);
+
+        overlay.render(graphics);
+
+        verify(graphics, org.mockito.Mockito.atLeastOnce()).fillRect(org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt());
+        verify(graphics, never()).draw(org.mockito.ArgumentMatchers.any());
+        verify(tooltips).add(org.mockito.ArgumentMatchers.any());
+        assertTrue("locked land is still fog", near(render().getRGB(middleX(locked), middleY(locked)),
+            Palette.defaults().lockedShade()));
+
+        when(config.worldMapBorders()).thenReturn(FateLockedConfig.ChunkBorders.LOCKED_EDGES);
+        drawn();
+    }
+
+    /** All edges: a faint line on every chunk edge, under the outline, as the map drew before Stage 3. */
+    @Test
+    public void allEdgesDrawsTheChunkGridUnderTheOutline()
+    {
+        when(config.worldMapBorders()).thenReturn(FateLockedConfig.ChunkBorders.ALL_EDGES);
+        Graphics2D graphics = mock(Graphics2D.class);
+        overlay.render(graphics);
+
+        ArgumentCaptor<Shape> drawn = ArgumentCaptor.forClass(Shape.class);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(graphics);
+        order.verify(graphics).setStroke(Palette.PLAIN_EDGE_STROKE);
+        order.verify(graphics).setColor(Palette.PLAIN_EDGE);
+        order.verify(graphics).draw(drawn.capture());
+        order.verify(graphics).setStroke(Palette.UNDERLAY_STROKE);
+        Shape grid = drawn.getValue();
+        assertTrue("every chunk edge is more than the outline", segments(grid)
+            > segments(FateLockedWorldMapOverlay.outlinePath(WorldMapModel.of(mine), projection)));
+
+        Graphics2D again = mock(Graphics2D.class);
+        overlay.render(again);
+        ArgumentCaptor<Shape> next = ArgumentCaptor.forClass(Shape.class);
+        verify(again, times(3)).draw(next.capture());
+        assertSame("a map at rest reuses its grid", grid, next.getAllValues().get(0));
+    }
+
+    /** Chunk grid: the faint line on every chunk edge, without the dashed outline. */
+    @Test
+    public void chunkGridDrawsTheGridWithoutTheOutline()
+    {
+        when(config.worldMapBorders()).thenReturn(FateLockedConfig.ChunkBorders.CHUNK_GRID);
+        Graphics2D graphics = mock(Graphics2D.class);
+        overlay.render(graphics);
+
+        ArgumentCaptor<Shape> drawn = ArgumentCaptor.forClass(Shape.class);
+        verify(graphics, times(1)).draw(drawn.capture());
+        verify(graphics).setStroke(Palette.PLAIN_EDGE_STROKE);
+        verify(graphics, never()).setStroke(Palette.UNDERLAY_STROKE);
+        verify(graphics, never()).setStroke(Palette.LOCKED_EDGE_STROKE);
+        assertTrue("every chunk edge is more than the outline", segments(drawn.getValue())
+            > segments(FateLockedWorldMapOverlay.outlinePath(WorldMapModel.of(mine), projection)));
+    }
+
+    /** The separate lines a path is made of. */
+    private static int segments(Shape shape)
+    {
+        int count = 0;
+        for (java.awt.geom.PathIterator it = shape.getPathIterator(null); !it.isDone(); it.next())
+        {
+            if (it.currentSegment(new double[6]) == java.awt.geom.PathIterator.SEG_MOVETO) count++;
+        }
+        return count;
+    }
+
+    /** The clip goes back as it was, for whatever RuneLite draws next. */
+    @Test
+    public void theClipIsPutBack()
+    {
+        BufferedImage image = new BufferedImage(MAP.width, MAP.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        Rectangle before = new Rectangle(5, 5, 600, 400);
+        graphics.setClip(before);
+
+        overlay.render(graphics);
+
+        assertEquals(before, graphics.getClip());
+        graphics.dispose();
     }
 
     @Test

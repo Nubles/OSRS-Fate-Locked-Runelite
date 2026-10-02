@@ -89,6 +89,10 @@ public class FateLockedMinimapOverlayTest
         BufferedImage allEdges = draw(FateLockedConfig.ChunkBorders.ALL_EDGES, false);
         assertTrue(has(allEdges, Palette.PLAIN_EDGE));
         assertFalse("no fog when it's off", has(allEdges, palette.lockedShade()));
+
+        BufferedImage chunkGrid = draw(FateLockedConfig.ChunkBorders.CHUNK_GRID, false);
+        assertTrue("the game view's chunk grid", has(chunkGrid, Palette.PLAIN_EDGE));
+        assertFalse("without its dashes", has(chunkGrid, palette.lockedEdge()));
     }
 
     /** The fog follows its own setting here too, and the lines the game view's, as the player left them. */

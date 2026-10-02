@@ -14,6 +14,10 @@
   "CHAOS_KEYS": "Chaos Keys",
   "FATE_POINTS": "Fate Points",
   "DIFFERENT_CHARACTER": "Different character",
+  "COPY_FOR_TRACKER": "Copy for tracker",
+  "PASTE_FROM_RUNELITE": "Paste from RuneLite",
+  "NEW": "New",
+  "COPIED": "Copied",
   "LOCKED_TAG": " (Locked)"
  },
  "avoidedWords": [
@@ -148,6 +152,18 @@
    ]
   },
   {
+   "key": "worldMapBorders",
+   "section": "Display",
+   "name": "World map borders",
+   "defaultValue": "Locked edges",
+   "options": [
+    "Off",
+    "Locked edges",
+    "Chunk grid",
+    "All edges"
+   ]
+  },
+  {
    "key": "worldMapMarkers",
    "section": "Display",
    "name": "Pin locked areas on the world map",
@@ -161,6 +177,7 @@
    "options": [
     "Off",
     "Locked edges",
+    "Chunk grid",
     "All edges"
    ]
   },

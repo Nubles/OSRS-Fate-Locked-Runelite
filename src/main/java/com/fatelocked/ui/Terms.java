@@ -29,6 +29,14 @@ public final class Terms
     public static final String CHAOS_KEYS = "Chaos Keys";
     public static final String FATE_POINTS = "Fate Points";
     public static final String DIFFERENT_CHARACTER = "Different character";
+    /** The Roll inbox card's button that copies what RuneLite noticed, for the tracker (Stage 4). */
+    public static final String COPY_FOR_TRACKER = "Copy for tracker";
+    /** The tracker's Roll Inbox button that brings the copy in. */
+    public static final String PASTE_FROM_RUNELITE = "Paste from RuneLite";
+    /** An event in the Roll inbox card that hasn't been copied yet. */
+    public static final String NEW = "New";
+    /** An event in the Roll inbox card that has been copied for the tracker. */
+    public static final String COPIED = "Copied";
 
     /** Appended to a right-click option the rules lock. */
     public static final String LOCKED_TAG = " (Locked)";

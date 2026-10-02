@@ -299,10 +299,25 @@ public class ChunkBorderRendererTest
         assertTrue(has(allEdges, Palette.PLAIN_EDGE));
         assertTrue(has(allEdges, palette.lockedEdge()));
 
+        BufferedImage chunkGrid = draw(runs, FateLockedConfig.ChunkBorders.CHUNK_GRID, false, Occlusion.NONE);
+        assertTrue(has(chunkGrid, Palette.PLAIN_EDGE));
+        assertFalse("no dashes", has(chunkGrid, palette.lockedEdge()));
+        assertFalse("no underlay", has(chunkGrid, Palette.UNDERLAY));
+
         BufferedImage fogOnly = draw(runs, FateLockedConfig.ChunkBorders.OFF, true, Occlusion.NONE);
         assertTrue(has(fogOnly, palette.lockedShade()));
         assertFalse(has(fogOnly, palette.lockedEdge()));
         assertFalse(has(fogOnly, Palette.PLAIN_EDGE));
+    }
+
+    /** Chunk grid draws a locked edge as a plain line, so the grid has no gap where the dashes would be. */
+    @Test
+    public void theChunkGridDrawsLockedEdgesPlainly()
+    {
+        BufferedImage image = draw(Collections.singletonList(LOCKED_EAST), FateLockedConfig.ChunkBorders.CHUNK_GRID,
+            false, Occlusion.NONE);
+        assertTrue(has(image, Palette.PLAIN_EDGE));
+        assertFalse(has(image, Palette.defaults().lockedEdge()));
     }
 
     /** The gaps between the dashes show the underlay, and the dashes alone the edge's colour. */

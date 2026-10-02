@@ -4,13 +4,16 @@ import com.fatelocked.FateLockedBundle;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class FateEventFactory
 {
     private final AtomicLong sessionSequence = new AtomicLong();
 
+    /**
+     * @param count what tells repeats of this name apart (EventIds); null gives this
+     *     occurrence its own id, from the time it was seen
+     */
     public FateEvent create(
         FateEventType type,
         String canonicalLabel,
@@ -19,18 +22,23 @@ public class FateEventFactory
         FateLockedBundle bundle,
         String account,
         String detectorId,
-        int detectorVersion)
+        int detectorVersion,
+        String count)
     {
+        long occurredAt = System.currentTimeMillis();
+        long sequence = sessionSequence.incrementAndGet();
+        String runId = bundle == null ? null : bundle.getRunId();
         return FateEvent.builder()
             .protocolVersion(1)
-            .eventId(UUID.randomUUID().toString())
-            .runId(bundle == null ? null : bundle.getRunId())
+            .eventId(EventIds.of(account, runId, type, canonicalLabel,
+                count != null ? count : "seen-" + occurredAt + "-" + sequence))
+            .runId(runId)
             .account(account)
             .runRevision(bundle == null ? 0 : bundle.getRunRevision())
             .eventType(type)
             .canonicalLabel(canonicalLabel)
-            .occurredAt(System.currentTimeMillis())
-            .sessionSequence(sessionSequence.incrementAndGet())
+            .occurredAt(occurredAt)
+            .sessionSequence(sequence)
             .bundleVersion(bundle == null ? 0 : bundle.getVersion())
             .rulesVersion(bundle == null ? "1" : bundle.getRulesVersion())
             .contentVersion(bundle == null ? 0 : bundle.getContentVersion())

@@ -25,10 +25,12 @@ import javax.swing.JPanel;
  */
 public class StrictModeView extends Section
 {
-    static final String INTRO = "Strict Mode stops a teleport only when it can match the trip exactly and"
-        + " fresh rules for this character lock where it goes. Walking, NPCs, objects, banks and equipment are"
-        + " never stopped; tags and warnings cover those. Pause it for 60 seconds here, or with a hotkey you"
-        + " can set in RuneLite's configuration.";
+    static final String INTRO = "Strict Mode stops a teleport it recognises exactly, with one place it can go,"
+        + " when fresh rules for this character lock that place. It also stops one to an unlocked place when you"
+        + " haven't unlocked that kind of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A"
+        + " worn item's teleport, such as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting"
+        + " on gear are never stopped; tags and warnings cover those. Pause it for 60 seconds here, or with a"
+        + " hotkey you can set in RuneLite's configuration.";
 
     private final ToggleSwitch toggle = new ToggleSwitch();
     private final IconSource icons;

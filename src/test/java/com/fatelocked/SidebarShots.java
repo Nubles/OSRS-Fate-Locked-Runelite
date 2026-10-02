@@ -1,23 +1,29 @@
 package com.fatelocked;
 
+import com.fatelocked.events.FateEventType;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.ConnectionModel;
 import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
+import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.RollInboxModel.Row;
 import com.fatelocked.sidebar.RunModel;
 import com.fatelocked.sidebar.Sidebar;
 import com.fatelocked.sidebar.StatusCardModel;
 import com.fatelocked.sidebar.StrictModeModel;
+import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette.Tone;
+import com.fatelocked.ui.Section;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import javax.swing.JComponent;
@@ -114,7 +120,56 @@ final class SidebarShots
             sidebar.connection().setExpanded(true);
             return sidebar;
         });
+        // The Roll inbox card (Stage 4), alone.
+        shots.put("roll-inbox-1-empty", () -> rollInbox(icons, RollInboxModel.builder().build()));
+        shots.put("roll-inbox-2-new", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(false))
+            .more(2)
+            .newEvents(7)
+            .warnings(1)
+            .build()));
+        shots.put("roll-inbox-3-copied", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(true))
+            .more(2)
+            .copied(7)
+            .notice(FateLockedPlugin.copied(7))
+            .build()));
+        shots.put("roll-inbox-4-unlinked", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(false).subList(0, 3))
+            .newEvents(3)
+            .character(CHARACTER)
+            .build()));
+        shots.put("roll-inbox-5-copy-failed", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(false).subList(0, 3))
+            .newEvents(3)
+            .notice(FateLockedPlugin.COPY_FAILED)
+            .build()));
         return shots;
+    }
+
+    /** The sidebar with only the Roll inbox card open, showing this. */
+    static JComponent rollInbox(IconSource icons, RollInboxModel model) throws IOException
+    {
+        Sidebar sidebar = (Sidebar) sidebar(icons, upToDate(), here("vanilla-mid", 50, 50, true), active(), run(),
+            connected());
+        sidebar.rollInbox().apply(model);
+        for (Section section : Arrays.asList(sidebar.here(), sidebar.strictMode(), sidebar.run(),
+            sidebar.rollInbox(), sidebar.connection()))
+        {
+            section.setExpanded(section == sidebar.rollInbox());
+        }
+        return sidebar;
+    }
+
+    /** Five of a run's events, newest first, one of each kind of art; Slayer's is one to check. */
+    static List<Row> noticed(boolean copied)
+    {
+        return Arrays.asList(
+            new Row("1", FateEventType.SLAYER_TASK, "Abyssal demons", "Slayer", true, copied),
+            new Row("2", FateEventType.COLLECTION_LOG, "Dragon warhammer", null, false, copied),
+            new Row("3", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, copied),
+            new Row("4", FateEventType.COMBAT_ACHIEVEMENT, "Noxious Foe", null, false, copied),
+            new Row("5", FateEventType.CLUE_CASKET, "Clue scroll (hard)", null, false, copied));
     }
 
     static JComponent sidebar(IconSource icons, StatusCardModel status, HereModel here,
@@ -143,7 +198,7 @@ final class SidebarShots
 
     static StrictModeModel active()
     {
-        return new StrictModeModel(true, "Active", Tone.GOOD, "Stops a teleport to a place your rules lock.",
+        return new StrictModeModel(true, "Active", Tone.GOOD, StrictModeSectionPresenter.WHAT_IT_DOES,
             CardAction.PAUSE_STRICT_MODE, Collections.emptyList());
     }
 

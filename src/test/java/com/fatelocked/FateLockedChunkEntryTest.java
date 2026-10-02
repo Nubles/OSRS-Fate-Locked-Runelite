@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -52,6 +53,12 @@ public class FateLockedChunkEntryTest
     private static final String RULES = "{\"version\":3,"
         + "\"chunks\":{\"Misthalin\":[{\"cx\":50,\"cy\":50}],"
         + "\"Asgarnia\":[{\"cx\":46,\"cy\":52},{\"cx\":47,\"cy\":52}]},"
+        + "\"unlockedRegions\":[\"Misthalin\"]}";
+    /** Two locked areas side by side: Asgarnia at Falador, Kandarin just west of it. */
+    private static final String TWO_LOCKED_AREAS = "{\"version\":3,"
+        + "\"chunks\":{\"Misthalin\":[{\"cx\":50,\"cy\":50}],"
+        + "\"Asgarnia\":[{\"cx\":46,\"cy\":52}],"
+        + "\"Kandarin\":[{\"cx\":45,\"cy\":52}]},"
         + "\"unlockedRegions\":[\"Misthalin\"]}";
     private static final CanonicalChunk LUMBRIDGE = new CanonicalChunk(50, 50);
     private static final CanonicalChunk FALADOR = new CanonicalChunk(46, 52);
@@ -183,8 +190,9 @@ public class FateLockedChunkEntryTest
         verify(notifier).notify("You've entered a locked area: Asgarnia");
     }
 
+    /** Chat alone plays no sound; the notification still comes with its line (the owner's call T8). */
     @Test
-    public void turningTheWarningOffSilencesIt() throws Exception
+    public void aChatAlertPlaysNoSound() throws Exception
     {
         loadRules();
         when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT);
@@ -192,7 +200,37 @@ public class FateLockedChunkEntryTest
         walk(LUMBRIDGE, FALADOR);
 
         verify(client, never()).playSoundEffect(anyInt());
+        verify(notifier).notify("You've entered a locked area: Asgarnia");
+    }
+
+    /**
+     * The owner's call T8 in the accuracy review: the notification goes with the locked-area
+     * alert's chat line, as the notifications setting says, whether or not a sound plays. A
+     * routine line brings none, and neither does a line with notifications off.
+     */
+    @Test
+    public void theNotificationGoesWithTheLockedAreasLine() throws Exception
+    {
+        set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(), TWO_LOCKED_AREAS),
+            FateLockedPlugin.RulesSource.NONE));
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT);
+
+        walk(LUMBRIDGE);
+        assertEquals(1, chatLines().size());
         verify(notifier, never()).notify(anyString());
+
+        // Asgarnia, then Kandarin straight from it: a line each, and a notification each.
+        walk(FALADOR, new CanonicalChunk(45, 52));
+        assertEquals(3, chatLines().size());
+        verify(client, never()).playSoundEffect(anyInt());
+        verify(notifier).notify("You've entered a locked area: Asgarnia");
+        verify(notifier).notify("You've entered a locked area: Kandarin");
+
+        when(config.useNotifier()).thenReturn(false);
+        when(client.getTickCount()).thenReturn(LockedAreaAlerts.QUIET_TICKS);
+        walk(LUMBRIDGE, FALADOR);
+        assertEquals(5, chatLines().size());
+        verify(notifier, times(2)).notify(anyString());
     }
 
     /** D1: with the alert off, a locked area says nothing; routine announcements are their own setting. */
@@ -208,6 +246,7 @@ public class FateLockedChunkEntryTest
         assertEquals(lines.toString(), 1, lines.size());
         assertTrue(lines.get(0), lines.get(0).endsWith(": Unlocked"));
         verify(client, never()).playSoundEffect(anyInt());
+        verify(notifier, never()).notify(anyString());
     }
 
     @Test
@@ -216,13 +255,13 @@ public class FateLockedChunkEntryTest
         loadRules();
 
         walk(LUMBRIDGE);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 0, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().build());
         walk(FALADOR);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
         walk(FALADOR_EAST);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
         walk(LUMBRIDGE);
-        verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
+        verify(panel, times(2)).showRollInbox(RollInboxModel.builder().build());
     }
 
     /** B6, U10: a golden walk warns once, on the way into Rimmington, and announces each area once. */
@@ -301,8 +340,8 @@ public class FateLockedChunkEntryTest
         assertTrue(lines.get(2), lines.get(2).endsWith(": Not ready" + (why == null ? "" : " — " + why)));
         assertTrue(lines.get(1), lines.get(1).endsWith(": Locked — Unlock Taverley"));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(0, 0, 1, false));
-        verify(panel, times(2)).showRollInbox(new RollInboxModel(0, 0, 0, false));
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
+        verify(panel, times(2)).showRollInbox(RollInboxModel.builder().build());
     }
 
     /**
@@ -318,12 +357,37 @@ public class FateLockedChunkEntryTest
 
         List<String> lines = chatLines();
         assertEquals(lines.toString(), 1, lines.size());
-        assertTrue(lines.get(0), lines.get(0).contains("you're logged in as"));
+        assertTrue(lines.get(0), lines.get(0).contains("This run is linked to ")
+            && lines.get(0).contains(", but you're logged in as "));
         verify(client, never()).playSoundEffect(anyInt());
         // Notifications are on here, so that line is also the one notification.
         verify(notifier, times(1)).notify(anyString());
-        verify(notifier).notify("You're logged in as Someone Else, not the bound account Iron Example");
-        verify(panel, never()).showRollInbox(new RollInboxModel(0, 0, 1, false));
+        verify(notifier).notify("You're logged in as Someone Else, but this run is linked to Iron Example");
+        verify(panel, never()).showRollInbox(RollInboxModel.builder().warnings(1).build());
+    }
+
+    /**
+     * The accuracy review, P-10: on another character the Roll inbox says why RuneLite notices
+     * nothing, rather than promising events, and stops saying it on the run's own character.
+     */
+    @Test
+    public void theRollInboxSaysWhyNothingIsNoticedOnAnotherCharacter() throws Exception
+    {
+        playing("Someone Else");
+        walk(LUMBRIDGE);
+        assertEquals("RuneLite notices nothing on this character: your run is linked to Iron Example.",
+            lastRollInbox().getQuiet());
+
+        when(player.getName()).thenReturn("Iron Example");
+        walk(LUMBRIDGE);
+        assertNull(lastRollInbox().getQuiet());
+    }
+
+    private RollInboxModel lastRollInbox()
+    {
+        ArgumentCaptor<RollInboxModel> shown = ArgumentCaptor.forClass(RollInboxModel.class);
+        verify(panel, atLeast(1)).showRollInbox(shown.capture());
+        return shown.getValue();
     }
 
     /** A chunk the tracker locks outside the old area lists is announced without an area. */

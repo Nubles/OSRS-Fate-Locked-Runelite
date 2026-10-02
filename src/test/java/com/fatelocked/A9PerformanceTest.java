@@ -39,14 +39,16 @@ public class A9PerformanceTest
         WorldMapProjection projection = new WorldMapProjection(map, 1.5f, 3200, 3200);
         Shape clip = WorldMapClip.of(map, null, null);
         Shape outline = FateLockedWorldMapOverlay.outlinePath(model, projection);
+        Shape grid = FateLockedWorldMapOverlay.gridPath(model, projection);
         Palette palette = Palette.defaults();
         NoopGraphics graphics = new NoopGraphics();
 
-        FateLockedWorldMapOverlay.draw(graphics, model, projection, palette, clip, outline);
+        FateLockedWorldMapOverlay.draw(graphics, model, projection, palette, clip, outline, grid);
         assertTrue("the loop fills the locked land in view", graphics.fills > 0);
-        assertEquals("and draws the outline, over its underlay", 2, graphics.draws);
+        assertEquals("and draws the grid, then the outline over its underlay", 3, graphics.draws);
 
-        double bytes = perRound(() -> FateLockedWorldMapOverlay.draw(graphics, model, projection, palette, clip, outline));
+        double bytes = perRound(() -> FateLockedWorldMapOverlay.draw(graphics, model, projection, palette, clip, outline,
+            grid));
         assertTrue(bytes + " bytes a frame", bytes < 1);
     }
 

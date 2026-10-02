@@ -41,12 +41,13 @@ public class FateLockedConfigTest
         new Object[]{"hudMode", FateLockedConfig.displaySection, 0, FateLockedConfig.HudMode.COMPACT},
         new Object[]{"worldMapMode", FateLockedConfig.displaySection, 1,
             FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS},
-        new Object[]{"worldMapMarkers", FateLockedConfig.displaySection, 2, false},
-        new Object[]{"chunkBorders", FateLockedConfig.displaySection, 3, FateLockedConfig.ChunkBorders.LOCKED_EDGES},
-        new Object[]{"shadeNearbyLocked", FateLockedConfig.displaySection, 4, true},
-        new Object[]{"drawMinimap", FateLockedConfig.displaySection, 5, true},
-        new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 6, false},
-        new Object[]{"colourPreset", FateLockedConfig.displaySection, 7, FateLockedConfig.ColourPreset.DEFAULT},
+        new Object[]{"worldMapBorders", FateLockedConfig.displaySection, 2, FateLockedConfig.ChunkBorders.LOCKED_EDGES},
+        new Object[]{"worldMapMarkers", FateLockedConfig.displaySection, 3, false},
+        new Object[]{"chunkBorders", FateLockedConfig.displaySection, 4, FateLockedConfig.ChunkBorders.LOCKED_EDGES},
+        new Object[]{"shadeNearbyLocked", FateLockedConfig.displaySection, 5, true},
+        new Object[]{"drawMinimap", FateLockedConfig.displaySection, 6, true},
+        new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 7, false},
+        new Object[]{"colourPreset", FateLockedConfig.displaySection, 8, FateLockedConfig.ColourPreset.DEFAULT},
         new Object[]{"unlockedColor", FateLockedConfig.customColoursSection, 0, new Color(16, 185, 129, 110)},
         new Object[]{"frontierColor", FateLockedConfig.customColoursSection, 1, new Color(245, 158, 11, 100)},
         new Object[]{"lockedColor", FateLockedConfig.customColoursSection, 2, new Color(239, 68, 68, 110)},
@@ -109,7 +110,8 @@ public class FateLockedConfigTest
         assertEquals(Arrays.asList("Off", "Compact", "Detailed"), labels(FateLockedConfig.HudMode.values()));
         assertEquals(Arrays.asList("Off", "Shading", "Shading and tooltip", "Shading, tooltip and contents"),
             labels(FateLockedConfig.WorldMapMode.values()));
-        assertEquals(Arrays.asList("Off", "Locked edges", "All edges"), labels(FateLockedConfig.ChunkBorders.values()));
+        assertEquals(Arrays.asList("Off", "Locked edges", "Chunk grid", "All edges"),
+            labels(FateLockedConfig.ChunkBorders.values()));
         assertEquals(Arrays.asList("Default", "Colour-blind safe", "Custom"),
             labels(FateLockedConfig.ColourPreset.values()));
 
@@ -119,6 +121,13 @@ public class FateLockedConfigTest
             assertEquals(alert.name(), label.contains("chat"), alert.chat());
             assertEquals(alert.name(), label.contains("sound"), alert.sound());
             assertEquals(alert.name(), label.contains("fade"), alert.fade());
+        }
+        for (FateLockedConfig.ChunkBorders borders : FateLockedConfig.ChunkBorders.values())
+        {
+            String label = borders.toString().toLowerCase(Locale.ROOT);
+            boolean all = label.equals("all edges");
+            assertEquals(borders.name(), all || label.contains("locked"), borders.locked());
+            assertEquals(borders.name(), all || label.contains("grid"), borders.grid());
         }
         for (FateLockedConfig.WorldMapMode mode : FateLockedConfig.WorldMapMode.values())
         {
@@ -182,6 +191,45 @@ public class FateLockedConfigTest
             }
         }
         assertEquals(1, strict);
+    }
+
+    /**
+     * The accuracy review: each description says what its setting does, as the code does it. The
+     * claims a finding corrected are pinned here; the code that makes each true has its own test.
+     */
+    @Test
+    public void eachDescriptionSaysWhatItsSettingDoes()
+    {
+        // T8: the notification goes with the locked-area alert's line (FateLockedChunkEntryTest).
+        assertSays("useNotifier", "each locked-area alert's chat line", "each rule warning", "isn't linked to");
+        // P-4: a minute's quiet, not once per area; the sound and fade come only from unlocked land.
+        assertSays("lockedAreaAlert", "only when you arrive from unlocked land", "quiet for a minute");
+        assertEquals("a minute of game ticks", 100, LockedAreaAlerts.QUIET_TICKS);
+        // P-11: a locked area's line is the alert's (LockedAreaAlertsTest).
+        assertSays("announceAreaChanges", "Locked areas follow the Locked-area alert instead");
+        // P-12 to P-14, T9: what reaches the Roll inbox, and when a reminder comes.
+        assertSays("rollNudges", "a finished diary tier (not each task)", "a combat task", "a clue scroll",
+            "a Slayer task", "game's own collection log notification", "the character your run is linked to");
+        // P-15, P-16: the minimap's lines and shade (FateLockedMinimapOverlayTest).
+        assertSays("shadeNearbyLocked", "a band two tiles deep", "while Minimap chunk borders is on");
+        assertEquals(2, ChunkBorderRenderer.FOG_TILES);
+        assertSays("drawMinimap", "The game view's chunk lines on the minimap",
+            "or the locked edges while Chunk borders in the game view is Off", "With Shade locked land nearby on");
+        // P-5: the colour is for words and labels only, made opaque (PaletteSettingsTest).
+        assertSays("unlockedColor", "Unlocked land isn't coloured", "its transparency isn't used");
+        // P-22, P-23, P-49: the bank warning is chat only; ground items are tagged; Keys unlock.
+        assertSays("ruleWarnings", "Chat warnings", "the Slayer and gear ones also stay on the HUD");
+        assertSays("tagLockedOptions", "items on the ground");
+        assertSays("frontierColor", "you can unlock next");
+    }
+
+    private static void assertSays(String key, String... claims)
+    {
+        String description = configItemsByKey().get(key).getAnnotation(ConfigItem.class).description();
+        for (String claim : claims)
+        {
+            assertTrue(key + " says \"" + claim + "\": " + description, description.contains(claim));
+        }
     }
 
     private static Map<String, Method> configItemsByKey()

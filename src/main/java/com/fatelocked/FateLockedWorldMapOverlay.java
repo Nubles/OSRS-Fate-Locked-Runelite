@@ -26,7 +26,10 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 /**
  * The run on the world map (U18, decision 4): locked land shaded dark like fog of war, the
  * frontier of a Chunked run lightly filled, unlocked land left clear, and the unlocked land
- * outlined with the locked edge's dash. Land only, as the web map shows it; nothing on another
+ * outlined with the locked edge's dash. World map borders picks the lines, as Chunk borders does
+ * in the game view: the outline (Locked edges), a faint line on every chunk edge under it as the
+ * map drew before Stage 3 (All edges), or none (players' requests, 29 Sept). Land only, as the web
+ * map shows it; nothing on another
  * character. It draws inside the map only, never over the overview or the surface selector.
  *
  * <p>What to draw is worked out once per decision service ({@link WorldMapModel}), and placed with
@@ -59,6 +62,10 @@ public class FateLockedWorldMapOverlay extends Overlay
     private WorldMapModel outlineModel;
     private WorldMapProjection outlineProjection;
     private Shape outline;
+    // The grid, likewise.
+    private WorldMapModel gridModel;
+    private WorldMapProjection gridProjection;
+    private Shape grid;
     // The last tooltip, kept while the mouse stays on one chunk.
     private DecisionService tipDecisions;
     private CanonicalChunk tipChunk;
@@ -100,7 +107,10 @@ public class FateLockedWorldMapOverlay extends Overlay
         WorldMapProjection view = projection(bounds, zoom, centre.getX(), centre.getY());
         Shape mapClip = clip(bounds, shown(InterfaceID.Worldmap.OVERVIEW_CONTAINER),
             shown(InterfaceID.Worldmap.MAPLIST_BOX_GRAPHIC0));
-        draw(graphics, current, view, plugin.palette(), mapClip, outline(current, view));
+        FateLockedConfig.ChunkBorders borders = config.worldMapBorders();
+        draw(graphics, current, view, plugin.palette(), mapClip,
+            borders.locked() ? outline(current, view) : null,
+            borders.grid() ? grid(current, view) : null);
         if (mode.tooltip())
         {
             tooltip(decisions, view, mapClip, mode.contents());
@@ -110,10 +120,11 @@ public class FateLockedWorldMapOverlay extends Overlay
 
     /**
      * Draw the model where the projection places it, inside the clip: one fill per run of
-     * chunks in view, then the outline. Called every frame, so it makes no garbage.
+     * chunks in view, then the grid and the outline, where there are. Called every frame, so it
+     * makes no garbage.
      */
     static void draw(Graphics2D graphics, WorldMapModel model, WorldMapProjection projection, Palette palette,
-        Shape clip, Shape outline)
+        Shape clip, Shape outline, Shape grid)
     {
         int west = projection.westChunk();
         int east = projection.eastChunk();
@@ -137,24 +148,44 @@ public class FateLockedWorldMapOverlay extends Overlay
             int y1 = projection.lineY(run.getCy() << 6);
             graphics.fillRect(x0, y0, x1 - x0, y1 - y0);
         }
-        graphics.setStroke(Palette.UNDERLAY_STROKE);
-        graphics.setColor(Palette.UNDERLAY);
-        graphics.draw(outline);
-        graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
-        graphics.setColor(palette.lockedEdge());
-        graphics.draw(outline);
+        if (grid != null)
+        {
+            graphics.setStroke(Palette.PLAIN_EDGE_STROKE);
+            graphics.setColor(Palette.PLAIN_EDGE);
+            graphics.draw(grid);
+        }
+        if (outline != null)
+        {
+            graphics.setStroke(Palette.UNDERLAY_STROKE);
+            graphics.setColor(Palette.UNDERLAY);
+            graphics.draw(outline);
+            graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
+            graphics.setColor(palette.lockedEdge());
+            graphics.draw(outline);
+        }
         graphics.setClip(before);
     }
 
     /** The unlocked land's outline in canvas pixels, kept to the chunks in view, as one path. */
     static Shape outlinePath(WorldMapModel model, WorldMapProjection projection)
     {
+        return edgePath(model.outline(), projection);
+    }
+
+    /** Every chunk's sides in canvas pixels, kept to the chunks in view, as one path. */
+    static Shape gridPath(WorldMapModel model, WorldMapProjection projection)
+    {
+        return edgePath(model.grid(), projection);
+    }
+
+    private static Shape edgePath(List<WorldMapModel.Edge> edges, WorldMapProjection projection)
+    {
         int west = projection.westChunk();
         int east = projection.eastChunk();
         int south = projection.southChunk();
         int north = projection.northChunk();
         GeneralPath outline = new GeneralPath();
-        for (WorldMapModel.Edge edge : model.outline())
+        for (WorldMapModel.Edge edge : edges)
         {
             // Kept to the chunks in view, so a long dashed line isn't worked out off the map.
             int low = edge.isVertical() ? south : west;
@@ -181,6 +212,18 @@ public class FateLockedWorldMapOverlay extends Overlay
             }
         }
         return outline;
+    }
+
+    /** The grid for these rules in this view; worked out again only when either changes. */
+    private Shape grid(WorldMapModel current, WorldMapProjection view)
+    {
+        if (current != gridModel || view != gridProjection)
+        {
+            grid = gridPath(current, view);
+            gridModel = current;
+            gridProjection = view;
+        }
+        return grid;
     }
 
     /** How tiles fall on the map as shown; worked out again only when it moves or zooms. */

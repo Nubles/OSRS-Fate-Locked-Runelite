@@ -81,10 +81,26 @@ public class LockedAreaPinsTest
 
         assertEquals(Set.of(), pinsFor(mid, "Someone Else"));
         assertEquals(Set.of(), pinsFor(mid, null));
-        assertEquals("logging in places them", 164, pinsFor(mid, "Iron Example").size());
+        // One pin per locked area: 178 areas less the 13 unlocked.
+        assertEquals("logging in places them", 165, pinsFor(mid, "Iron Example").size());
 
         when(config.worldMapMarkers()).thenReturn(false);
         assertEquals("the setting off", Set.of(), pinsFor(mid, "Iron Example"));
+    }
+
+    /** A pin's tooltip names its area and says Locked, as the sidebar does (accuracy review, P-41). */
+    @Test
+    public void aPinsTooltipSaysItsAreaIsLocked() throws Exception
+    {
+        FateLockedBundle mid = FateLockedBundle.loadFromJson(GSON,
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")));
+        pinsFor(mid, "Iron Example");
+        ArgumentCaptor<WorldMapPoint> added = ArgumentCaptor.forClass(WorldMapPoint.class);
+        verify(map, atLeast(1)).add(added.capture());
+        for (WorldMapPoint pin : added.getAllValues())
+        {
+            assertEquals(pin.getName() + ": Locked", pin.getTooltip());
+        }
     }
 
     /** E1: the pins are drawn in the palette's locked colour, and a colour change redraws them. */

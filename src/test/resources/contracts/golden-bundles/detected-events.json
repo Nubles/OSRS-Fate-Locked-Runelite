@@ -1,0 +1,437 @@
+{
+  "schema": 1,
+  "about": "What RuneLite's detectors must make of real game signals (Stage 4), and what the app must make of those events. The plugin runs its detectors over each case's signals, in order, and expects exactly the case's events. The app classifies each event against a run where it is new and expects its verdict. Written by hand, unlike the bundles; the manifest lists it so the plugin copies it at a pinned commit.",
+  "signals": {
+    "chat": "A chat message as RuneLite's ChatMessage carries it: its type and its text with colour tags.",
+    "popup": "The game's notification popup: its title and main text as the game sets them.",
+    "levels": "Real skill levels read at login or when the plugin starts: the baseline.",
+    "level": "A skill's real level after a StatChanged.",
+    "quests": "Every quest the game says is finished, by RuneLite's quest name. The first reading is the baseline.",
+    "varbits": "A full reading of the varbits the detectors read, by id: the diary tiers (the baseline) and the collection log's notification setting (11959).",
+    "varbit": "One varbit's new value.",
+    "slayer": "The Slayer task as the game's variables give it: the task's name from the game's task table, the amount left and the amount assigned, the master's value, the task streak for that master, and whether it's a boss task (bossTask, false when absent)."
+  },
+  "events": "Each event names its type, label, confidence, detector and version, and evidence exactly. The app's verdict is READY or NEEDS_CONFIRMATION; firstCandidate is the choice a review starts on.",
+  "run": "The app classifies against a Vanilla run for Iron Example with every skill unlocked at level 1 and every boss unlocked, plus the case's given unlocks.",
+  "cases": [
+    {
+      "id": "skill-one-level",
+      "about": "A level-up after the baseline.",
+      "signals": [
+        { "kind": "levels", "levels": { "Attack": 70 } },
+        { "kind": "level", "skill": "Attack", "level": 71 }
+      ],
+      "events": [
+        { "eventType": "SKILL_LEVEL", "canonicalLabel": "Attack Level 71", "confidence": "EXACT", "detectorId": "skill-level-v1", "detectorVersion": 2, "evidence": { "skill": "Attack", "previousLevel": 70, "level": 71 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "skill-jump",
+      "about": "Two levels at once give one event per level, oldest first, as logging each by hand does.",
+      "signals": [
+        { "kind": "levels", "levels": { "Attack": 70 } },
+        { "kind": "level", "skill": "Attack", "level": 72 }
+      ],
+      "events": [
+        { "eventType": "SKILL_LEVEL", "canonicalLabel": "Attack Level 71", "confidence": "EXACT", "detectorId": "skill-level-v1", "detectorVersion": 2, "evidence": { "skill": "Attack", "previousLevel": 70, "level": 71 }, "web": { "verdict": "READY" } },
+        { "eventType": "SKILL_LEVEL", "canonicalLabel": "Attack Level 72", "confidence": "EXACT", "detectorId": "skill-level-v1", "detectorVersion": 2, "evidence": { "skill": "Attack", "previousLevel": 71, "level": 72 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "skill-runecraft",
+      "about": "RuneLite's skill name is the app's, Runecraft included.",
+      "signals": [
+        { "kind": "levels", "levels": { "Runecraft": 44 } },
+        { "kind": "level", "skill": "Runecraft", "level": 45 }
+      ],
+      "events": [
+        { "eventType": "SKILL_LEVEL", "canonicalLabel": "Runecraft Level 45", "confidence": "EXACT", "detectorId": "skill-level-v1", "detectorVersion": 2, "evidence": { "skill": "Runecraft", "previousLevel": 44, "level": 45 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "skill-no-baseline",
+      "about": "Without a baseline the detector never guesses which levels are new.",
+      "signals": [
+        { "kind": "level", "skill": "Attack", "level": 71 }
+      ],
+      "events": []
+    },
+    {
+      "id": "quest-finished",
+      "about": "A quest the game newly says is finished.",
+      "signals": [
+        { "kind": "quests", "finished": ["Rune Mysteries"] },
+        { "kind": "quests", "finished": ["Rune Mysteries", "Cook's Assistant"] }
+      ],
+      "events": [
+        { "eventType": "QUEST", "canonicalLabel": "Cook's Assistant", "confidence": "EXACT", "detectorId": "quest-state-v1", "detectorVersion": 1, "evidence": { "quest": "Cook's Assistant" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "quest-baseline-only",
+      "about": "The first reading is the baseline: quests finished before it are not new.",
+      "signals": [
+        { "kind": "quests", "finished": ["Cook's Assistant", "Doric's Quest"] }
+      ],
+      "events": []
+    },
+    {
+      "id": "quest-rfd-part",
+      "about": "RuneLite's Recipe for Disaster parts take the app's RFD ids. RuneLite's name is from its Quest enum.",
+      "given": { "quests": ["Cook's Assistant"], "skills": { "Cooking": 1 }, "levels": { "Cooking": 10 } },
+      "signals": [
+        { "kind": "quests", "finished": ["Cook's Assistant"] },
+        { "kind": "quests", "finished": ["Cook's Assistant", "Recipe for Disaster - Another Cook's Quest"] }
+      ],
+      "events": [
+        { "eventType": "QUEST", "canonicalLabel": "RFD: The Cook", "confidence": "EXACT", "detectorId": "quest-state-v1", "detectorVersion": 1, "evidence": { "quest": "Recipe for Disaster - Another Cook's Quest" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "combat-task-chat",
+      "about": "RuneLite ScreenshotPluginTest's real grandmaster line.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Congratulations, you've completed a grandmaster combat task: @ach_comp@Egniol Diet II</col> (6 points)." }
+      ],
+      "events": [
+        { "eventType": "COMBAT_ACHIEVEMENT", "canonicalLabel": "Egniol Diet II", "confidence": "EXACT", "detectorId": "combat-achievement-chat-v1", "detectorVersion": 2, "evidence": { "tier": "grandmaster", "from": "chat" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "combat-task-chat-easy",
+      "about": "RuneLite ScreenshotPluginTest's real easy line, with no points.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Congratulations, you've completed an easy combat task: @ach_comp@Into the Den of Giants</col>." }
+      ],
+      "events": [
+        { "eventType": "COMBAT_ACHIEVEMENT", "canonicalLabel": "Into the Den of Giants", "confidence": "EXACT", "detectorId": "combat-achievement-chat-v1", "detectorVersion": 2, "evidence": { "tier": "easy", "from": "chat" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "combat-task-name-with-punctuation",
+      "about": "RuneLite ScreenshotPluginTest's real hard line: the task's name keeps its question mark.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Congratulations, you've completed a hard combat task: @ach_comp@Why Cook?</col>." }
+      ],
+      "events": [
+        { "eventType": "COMBAT_ACHIEVEMENT", "canonicalLabel": "Why Cook?", "confidence": "EXACT", "detectorId": "combat-achievement-chat-v1", "detectorVersion": 2, "evidence": { "tier": "hard", "from": "chat" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "combat-task-popup",
+      "about": "RuneLite ScreenshotPluginTest's real popup, for players who see it instead of the chat line.",
+      "signals": [
+        { "kind": "popup", "title": "Combat Task Completed!", "text": "Task Completed: <col=ffffff>Handyman</col> (6 points)" }
+      ],
+      "events": [
+        { "eventType": "COMBAT_ACHIEVEMENT", "canonicalLabel": "Handyman", "confidence": "EXACT", "detectorId": "combat-achievement-chat-v1", "detectorVersion": 2, "evidence": { "from": "popup" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "combat-task-once",
+      "about": "The chat line and the popup for one task record it once.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Congratulations, you've completed a grandmaster combat task: @ach_comp@Egniol Diet II</col> (6 points)." },
+        { "kind": "popup", "title": "Combat Task Completed!", "text": "Task Completed: <col=ffffff>Egniol Diet II</col> (6 points)" }
+      ],
+      "events": [
+        { "eventType": "COMBAT_ACHIEVEMENT", "canonicalLabel": "Egniol Diet II", "confidence": "EXACT", "detectorId": "combat-achievement-chat-v1", "detectorVersion": 2, "evidence": { "tier": "grandmaster", "from": "chat" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "collection-log-tagged",
+      "about": "RuneLite ScreenshotPluginTest's real line, colour tags and all. The game calls all 18 chompy bird hats one name, so the app asks which.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: <col=ef1020>Chompy bird hat</col>" }
+      ],
+      "events": [
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Chompy bird hat", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "collection-log-plain",
+      "about": "The line's form without tags, as RuneLite ChatCommandsPluginTest's line has it, for an item on one page.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: Dragonbone necklace" }
+      ],
+      "events": [
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Dragonbone necklace", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "collection-log-several-pages",
+      "about": "A name on six pages: the app asks which page.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: <col=ef1020>Dragon pickaxe</col>" }
+      ],
+      "events": [
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Dragon pickaxe", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "collection-log-popup-shown",
+      "about": "With the game's collection log notification set to anything but chat only (varbit 11959 other than 1, as RuneLite's Screenshot plugin reads it), the popup stands for the item: RuneLite ScreenshotPluginTest's real line and popup record it once.",
+      "signals": [
+        { "kind": "varbits", "values": { "11959": 3 } },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: <col=ef1020>Chompy bird hat</col>" },
+        { "kind": "popup", "title": "Collection log", "text": "New item:<br><br><col=ffffff>Chompy bird hat</col>" }
+      ],
+      "events": [
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Chompy bird hat", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "popup" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "collection-log-same-name-twice",
+      "about": "Two chompy bird hats are two items the game names alike: each is an event, and the app asks which.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: <col=ef1020>Chompy bird hat</col>" },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: <col=ef1020>Chompy bird hat</col>" }
+      ],
+      "events": [
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Chompy bird hat", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "NEEDS_CONFIRMATION" } },
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Chompy bird hat", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "clue-first",
+      "about": "RuneLite LootTrackerPluginTest's real line for a first clue.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "You have completed 1 master Treasure Trail." }
+      ],
+      "events": [
+        { "eventType": "CLUE_CASKET", "canonicalLabel": "Clue scroll (master)", "confidence": "EXACT", "detectorId": "clue-completion-v1", "detectorVersion": 1, "evidence": { "tier": "master", "count": 1 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "clue-tagged-thousands",
+      "about": "RuneLite ScreenshotPluginTest's real line: colour tags, a thousands separator and no full stop.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "<col=3300ff>You have completed 2,823 medium Treasure Trails</col>" }
+      ],
+      "events": [
+        { "eventType": "CLUE_CASKET", "canonicalLabel": "Clue scroll (medium)", "confidence": "EXACT", "detectorId": "clue-completion-v1", "detectorVersion": 1, "evidence": { "tier": "medium", "count": 2823 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "boss-kill-count",
+      "about": "RuneLite ChatCommandsPluginTest's real line.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Corporeal Beast kill count is: <col=ff0000>4</col>." }
+      ],
+      "events": [
+        { "eventType": "BOSS_KILL", "canonicalLabel": "Corporeal Beast", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Corporeal Beast", "count": 4 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "boss-kill-count-thousands",
+      "about": "RuneLite ChatCommandsPluginTest's real line: a thousands separator and no full stop.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Nightmare kill count is: <col=ff0000>1,130</col>" }
+      ],
+      "events": [
+        { "eventType": "BOSS_KILL", "canonicalLabel": "The Nightmare", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Nightmare", "count": 1130 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "boss-name-differs",
+      "about": "RuneLite ChatCommandsPluginTest's real lines: the game names the fight's last boss.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your TzTok-Jad kill count is: <col=ff0000>2</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your TzKal-Zuk kill count is: <col=ff0000>3</col>." }
+      ],
+      "events": [
+        { "eventType": "BOSS_KILL", "canonicalLabel": "TzHaar Fight Cave", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "TzTok-Jad", "count": 2 }, "web": { "verdict": "READY" } },
+        { "eventType": "BOSS_KILL", "canonicalLabel": "Inferno", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "TzKal-Zuk", "count": 3 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "boss-chest-count",
+      "about": "The Barrows chest line, with and without its colon (RuneLite ChatCommandsPluginTest and ScreenshotPluginTest).",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Barrows chest count is: <col=ff0000>277</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Barrows chest count is <col=ff0000>310</col>" }
+      ],
+      "events": [
+        { "eventType": "BOSS_KILL", "canonicalLabel": "Barrows Brothers", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Barrows chest", "count": 277 }, "web": { "verdict": "READY" } },
+        { "eventType": "BOSS_KILL", "canonicalLabel": "Barrows Brothers", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Barrows chest", "count": 310 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "boss-subdued-and-completion",
+      "about": "RuneLite ChatCommandsPluginTest's real lines with \"subdued\" and \"completion count\".",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your subdued Wintertodt count is: <col=ff0000>4</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Gauntlet completion count is: <col=ff0000>123</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Corrupted Gauntlet completion count is: <col=ff0000>4729</col>." }
+      ],
+      "events": [
+        { "eventType": "BOSS_KILL", "canonicalLabel": "Wintertodt", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Wintertodt", "count": 4 }, "web": { "verdict": "READY" } },
+        { "eventType": "BOSS_KILL", "canonicalLabel": "The Gauntlet", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Gauntlet", "count": 123 }, "web": { "verdict": "READY" } },
+        { "eventType": "BOSS_KILL", "canonicalLabel": "The Gauntlet", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Corrupted Gauntlet", "count": 4729 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "boss-completion-count-for",
+      "about": "RuneLite ChatCommandsPluginTest's real line: \"completion count for\" comes before the name, and no \"count\" after it.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completion count for TzHaar-Ket-Rak's First Challenge is: <col=ff0000>3</col>." }
+      ],
+      "events": [
+        { "eventType": "BOSS_KILL", "canonicalLabel": "TzHaar-Ket-Rak's Challenges", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "TzHaar-Ket-Rak's First Challenge", "count": 3 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "raid-completions",
+      "about": "RuneLite ChatCommandsPluginTest's and ScreenshotPluginTest's real raid lines, every mode.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completed Chambers of Xeric count is: <col=ff0000>51</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completed Chambers of Xeric Challenge Mode count is: <col=ff0000>13</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completed Theatre of Blood: Entry Mode count is: <col=ff0000>73</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completed Theatre of Blood: Story Mode count is: <col=ff0000>74</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completed Theatre of Blood: Hard Mode count is: <col=ff0000>75</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your completed Tombs of Amascut: Expert Mode count is: <col=ff0000>1</col>." }
+      ],
+      "events": [
+        { "eventType": "RAID_COMPLETION", "canonicalLabel": "Chambers of Xeric", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Chambers of Xeric", "count": 51 }, "web": { "verdict": "READY" } },
+        { "eventType": "RAID_COMPLETION", "canonicalLabel": "Chambers of Xeric", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Chambers of Xeric Challenge Mode", "count": 13 }, "web": { "verdict": "READY" } },
+        { "eventType": "RAID_COMPLETION", "canonicalLabel": "Theatre of Blood", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Theatre of Blood: Entry Mode", "count": 73 }, "web": { "verdict": "READY" } },
+        { "eventType": "RAID_COMPLETION", "canonicalLabel": "Theatre of Blood", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Theatre of Blood: Story Mode", "count": 74 }, "web": { "verdict": "READY" } },
+        { "eventType": "RAID_COMPLETION", "canonicalLabel": "Theatre of Blood", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Theatre of Blood: Hard Mode", "count": 75 }, "web": { "verdict": "READY" } },
+        { "eventType": "RAID_COMPLETION", "canonicalLabel": "Tombs of Amascut", "confidence": "EXACT", "detectorId": "boss-kill-count-v1", "detectorVersion": 1, "evidence": { "killCountName": "Tombs of Amascut: Expert Mode", "count": 1 }, "web": { "verdict": "READY" } }
+      ]
+    },
+    {
+      "id": "not-a-boss",
+      "about": "Counts that name no boss on the app's list: an agility lap, a herbiboar harvest, and a Leagues echo boss (RuneLite ChatCommandsPluginTest's real lines).",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your Prifddinas Agility Course lap count is: @mes_hl_red@2</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your herbiboar harvest count is: <col=ff0000>4091</col>." },
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "Your <col=a53fff>Corrupted Hunllef (Echo)</col> kill count is: <col=ff3045>31</col>" }
+      ],
+      "events": []
+    },
+    {
+      "id": "not-from-the-game",
+      "about": "A player can't fake a kill: only game messages count.",
+      "signals": [
+        { "kind": "chat", "type": "PUBLICCHAT", "message": "Your Corporeal Beast kill count is: <col=ff0000>5</col>." }
+      ],
+      "events": []
+    },
+    {
+      "id": "slayer-task-complete",
+      "about": "The amount reaches 0 and the streak rises. Master 7 is Krystilia (RuneLite SlayerPlugin's KRYSTILIA_SLAYER_MASTER).",
+      "signals": [
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 1, "assigned": 120, "master": 7, "streak": 43 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 120, "master": 7, "streak": 44 }
+      ],
+      "events": [
+        { "eventType": "SLAYER_TASK", "canonicalLabel": "Abyssal demons", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "master": "Krystilia", "assigned": 120, "streak": 44 }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Krystilia)" } }
+      ]
+    },
+    {
+      "id": "slayer-master-unchecked",
+      "about": "A master whose value hasn't been checked in the game is left out, and the player chooses.",
+      "signals": [
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 1, "assigned": 150, "master": 5, "streak": 12 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 150, "master": 5, "streak": 13 }
+      ],
+      "events": [
+        { "eventType": "SLAYER_TASK", "canonicalLabel": "Abyssal demons", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "assigned": 150, "streak": 13 }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Turael/Spria)" } }
+      ]
+    },
+    {
+      "id": "slayer-task-skipped",
+      "about": "A task cancelled with points ends without the streak rising: not a completion.",
+      "signals": [
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 80, "assigned": 120, "master": 7, "streak": 43 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 120, "master": 7, "streak": 43 }
+      ],
+      "events": []
+    },
+    {
+      "id": "slayer-streak-after-amount",
+      "about": "The amount and the streak can change in separate readings: the task completes once both have.",
+      "signals": [
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 1, "assigned": 120, "master": 7, "streak": 43 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 120, "master": 7, "streak": 43 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 120, "master": 7, "streak": 44 }
+      ],
+      "events": [
+        { "eventType": "SLAYER_TASK", "canonicalLabel": "Abyssal demons", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "master": "Krystilia", "assigned": 120, "streak": 44 }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Krystilia)" } }
+      ]
+    },
+    {
+      "id": "slayer-master-changes",
+      "about": "A streak read for another master is another task's: the next task's master arriving first is no completion.",
+      "signals": [
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 5, "assigned": 120, "master": 7, "streak": 43 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 120, "master": 9, "streak": 500 }
+      ],
+      "events": []
+    },
+    {
+      "id": "slayer-boss-task",
+      "about": "A boss task (the game's task 98) says so, and the app starts on the boss task roll.",
+      "signals": [
+        { "kind": "slayer", "task": "Vorkath", "amount": 3, "assigned": 5, "master": 9, "streak": 10, "bossTask": true },
+        { "kind": "slayer", "task": "Vorkath", "amount": 0, "assigned": 5, "master": 9, "streak": 11, "bossTask": true }
+      ],
+      "events": [
+        { "eventType": "SLAYER_TASK", "canonicalLabel": "Vorkath", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "assigned": 5, "streak": 11, "bossTask": true }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Boss Task)" } }
+      ]
+    },
+    {
+      "id": "diary-tier-finished",
+      "about": "Varbit 4479 (VARROCK_DIARY_EASY_COMPLETE) turns 1 after a baseline of 0.",
+      "signals": [
+        { "kind": "varbits", "values": { "4479": 0 } },
+        { "kind": "varbit", "id": 4479, "value": 1 }
+      ],
+      "events": [
+        { "eventType": "DIARY_TASK", "canonicalLabel": "Varrock Easy", "confidence": "UNCERTAIN", "detectorId": "diary-task-v1", "detectorVersion": 2, "evidence": { "tierId": "Varrock Easy", "previous": 0, "completed": 1 }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "diary-tier-renamed-region",
+      "about": "Varbit 4495 (LUMBRIDGE_DIARY_EASY_COMPLETE): the game's Lumbridge & Draynor is the app's Lumbridge.",
+      "signals": [
+        { "kind": "varbits", "values": { "4495": 0 } },
+        { "kind": "varbit", "id": 4495, "value": 1 }
+      ],
+      "events": [
+        { "eventType": "DIARY_TASK", "canonicalLabel": "Lumbridge Easy", "confidence": "UNCERTAIN", "detectorId": "diary-task-v1", "detectorVersion": 2, "evidence": { "tierId": "Lumbridge Easy", "previous": 0, "completed": 1 }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "diary-already-done",
+      "about": "A tier finished before the baseline is not new.",
+      "signals": [
+        { "kind": "varbits", "values": { "4479": 1 } },
+        { "kind": "varbit", "id": 4479, "value": 1 }
+      ],
+      "events": []
+    },
+    {
+      "id": "diary-karamja-done-at-two",
+      "about": "Karamja's easy, medium and hard varbits (3578, 3599 and 3611) are 1 once started and 2 once done, as the OSRS Wiki gives them; every other tier's is 1 once done.",
+      "signals": [
+        { "kind": "varbits", "values": { "3578": 0 } },
+        { "kind": "varbit", "id": 3578, "value": 1 },
+        { "kind": "varbit", "id": 3578, "value": 2 }
+      ],
+      "events": [
+        { "eventType": "DIARY_TASK", "canonicalLabel": "Karamja Easy", "confidence": "UNCERTAIN", "detectorId": "diary-task-v1", "detectorVersion": 2, "evidence": { "tierId": "Karamja Easy", "previous": 1, "completed": 2 }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "diary-change-before-reading",
+      "about": "A change before the full reading is the login's own tiers arriving from the server, not a tier done now.",
+      "signals": [
+        { "kind": "varbit", "id": 4479, "value": 1 },
+        { "kind": "varbits", "values": { "4479": 1 } }
+      ],
+      "events": []
+    }
+  ]
+}

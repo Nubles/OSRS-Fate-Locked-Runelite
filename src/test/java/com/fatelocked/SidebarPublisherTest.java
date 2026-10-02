@@ -28,11 +28,11 @@ public class SidebarPublisherTest
         publisher.status(older);
         verify(panel, times(1)).showStatus(older);
 
-        publisher.rollInbox(new RollInboxModel(1, 0, 0, false));
-        publisher.rollInbox(new RollInboxModel(1, 0, 0, false));
-        publisher.rollInbox(new RollInboxModel(1, 0, 1, false));
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(1, 0, 0, false));
-        verify(panel, times(1)).showRollInbox(new RollInboxModel(1, 0, 1, false));
+        publisher.rollInbox(RollInboxModel.builder().newEvents(1).build());
+        publisher.rollInbox(RollInboxModel.builder().newEvents(1).build());
+        publisher.rollInbox(RollInboxModel.builder().newEvents(1).warnings(1).build());
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().newEvents(1).build());
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().newEvents(1).warnings(1).build());
     }
 
     /** The sidebar starts in the default colours, so only another palette is posted. */

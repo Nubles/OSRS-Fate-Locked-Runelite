@@ -81,8 +81,8 @@ public class FateLockedMinimapOverlay extends Overlay
 
     /**
      * Draw the scene inside the minimap: the locked land first, when it is shaded, then the
-     * lines. The locked edges always show, the minimap's own setting being on; the other
-     * chunk lines follow the game view's All edges.
+     * lines the game view shows: locked edges, the chunk grid or both. With the game view's
+     * lines off, the locked edges still show, the minimap's own setting being on.
      */
     static void draw(Graphics2D graphics, Shape minimap, SceneEdges scene, FateLockedConfig.ChunkBorders borders,
         boolean fog, Palette palette, int playerX, int playerY, int sizeX, int sizeY,
@@ -96,8 +96,8 @@ public class FateLockedMinimapOverlay extends Overlay
             graphics.setColor(palette.lockedShade());
             graphics.fill(ChunkBorderRenderer.blocks(scene.locked(), projector));
         }
-        FateLockedConfig.ChunkBorders lines = borders == FateLockedConfig.ChunkBorders.ALL_EDGES
-            ? FateLockedConfig.ChunkBorders.ALL_EDGES : FateLockedConfig.ChunkBorders.LOCKED_EDGES;
+        FateLockedConfig.ChunkBorders lines = borders == FateLockedConfig.ChunkBorders.OFF
+            ? FateLockedConfig.ChunkBorders.LOCKED_EDGES : borders;
         ChunkBorderRenderer.draw(graphics, scene.edges(), lines, false, palette, playerX, playerY, sizeX, sizeY,
             projector, ChunkBorderRenderer.MINIMAP_PERIOD, ChunkBorderRenderer.Occlusion.NONE);
         graphics.setClip(before);

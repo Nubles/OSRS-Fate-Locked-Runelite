@@ -134,15 +134,35 @@ public interface FateLockedConfig extends Config
 
     enum ChunkBorders
     {
-        OFF("Off"),
-        LOCKED_EDGES("Locked edges"),
-        ALL_EDGES("All edges");
+        OFF("Off", false, false),
+        /** The dashed line where unlocked land meets locked land. */
+        LOCKED_EDGES("Locked edges", true, false),
+        /** A plain line on every chunk edge, without the dashed one. */
+        CHUNK_GRID("Chunk grid", false, true),
+        /** The chunk grid, with the dashed line over it. */
+        ALL_EDGES("All edges", true, true);
 
         private final String label;
+        private final boolean locked;
+        private final boolean grid;
 
-        ChunkBorders(String label)
+        ChunkBorders(String label, boolean locked, boolean grid)
         {
             this.label = label;
+            this.locked = locked;
+            this.grid = grid;
+        }
+
+        /** Whether the dashed locked edges show. */
+        public boolean locked()
+        {
+            return locked;
+        }
+
+        /** Whether a plain line shows on every chunk edge. */
+        public boolean grid()
+        {
+            return grid;
         }
 
         @Override
@@ -195,7 +215,7 @@ public interface FateLockedConfig extends Config
 
     @ConfigSection(
         name = "Strict Mode",
-        description = "Stops a teleport to a place your rules lock",
+        description = "Stops teleports your rules don't allow",
         position = 1
     )
     String strictModeSection = "strictModeSection";
@@ -203,8 +223,11 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "strictMode",
         name = "Strict Mode",
-        description = "Stops a teleport only when it can match the trip exactly and fresh rules for this character lock"
-            + " where it goes. Walking, NPCs, objects, banks and equipment are never stopped. Off by default.",
+        description = "Stops a teleport it recognises exactly, with one place it can go, when fresh rules for this"
+            + " character lock that place. It also stops one to an unlocked place when you haven't unlocked that kind"
+            + " of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A worn item's teleport, such"
+            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped."
+            + " Off by default.",
         section = strictModeSection,
         position = 0
     )
@@ -235,8 +258,9 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "lockedAreaAlert",
         name = "Locked-area alert",
-        description = "When you enter a locked area: a chat line, and a sound and a short screen fade if you choose."
-            + " Once per area.",
+        description = "When you walk into a locked area: a chat line, plus a sound and a short screen fade if you pick"
+            + " them, which come only when you arrive from unlocked land. The same area stays quiet for a minute"
+            + " after it alerts.",
         section = alertsSection,
         position = 0
     )
@@ -248,7 +272,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "announceAreaChanges",
         name = "Announce every area change",
-        description = "A chat line whenever you walk into another area the tracker maps, locked or not.",
+        description = "A chat line when you walk into another area the tracker maps. Locked areas follow the"
+            + " Locked-area alert instead.",
         section = alertsSection,
         position = 1
     )
@@ -260,8 +285,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "ruleWarnings",
         name = "Rule warnings",
-        description = "Chat and HUD warnings for a bank you haven't unlocked, a Slayer task in locked areas, and gear"
-            + " above your unlocked tier. Each needs your rules to cover it.",
+        description = "Chat warnings for a bank you haven't unlocked, a Slayer task in locked areas, and gear above"
+            + " your unlocked tier; the Slayer and gear ones also stay on the HUD. Each needs your rules to cover it.",
         section = alertsSection,
         position = 2
     )
@@ -273,7 +298,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "tagLockedOptions",
         name = "Tag locked right-click options",
-        description = "Adds (Locked) to right-click options for NPCs, objects and teleports your rules lock.",
+        description = "Adds (Locked) to right-click options for NPCs, objects, items on the ground and teleports your"
+            + " rules lock.",
         section = alertsSection,
         position = 3
     )
@@ -285,8 +311,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "rollNudges",
         name = "Roll reminders",
-        description = "A chat reminder when a level-up, quest, diary, boss kill or collection log entry may be worth a"
-            + " roll in the tracker.",
+        description = "A chat line when RuneLite adds something to your Roll inbox: a level, a quest, a finished diary"
+            + " tier (not each task), a combat task, a clue scroll, a boss or raid kill, a collection log item or a"
+            + " Slayer task. Collection log items need the game's own collection log notification, in chat or as a"
+            + " popup. Only on the character your run is linked to.",
         section = alertsSection,
         position = 4
     )
@@ -298,8 +326,9 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "useNotifier",
         name = "Also send RuneLite notifications",
-        description = "Also send a RuneLite notification, as your RuneLite settings deliver them, for locked areas and"
-            + " rule warnings.",
+        description = "Also send a RuneLite notification, as your RuneLite settings deliver them, with each locked-area"
+            + " alert's chat line, each rule warning, and the warning that you're on a character your run isn't"
+            + " linked to.",
         section = alertsSection,
         position = 5
     )
@@ -342,11 +371,24 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "worldMapBorders",
+        name = "World map borders",
+        description = "Lines on the world map: a dashed line where your unlocked land meets locked land, a plain"
+            + " line on every chunk edge (Chunk grid), or both. Off keeps the shading and the tooltip.",
+        section = displaySection,
+        position = 2
+    )
+    default ChunkBorders worldMapBorders()
+    {
+        return ChunkBorders.LOCKED_EDGES;
+    }
+
+    @ConfigItem(
         keyName = "worldMapMarkers",
         name = "Pin locked areas on the world map",
         description = "A pin on each area you haven't unlocked; click one to jump the world map there.",
         section = displaySection,
-        position = 2
+        position = 3
     )
     default boolean worldMapMarkers()
     {
@@ -356,9 +398,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "chunkBorders",
         name = "Chunk borders in the game view",
-        description = "Lines on the ground where chunks meet: only where locked land starts, or every chunk edge.",
+        description = "Lines on the ground where chunks meet: dashed where locked land starts, a plain line on"
+            + " every chunk edge (Chunk grid), or both.",
         section = displaySection,
-        position = 3
+        position = 4
     )
     default ChunkBorders chunkBorders()
     {
@@ -368,9 +411,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "shadeNearbyLocked",
         name = "Shade locked land nearby",
-        description = "Darkens locked land beside you in the game view and on the minimap.",
+        description = "Darkens locked land near you: a band two tiles deep along each locked edge in the game view,"
+            + " and all locked land nearby on the minimap while Minimap chunk borders is on.",
         section = displaySection,
-        position = 4
+        position = 5
     )
     default boolean shadeNearbyLocked()
     {
@@ -380,9 +424,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "drawMinimap",
         name = "Minimap chunk borders",
-        description = "Chunk lines and locked land on the minimap.",
+        description = "The game view's chunk lines on the minimap, or the locked edges while Chunk borders in the"
+            + " game view is Off. With Shade locked land nearby on, locked land is darkened too.",
         section = displaySection,
-        position = 5
+        position = 6
     )
     default boolean drawMinimap()
     {
@@ -392,9 +437,9 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "showInfoBoxes",
         name = "Infoboxes",
-        description = "RuneLite infoboxes for your keys, Fate Points and unlock progress, each movable on its own.",
+        description = "RuneLite infoboxes for your Keys, Fate Points and unlock progress, each movable on its own.",
         section = displaySection,
-        position = 6
+        position = 7
     )
     default boolean showInfoBoxes()
     {
@@ -406,7 +451,7 @@ public interface FateLockedConfig extends Config
         name = "Colours",
         description = "Default, a set safe for colour-blind players, or your own colours below.",
         section = displaySection,
-        position = 7
+        position = 8
     )
     default ColourPreset colourPreset()
     {
@@ -425,7 +470,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "unlockedColor",
         name = "Unlocked",
-        description = "Unlocked land and status, with Colours set to Custom.",
+        description = "Text and labels for Unlocked, Can do and other good states, such as Active and Rules up to"
+            + " date, with Colours set to Custom. Unlocked land isn't coloured, and its transparency isn't used.",
         section = customColoursSection,
         position = 0
     )
@@ -438,7 +484,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "frontierColor",
         name = "Frontier",
-        description = "Chunked mode: the chunks next to yours you can roll, with Colours set to Custom.",
+        description = "Chunked mode: the chunks next to yours you can unlock next, with Colours set to Custom.",
         section = customColoursSection,
         position = 1
     )

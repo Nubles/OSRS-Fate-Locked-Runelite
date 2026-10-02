@@ -23,6 +23,6 @@ public class StrictModeModel
     public static StrictModeModel off()
     {
         return new StrictModeModel(false, "Off", Palette.Tone.NEUTRAL,
-            "Stops a teleport to a place your rules lock.", null, Collections.emptyList());
+            StrictModeSectionPresenter.WHAT_IT_DOES, null, Collections.emptyList());
     }
 }

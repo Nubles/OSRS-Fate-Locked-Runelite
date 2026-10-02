@@ -46,6 +46,9 @@ public class PaletteSettingsTest
         Palette custom = FateLockedPlugin.palette(config);
         assertEquals(new Color(128, 0, 128), custom.text(Tone.BAD));
         assertEquals(PURPLE, custom.lockedShade());
+        // The Unlocked colour colours words and labels only, its transparency dropped, as its
+        // description says (accuracy review, P-5).
+        assertEquals(new Color(0, 128, 255), custom.text(Tone.GOOD));
     }
 
     /** A colour setting changes the palette at once and hands it to the sidebar; other settings don't. */

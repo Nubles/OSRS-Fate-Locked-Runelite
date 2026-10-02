@@ -13,17 +13,17 @@ final class ProgressText
     {
     }
 
-    /** The HUD's "Unlocked" line, e.g. "15/187 · 7%"; null when there is none. */
+    /** The HUD's "Unlocked" line, e.g. "15/187 · 8%"; null when there is none. */
     static String hudLine(Progress progress)
     {
-        if (progress == null || progress.getChunksTotal() <= 0) return null;
+        if (progress == null || progress.getTotal() <= 0) return null;
         return progress.getUnlocked() + "/" + progress.getTotal() + " · " + progress.percent() + "%";
     }
 
-    /** The infobox's count, e.g. "7%"; null when there is none, and the box isn't drawn. */
+    /** The infobox's count, e.g. "8%"; null when there is none, and the box isn't drawn. */
     static String infoBoxText(Progress progress)
     {
-        return progress == null || progress.getChunksTotal() <= 0 ? null : progress.percent() + "%";
+        return progress == null || progress.getTotal() <= 0 ? null : progress.percent() + "%";
     }
 
     /** "15 of 187 areas unlocked", then the chunks for a run that counts areas; null without progress. */
