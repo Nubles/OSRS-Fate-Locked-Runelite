@@ -53,6 +53,12 @@ public class FateLockedChunkEntryTest
         + "\"chunks\":{\"Misthalin\":[{\"cx\":50,\"cy\":50}],"
         + "\"Asgarnia\":[{\"cx\":46,\"cy\":52},{\"cx\":47,\"cy\":52}]},"
         + "\"unlockedRegions\":[\"Misthalin\"]}";
+    /** Two locked areas side by side: Asgarnia at Falador, Kandarin just west of it. */
+    private static final String TWO_LOCKED_AREAS = "{\"version\":3,"
+        + "\"chunks\":{\"Misthalin\":[{\"cx\":50,\"cy\":50}],"
+        + "\"Asgarnia\":[{\"cx\":46,\"cy\":52}],"
+        + "\"Kandarin\":[{\"cx\":45,\"cy\":52}]},"
+        + "\"unlockedRegions\":[\"Misthalin\"]}";
     private static final CanonicalChunk LUMBRIDGE = new CanonicalChunk(50, 50);
     private static final CanonicalChunk FALADOR = new CanonicalChunk(46, 52);
     private static final CanonicalChunk FALADOR_EAST = new CanonicalChunk(47, 52);
@@ -183,8 +189,9 @@ public class FateLockedChunkEntryTest
         verify(notifier).notify("You've entered a locked area: Asgarnia");
     }
 
+    /** Chat alone plays no sound; the notification still comes with its line (the owner's call T8). */
     @Test
-    public void turningTheWarningOffSilencesIt() throws Exception
+    public void aChatAlertPlaysNoSound() throws Exception
     {
         loadRules();
         when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT);
@@ -192,7 +199,37 @@ public class FateLockedChunkEntryTest
         walk(LUMBRIDGE, FALADOR);
 
         verify(client, never()).playSoundEffect(anyInt());
+        verify(notifier).notify("You've entered a locked area: Asgarnia");
+    }
+
+    /**
+     * The owner's call T8 in the accuracy review: the notification goes with the locked-area
+     * alert's chat line, as the notifications setting says, whether or not a sound plays. A
+     * routine line brings none, and neither does a line with notifications off.
+     */
+    @Test
+    public void theNotificationGoesWithTheLockedAreasLine() throws Exception
+    {
+        set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(), TWO_LOCKED_AREAS),
+            FateLockedPlugin.RulesSource.NONE));
+        when(config.lockedAreaAlert()).thenReturn(FateLockedConfig.LockedAreaAlert.CHAT);
+
+        walk(LUMBRIDGE);
+        assertEquals(1, chatLines().size());
         verify(notifier, never()).notify(anyString());
+
+        // Asgarnia, then Kandarin straight from it: a line each, and a notification each.
+        walk(FALADOR, new CanonicalChunk(45, 52));
+        assertEquals(3, chatLines().size());
+        verify(client, never()).playSoundEffect(anyInt());
+        verify(notifier).notify("You've entered a locked area: Asgarnia");
+        verify(notifier).notify("You've entered a locked area: Kandarin");
+
+        when(config.useNotifier()).thenReturn(false);
+        when(client.getTickCount()).thenReturn(LockedAreaAlerts.QUIET_TICKS);
+        walk(LUMBRIDGE, FALADOR);
+        assertEquals(5, chatLines().size());
+        verify(notifier, times(2)).notify(anyString());
     }
 
     /** D1: with the alert off, a locked area says nothing; routine announcements are their own setting. */
@@ -208,6 +245,7 @@ public class FateLockedChunkEntryTest
         assertEquals(lines.toString(), 1, lines.size());
         assertTrue(lines.get(0), lines.get(0).endsWith(": Unlocked"));
         verify(client, never()).playSoundEffect(anyInt());
+        verify(notifier, never()).notify(anyString());
     }
 
     @Test

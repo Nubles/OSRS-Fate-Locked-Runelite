@@ -185,6 +185,26 @@ public class FateLockedConfigTest
         assertEquals(1, strict);
     }
 
+    /**
+     * The accuracy review: each description says what its setting does, as the code does it. The
+     * claims a finding corrected are pinned here; the code that makes each true has its own test.
+     */
+    @Test
+    public void eachDescriptionSaysWhatItsSettingDoes()
+    {
+        // T8: the notification goes with the locked-area alert's line (FateLockedChunkEntryTest).
+        assertSays("useNotifier", "each locked-area alert's chat line", "each rule warning", "isn't linked to");
+    }
+
+    private static void assertSays(String key, String... claims)
+    {
+        String description = configItemsByKey().get(key).getAnnotation(ConfigItem.class).description();
+        for (String claim : claims)
+        {
+            assertTrue(key + " says \"" + claim + "\": " + description, description.contains(claim));
+        }
+    }
+
     private static Map<String, Method> configItemsByKey()
     {
         Map<String, Method> items = new LinkedHashMap<>();

@@ -301,8 +301,9 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "useNotifier",
         name = "Also send RuneLite notifications",
-        description = "Also send a RuneLite notification, as your RuneLite settings deliver them, for locked areas and"
-            + " rule warnings.",
+        description = "Also send a RuneLite notification, as your RuneLite settings deliver them, with each locked-area"
+            + " alert's chat line, each rule warning, and the warning that you're on a character your run isn't"
+            + " linked to.",
         section = alertsSection,
         position = 5
     )

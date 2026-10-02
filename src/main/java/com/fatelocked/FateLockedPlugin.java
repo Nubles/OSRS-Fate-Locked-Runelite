@@ -1552,6 +1552,13 @@ public class FateLockedPlugin extends Plugin
         if (alert.isLine())
         {
             announceEntry(current, label, entry);
+            // A locked area's line is the alert's own: the notification goes with it, sound or
+            // not, as the notifications setting says (the owner's call T8).
+            if (status == PermissionStatus.LOCKED)
+            {
+                notifyIfEnabled("You've entered a locked area: "
+                    + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
+            }
         }
         if (alert.isFade())
         {
@@ -1560,8 +1567,6 @@ public class FateLockedPlugin extends Plugin
         if (alert.isSound())
         {
             client.playSoundEffect(2277); // death squelch — good "you done messed up" cue
-            notifyIfEnabled("You've entered a locked area: "
-                + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
         }
         lastChunk = current;
         lastStatus = status;
