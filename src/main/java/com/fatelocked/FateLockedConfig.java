@@ -238,8 +238,9 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "lockedAreaAlert",
         name = "Locked-area alert",
-        description = "When you enter a locked area: a chat line, and a sound and a short screen fade if you choose."
-            + " Once per area.",
+        description = "When you walk into a locked area: a chat line, plus a sound and a short screen fade if you pick"
+            + " them, which come only when you arrive from unlocked land. The same area stays quiet for a minute"
+            + " after it alerts.",
         section = alertsSection,
         position = 0
     )
@@ -251,7 +252,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "announceAreaChanges",
         name = "Announce every area change",
-        description = "A chat line whenever you walk into another area the tracker maps, locked or not.",
+        description = "A chat line when you walk into another area the tracker maps. Locked areas follow the"
+            + " Locked-area alert instead.",
         section = alertsSection,
         position = 1
     )
@@ -263,8 +265,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "ruleWarnings",
         name = "Rule warnings",
-        description = "Chat and HUD warnings for a bank you haven't unlocked, a Slayer task in locked areas, and gear"
-            + " above your unlocked tier. Each needs your rules to cover it.",
+        description = "Chat warnings for a bank you haven't unlocked, a Slayer task in locked areas, and gear above"
+            + " your unlocked tier; the Slayer and gear ones also stay on the HUD. Each needs your rules to cover it.",
         section = alertsSection,
         position = 2
     )
@@ -276,7 +278,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "tagLockedOptions",
         name = "Tag locked right-click options",
-        description = "Adds (Locked) to right-click options for NPCs, objects and teleports your rules lock.",
+        description = "Adds (Locked) to right-click options for NPCs, objects, items on the ground and teleports your"
+            + " rules lock.",
         section = alertsSection,
         position = 3
     )
@@ -288,8 +291,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "rollNudges",
         name = "Roll reminders",
-        description = "A chat reminder when a level-up, quest, diary, boss kill or collection log entry may be worth a"
-            + " roll in the tracker.",
+        description = "A chat line when RuneLite adds something to your Roll inbox: a level, a quest, a finished diary"
+            + " tier (not each task), a combat task, a clue scroll, a boss or raid kill, a collection log item or a"
+            + " Slayer task. Collection log items need the game's own collection log notification, in chat or as a"
+            + " popup. Only on the character your run is linked to.",
         section = alertsSection,
         position = 4
     )
@@ -385,7 +390,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "shadeNearbyLocked",
         name = "Shade locked land nearby",
-        description = "Darkens locked land beside you in the game view and on the minimap.",
+        description = "Darkens locked land near you: a band two tiles deep along each locked edge in the game view,"
+            + " and all locked land nearby on the minimap while Minimap chunk borders is on.",
         section = displaySection,
         position = 5
     )
@@ -397,7 +403,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "drawMinimap",
         name = "Minimap chunk borders",
-        description = "Chunk lines and locked land on the minimap.",
+        description = "Locked edges on the minimap, and every chunk line when Chunk borders in the game view is All"
+            + " edges. With Shade locked land nearby on, locked land is darkened too.",
         section = displaySection,
         position = 6
     )
@@ -409,7 +416,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "showInfoBoxes",
         name = "Infoboxes",
-        description = "RuneLite infoboxes for your keys, Fate Points and unlock progress, each movable on its own.",
+        description = "RuneLite infoboxes for your Keys, Fate Points and unlock progress, each movable on its own.",
         section = displaySection,
         position = 7
     )
@@ -442,7 +449,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "unlockedColor",
         name = "Unlocked",
-        description = "Unlocked land and status, with Colours set to Custom.",
+        description = "Text and labels for Unlocked, Can do and other good states, such as Active and Rules up to"
+            + " date, with Colours set to Custom. Unlocked land isn't coloured, and its transparency isn't used.",
         section = customColoursSection,
         position = 0
     )
@@ -455,7 +463,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "frontierColor",
         name = "Frontier",
-        description = "Chunked mode: the chunks next to yours you can roll, with Colours set to Custom.",
+        description = "Chunked mode: the chunks next to yours you can unlock next, with Colours set to Custom.",
         section = customColoursSection,
         position = 1
     )

@@ -194,6 +194,25 @@ public class FateLockedConfigTest
     {
         // T8: the notification goes with the locked-area alert's line (FateLockedChunkEntryTest).
         assertSays("useNotifier", "each locked-area alert's chat line", "each rule warning", "isn't linked to");
+        // P-4: a minute's quiet, not once per area; the sound and fade come only from unlocked land.
+        assertSays("lockedAreaAlert", "only when you arrive from unlocked land", "quiet for a minute");
+        assertEquals("a minute of game ticks", 100, LockedAreaAlerts.QUIET_TICKS);
+        // P-11: a locked area's line is the alert's (LockedAreaAlertsTest).
+        assertSays("announceAreaChanges", "Locked areas follow the Locked-area alert instead");
+        // P-12 to P-14, T9: what reaches the Roll inbox, and when a reminder comes.
+        assertSays("rollNudges", "a finished diary tier (not each task)", "a combat task", "a clue scroll",
+            "a Slayer task", "game's own collection log notification", "the character your run is linked to");
+        // P-15, P-16: the minimap's lines and shade (FateLockedMinimapOverlayTest).
+        assertSays("shadeNearbyLocked", "a band two tiles deep", "while Minimap chunk borders is on");
+        assertEquals(2, ChunkBorderRenderer.FOG_TILES);
+        assertSays("drawMinimap", "every chunk line when Chunk borders in the game view is All edges",
+            "With Shade locked land nearby on");
+        // P-5: the colour is for words and labels only, made opaque (PaletteSettingsTest).
+        assertSays("unlockedColor", "Unlocked land isn't coloured", "its transparency isn't used");
+        // P-22, P-23, P-49: the bank warning is chat only; ground items are tagged; Keys unlock.
+        assertSays("ruleWarnings", "Chat warnings", "the Slayer and gear ones also stay on the HUD");
+        assertSays("tagLockedOptions", "items on the ground");
+        assertSays("frontierColor", "you can unlock next");
     }
 
     private static void assertSays(String key, String... claims)
