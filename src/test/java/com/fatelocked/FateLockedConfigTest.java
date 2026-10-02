@@ -110,7 +110,8 @@ public class FateLockedConfigTest
         assertEquals(Arrays.asList("Off", "Compact", "Detailed"), labels(FateLockedConfig.HudMode.values()));
         assertEquals(Arrays.asList("Off", "Shading", "Shading and tooltip", "Shading, tooltip and contents"),
             labels(FateLockedConfig.WorldMapMode.values()));
-        assertEquals(Arrays.asList("Off", "Locked edges", "All edges"), labels(FateLockedConfig.ChunkBorders.values()));
+        assertEquals(Arrays.asList("Off", "Locked edges", "Chunk grid", "All edges"),
+            labels(FateLockedConfig.ChunkBorders.values()));
         assertEquals(Arrays.asList("Default", "Colour-blind safe", "Custom"),
             labels(FateLockedConfig.ColourPreset.values()));
 
@@ -120,6 +121,13 @@ public class FateLockedConfigTest
             assertEquals(alert.name(), label.contains("chat"), alert.chat());
             assertEquals(alert.name(), label.contains("sound"), alert.sound());
             assertEquals(alert.name(), label.contains("fade"), alert.fade());
+        }
+        for (FateLockedConfig.ChunkBorders borders : FateLockedConfig.ChunkBorders.values())
+        {
+            String label = borders.toString().toLowerCase(Locale.ROOT);
+            boolean all = label.equals("all edges");
+            assertEquals(borders.name(), all || label.contains("locked"), borders.locked());
+            assertEquals(borders.name(), all || label.contains("grid"), borders.grid());
         }
         for (FateLockedConfig.WorldMapMode mode : FateLockedConfig.WorldMapMode.values())
         {
@@ -205,8 +213,8 @@ public class FateLockedConfigTest
         // P-15, P-16: the minimap's lines and shade (FateLockedMinimapOverlayTest).
         assertSays("shadeNearbyLocked", "a band two tiles deep", "while Minimap chunk borders is on");
         assertEquals(2, ChunkBorderRenderer.FOG_TILES);
-        assertSays("drawMinimap", "every chunk line when Chunk borders in the game view is All edges",
-            "With Shade locked land nearby on");
+        assertSays("drawMinimap", "The game view's chunk lines on the minimap",
+            "or the locked edges while Chunk borders in the game view is Off", "With Shade locked land nearby on");
         // P-5: the colour is for words and labels only, made opaque (PaletteSettingsTest).
         assertSays("unlockedColor", "Unlocked land isn't coloured", "its transparency isn't used");
         // P-22, P-23, P-49: the bank warning is chat only; ground items are tagged; Keys unlock.

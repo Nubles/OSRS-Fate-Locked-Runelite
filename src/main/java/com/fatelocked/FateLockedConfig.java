@@ -134,15 +134,35 @@ public interface FateLockedConfig extends Config
 
     enum ChunkBorders
     {
-        OFF("Off"),
-        LOCKED_EDGES("Locked edges"),
-        ALL_EDGES("All edges");
+        OFF("Off", false, false),
+        /** The dashed line where unlocked land meets locked land. */
+        LOCKED_EDGES("Locked edges", true, false),
+        /** A plain line on every chunk edge, without the dashed one. */
+        CHUNK_GRID("Chunk grid", false, true),
+        /** The chunk grid, with the dashed line over it. */
+        ALL_EDGES("All edges", true, true);
 
         private final String label;
+        private final boolean locked;
+        private final boolean grid;
 
-        ChunkBorders(String label)
+        ChunkBorders(String label, boolean locked, boolean grid)
         {
             this.label = label;
+            this.locked = locked;
+            this.grid = grid;
+        }
+
+        /** Whether the dashed locked edges show. */
+        public boolean locked()
+        {
+            return locked;
+        }
+
+        /** Whether a plain line shows on every chunk edge. */
+        public boolean grid()
+        {
+            return grid;
         }
 
         @Override
@@ -353,8 +373,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "worldMapBorders",
         name = "World map borders",
-        description = "Lines on the world map: where your unlocked land meets locked land, or every chunk edge as"
-            + " well. Off keeps the shading and the tooltip.",
+        description = "Lines on the world map: a dashed line where your unlocked land meets locked land, a plain"
+            + " line on every chunk edge (Chunk grid), or both. Off keeps the shading and the tooltip.",
         section = displaySection,
         position = 2
     )
@@ -378,7 +398,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "chunkBorders",
         name = "Chunk borders in the game view",
-        description = "Lines on the ground where chunks meet: only where locked land starts, or every chunk edge.",
+        description = "Lines on the ground where chunks meet: dashed where locked land starts, a plain line on"
+            + " every chunk edge (Chunk grid), or both.",
         section = displaySection,
         position = 4
     )
@@ -403,8 +424,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "drawMinimap",
         name = "Minimap chunk borders",
-        description = "Locked edges on the minimap, and every chunk line when Chunk borders in the game view is All"
-            + " edges. With Shade locked land nearby on, locked land is darkened too.",
+        description = "The game view's chunk lines on the minimap, or the locked edges while Chunk borders in the"
+            + " game view is Off. With Shade locked land nearby on, locked land is darkened too.",
         section = displaySection,
         position = 6
     )

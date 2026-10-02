@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 /**
  * B10 and E5: unlock progress in the HUD and the infobox comes from the
  * decision service, as the tracker counts it (R9): vanilla-mid shows 15/187
- * areas, as its run card does, where the plugin used to count 13/177.
+ * areas, as its run card does, where the plugin used to count 13/178.
  * Another character sees none.
  */
 public class ProgressTest
@@ -71,7 +71,8 @@ public class ProgressTest
         for (JsonObject older : Arrays.asList(withoutCapability, beyondTotal, unknownUnit, fraction, notAnObject))
         {
             FateLockedBundle bundle = FateLockedBundle.loadFromJson(GSON, older.toString());
-            assertEquals(new Progress(Progress.AREAS, 13, 177, bundle.getUnlockedChunks(), bundle.getTotalChunks()),
+            // 177 until the accuracy review gave one more named place its chunks.
+            assertEquals(new Progress(Progress.AREAS, 13, 178, bundle.getUnlockedChunks(), bundle.getTotalChunks()),
                 trusted(bundle).progress());
         }
 

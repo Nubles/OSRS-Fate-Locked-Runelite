@@ -109,8 +109,8 @@ public class FateLockedWorldMapOverlay extends Overlay
             shown(InterfaceID.Worldmap.MAPLIST_BOX_GRAPHIC0));
         FateLockedConfig.ChunkBorders borders = config.worldMapBorders();
         draw(graphics, current, view, plugin.palette(), mapClip,
-            borders == FateLockedConfig.ChunkBorders.OFF ? null : outline(current, view),
-            borders == FateLockedConfig.ChunkBorders.ALL_EDGES ? grid(current, view) : null);
+            borders.locked() ? outline(current, view) : null,
+            borders.grid() ? grid(current, view) : null);
         if (mode.tooltip())
         {
             tooltip(decisions, view, mapClip, mode.contents());

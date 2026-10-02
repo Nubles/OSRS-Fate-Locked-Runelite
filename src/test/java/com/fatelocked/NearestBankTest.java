@@ -23,8 +23,8 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * B13 (R5, part one): the HUD's nearest bank and shop come from the
- * tracker's BANKS and SHOPS rows. All 127 banks are candidates, including
- * the 19 the old points of interest missed, and a bank or shop the tracker
+ * tracker's BANKS and SHOPS rows. All 125 banks are candidates, including
+ * the 17 the old points of interest missed, and a bank or shop the tracker
  * doesn't allow is never chosen.
  */
 public class NearestBankTest
@@ -32,8 +32,8 @@ public class NearestBankTest
     private static final Gson GSON = new Gson();
     /** Bank chunks the old points-of-interest list never found (the review's R5 probe). */
     private static final Set<String> POI_MISSED = new TreeSet<>(List.of(
-        "21,51", "22,46", "23,51", "25,48", "34,47", "38,50", "40,35", "41,57", "42,58", "43,43",
-        "43,48", "43,54", "45,58", "47,53", "52,42", "53,50", "55,52", "58,59", "59,47"));
+        "21,51", "22,46", "23,51", "25,48", "34,47", "38,50", "40,35", "41,57", "43,43",
+        "43,48", "43,54", "45,58", "52,42", "53,50", "55,52", "58,59", "59,47"));
 
     /**
      * vanilla-mid with every bank row, its chunk and the bank table allowed:
@@ -63,7 +63,8 @@ public class NearestBankTest
             FateLockedBundle.Nearest near = allBanks.nearestBank(GoldenBundleContractTest.chunk(key));
             if (near == null || near.getDistanceChunks() != 0) notFound.add(key);
         }
-        assertEquals(127, banks.size());
+        // 127 until the accuracy review merged two bank unlocks that opened no bank into their neighbours.
+        assertEquals(125, banks.size());
         assertTrue(banks.containsAll(POI_MISSED));
         assertEquals(List.of(), notFound);
 
@@ -76,7 +77,7 @@ public class NearestBankTest
                 if (near == null || near.getDistanceChunks() != 0) notInside.add(bank.getKey() + " " + key.getAsString());
             }
         }
-        assertEquals(127, table.size());
+        assertEquals(125, table.size());
         assertEquals(List.of(), notInside);
     }
 

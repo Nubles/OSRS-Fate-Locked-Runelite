@@ -159,6 +159,7 @@
    "options": [
     "Off",
     "Locked edges",
+    "Chunk grid",
     "All edges"
    ]
   },
@@ -176,6 +177,7 @@
    "options": [
     "Off",
     "Locked edges",
+    "Chunk grid",
     "All edges"
    ]
   },

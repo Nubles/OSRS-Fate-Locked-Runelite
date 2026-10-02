@@ -174,6 +174,23 @@ public class FateLockedWorldMapOverlayTest
         assertSame("a map at rest reuses its grid", grid, next.getAllValues().get(0));
     }
 
+    /** Chunk grid: the faint line on every chunk edge, without the dashed outline. */
+    @Test
+    public void chunkGridDrawsTheGridWithoutTheOutline()
+    {
+        when(config.worldMapBorders()).thenReturn(FateLockedConfig.ChunkBorders.CHUNK_GRID);
+        Graphics2D graphics = mock(Graphics2D.class);
+        overlay.render(graphics);
+
+        ArgumentCaptor<Shape> drawn = ArgumentCaptor.forClass(Shape.class);
+        verify(graphics, times(1)).draw(drawn.capture());
+        verify(graphics).setStroke(Palette.PLAIN_EDGE_STROKE);
+        verify(graphics, never()).setStroke(Palette.UNDERLAY_STROKE);
+        verify(graphics, never()).setStroke(Palette.LOCKED_EDGE_STROKE);
+        assertTrue("every chunk edge is more than the outline", segments(drawn.getValue())
+            > segments(FateLockedWorldMapOverlay.outlinePath(WorldMapModel.of(mine), projection)));
+    }
+
     /** The separate lines a path is made of. */
     private static int segments(Shape shape)
     {

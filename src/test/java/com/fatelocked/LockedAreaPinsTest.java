@@ -81,7 +81,8 @@ public class LockedAreaPinsTest
 
         assertEquals(Set.of(), pinsFor(mid, "Someone Else"));
         assertEquals(Set.of(), pinsFor(mid, null));
-        assertEquals("logging in places them", 164, pinsFor(mid, "Iron Example").size());
+        // One pin per locked area: 178 areas less the 13 unlocked.
+        assertEquals("logging in places them", 165, pinsFor(mid, "Iron Example").size());
 
         when(config.worldMapMarkers()).thenReturn(false);
         assertEquals("the setting off", Set.of(), pinsFor(mid, "Iron Example"));

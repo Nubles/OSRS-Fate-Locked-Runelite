@@ -65,8 +65,9 @@ final class ChunkBorderRenderer
     }
 
     /**
-     * Draw the edges near the player as the settings say: the fog first, under the lines; in
-     * All edges, every chunk line thin and faint; and the locked edges on top. None of it is
+     * Draw the edges near the player as the settings say: the fog first, under the lines; with
+     * the chunk grid, every chunk line thin and faint; and the locked edges dashed on top. In
+     * Chunk grid, without the dashes, the locked edges are thin and faint too. None of it is
      * drawn over what stands in front of it.
      */
     static void draw(Graphics2D graphics, List<SceneEdges.Run> runs, FateLockedConfig.ChunkBorders borders,
@@ -90,14 +91,19 @@ final class ChunkBorderRenderer
                 graphics.setClip(before);
             }
         }
-        if (borders == FateLockedConfig.ChunkBorders.ALL_EDGES)
+        if (borders.grid())
         {
             graphics.setStroke(Palette.PLAIN_EDGE_STROKE);
             graphics.setColor(Palette.PLAIN_EDGE);
             graphics.draw(lines(runs, SceneEdges.Kind.PLAIN, playerX, playerY, sizeX, sizeY, projector, period,
                 occlusion).whole);
+            if (!borders.locked())
+            {
+                graphics.draw(lines(runs, SceneEdges.Kind.LOCKED, playerX, playerY, sizeX, sizeY, projector, period,
+                    occlusion).whole);
+            }
         }
-        if (borders != FateLockedConfig.ChunkBorders.OFF)
+        if (borders.locked())
         {
             Lines locked = lines(runs, SceneEdges.Kind.LOCKED, playerX, playerY, sizeX, sizeY, projector, period,
                 occlusion);
