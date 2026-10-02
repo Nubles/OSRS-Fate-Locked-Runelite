@@ -3,6 +3,7 @@ package com.fatelocked;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Progress;
 import com.fatelocked.rules.RulesSnapshot;
+import com.fatelocked.sidebar.RunModel;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -110,9 +111,36 @@ public class ProgressTest
         assertNull(ProgressText.hudLine(null));
         assertNull("no box", ProgressText.infoBoxText(null));
         assertNull(ProgressText.infoBoxTooltip(null));
-        assertNull("no chunks, no line", ProgressText.hudLine(new Progress(Progress.AREAS, 0, 0, 0, 0)));
-        assertNull("no chunks, no box", ProgressText.infoBoxText(new Progress(Progress.AREAS, 0, 0, 0, 0)));
+        assertNull("nothing to count, no line", ProgressText.hudLine(new Progress(Progress.AREAS, 0, 0, 0, 0)));
+        assertNull("nothing to count, no box", ProgressText.infoBoxText(new Progress(Progress.AREAS, 0, 0, 0, 0)));
         assertEquals(-1, new Progress(Progress.AREAS, 0, 0, 0, 0).percent());
+    }
+
+    /**
+     * The owner's call T7 in the accuracy review: the percentage is of what the count beside it
+     * counts. vanilla-mid has 15 of 187 areas, which is 8% on the HUD, the infobox and the run
+     * card; its 46 of 624 chunks, which the percentage used to count, are 7%.
+     */
+    @Test
+    public void thePercentIsOfWhatTheCountCounts() throws Exception
+    {
+        FateLockedBundle mid = golden("vanilla-mid");
+        DecisionService mine = trusted(mid);
+        Progress progress = mine.progress();
+        assertEquals(7, Math.round(100.0 * progress.getChunksUnlocked() / progress.getChunksTotal()));
+
+        assertEquals(8, progress.percent());
+        assertEquals("15/187 · 8%", ProgressText.hudLine(progress));
+        assertEquals("8%", ProgressText.infoBoxText(progress));
+        RunModel run = RunPresenter.present(mid, mine, null);
+        assertEquals("15 of 187 areas unlocked", run.getProgress());
+        assertEquals(0.08, run.getFraction(), 1e-9);
+
+        // A count of areas with no chunks beside it still shows.
+        Progress areasAlone = new Progress(Progress.AREAS, 3, 10, 0, 0);
+        assertEquals("3/10 · 30%", ProgressText.hudLine(areasAlone));
+        assertEquals("30%", ProgressText.infoBoxText(areasAlone));
+        assertEquals("rounded", 67, new Progress(Progress.AREAS, 2, 3, 0, 0).percent());
     }
 
     /** E6: the HUD's "Unlocked" line is Detailed's, from the decision service, for the rules' character only. */
