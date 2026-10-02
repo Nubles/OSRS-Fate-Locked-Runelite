@@ -29,7 +29,7 @@ public class RollInboxPresenterTest
             offered.add(entry("evt-" + i, FateEventType.QUEST, "Quest " + i, EventConfidence.EXACT, i < 2 ? NEW : COPIED));
         }
 
-        RollInboxModel model = RollInboxPresenter.present(offered, 1, true, true, "Copied 5 events.");
+        RollInboxModel model = RollInboxPresenter.present(offered, 1, true, true, "Copied 5 events.", null);
 
         assertEquals(RollInboxModel.MAX_ROWS, model.getRows().size());
         assertEquals("evt-0", model.getRows().get(0).getEventId());
@@ -49,7 +49,7 @@ public class RollInboxPresenterTest
     {
         RollInboxModel model = RollInboxPresenter.present(List.of(
             entry("a", FateEventType.DIARY_TASK, "Varrock Easy", EventConfidence.UNCERTAIN, NEW),
-            entry("b", FateEventType.BOSS_KILL, "Vorkath", EventConfidence.EXACT, NEW)), 0, false, true, null);
+            entry("b", FateEventType.BOSS_KILL, "Vorkath", EventConfidence.EXACT, NEW)), 0, false, true, null, null);
 
         assertTrue(model.getRows().get(0).isNeedsChecking());
         assertFalse(model.getRows().get(1).isNeedsChecking());
@@ -81,7 +81,7 @@ public class RollInboxPresenterTest
         RollInboxModel model = RollInboxPresenter.present(List.of(
             new DetectedEventStore.Entry(event("a", FateEventType.COLLECTION_LOG, " ", EventConfidence.EXACT, null), NEW),
             new DetectedEventStore.Entry(event("b", FateEventType.COLLECTION_LOG, null, EventConfidence.EXACT, null), NEW)),
-            0, false, true, null);
+            0, false, true, null, null);
 
         assertEquals(RollInboxPresenter.UNNAMED, model.getRows().get(0).getLabel());
         assertEquals(RollInboxPresenter.UNNAMED, model.getRows().get(1).getLabel());
@@ -93,9 +93,10 @@ public class RollInboxPresenterTest
         List<DetectedEventStore.Entry> offered = List.of(
             entry("a", "Zezima"), entry("b", " Zezima "), entry("c", "Nubles"), entry("d", null), entry("e", " "));
 
-        assertEquals("Zezima and Nubles", RollInboxPresenter.present(offered, 0, false, false, null).getCharacter());
-        assertNull(RollInboxPresenter.present(offered, 0, false, true, null).getCharacter());
-        assertNull(RollInboxPresenter.present(Collections.emptyList(), 0, false, false, null).getCharacter());
+        assertEquals("Zezima and Nubles",
+            RollInboxPresenter.present(offered, 0, false, false, null, null).getCharacter());
+        assertNull(RollInboxPresenter.present(offered, 0, false, true, null, null).getCharacter());
+        assertNull(RollInboxPresenter.present(Collections.emptyList(), 0, false, false, null, null).getCharacter());
         assertEquals("Zezima", RollInboxPresenter.listed(List.of("Zezima")));
         assertEquals("Zezima, Nubles and Lynx Titan", RollInboxPresenter.listed(List.of("Zezima", "Nubles", "Lynx Titan")));
     }
@@ -103,9 +104,18 @@ public class RollInboxPresenterTest
     @Test
     public void nothingOfferedIsAnEmptyCard()
     {
-        RollInboxModel model = RollInboxPresenter.present(Collections.emptyList(), 2, false, true, null);
+        RollInboxModel model = RollInboxPresenter.present(Collections.emptyList(), 2, false, true, null, null);
 
         assertEquals(RollInboxModel.builder().warnings(2).build(), model);
+    }
+
+    /** Why nothing is noticed reaches the card as it is (accuracy review, P-10). */
+    @Test
+    public void saysWhyNothingIsNoticed()
+    {
+        String quiet = "RuneLite notices nothing on this character: your run is linked to Zezima.";
+        assertEquals(RollInboxModel.builder().quiet(quiet).build(),
+            RollInboxPresenter.present(Collections.emptyList(), 0, false, true, null, quiet));
     }
 
     private static DetectedEventStore.Entry entry(String id, String account)

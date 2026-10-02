@@ -9,12 +9,14 @@ import org.junit.Test;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
+import java.util.List;
 
 import static com.fatelocked.DetectionGate.Detection.OFF;
 import static com.fatelocked.DetectionGate.Detection.RECORD;
 import static com.fatelocked.DetectionGate.Detection.RECORD_AND_REMIND;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class DetectionGateTest
@@ -72,6 +74,43 @@ public class DetectionGateTest
     public void doesNothingWithoutRulesForARun()
     {
         assertEquals(OFF, DetectionGate.decide(null, "Nubles", EnumSet.of(WorldType.MEMBERS)));
+    }
+
+    /**
+     * The accuracy review, P-10: the Roll inbox says why nothing is noticed for the character
+     * logged in, and nothing while something is, or while no one is logged in.
+     */
+    @Test
+    public void saysWhyNothingIsNoticed() throws Exception
+    {
+        EnumSet<WorldType> members = EnumSet.of(WorldType.MEMBERS);
+        EnumSet<WorldType> leagues = EnumSet.of(WorldType.MEMBERS, WorldType.SEASONAL);
+        FateLockedBundle linked = rulesBoundTo("Nubles");
+        FateLockedBundle unlinked = rulesBoundTo(null);
+
+        assertEquals("RuneLite notices nothing on this character: your run is linked to Nubles.",
+            DetectionGate.quiet(linked, "Zezima", members));
+        assertEquals(DetectionGate.NO_RUN, DetectionGate.quiet(null, "Nubles", members));
+        assertEquals(DetectionGate.NO_RUN, DetectionGate.quiet(FateLockedBundle.empty(), "Nubles", members));
+        assertEquals(DetectionGate.OTHER_WORLD, DetectionGate.quiet(linked, "Nubles", leagues));
+        assertEquals(DetectionGate.OTHER_WORLD, DetectionGate.quiet(unlinked, "Zezima", leagues));
+        assertNull(DetectionGate.quiet(linked, "Nubles", members));
+        assertNull(DetectionGate.quiet(unlinked, "Zezima", members));
+        assertNull("logged out", DetectionGate.quiet(linked, null, members));
+        assertNull("logged out", DetectionGate.quiet(null, " ", members));
+
+        // It speaks exactly when nothing is recorded for someone logged in.
+        for (FateLockedBundle rules : new FateLockedBundle[]{null, linked, unlinked})
+        {
+            for (String name : new String[]{"Nubles", "Zezima"})
+            {
+                for (EnumSet<WorldType> world : List.of(members, leagues))
+                {
+                    assertEquals(name + " " + world, DetectionGate.decide(rules, name, world).records(),
+                        DetectionGate.quiet(rules, name, world) == null);
+                }
+            }
+        }
     }
 
     /** The v4 fixture, bound to this account, or to none. */

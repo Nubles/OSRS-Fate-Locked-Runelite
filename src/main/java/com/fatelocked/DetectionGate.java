@@ -18,6 +18,12 @@ import java.util.Set;
  */
 final class DetectionGate
 {
+    /** What the Roll inbox says while no run's rules are loaded. */
+    static final String NO_RUN = "RuneLite notices nothing until your run's rules are loaded.";
+    /** What it says on a world whose progress isn't the account's own. */
+    static final String OTHER_WORLD = "RuneLite notices nothing on Leagues, Deadman, beta and other worlds with"
+        + " their own progress.";
+
     enum Detection
     {
         OFF, RECORD, RECORD_AND_REMIND;
@@ -49,9 +55,7 @@ final class DetectionGate
 
     static Detection decide(FateLockedBundle rules, String loggedInName, Set<WorldType> worldTypes)
     {
-        if (rules == null || rules.getRunId() == null || rules.getRunId().trim().isEmpty()
-            || AccountBinding.normalize(loggedInName).isEmpty()
-            || (worldTypes != null && !Collections.disjoint(worldTypes, OTHER_GAMES)))
+        if (!hasRun(rules) || AccountBinding.normalize(loggedInName).isEmpty() || otherGame(worldTypes))
         {
             return Detection.OFF;
         }
@@ -61,5 +65,38 @@ final class DetectionGate
             return Detection.RECORD;
         }
         return AccountBinding.sameAccount(bound, loggedInName) ? Detection.RECORD_AND_REMIND : Detection.OFF;
+    }
+
+    /**
+     * Why nothing is noticed for the character logged in, as the Roll inbox says it (accuracy
+     * review, P-10: its empty line promised events that would never come). Null while something
+     * is noticed, and while no one is logged in, when the card's own empty line holds.
+     */
+    static String quiet(FateLockedBundle rules, String loggedInName, Set<WorldType> worldTypes)
+    {
+        if (AccountBinding.normalize(loggedInName).isEmpty() || decide(rules, loggedInName, worldTypes).records())
+        {
+            return null;
+        }
+        if (!hasRun(rules))
+        {
+            return NO_RUN;
+        }
+        if (otherGame(worldTypes))
+        {
+            return OTHER_WORLD;
+        }
+        return "RuneLite notices nothing on this character: your run is linked to "
+            + AccountBinding.boundAccount(rules) + ".";
+    }
+
+    private static boolean hasRun(FateLockedBundle rules)
+    {
+        return rules != null && rules.getRunId() != null && !rules.getRunId().trim().isEmpty();
+    }
+
+    private static boolean otherGame(Set<WorldType> worldTypes)
+    {
+        return worldTypes != null && !Collections.disjoint(worldTypes, OTHER_GAMES);
     }
 }

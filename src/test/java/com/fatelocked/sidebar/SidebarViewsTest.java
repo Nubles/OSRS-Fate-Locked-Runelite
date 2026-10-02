@@ -259,6 +259,30 @@ public class SidebarViewsTest
         });
     }
 
+    /**
+     * The accuracy review, P-10: while RuneLite notices nothing for this character, the card says
+     * why instead of promising events, above any it already has.
+     */
+    @Test
+    public void aRollInboxThatNoticesNothingSaysWhy() throws Exception
+    {
+        onEdt(() -> {
+            RollInboxView inbox = new RollInboxView(IconSource.NONE);
+            inbox.setExpanded(true);
+            String quiet = "RuneLite notices nothing on this character: your run is linked to Zezima.";
+            inbox.apply(RollInboxModel.builder().quiet(quiet).build());
+            assertTrue(texts(inbox).contains(quiet));
+            assertFalse(texts(inbox).contains(RollInboxView.EMPTY));
+
+            inbox.apply(RollInboxModel.builder().quiet(quiet).newEvents(1)
+                .rows(List.of(new RollInboxModel.Row("a", FateEventType.QUEST, "Cook's Assistant", null, false, false)))
+                .build());
+            assertTrue(texts(inbox).contains(quiet));
+            assertEquals(1, all(inbox, ItemRow.class::isInstance).size());
+            assertTrue(RollInboxView.EMPTY, RollInboxView.EMPTY.contains("finished diary tiers"));
+        });
+    }
+
     @Test
     public void theRollInboxListsWhatItNoticedToCopyOrDismiss() throws Exception
     {

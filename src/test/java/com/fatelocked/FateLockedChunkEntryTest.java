@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -362,6 +363,30 @@ public class FateLockedChunkEntryTest
         verify(notifier, times(1)).notify(anyString());
         verify(notifier).notify("You're logged in as Someone Else, not the bound account Iron Example");
         verify(panel, never()).showRollInbox(RollInboxModel.builder().warnings(1).build());
+    }
+
+    /**
+     * The accuracy review, P-10: on another character the Roll inbox says why RuneLite notices
+     * nothing, rather than promising events, and stops saying it on the run's own character.
+     */
+    @Test
+    public void theRollInboxSaysWhyNothingIsNoticedOnAnotherCharacter() throws Exception
+    {
+        playing("Someone Else");
+        walk(LUMBRIDGE);
+        assertEquals("RuneLite notices nothing on this character: your run is linked to Iron Example.",
+            lastRollInbox().getQuiet());
+
+        when(player.getName()).thenReturn("Iron Example");
+        walk(LUMBRIDGE);
+        assertNull(lastRollInbox().getQuiet());
+    }
+
+    private RollInboxModel lastRollInbox()
+    {
+        ArgumentCaptor<RollInboxModel> shown = ArgumentCaptor.forClass(RollInboxModel.class);
+        verify(panel, atLeast(1)).showRollInbox(shown.capture());
+        return shown.getValue();
     }
 
     /** A chunk the tracker locks outside the old area lists is announced without an area. */

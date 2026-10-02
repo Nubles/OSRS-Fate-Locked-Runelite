@@ -26,9 +26,10 @@ public final class RollInboxPresenter
      * @param offered this run's events the Roll inbox offers, newest first
      * @param linked  whether the run is linked to a character
      * @param notice  what the last copy did, or null
+     * @param quiet   why RuneLite notices nothing for the character logged in, or null
      */
     public static RollInboxModel present(List<DetectedEventStore.Entry> offered, int warnings, boolean saveFailed,
-        boolean linked, String notice)
+        boolean linked, String notice, String quiet)
     {
         List<RollInboxModel.Row> rows = new ArrayList<>();
         Set<String> characters = new LinkedHashSet<>();
@@ -59,6 +60,7 @@ public final class RollInboxPresenter
             .saveFailed(saveFailed)
             .character(linked || characters.isEmpty() ? null : listed(new ArrayList<>(characters)))
             .notice(notice)
+            .quiet(quiet)
             .build();
     }
 

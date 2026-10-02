@@ -26,8 +26,8 @@ public class RollInboxView extends Section
 {
     public static final String TITLE = "Roll inbox";
     static final String NOTE = "Copied only when you click. RuneLite doesn't upload anything.";
-    static final String EMPTY = "Nothing noticed this run yet. Levels, quests, diaries, kills and more show"
-        + " here as you play.";
+    static final String EMPTY = "Nothing noticed this run yet. Levels, quests, finished diary tiers, kills and"
+        + " more show here as you play.";
     static final String COPY_AGAIN = "Copy again";
 
     private final IconSource icons;
@@ -86,7 +86,12 @@ public class RollInboxView extends Section
         {
             body.add(Sidebar.text("Events for " + model.getCharacter(), Type.small(), Palette.TEXT_MUTED, 0));
         }
-        if (model.getRows().isEmpty())
+        if (model.getQuiet() != null)
+        {
+            // Why nothing new will come here, rather than a promise that it will.
+            body.add(Sidebar.text(model.getQuiet(), Type.small(), Palette.TEXT_MUTED, 0));
+        }
+        else if (model.getRows().isEmpty())
         {
             body.add(Sidebar.text(EMPTY, Type.small(), Palette.TEXT_MUTED, 0));
         }

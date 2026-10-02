@@ -359,6 +359,8 @@ public class FateLockedPlugin extends Plugin
     private PermissionStatus lastStatus;
     /** Warnings count the sidebar shows, so each change is sent to it once. */
     private int shownWarningCount = -1;
+    /** Why the Roll inbox says nothing is noticed, as it shows it; null while something is. */
+    private String shownQuiet;
     private NavigationButton navButton;
 
     /** The quests are read again this often, in ticks (a minute), for any finished without the quest scroll. */
@@ -2530,6 +2532,11 @@ public class FateLockedPlugin extends Plugin
         TrackerConnectionSettings settings = connectionSettings;
         models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
             settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
+        // A login, a logout, another character or new rules can start or stop the noticing.
+        if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet))
+        {
+            updatePanelRollInbox();
+        }
     }
 
     /** The sidebar's publisher: made at startUp, or on first use by a test that sets the panel alone. */
@@ -3230,12 +3237,19 @@ public class FateLockedPlugin extends Plugin
             ? java.util.Collections.<DetectedEventStore.Entry>emptyList()
             : store.offered(rules == null ? null : rules.getRunId());
         shownWarningCount = activeWarningCount();
+        shownQuiet = rollInboxQuiet();
         SidebarPublisher models = sidebarModels();
         if (models != null)
         {
             models.rollInbox(RollInboxPresenter.present(events, shownWarningCount, historySaveFailed,
-                AccountBinding.boundAccount(rules) != null, rollInboxNotice));
+                AccountBinding.boundAccount(rules) != null, rollInboxNotice, shownQuiet));
         }
+    }
+
+    /** Why RuneLite notices nothing for the character logged in, as the Roll inbox says it; null while it does. */
+    private String rollInboxQuiet()
+    {
+        return DetectionGate.quiet(getBundle(), loggedInName(), client.getWorldType());
     }
 
     /** Why a copy didn't happen. */

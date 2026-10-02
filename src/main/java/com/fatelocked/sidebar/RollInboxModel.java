@@ -34,6 +34,8 @@ public class RollInboxModel
     String character;
     /** What the last copy did, or why it couldn't; null for none. */
     String notice;
+    /** Why RuneLite notices nothing for the character logged in; null while it notices. */
+    String quiet;
 
     /** One event the card lists. */
     @Value
