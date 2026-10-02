@@ -425,18 +425,22 @@ public class DetectorsTest
         detectors.on(slayer("Cows", 30, 30, 1, 0));
 
         assertEquals(List.of(event(SLAYER_TASK, "Cows", UNCERTAIN, Detectors.SLAYER, 1, null,
-                "assigned", 30, "streak", 1)),
+                "master", "Turael", "assigned", 30, "streak", 1)),
             detectors.on(slayer("Cows", 0, 30, 1, 1)));
     }
 
     @Test
-    public void onlyTheMastersCheckedInGameAreNamed()
+    public void everyMasterIsNamedByTheGamesValue()
     {
-        assertEquals("Mortimer", completed(10).getEvidence().get("master"));
-        assertEquals("Krystilia", completed(7).getEvidence().get("master"));
-        for (int unchecked : new int[]{0, 1, 5, 9, 11})
+        String[] names = {"Turael", "Mazchna", "Vannaka", "Chaeldar", "Duradel", "Nieve", "Krystilia",
+            "Konar quo Maten", "Spria", "Mortimer"};
+        for (int value = 1; value <= names.length; value++)
         {
-            assertFalse(String.valueOf(unchecked), completed(unchecked).getEvidence().containsKey("master"));
+            assertEquals(String.valueOf(value), names[value - 1], completed(value).getEvidence().get("master"));
+        }
+        for (int unknown : new int[]{0, 11})
+        {
+            assertFalse(String.valueOf(unknown), completed(unknown).getEvidence().containsKey("master"));
         }
     }
 
@@ -447,7 +451,7 @@ public class DetectorsTest
         detectors.on(new Signal.Slayer("Vorkath", 3, 5, 9, 10, true));
 
         assertEquals(event(SLAYER_TASK, "Vorkath", UNCERTAIN, Detectors.SLAYER, 1, null,
-                "assigned", 5, "streak", 11, "bossTask", true),
+                "master", "Spria", "assigned", 5, "streak", 11, "bossTask", true),
             detectors.on(new Signal.Slayer(null, 0, 5, 9, 11, false)).get(0));
     }
 

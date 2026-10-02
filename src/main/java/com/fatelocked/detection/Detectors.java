@@ -56,8 +56,11 @@ public final class Detectors
     public static final int MORTIMER = 10;
 
     /**
-     * Slayer masters by the game's value, as RuneLite's own Slayer plugin names them. The rest are
-     * left out until they are checked in game, and the tracker asks for the master instead.
+     * Slayer masters by the game's value (SLAYER_MASTER), named as the tracker names them. Each
+     * value is the master's id in the game's Slayer task table, as the Slayer Companion plugin
+     * checked against the game cache; RuneLite's Slayer plugin uses 7 and 10, and the game's own
+     * streak script 7. A master who took another's place (Aya, Achtryn, Kuradal, Steve) has their
+     * value. An unknown value is left out, and the tracker asks for the master instead.
      */
     private static final Map<Integer, String> SLAYER_MASTERS = slayerMasters();
 
@@ -300,7 +303,15 @@ public final class Detectors
     private static Map<Integer, String> slayerMasters()
     {
         Map<Integer, String> masters = new HashMap<>();
+        masters.put(1, "Turael");
+        masters.put(2, "Mazchna");
+        masters.put(3, "Vannaka");
+        masters.put(4, "Chaeldar");
+        masters.put(5, "Duradel");
+        masters.put(6, "Nieve");
         masters.put(KRYSTILIA, "Krystilia");
+        masters.put(8, "Konar quo Maten");
+        masters.put(9, "Spria");
         masters.put(MORTIMER, "Mortimer");
         return Collections.unmodifiableMap(masters);
     }

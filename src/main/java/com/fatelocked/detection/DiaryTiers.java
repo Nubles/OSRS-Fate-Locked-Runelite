@@ -9,7 +9,8 @@ import java.util.Map;
 /**
  * The 48 achievement diary tiers' completion varbits, by the tracker's tier ids. Each is 1 once
  * the tier's tasks are done, except Karamja's first three: those are 1 once started and 2 once
- * done (the OSRS Wiki's varbits 3578, 3599 and 3611).
+ * done (the OSRS Wiki's varbits 3578, 3599 and 3611, and the game's own area_task_complete
+ * script, which checks each for 2).
  */
 public final class DiaryTiers
 {

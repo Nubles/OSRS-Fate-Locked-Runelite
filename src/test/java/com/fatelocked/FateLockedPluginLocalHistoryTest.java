@@ -253,7 +253,7 @@ public class FateLockedPluginLocalHistoryTest
         readForDetectors(harness);
 
         assertEquals(List.of("Kurask"), labels(harness));
-        assertFalse(events(harness).get(0).getEvidence().containsKey("master"));
+        assertEquals("Spria", events(harness).get(0).getEvidence().get("master"));
         assertFalse(events(harness).get(0).getEvidence().containsKey("bossTask"));
     }
 
