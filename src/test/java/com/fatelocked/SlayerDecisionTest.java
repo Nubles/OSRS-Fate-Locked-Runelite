@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -174,6 +175,17 @@ public class SlayerDecisionTest
         Decision theirs = other.slayerTask("krystilia", "abyssal demons", null);
         assertEquals(PermissionStatus.UNKNOWN, theirs.getStatus());
         assertEquals(Decision.Source.TRUST, theirs.getSource());
+    }
+
+    /** Konar's place finds its task as the game names it, and as the tracker wrote the key, its s dropped. */
+    @Test
+    public void aTaskKeyReadBackFindsItself()
+    {
+        Map<String, Integer> keyed = Map.of("konar quo maten:abyssal demons - abys", 1);
+        assertEquals(Integer.valueOf(1), FateLockedBundle.atSlayerKey(keyed, "Konar quo Maten:Abyssal demons - Abyss"));
+        assertEquals(Integer.valueOf(1), FateLockedBundle.atSlayerKey(keyed, "konar quo maten:abyssal demons - abys"));
+        assertNull(FateLockedBundle.atSlayerKey(keyed, "konar quo maten:abyssal demons - aby"));
+        assertNull(FateLockedBundle.atSlayerKey(keyed, " "));
     }
 
     /** Older rules, every task key in every golden bundle: owned anywhere, else locked everywhere, else unknown. */
