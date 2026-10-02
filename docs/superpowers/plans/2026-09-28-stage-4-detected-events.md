@@ -208,8 +208,9 @@ hats "Chompy bird hat", so a plain name with no item of its own now offers every
 
 ### Phase A: foundations in the plugin (no visible change)
 
-- [ ] **A1. Re-pin** at web pull request 1's merge. `DetectedEventsContractTest` runs the corpus through the detectors;
-  it starts with every case listed as pending, and each Phase B task clears its own.
+- [x] **A1. Re-pin** at web pull request 1's merge. `DetectedEventsContractTest` runs the corpus through the detectors;
+  it starts with every case listed as pending, and each Phase B task clears its own. Done through web pull request 2,
+  which holds pull request 1's merge (`17bdc1c`): the plugin pinned its head, then its merge commit.
 - [x] **A2. Signals:** the plugin turns RuneLite's events into plain signals (`detection.Signal`), and all parsing
   leaves `FateLockedPlugin`:
   - chat lines, popups, level changes and varbit changes as they come;
@@ -298,8 +299,13 @@ and the TzHaar-Ket-Rak line.
   and Chunk grid in rows 27 and 38).
 - [x] **D2. Checks:** clean check, the mutation runs, and the owner's "all good" ("the chunk grid works, start the
   release", 2 October).
-- [ ] **D3. Pull request and Plugin Hub:** push and open the pull request after the owner's OK. After the owner merges,
+- [x] **D3. Pull request and Plugin Hub:** push and open the pull request after the owner's OK. After the owner merges,
   open the Hub pull request with the merge commit.
+
+  *Done* on 2 October 2026: the plugin merged as `4c53198` (#26), with its build and the Hub packager green;
+  runelite/plugin-hub#17653 merged at 22:53 UTC, so the Hub builds `4c53198`; web pull request 2, held as a draft
+  until then, merged as `46b009c` (web #61); and the contracts are pinned at that merge commit (the same files as
+  the branch's head, `fba7072`).
 
 ### Phase P: the paste, on the web (pull request 2)
 
@@ -314,7 +320,7 @@ and the TzHaar-Ket-Rak line.
   - the empty state: "In RuneLite, open the Roll inbox card and choose Copy for tracker, then paste here.";
   - the coach hint;
   - "Skip any you've already logged by hand", since logging by hand stays open (decision 1).
-- [ ] **P4. The guide and What's New:**
+- [x] **P4. The guide and What's New:**
   - the Roll inbox chapter and its re-rendered picture;
   - the privacy text, `RuneLiteOnboarding` and `docs/online-relay.md`;
   - a What's New release.
