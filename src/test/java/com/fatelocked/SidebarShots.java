@@ -13,6 +13,7 @@ import com.fatelocked.sidebar.RunModel;
 import com.fatelocked.sidebar.Sidebar;
 import com.fatelocked.sidebar.StatusCardModel;
 import com.fatelocked.sidebar.StrictModeModel;
+import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.fatelocked.ui.IconSource;
 import com.fatelocked.ui.Palette.Tone;
 import com.fatelocked.ui.Section;
@@ -197,7 +198,7 @@ final class SidebarShots
 
     static StrictModeModel active()
     {
-        return new StrictModeModel(true, "Active", Tone.GOOD, "Stops a teleport to a place your rules lock.",
+        return new StrictModeModel(true, "Active", Tone.GOOD, StrictModeSectionPresenter.WHAT_IT_DOES,
             CardAction.PAUSE_STRICT_MODE, Collections.emptyList());
     }
 

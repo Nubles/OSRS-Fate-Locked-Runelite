@@ -195,7 +195,7 @@ public interface FateLockedConfig extends Config
 
     @ConfigSection(
         name = "Strict Mode",
-        description = "Stops a teleport to a place your rules lock",
+        description = "Stops teleports your rules don't allow",
         position = 1
     )
     String strictModeSection = "strictModeSection";
@@ -203,8 +203,11 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "strictMode",
         name = "Strict Mode",
-        description = "Stops a teleport only when it can match the trip exactly and fresh rules for this character lock"
-            + " where it goes. Walking, NPCs, objects, banks and equipment are never stopped. Off by default.",
+        description = "Stops a teleport it recognises exactly, with one place it can go, when fresh rules for this"
+            + " character lock that place. It also stops one to an unlocked place when you haven't unlocked that kind"
+            + " of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A worn item's teleport, such"
+            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped."
+            + " Off by default.",
         section = strictModeSection,
         position = 0
     )

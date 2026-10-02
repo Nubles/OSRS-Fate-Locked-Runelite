@@ -12,13 +12,17 @@ import com.fatelocked.guardian.travel.TravelGuardianCoordinator;
 import com.fatelocked.guardian.travel.TravelGuardianResult;
 import com.fatelocked.guardian.travel.TravelRuleEvaluator;
 import com.fatelocked.rules.DecisionService;
+import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.TravelTable;
 import com.fatelocked.rules.Trust;
+import com.fatelocked.sidebar.StrictModeSectionPresenter;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.client.config.ConfigItem;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -119,6 +123,44 @@ public class StrictModeGoldenTest
         }
     }
 
+    /**
+     * The owner's call T6 in the accuracy review: Strict Mode stops a teleport of a kind the run
+     * hasn't unlocked, even to an unlocked place, and a worn item's teleport, and its setting says
+     * so. In vanilla-mid the Varrock Teleport spell is allowed, but the Varrock tablet, to the same
+     * place, needs Teleport Tablets; a worn glory's Edgeville needs Jewelry Teleports.
+     */
+    @Test
+    public void itStopsATeleportOfAKindNotUnlockedAndAWornItemsAndSaysSo() throws Exception
+    {
+        if (!id.equals("vanilla-mid")) return;
+        DecisionService playing = DecisionService.create(rules, account, account);
+        StrictModeReadiness readiness = readiness(playing, account);
+        TravelTable table = playing.travelTable();
+        TravelTable.Option spell = table.method("spell:standard:varrock-teleport").option("Cast");
+        TravelTable.Option tablet = table.method("tablet:varrock-teleport").option("Break");
+        assertEquals(PermissionStatus.ALLOWED, spell.getStatus());
+        assertEquals(spell.destination(), tablet.destination());
+        assertEquals("Needs Teleport Tablets", tablet.getReason());
+        List<String> got = blocked(playing, readiness);
+        assertTrue(got.contains("tablet:varrock-teleport|Break"));
+        assertFalse(got.contains("spell:standard:varrock-teleport|Cast"));
+
+        TravelTable.Method glory = table.method("item:amulet-of-glory");
+        assertEquals("Needs Jewelry Teleports", glory.option("Edgeville").getReason());
+        MenuFacts worn = MenuFacts.builder().kind(MenuFacts.Kind.WIDGET).interfaceGroup(InterfaceID.WORNITEMS)
+            .itemId(glory.getIds().iterator().next()).option("Edgeville").target(glory.getLabel()).build();
+        assertTrue("a worn glory's Edgeville", consumed(playing, readiness, worn));
+
+        String setting = FateLockedConfig.class.getMethod("strictMode").getAnnotation(ConfigItem.class).description();
+        for (String says : new String[]{setting, StrictModeSectionPresenter.WHAT_IT_DOES})
+        {
+            assertTrue(says, says.contains("you haven't unlocked"));
+            assertTrue(says, says.contains("Teleport Tablets"));
+        }
+        assertTrue(setting, setting.contains("A worn item's teleport"));
+        assertFalse(setting, setting.contains("equipment"));
+    }
+
     @Test
     public void nothingIsBlockedOnAnotherCharacter()
     {
@@ -140,15 +182,29 @@ public class StrictModeGoldenTest
             decisions.trust() == Trust.TRUSTED && decisions.isBound(), true);
     }
 
-    /** Click every option of every method, on its first id; the trips whose click was consumed. */
-    private List<String> blocked(DecisionService decisions, StrictModeReadiness readiness)
+    /** Whether Strict Mode consumes this one click. */
+    private boolean consumed(DecisionService decisions, StrictModeReadiness readiness, MenuFacts facts)
+    {
+        MenuOptionClicked click = mock(MenuOptionClicked.class);
+        coordinator().handle(click, facts, readiness, decisions, availability);
+        return Mockito.mockingDetails(click).getInvocations().stream()
+            .anyMatch(call -> call.getMethod().getName().equals("consume"));
+    }
+
+    private static TravelGuardianCoordinator coordinator()
     {
         TravelAlternativeFinder finder = mock(TravelAlternativeFinder.class);
         when(finder.find(any(), any(), any())).thenReturn(Optional.empty());
-        TravelGuardianCoordinator coordinator = new TravelGuardianCoordinator(
+        return new TravelGuardianCoordinator(
             new IntentClassifier(), new TravelRuleEvaluator(), finder,
             new TravelBlockNoticeStore(Clock.systemUTC()),
             new StrictModeClickHandler(new StrictModeGuard()));
+    }
+
+    /** Click every option of every method, on its first id; the trips whose click was consumed. */
+    private List<String> blocked(DecisionService decisions, StrictModeReadiness readiness)
+    {
+        TravelGuardianCoordinator coordinator = coordinator();
         TravelTable table = decisions.travelTable();
         List<String> blocked = new ArrayList<>();
         for (TravelTable.Method method : table.methods())

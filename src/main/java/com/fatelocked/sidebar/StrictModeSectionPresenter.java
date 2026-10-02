@@ -12,7 +12,8 @@ import java.util.List;
  */
 public final class StrictModeSectionPresenter
 {
-    public static final String WHAT_IT_DOES = "Stops a teleport to a place your rules lock.";
+    public static final String WHAT_IT_DOES = "Stops a teleport to a place your rules lock, or a teleport of a kind"
+        + " you haven't unlocked, such as Teleport Tablets.";
 
     private StrictModeSectionPresenter()
     {

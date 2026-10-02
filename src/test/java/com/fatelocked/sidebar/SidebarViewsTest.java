@@ -354,6 +354,24 @@ public class SidebarViewsTest
         });
     }
 
+    /**
+     * The owner's call T6 in the accuracy review: the intro and the card's line say what Strict
+     * Mode stops, as its setting does (StrictModeGoldenTest): a teleport of a kind the run hasn't
+     * unlocked, and a worn item's teleport.
+     */
+    @Test
+    public void strictModeSaysItStopsATeleportOfAKindNotUnlockedAndAWornItems()
+    {
+        for (String says : new String[]{StrictModeView.INTRO, StrictModeSectionPresenter.WHAT_IT_DOES,
+            StrictModeModel.off().getDetail()})
+        {
+            assertTrue(says, says.contains("you haven't unlocked"));
+            assertTrue(says, says.contains("Teleport Tablets"));
+            assertFalse(says, says.contains("equipment"));
+        }
+        assertTrue(StrictModeView.INTRO, StrictModeView.INTRO.contains("A worn item's teleport"));
+    }
+
     @Test
     public void theConnectionSwitchAsksBeforeItChangesAnything() throws Exception
     {
