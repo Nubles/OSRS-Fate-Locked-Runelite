@@ -78,7 +78,7 @@ public class BankWarningTest
 
         assertEquals(1, lines.size());
         assertTrue(lines.get(0), lines.get(0).contains("Lumbridge Castle"));
-        assertTrue(lines.get(0), lines.get(0).contains("roll it under Banks"));
+        assertTrue(lines.get(0), lines.get(0).contains("is locked. Unlock it from the Banks table in the tracker"));
         assertEquals("a deposit box too", 1, openBankAt(LUMBRIDGE_CASTLE, DEPOSIT_BOX).size());
     }
 

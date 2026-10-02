@@ -357,11 +357,12 @@ public class FateLockedChunkEntryTest
 
         List<String> lines = chatLines();
         assertEquals(lines.toString(), 1, lines.size());
-        assertTrue(lines.get(0), lines.get(0).contains("you're logged in as"));
+        assertTrue(lines.get(0), lines.get(0).contains("This run is linked to ")
+            && lines.get(0).contains(", but you're logged in as "));
         verify(client, never()).playSoundEffect(anyInt());
         // Notifications are on here, so that line is also the one notification.
         verify(notifier, times(1)).notify(anyString());
-        verify(notifier).notify("You're logged in as Someone Else, not the bound account Iron Example");
+        verify(notifier).notify("You're logged in as Someone Else, but this run is linked to Iron Example");
         verify(panel, never()).showRollInbox(RollInboxModel.builder().warnings(1).build());
     }
 

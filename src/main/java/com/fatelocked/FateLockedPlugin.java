@@ -167,7 +167,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @PluginDescriptor(
     name = "Fate Locked Ironman",
-    description = "Shows app-authored Fate Locked rules, local observations, overlays, warnings, and optional Strict Mode",
+    description = "Your Fate Locked run in game: locked areas, warnings, a Roll inbox and optional Strict Mode",
     tags = { "chunk", "ironman", "locked", "map", "fate" }
 )
 public class FateLockedPlugin extends Plugin
@@ -991,7 +991,7 @@ public class FateLockedPlugin extends Plugin
         String why = decision.getReason() == null ? "." : ": " + decision.getReason() + ".";
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-            .append(ChatColorType.NORMAL).append("Your slayer task (")
+            .append(ChatColorType.NORMAL).append("Your Slayer task (")
             .append(ChatColorType.HIGHLIGHT).append(locked)
             .append(ChatColorType.NORMAL).append(") is locked" + why);
         chatMessageManager.queue(QueuedMessage.builder()
@@ -1081,7 +1081,7 @@ public class FateLockedPlugin extends Plugin
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
             .append(ChatColorType.NORMAL).append(where)
-            .append(ChatColorType.NORMAL).append(" is LOCKED — roll it under Banks in the tracker before you rely on it.");
+            .append(ChatColorType.NORMAL).append(" is locked. Unlock it from the Banks table in the tracker before you use it.");
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(msg.build())
@@ -1503,16 +1503,16 @@ public class FateLockedPlugin extends Plugin
 
         ChatMessageBuilder msg = new ChatMessageBuilder()
             .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
-            .append(ChatColorType.NORMAL).append("This run is bound to ")
+            .append(ChatColorType.NORMAL).append("This run is linked to ")
             .append(ChatColorType.HIGHLIGHT).append(bound)
-            .append(ChatColorType.NORMAL).append(" — you're logged in as ")
+            .append(ChatColorType.NORMAL).append(", but you're logged in as ")
             .append(ChatColorType.HIGHLIGHT).append(current)
             .append(ChatColorType.NORMAL).append(".");
         chatMessageManager.queue(QueuedMessage.builder()
             .type(ChatMessageType.GAMEMESSAGE)
             .runeLiteFormattedMessage(msg.build())
             .build());
-        notifyIfEnabled("You're logged in as " + current + ", not the bound account " + bound);
+        notifyIfEnabled("You're logged in as " + current + ", but this run is linked to " + bound);
     }
 
     @Subscribe
@@ -2307,7 +2307,7 @@ public class FateLockedPlugin extends Plugin
 
             WorldMapPoint point = new LockedAreaPoint(wp, lockedPinImage());
             point.setName(area);
-            point.setTooltip(area + " — LOCKED");
+            point.setTooltip(area + ": " + Terms.LOCKED);
             point.setTarget(wp);
             point.setJumpOnClick(true);
             point.setSnapToEdge(false);
