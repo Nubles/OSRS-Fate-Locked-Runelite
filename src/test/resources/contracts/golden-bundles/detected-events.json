@@ -11,7 +11,7 @@
     "varbit": "One varbit's new value.",
     "slayer": "The Slayer task as the game's variables give it: the task's name from the game's task table, the amount left and the amount assigned, the master's value, the task streak for that master, and whether it's a boss task (bossTask, false when absent)."
   },
-  "events": "Each event names its type, label, confidence, detector and version, and evidence exactly. The app's verdict is READY or NEEDS_CONFIRMATION; firstCandidate is the choice a review starts on.",
+  "events": "Each event names its type, label, confidence, detector and version, and evidence exactly. The app's verdict is READY or NEEDS_CONFIRMATION; firstCandidate is the choice a review starts on; a pet has none, as RuneLite can't tell which pet it is and the player picks it.",
   "run": "The app classifies against a Vanilla run for Iron Example with every skill unlocked at level 1 and every boss unlocked, plus the case's given unlocks.",
   "cases": [
     {
@@ -441,6 +441,34 @@
       "signals": [
         { "kind": "varbit", "id": 4479, "value": 1 },
         { "kind": "varbits", "values": { "4479": 1 } }
+      ],
+      "events": []
+    },
+    {
+      "id": "pet-followed",
+      "about": "The game's line for a new pet that starts following the player, as RuneLite's Screenshot plugin reads it. Which pet is left to the player, and each pet gives its Omni-Key once.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "You have a funny feeling like you're being followed." }
+      ],
+      "events": [
+        { "eventType": "PET_DROP", "canonicalLabel": null, "confidence": "UNCERTAIN", "detectorId": "pet-drop-v1", "detectorVersion": 1, "evidence": { "signature": "followed" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "pet-backpack",
+      "about": "A new pet while the player already has a follower goes in the backpack, and the game says so.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "You feel something weird sneaking into your backpack." }
+      ],
+      "events": [
+        { "eventType": "PET_DROP", "canonicalLabel": null, "confidence": "UNCERTAIN", "detectorId": "pet-drop-v1", "detectorVersion": 1, "evidence": { "signature": "backpack" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+      ]
+    },
+    {
+      "id": "pet-already-owned",
+      "about": "A pet the player already owns is not a new one: the game says they would have been followed.",
+      "signals": [
+        { "kind": "chat", "type": "GAMEMESSAGE", "message": "You have a funny feeling like you would have been followed..." }
       ],
       "events": []
     }

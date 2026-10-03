@@ -345,6 +345,7 @@ public class SidebarViewsTest
         assertEquals(com.fatelocked.ui.Art.COMBAT, RollInboxView.art(row(FateEventType.BOSS_KILL)));
         assertEquals(com.fatelocked.ui.Art.RAID, RollInboxView.art(row(FateEventType.RAID_COMPLETION)));
         assertEquals(com.fatelocked.ui.Art.DIARY, RollInboxView.art(row(FateEventType.DIARY_TASK)));
+        assertEquals(com.fatelocked.ui.Art.PET, RollInboxView.art(row(FateEventType.PET_DROP)));
         assertEquals(null, RollInboxView.art(row(FateEventType.SKILL_LEVEL)));
         assertEquals(null, RollInboxView.art(row(null)));
     }

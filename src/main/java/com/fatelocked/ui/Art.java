@@ -37,6 +37,8 @@ public enum Art
     RAID(Kind.SPRITE, SpriteID.Mapfunction.RAIDS_LOBBY, 0),
     /** The quest journal's achievement diary tab. */
     DIARY(Kind.SPRITE, SpriteID.AchievementDiaryIcons.GREEN_ACHIEVEMENT_DIARIES, 0),
+    /** Vorki, for a new pet, as the tracker's pet card shows. */
+    PET(Kind.ITEM, ItemID.VORKATHPET, 1),
 
     KEYS(Kind.ITEM, ItemID.CRYSTAL_KEY, 1),
     OMNI_KEYS(Kind.ITEM, ItemID.PRIF_CRYSTAL_KEY, 1),

@@ -15,8 +15,10 @@ import java.util.Set;
  */
 public final class RollInboxPresenter
 {
-    /** A row whose event has no name, which no detector in this build makes. */
+    /** A row whose event has no name, which no detector in this build makes but the pet one. */
     static final String UNNAMED = "Needs identification";
+    /** A pet's row: the game doesn't say which pet, so the tracker asks. */
+    static final String NEW_PET = "New pet";
 
     private RollInboxPresenter()
     {
@@ -47,7 +49,8 @@ public final class RollInboxPresenter
             {
                 String label = event.getCanonicalLabel();
                 rows.add(new RollInboxModel.Row(event.getEventId(), event.getEventType(),
-                    label == null || label.trim().isEmpty() ? UNNAMED : label, skill(event),
+                    label != null && !label.trim().isEmpty() ? label
+                        : event.getEventType() == FateEventType.PET_DROP ? NEW_PET : UNNAMED, skill(event),
                     event.getConfidence() == EventConfidence.UNCERTAIN, isCopied));
             }
         }

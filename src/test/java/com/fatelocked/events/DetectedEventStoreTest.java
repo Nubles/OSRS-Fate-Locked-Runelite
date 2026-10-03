@@ -115,22 +115,21 @@ public class DetectedEventStoreTest
     }
 
     @Test
-    public void offersThisRunsNewAndCopiedEventsNewestFirstButNoPetsYet() throws IOException
+    public void offersThisRunsNewAndCopiedEventsNewestFirstPetsIncluded() throws IOException
     {
         DetectedEventStore store = store();
         store.record(quest("old", NOW - 2 * DAY));
         store.record(quest("new", NOW - DAY));
         store.record(event("other-run", "run-2", FateEventType.QUEST, NOW));
-        store.record(event("pet", "run-1", FateEventType.PET_DROP, NOW));
+        store.record(event("pet", "run-1", FateEventType.PET_DROP, NOW - DAY / 2));
         store.record(quest("dismissed", NOW));
         store.mark(Collections.singletonList("dismissed"), DISMISSED);
         store.mark(Collections.singletonList("old"), COPIED);
 
-        assertEquals(Arrays.asList("new", "old"), ids(store.offered("run-1")));
+        // A pet is offered too: the tracker asks which pet it was.
+        assertEquals(Arrays.asList("pet", "new", "old"), ids(store.offered("run-1")));
         assertEquals(Collections.singletonList("other-run"), ids(store.offered("run-2")));
         assertEquals(Collections.emptyList(), ids(store.offered(null)));
-        // The pet is kept, only not offered.
-        assertTrue(ids(store.entries()).contains("pet"));
     }
 
     @Test
