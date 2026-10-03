@@ -1,3 +1,7 @@
 .worktrees/
 .gradle/
 build/
+
+# Working notes (plans, specs and reviews) stay on the developer's machine.
+docs/superpowers/
+docs/reviews/
