@@ -330,11 +330,22 @@
       ]
     },
     {
-      "id": "slayer-master-unchecked",
-      "about": "A master whose value hasn't been checked in the game is left out, and the player chooses.",
+      "id": "slayer-master-named",
+      "about": "Each master value is the master's id in the game's Slayer task table (1 Turael, 2 Mazchna, 3 Vannaka, 4 Chaeldar, 5 Duradel, 6 Nieve, 7 Krystilia, 8 Konar quo Maten, 9 Spria, 10 Mortimer; a replacement master such as Kuradal shares the value). 5 is Duradel, and the app starts on Duradel's roll.",
       "signals": [
         { "kind": "slayer", "task": "Abyssal demons", "amount": 1, "assigned": 150, "master": 5, "streak": 12 },
         { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 150, "master": 5, "streak": 13 }
+      ],
+      "events": [
+        { "eventType": "SLAYER_TASK", "canonicalLabel": "Abyssal demons", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "master": "Duradel", "assigned": 150, "streak": 13 }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Duradel/Kuradal)" } }
+      ]
+    },
+    {
+      "id": "slayer-master-unknown",
+      "about": "A value no master has is left out, and the player chooses.",
+      "signals": [
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 1, "assigned": 150, "master": 11, "streak": 12 },
+        { "kind": "slayer", "task": "Abyssal demons", "amount": 0, "assigned": 150, "master": 11, "streak": 13 }
       ],
       "events": [
         { "eventType": "SLAYER_TASK", "canonicalLabel": "Abyssal demons", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "assigned": 150, "streak": 13 }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Turael/Spria)" } }
@@ -372,13 +383,13 @@
     },
     {
       "id": "slayer-boss-task",
-      "about": "A boss task (the game's task 98) says so, and the app starts on the boss task roll.",
+      "about": "A boss task (the game's task 98) says so, and the app starts on the boss task roll. 9 is Spria.",
       "signals": [
         { "kind": "slayer", "task": "Vorkath", "amount": 3, "assigned": 5, "master": 9, "streak": 10, "bossTask": true },
         { "kind": "slayer", "task": "Vorkath", "amount": 0, "assigned": 5, "master": 9, "streak": 11, "bossTask": true }
       ],
       "events": [
-        { "eventType": "SLAYER_TASK", "canonicalLabel": "Vorkath", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "assigned": 5, "streak": 11, "bossTask": true }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Boss Task)" } }
+        { "eventType": "SLAYER_TASK", "canonicalLabel": "Vorkath", "confidence": "UNCERTAIN", "detectorId": "slayer-task-varp-v1", "detectorVersion": 1, "evidence": { "master": "Spria", "assigned": 5, "streak": 11, "bossTask": true }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "Slayer (Boss Task)" } }
       ]
     },
     {

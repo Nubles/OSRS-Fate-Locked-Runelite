@@ -258,7 +258,8 @@ suite, the bundle's tables and the wiring each got a mutation run.
   as RuneLite's Slayer plugin reads them: Krystilia's and Mortimer's streaks are their own, a boss task is task 98, and
   the task's name comes from the game's Slayer task table. The amount and the streak may change apart, and a streak
   read for another master is another task's. The chat regexes went. RuneLite names masters 7 (Krystilia) and 10
-  (Mortimer); the rest are checked in game before release, and until then the web asks for the master.
+  (Mortimer); the rest are checked in game before release, and until then the web asks for the master. Since
+  3 October all ten are named (1 Turael to 10 Mortimer), by their ids in the game's Slayer task table.
 - [x] **B8. Diary** (D9): the varbit and tier tables moved into `detection.DiaryTiers`, and every tier id is checked
   against the bundle's list. Karamja's easy, medium and hard varbits are 2 once done and 1 once started (the OSRS
   Wiki's varbits 3578, 3599 and 3611). The released plugin reminds "Diary complete" when one is started; this fixes
@@ -334,3 +335,8 @@ and the TzHaar-Ket-Rak line.
 - Real messages for the corpus come first from RuneLite's own fixtures. The owner's review in RuneLite (C5) confirms
   the Slayer master values, Karamja's diary value (2, by the OSRS Wiki), and the combat task and collection log
   popups.
+  - **Settled on 3 October without the review**, which recorded none of the three:
+    - Karamja's value by the game's own `area_task_complete` script: its easy, medium and hard tiers are done at 2;
+    - the popups as RuneLite's Screenshot plugin reads them;
+    - each master's value from the game's Slayer task table, as the Slayer Companion plugin checked it against
+      the game cache. It agrees with RuneLite's 7 and 10.
