@@ -36,6 +36,8 @@ public final class RuneliteRulesManifest
     public static final String TRAVEL = "travel";
     /** The capability for the tracker's names for what RuneLite notices: bosses by kill count, quests and diary tiers (Stage 4). */
     public static final String DETECTION = "detection";
+    /** The capability for the bosses and raids whose kills don't roll again this run. */
+    public static final String SPENT_BOSSES = "spentBosses";
 
     private String rulesVersion;
     private int contentVersion;
@@ -107,6 +109,15 @@ public final class RuneliteRulesManifest
     @SerializedName("detection")
     private JsonElement detectionDeclaration;
     private transient DetectionTables detection;
+    /**
+     * The bosses and raids, by the tracker's boss key, whose kills don't roll again this run: in
+     * Vanilla, each has given every Standard Key it holds. Null when the bundle doesn't send them, or
+     * they aren't a list.
+     */
+    @Getter(AccessLevel.NONE)
+    @SerializedName("spentBosses")
+    private JsonElement spentBossesDeclaration;
+    private transient List<String> spentBosses;
 
     public RuneliteRulesManifest normalized()
     {
@@ -170,6 +181,8 @@ public final class RuneliteRulesManifest
             : travel != null ? travel : TravelTable.parse(travelDeclaration);
         copy.detection = !copy.capabilities.contains(DETECTION) ? null
             : detection != null ? detection : DetectionTables.parse(detectionDeclaration);
+        copy.spentBosses = !copy.capabilities.contains(SPENT_BOSSES) ? null
+            : spentBosses != null ? spentBosses : stringItems(spentBossesDeclaration);
         return copy;
     }
 

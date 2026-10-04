@@ -1,7 +1,7 @@
 {
  "schema": 2,
  "id": "xtreme-varrock",
- "covers": "Lumbridge-only start plus Varrock",
+ "covers": "Lumbridge-only start plus Varrock, where every boss kill rolls",
  "gameModeId": "xtreme",
  "account": "Iron Example",
  "oceanChunkCount": 548,
@@ -3521,6 +3521,7 @@
    "total": 624
   }
  },
+ "spentBosses": [],
  "slayer": {
   "turael:bat": "LOCKED",
   "turael:bear": "LOCKED",

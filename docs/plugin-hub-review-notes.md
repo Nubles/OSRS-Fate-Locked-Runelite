@@ -34,7 +34,9 @@ only its descriptions say more exactly what that is. For review:
 - **Who it notices for.** Only with a run's rules loaded, on worlds that
   save to the account: the character the rules are bound to, with a roll
   reminder; any character while the rules are bound to no one, recorded for
-  the card without reminders; nobody else.
+  the card without reminders; nobody else. Kills of a boss the tracker says
+  can't roll again (a Vanilla boss with no Standard Keys left) aren't
+  recorded.
 - **Local files.** Per account: `detected-events.json` (New, Copied or
   Dismissed; 30 days; the newest 250), and `quests.json` and
   `diary-tiers.json`, so a finish isn't noticed twice. They're written only
