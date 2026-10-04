@@ -88,6 +88,17 @@ public class RollInboxPresenterTest
     }
 
     @Test
+    public void aPetIsANewPetUntilTheTrackerAsksWhichOne()
+    {
+        RollInboxModel model = RollInboxPresenter.present(List.of(
+            new DetectedEventStore.Entry(event("pet", FateEventType.PET_DROP, null, EventConfidence.UNCERTAIN, null), NEW)),
+            0, false, true, null, null);
+
+        assertEquals("New pet", model.getRows().get(0).getLabel());
+        assertTrue("the tracker asks the player", model.getRows().get(0).isNeedsChecking());
+    }
+
+    @Test
     public void aRunLinkedToNoOneSaysWhoseEventsTheyAre()
     {
         List<DetectedEventStore.Entry> offered = List.of(

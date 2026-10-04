@@ -41,10 +41,15 @@ public class RollReminderTest
     }
 
     @Test
+    public void aNewPetHasALineThoughTheGameDoesntSayWhichPet()
+    {
+        assertEquals("A new pet: added to your Roll inbox.", text(FateEventType.PET_DROP, null));
+        assertEquals("A new pet: added to your Roll inbox.", text(FateEventType.PET_DROP, "Pet"));
+    }
+
+    @Test
     public void whatTheRollInboxDoesntOfferGetsNoLine()
     {
-        // Pets wait for the owner's poll (plan decision 13).
-        assertNull(text(FateEventType.PET_DROP, "Pet"));
         assertNull(text(FateEventType.MINIGAME_COMPLETION, "Tempoross"));
         assertNull(text(FateEventType.QUEST, null));
         assertNull(text(null, "Anything"));

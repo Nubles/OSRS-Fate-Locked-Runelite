@@ -1,6 +1,7 @@
 package com.fatelocked.detection;
 
 import com.fatelocked.detectors.DetectedEvent;
+import com.fatelocked.events.FateEventType;
 
 /**
  * The chat line for an event saved to the Roll inbox (plan decision 15), such as "Attack level 71:
@@ -12,7 +13,7 @@ public final class RollReminder
     {
     }
 
-    /** The line for this event; null for one the Roll inbox doesn't offer, such as a pet. */
+    /** The line for this event; null for one with nothing to name it by. */
     public static String text(DetectedEvent event)
     {
         String what = what(event);
@@ -22,6 +23,7 @@ public final class RollReminder
     /** What happened, in the game's words where the tracker's id isn't one. */
     private static String what(DetectedEvent event)
     {
+        if (event.getType() == FateEventType.PET_DROP) return "A new pet";
         String label = event.getCanonicalLabel();
         if (event.getType() == null || label == null) return null;
         switch (event.getType())

@@ -195,6 +195,8 @@ public class RollInboxView extends Section
                 return Art.RAID;
             case DIARY_TASK:
                 return Art.DIARY;
+            case PET_DROP:
+                return Art.PET;
             default:
                 return null;
         }

@@ -1,7 +1,7 @@
 # Plugin Hub review notes
 
-The plugin is on the Plugin Hub, which builds commit `e333c67` (every Slayer
-master named, 3 October 2026, runelite/plugin-hub#17683). These notes describe
+The plugin is on the Plugin Hub, which builds commit `edad2f2` (spent bosses
+stay quiet, 4 October 2026, runelite/plugin-hub#17775). These notes describe
 `main` for reviewers of the next update and do not claim approval of any
 change made since that commit.
 
@@ -28,9 +28,10 @@ only its descriptions say more exactly what that is. For review:
 - **It notices from what the client already shows.** Levels (`StatChanged`),
   quests (RuneLite's quest states, read when the quest-complete scroll opens
   and every 100 ticks), finished diary tiers (varbits), combat tasks and
-  collection log items (their chat lines and popups), and clue, boss and raid
-  counts and Slayer tasks (chat lines and vars). It reads; it never clicks,
-  moves or changes anything.
+  collection log items (their chat lines and popups), clue, boss and raid
+  counts and Slayer tasks (chat lines and vars), and a new pet (the game's
+  two chat lines for one; it doesn't say which pet, so the tracker asks). It
+  reads; it never clicks, moves or changes anything.
 - **Who it notices for.** Only with a run's rules loaded, on worlds that
   save to the account: the character the rules are bound to, with a roll
   reminder; any character while the rules are bound to no one, recorded for

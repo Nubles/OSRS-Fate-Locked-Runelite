@@ -130,7 +130,8 @@ public final class DetectedEventStore
 
     /**
      * What the Roll inbox offers: this run's events that are New or Copied and young enough for
-     * the tracker, newest first. Pets wait for the owner's poll on pet rewards (plan decision 13).
+     * the tracker, newest first. A pet is offered too: the tracker asks which pet it was, and each
+     * pet gives its Omni-Key once.
      */
     public synchronized List<Entry> offered(String runId)
     {
@@ -140,7 +141,7 @@ public final class DetectedEventStore
         {
             FateEvent event = entry.getEvent();
             if (entry.getStatus() != Status.DISMISSED && runId != null && runId.equals(event.getRunId())
-                && event.getOccurredAt() >= oldest && event.getEventType() != FateEventType.PET_DROP)
+                && event.getOccurredAt() >= oldest)
             {
                 offered.add(entry);
             }

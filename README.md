@@ -124,15 +124,16 @@ once, the first time the plugin starts.
   says when it cannot act, a 60-second pause, and a bounded local audit log.
 - What RuneLite notices, listed in the Roll inbox card for the tracker:
   levels, quests, finished diary tiers, combat achievements, collection log
-  items, clues, boss and raid kills, and Slayer tasks.
+  items, clues, boss and raid kills, Slayer tasks and new pets.
 
 ## Roll Inbox ownership and privacy
 
 The Roll inbox card lists what RuneLite noticed for the logged-in account
 that may be worth a roll: levels, quests, finished diary tiers, combat
 achievements, collection log items (only with the game's own collection
-log notification on), clues, boss and raid kills, and Slayer tasks. Each
-shows New until it's copied; Dismiss hides one. **Copy for tracker** puts
+log notification on), clues, boss and raid kills, Slayer tasks and new
+pets. The game doesn't say which pet, so the tracker asks; each pet gives its
+Omni-Key once. Each shows New until it's copied; Dismiss hides one. **Copy for tracker** puts
 them on the clipboard, and the tracker's Roll Inbox reads them with
 **Paste from RuneLite**: nothing rolls until you choose Roll there, and
 logging by hand stays open. Events older than 30 days go, as the tracker

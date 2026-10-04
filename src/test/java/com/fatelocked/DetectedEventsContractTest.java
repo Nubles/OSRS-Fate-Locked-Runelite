@@ -5,12 +5,14 @@ import com.fatelocked.detection.Detectors;
 import com.fatelocked.detection.DiaryTiers;
 import com.fatelocked.detection.Signal;
 import com.fatelocked.detectors.DetectedEvent;
+import com.fatelocked.detectors.PetDropDetector;
 import com.fatelocked.events.EventIds;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.runelite.api.Quest;
+import net.runelite.client.util.Text;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -33,6 +35,8 @@ import static org.junit.Assert.assertTrue;
 public class DetectedEventsContractTest
 {
     private static final Gson GSON = new Gson();
+    /** The chat types the plugin hands its detectors (FateLockedPlugin.onChatMessage). */
+    private static final Set<String> GAME_MESSAGES = Set.of("GAMEMESSAGE", "SPAM");
 
     @Test
     public void everyCaseMakesExactlyItsEvents() throws Exception
@@ -45,11 +49,22 @@ public class DetectedEventsContractTest
             JsonObject contractCase = item.getAsJsonObject();
             String id = contractCase.get("id").getAsString();
             Detectors detectors = new Detectors(tables, null, null);
+            PetDropDetector pets = new PetDropDetector();
+            long now = 0;
             List<DetectedEvent> made = new ArrayList<>();
             Set<String> ids = new HashSet<>();
             for (JsonElement signal : contractCase.getAsJsonArray("signals"))
             {
-                for (DetectedEvent event : detectors.on(signal(signal.getAsJsonObject())))
+                JsonObject raw = signal.getAsJsonObject();
+                List<DetectedEvent> found = new ArrayList<>();
+                // As the plugin does, a game message goes to the pet detector before the others.
+                if ("chat".equals(raw.get("kind").getAsString()) && GAME_MESSAGES.contains(raw.get("type").getAsString()))
+                {
+                    now += 10_000;
+                    pets.detect(Text.removeTags(raw.get("message").getAsString()), now).ifPresent(found::add);
+                }
+                found.addAll(detectors.on(signal(raw)));
+                for (DetectedEvent event : found)
                 {
                     // The store keeps one event per id: something seen twice is recorded once.
                     if (event.getCount() == null || ids.add(EventIds.of("Iron Example", "contract-run",
@@ -67,7 +82,8 @@ public class DetectedEventsContractTest
                 DetectedEvent got = made.get(i);
                 String at = id + " #" + i;
                 assertEquals(at, want.get("eventType").getAsString(), got.getType().name());
-                assertEquals(at, want.get("canonicalLabel").getAsString(), got.getCanonicalLabel());
+                assertEquals(at, want.get("canonicalLabel").isJsonNull() ? null : want.get("canonicalLabel").getAsString(),
+                    got.getCanonicalLabel());
                 assertEquals(at, want.get("confidence").getAsString(), got.getConfidence().name());
                 assertEquals(at, want.get("detectorId").getAsString(), got.getDetectorId());
                 assertEquals(at, want.get("detectorVersion").getAsInt(), got.getDetectorVersion());

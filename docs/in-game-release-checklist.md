@@ -75,6 +75,7 @@ Plugin Hub, and paste the filled-in table into the release pull request.
 | 40 | Click **Copy for tracker**. In the tracker's Roll Inbox, click **Paste from RuneLite**, then paste again. | The card's events turn Copied. The tracker says how many it added, then that they were already here; nothing rolls until you choose Roll. | |
 | 41 | Log in on a character the run isn't linked to, then with no rules loaded. | The Roll inbox card says why RuneLite notices nothing, each time; no reminders. | |
 | 42 | In a Vanilla run that has had Brutus's Standard Key, kill Brutus; then kill a boss that still has a Key to give. | Brutus's kill gets no reminder and isn't in the Roll inbox card; the other boss's kill gets both. | |
+| 43 | If a pet drops while you play: the game says you have a funny feeling you're being followed, or that something is sneaking into your backpack. | The Roll inbox card lists a New pet, with a roll reminder, and Paste from RuneLite in the tracker asks which pet it was. A pet you already own adds nothing. | |
 
 Record the commit, the RuneLite version, the date, and a pass or fail (with a
 note for any fail) in each row. Any fail blocks the release until it is fixed
