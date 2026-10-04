@@ -61,6 +61,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -362,6 +363,73 @@ public class FateLockedPluginLocalHistoryTest
         harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 13 hard Treasure Trails."));
         assertEquals(2, events(harness).size());
         verify(chat).queue(any(QueuedMessage.class));
+    }
+
+    /**
+     * In Vanilla a boss that has given every Standard Key it holds never rolls again, so its kills are
+     * neither saved nor reminded of: Brutus after his one Key, in vanilla-mid. Zulrah still has one.
+     */
+    @Test
+    public void aSpentBossesKillIsNeitherSavedNorReminded() throws Exception
+    {
+        Harness harness = harness("spent-boss");
+        setField(harness.plugin, "active", new ActiveRules(FateLockedBundle.loadFromJson(harness.gson,
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz"))),
+            FateLockedPlugin.RulesSource.NONE));
+        Player bound = mock(Player.class);
+        when(bound.getName()).thenReturn("Iron Example");
+        when(harness.client.getLocalPlayer()).thenReturn(bound);
+        FateLockedConfig config = (FateLockedConfig) PluginTestSupport.get(harness.plugin, "config");
+        when(config.rollNudges()).thenReturn(true);
+        ChatMessageManager chat = mock(ChatMessageManager.class);
+        setField(harness.plugin, "chatMessageManager", chat);
+        readForDetectors(harness);
+
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "Your Brutus kill count is: 5."));
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "Your Brutus kill count is: 6."));
+        assertEquals(0, events(harness).size());
+        verify(chat, never()).queue(any(QueuedMessage.class));
+
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "Your Zulrah kill count is: 12."));
+        assertEquals(List.of("Zulrah"), labels(harness));
+        ArgumentCaptor<QueuedMessage> line = ArgumentCaptor.forClass(QueuedMessage.class);
+        verify(chat).queue(line.capture());
+        assertTrue(line.getValue().getRuneLiteFormattedMessage(),
+            line.getValue().getRuneLiteFormattedMessage().endsWith("Zulrah kill: added to your Roll inbox."));
+    }
+
+    /** Brutus kills saved while he still had his Key leave the Roll inbox, and its copy, once he's spent. */
+    @Test
+    public void killsSavedBeforeTheBossWasSpentAreOfferedNoMore() throws Exception
+    {
+        Harness harness = harness("spent-later");
+        JsonObject spent = harness.gson.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")), JsonObject.class);
+        JsonObject before = spent.deepCopy();
+        before.getAsJsonObject("rules").remove("spentBosses");
+        setField(harness.plugin, "active", new ActiveRules(
+            FateLockedBundle.loadFromJson(harness.gson, before.toString()), FateLockedPlugin.RulesSource.NONE));
+        Player bound = mock(Player.class);
+        when(bound.getName()).thenReturn("Iron Example");
+        when(harness.client.getLocalPlayer()).thenReturn(bound);
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "Your Brutus kill count is: 5."));
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "Your Zulrah kill count is: 12."));
+        assertEquals(List.of("Brutus", "Zulrah"), labels(harness));
+
+        setField(harness.plugin, "active", new ActiveRules(
+            FateLockedBundle.loadFromJson(harness.gson, spent.toString()), FateLockedPlugin.RulesSource.NONE));
+        clearInvocations(harness.panel);
+        invokeNoArg(harness.plugin, "updatePanelRollInbox");
+        verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1));
+
+        when(harness.panel.copyToClipboard(anyString())).thenReturn(true);
+        invokeNoArg(harness.plugin, "copyForTracker");
+        ArgumentCaptor<String> copy = ArgumentCaptor.forClass(String.class);
+        verify(harness.panel).copyToClipboard(copy.capture());
+        JsonArray pasted = harness.gson.fromJson(copy.getValue(), JsonObject.class).getAsJsonArray("events");
+        assertEquals(1, pasted.size());
+        assertEquals("Zulrah", pasted.get(0).getAsJsonObject().get("canonicalLabel").getAsString());
     }
 
     @Test

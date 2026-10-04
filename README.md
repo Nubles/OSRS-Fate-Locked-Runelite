@@ -136,7 +136,9 @@ shows New until it's copied; Dismiss hides one. **Copy for tracker** puts
 them on the clipboard, and the tracker's Roll Inbox reads them with
 **Paste from RuneLite**: nothing rolls until you choose Roll there, and
 logging by hand stays open. Events older than 30 days go, as the tracker
-refuses them, and the newest 250 stay.
+refuses them, and the newest 250 stay. In Vanilla, a boss or raid that has
+given every Standard Key it holds, such as Brutus after his one, can't roll
+again, so its kills aren't listed and get no reminder.
 
 RuneLite notices only with your run's rules loaded, and only on worlds that
 save to the account, so not Leagues, Deadman or speedrunning worlds: for the

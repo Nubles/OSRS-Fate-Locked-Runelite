@@ -1314,6 +1314,8 @@ public class FateLockedPlugin extends Plugin
         if (detected == null || detectedEvents == null || !accountFilesInUse()
             || !detection().records()) return;
         FateLockedBundle currentBundle = getBundle();
+        // The tracker won't roll it: not saved, so no reminder.
+        if (SpentBosses.covers(currentBundle, detected.getType(), detected.getCanonicalLabel())) return;
         String account = loggedInName();
         FateEvent event = eventFactory.create(
             detected.getType(), detected.getCanonicalLabel(), detected.getConfidence(),
@@ -3235,7 +3237,7 @@ public class FateLockedPlugin extends Plugin
         DetectedEventStore store = detectedEvents;
         List<DetectedEventStore.Entry> events = store == null
             ? java.util.Collections.<DetectedEventStore.Entry>emptyList()
-            : store.offered(rules == null ? null : rules.getRunId());
+            : SpentBosses.without(rules, store.offered(rules == null ? null : rules.getRunId()));
         shownWarningCount = activeWarningCount();
         shownQuiet = rollInboxQuiet();
         SidebarPublisher models = sidebarModels();
@@ -3273,7 +3275,7 @@ public class FateLockedPlugin extends Plugin
         FateLockedBundle rules = getBundle();
         List<DetectedEventStore.Entry> offered = store == null || rules == null
             ? java.util.Collections.<DetectedEventStore.Entry>emptyList()
-            : store.offered(rules.getRunId());
+            : SpentBosses.without(rules, store.offered(rules.getRunId()));
         if (offered.isEmpty()) return;
         List<FateEvent> events = new ArrayList<>();
         List<String> ids = new ArrayList<>();
