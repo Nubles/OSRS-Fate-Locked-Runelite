@@ -209,7 +209,8 @@ public class FateLockedConfigTest
         assertSays("announceAreaChanges", "Locked areas follow the Locked-area alert instead");
         // P-12 to P-14, T9: what reaches the Roll inbox, and when a reminder comes.
         assertSays("rollNudges", "a finished diary tier (not each task)", "a combat task", "a clue scroll",
-            "a Slayer task", "game's own collection log notification", "the character your run is linked to");
+            "a Slayer task", "a new pet", "game's own collection log notification",
+            "the character your run is linked to");
         // P-15, P-16: the minimap's lines and shade (FateLockedMinimapOverlayTest).
         assertSays("shadeNearbyLocked", "a band two tiles deep", "while Minimap chunk borders is on");
         assertEquals(2, ChunkBorderRenderer.FOG_TILES);
