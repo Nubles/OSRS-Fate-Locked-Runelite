@@ -312,9 +312,9 @@ public interface FateLockedConfig extends Config
         keyName = "rollNudges",
         name = "Roll reminders",
         description = "A chat line when RuneLite adds something to your Roll inbox: a level, a quest, a finished diary"
-            + " tier (not each task), a combat task, a clue scroll, a boss or raid kill, a collection log item or a"
-            + " Slayer task. Collection log items need the game's own collection log notification, in chat or as a"
-            + " popup. Only on the character your run is linked to.",
+            + " tier (not each task), a combat task, a clue scroll, a boss or raid kill, a collection log item, a"
+            + " Slayer task or a new pet. Collection log items need the game's own collection log notification, in"
+            + " chat or as a popup. Only on the character your run is linked to.",
         section = alertsSection,
         position = 4
     )
