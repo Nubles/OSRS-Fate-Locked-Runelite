@@ -1,7 +1,7 @@
 # Plugin Hub review notes
 
-The plugin is on the Plugin Hub, which builds commit `edad2f2` (spent bosses
-stay quiet, 4 October 2026, runelite/plugin-hub#17775). These notes describe
+The plugin is on the Plugin Hub, which builds commit `0ae842d` (new pets in
+the Roll inbox, 5 October 2026, runelite/plugin-hub#17794). These notes describe
 `main` for reviewers of the next update and do not claim approval of any
 change made since that commit.
 
