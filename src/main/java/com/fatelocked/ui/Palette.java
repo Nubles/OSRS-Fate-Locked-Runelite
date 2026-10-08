@@ -67,6 +67,10 @@ public final class Palette
     public static final Color ACCENT = new Color(251, 191, 36);
     /** Text drawn on the accent. */
     public static final Color ON_ACCENT = new Color(30, 30, 30);
+    /** Behind the new-unlock banner. */
+    public static final Color BANNER = new Color(20, 16, 10, 225);
+    /** A newly opened chunk on the world map, until it's visited: the accent, see-through. */
+    public static final Color NEW_UNLOCK = new Color(251, 191, 36, 90);
 
     /** Beneath every locked edge, so it reads on any terrain and in any vision. */
     public static final Color UNDERLAY = new Color(0, 0, 0, 150);

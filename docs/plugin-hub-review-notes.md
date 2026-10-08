@@ -73,6 +73,12 @@ unchanged. For review:
   player options before reading them, and `A9PerformanceTest` pins that the
   world map loop and that path allocate nothing.
 - **The menu tag only appends text:** " (Locked)", in the palette's colour.
+  A click on an option tagged for a skill tier only adds a chat line; the
+  click goes through.
+- **The outlines are drawn, never clicked.** Locked banks, shops, skilling
+  spots and monsters are outlined with RuneLite's `ModelOutlineRenderer`,
+  worked out once a game tick within 12 tiles of the player, and the
+  unlock banner is a timed drawing. Neither consumes input.
 - **Here reads the game to decide its rows, nothing more.** Where the tracker
   can't see a requirement, the plugin reads, on the client thread, once a
   tick and only while standing where such a row is: the state of the quests

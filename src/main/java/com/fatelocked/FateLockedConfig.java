@@ -299,7 +299,8 @@ public interface FateLockedConfig extends Config
         keyName = "tagLockedOptions",
         name = "Tag locked right-click options",
         description = "Adds (Locked) to right-click options for NPCs, objects, items on the ground and teleports your"
-            + " rules lock.",
+            + " rules lock, and to skilling spots your skill tier doesn't open yet. Clicking one of those says in chat"
+            + " which tier it needs.",
         section = alertsSection,
         position = 3
     )
@@ -335,6 +336,19 @@ public interface FateLockedConfig extends Config
     default boolean useNotifier()
     {
         return false;
+    }
+
+    @ConfigItem(
+        keyName = "announceUnlocks",
+        name = "Announce new unlocks",
+        description = "When a sync brings something new, such as an area, a bank or a skill tier: a chat line naming"
+            + " it, a banner for a few seconds, and new land glowing on the world map until you stand in it.",
+        section = alertsSection,
+        position = 6
+    )
+    default boolean announceUnlocks()
+    {
+        return true;
     }
 
     @ConfigSection(
@@ -435,11 +449,74 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "outlineLocked",
+        name = "Outline locked things",
+        description = "Outlines locked banks, shops, skilling spots and monsters near you in the game view, in the"
+            + " locked colour, or in the not-ready colour when your skill tier doesn't open them yet, with a few words"
+            + " saying why. Off hides every outline; the settings below pick which kinds. Land locked as a whole is"
+            + " left to its borders.",
+        section = displaySection,
+        position = 7
+    )
+    default boolean outlineLocked()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "outlineBanksAndShops",
+        name = "Outline banks and shops",
+        description = "With Outline locked things on: bank booths, bank chests, bankers and shop keepers.",
+        section = displaySection,
+        position = 8
+    )
+    default boolean outlineBanksAndShops()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "outlineSkilling",
+        name = "Outline skilling spots",
+        description = "With Outline locked things on: trees, rocks, fishing spots, stalls and farming patches.",
+        section = displaySection,
+        position = 9
+    )
+    default boolean outlineSkilling()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "outlineMonsters",
+        name = "Outline monsters and bosses",
+        description = "With Outline locked things on: monsters and bosses the rules lock.",
+        section = displaySection,
+        position = 10
+    )
+    default boolean outlineMonsters()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "outlineOpen",
+        name = "Outline open ones too",
+        description = "With Outline locked things on: also outlines the ones you can use, in the unlocked colour.",
+        section = displaySection,
+        position = 11
+    )
+    default boolean outlineOpen()
+    {
+        return false;
+    }
+
+    @ConfigItem(
         keyName = "showInfoBoxes",
         name = "Infoboxes",
         description = "RuneLite infoboxes for your Keys, Fate Points and unlock progress, each movable on its own.",
         section = displaySection,
-        position = 7
+        position = 12
     )
     default boolean showInfoBoxes()
     {
@@ -451,7 +528,7 @@ public interface FateLockedConfig extends Config
         name = "Colours",
         description = "Default, a set safe for colour-blind players, or your own colours below.",
         section = displaySection,
-        position = 8
+        position = 13
     )
     default ColourPreset colourPreset()
     {

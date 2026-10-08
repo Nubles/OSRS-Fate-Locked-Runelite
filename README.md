@@ -85,7 +85,7 @@ their own:
    file backups.
 
 Here starts open. Every setting is in RuneLite's configuration, under Fate
-Locked Ironman: 21 settings in six sections (Tracker, Strict Mode, Alerts,
+Locked Ironman: 27 settings in six sections (Tracker, Strict Mode, Alerts,
 Display, Custom colours and Backup). Settings from before Stage 3 carry over
 once, the first time the plugin starts.
 
@@ -115,8 +115,15 @@ once, the first time the plugin starts.
   own.
 - Bank, Slayer-task and over-tier gear warnings, and a different-character
   line at login.
-- (Locked) tags on right-click options the rules lock, and a four-second
-  warning banner for recognised locked travel.
+- (Locked) tags on right-click options the rules lock, and on skilling spots
+  your skill tier doesn't open yet, with a chat line naming the tier when you
+  click one; and a four-second warning banner for recognised locked travel.
+- Locked banks, shops, skilling spots and monsters near you outlined in the
+  game view, with a few words saying why. Outline locked things turns every
+  outline off; a setting for each kind, and one for open ones too, sits under it.
+- When a sync brings something new, a chat line naming it, a "Fate unlocked"
+  banner for a few seconds, and the new land glowing gold on the world map
+  until you stand in it. Announce new unlocks turns it off.
 - Default, colour-blind safe or custom colours for everything the plugin
   draws.
 - Strict Mode, which blocks only travel the tracker's travel table matches

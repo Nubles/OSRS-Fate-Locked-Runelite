@@ -141,7 +141,13 @@ final class SceneSearch
     /** What an object shows now: the one it stands for, as a patch does as it grows, or itself. Client thread. */
     static ObjectComposition shown(Client client, TileObject object)
     {
-        ObjectComposition shown = client.getObjectDefinition(object.getId());
+        return shown(client, object.getId());
+    }
+
+    /** What an object by its id shows now, as above. Client thread. */
+    static ObjectComposition shown(Client client, int id)
+    {
+        ObjectComposition shown = client.getObjectDefinition(id);
         if (shown != null && shown.getImpostorIds() != null)
         {
             ObjectComposition now = shown.getImpostor();
@@ -150,7 +156,7 @@ final class SceneSearch
         return shown;
     }
 
-    private static TileObject[] objectsOn(Tile tile)
+    static TileObject[] objectsOn(Tile tile)
     {
         GameObject[] games = tile.getGameObjects();
         int count = games == null ? 0 : games.length;
