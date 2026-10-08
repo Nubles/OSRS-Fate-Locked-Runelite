@@ -38,6 +38,7 @@ public class FateLockedConfigTest
         new Object[]{"tagLockedOptions", FateLockedConfig.alertsSection, 3, true},
         new Object[]{"rollNudges", FateLockedConfig.alertsSection, 4, true},
         new Object[]{"useNotifier", FateLockedConfig.alertsSection, 5, false},
+        new Object[]{"announceUnlocks", FateLockedConfig.alertsSection, 6, true},
         new Object[]{"hudMode", FateLockedConfig.displaySection, 0, FateLockedConfig.HudMode.COMPACT},
         new Object[]{"worldMapMode", FateLockedConfig.displaySection, 1,
             FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS},
@@ -46,8 +47,13 @@ public class FateLockedConfigTest
         new Object[]{"chunkBorders", FateLockedConfig.displaySection, 4, FateLockedConfig.ChunkBorders.LOCKED_EDGES},
         new Object[]{"shadeNearbyLocked", FateLockedConfig.displaySection, 5, true},
         new Object[]{"drawMinimap", FateLockedConfig.displaySection, 6, true},
-        new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 7, false},
-        new Object[]{"colourPreset", FateLockedConfig.displaySection, 8, FateLockedConfig.ColourPreset.DEFAULT},
+        new Object[]{"outlineLocked", FateLockedConfig.displaySection, 7, true},
+        new Object[]{"outlineBanksAndShops", FateLockedConfig.displaySection, 8, true},
+        new Object[]{"outlineSkilling", FateLockedConfig.displaySection, 9, true},
+        new Object[]{"outlineMonsters", FateLockedConfig.displaySection, 10, true},
+        new Object[]{"outlineOpen", FateLockedConfig.displaySection, 11, false},
+        new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 12, false},
+        new Object[]{"colourPreset", FateLockedConfig.displaySection, 13, FateLockedConfig.ColourPreset.DEFAULT},
         new Object[]{"unlockedColor", FateLockedConfig.customColoursSection, 0, new Color(16, 185, 129, 110)},
         new Object[]{"frontierColor", FateLockedConfig.customColoursSection, 1, new Color(245, 158, 11, 100)},
         new Object[]{"lockedColor", FateLockedConfig.customColoursSection, 2, new Color(239, 68, 68, 110)},
@@ -220,7 +226,10 @@ public class FateLockedConfigTest
         assertSays("unlockedColor", "Unlocked land isn't coloured", "its transparency isn't used");
         // P-22, P-23, P-49: the bank warning is chat only; ground items are tagged; Keys unlock.
         assertSays("ruleWarnings", "Chat warnings", "the Slayer and gear ones also stay on the HUD");
-        assertSays("tagLockedOptions", "items on the ground");
+        assertSays("tagLockedOptions", "items on the ground", "your skill tier doesn't open yet");
+        // 8 Oct: one switch turns every outline off; the new unlock line, banner and glow share one.
+        assertSays("outlineLocked", "Off hides every outline");
+        assertSays("announceUnlocks", "a chat line", "a banner", "glowing on the world map");
         assertSays("frontierColor", "you can unlock next");
     }
 

@@ -11,12 +11,14 @@ import com.fatelocked.rules.ItemTier;
 import com.fatelocked.rules.PermissionStatus;
 import com.fatelocked.rules.RulesSnapshot;
 import com.fatelocked.rules.Trust;
+import com.fatelocked.rules.UnlockNews;
 import com.fatelocked.panel.LocalTimeText;
 import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.GameFacts;
 import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.HerePresenter;
 import com.fatelocked.sidebar.PointTarget;
+import com.fatelocked.sidebar.LockedThings;
 import com.fatelocked.sidebar.PointerText;
 import com.fatelocked.sidebar.RollInboxPresenter;
 import com.fatelocked.sidebar.RowChecks;
@@ -58,6 +60,7 @@ import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
@@ -152,6 +155,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -181,6 +185,8 @@ public class FateLockedPlugin extends Plugin
     @Inject private FateLockedMinimapOverlay minimapOverlay;
     @Inject private FateLockedHudOverlay hudOverlay;
     @Inject private FateLockedFlashOverlay flashOverlay;
+    @Inject private FateLockedUnlockOverlay unlockOverlay;
+    @Inject private FateLockedOutlineOverlay outlineOverlay;
     @Inject private ChatMessageManager chatMessageManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private FateLockedPanel panel;
@@ -211,6 +217,12 @@ public class FateLockedPlugin extends Plugin
     private final RepeatedValueLimiter invalidImportLimiter =
         new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
     /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
+    /** The skill tier line, once a minute for each thing clicked. */
+    private final RepeatedValueLimiter tierChatLimiter =
+        new RepeatedValueLimiter(TimeUnit.MINUTES.toMillis(1));
+    /** What each chunk's rows say about its things, for the decisions they were read from. */
+    private final Map<CanonicalChunk, LockedThings> lockedThings = new HashMap<>();
+    private DecisionService lockedThingsFor;
     private final RepeatedValueLimiter trackerTickFailureLimiter =
         new RepeatedValueLimiter(TimeUnit.MINUTES.toMillis(15));
     /** The logged-in account's events; read on the Swing thread too, for Copy for tracker. */
@@ -351,6 +363,12 @@ public class FateLockedPlugin extends Plugin
     static final long NO_FADE = Long.MIN_VALUE;
     /** When the locked-area fade began, on the monotonic clock ({@link System#nanoTime}); NO_FADE for none. */
     @Getter private volatile long lockedFadeAt = NO_FADE;
+    /** When the new unlock banner began, on the same clock; NO_FADE for none. */
+    @Getter private volatile long unlockShownAt = NO_FADE;
+    /** What the last sync opened, for the banner. */
+    @Getter private volatile UnlockNews unlockNews = UnlockNews.NONE;
+    /** Chunks a sync opened that the player hasn't stood in since, for the world map's glow. */
+    @Getter private volatile List<CanonicalChunk> glowing = Collections.emptyList();
     /** What stepping into a chunk says: a line per area, and the locked alert once per area (U10). */
     private final LockedAreaAlerts areaAlerts = new LockedAreaAlerts();
 
@@ -495,6 +513,8 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(minimapOverlay);
         overlayManager.add(hudOverlay);
         overlayManager.add(flashOverlay);
+        overlayManager.add(unlockOverlay);
+        overlayManager.add(outlineOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
         travelBlockOverlay.setPalette(this::palette);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
@@ -558,6 +578,8 @@ public class FateLockedPlugin extends Plugin
         overlayManager.remove(minimapOverlay);
         overlayManager.remove(hudOverlay);
         overlayManager.remove(flashOverlay);
+        overlayManager.remove(unlockOverlay);
+        overlayManager.remove(outlineOverlay);
         if (navButton != null)
         {
             clientToolbar.removeNavigation(navButton);
@@ -580,6 +602,9 @@ public class FateLockedPlugin extends Plugin
         lastStatus = null;
         areaAlerts.forget();
         lockedFadeAt = NO_FADE;
+        unlockShownAt = NO_FADE;
+        unlockNews = UnlockNews.NONE;
+        glowing = Collections.emptyList();
         hudModel = HudModel.NONE;
     }
 
@@ -1534,6 +1559,7 @@ public class FateLockedPlugin extends Plugin
         if (current != null && !current.equals(lastChunk))
         {
             enter(current);
+            visited(current);
         }
         refreshWarningCount();
         refreshHud(current);
@@ -1589,9 +1615,31 @@ public class FateLockedPlugin extends Plugin
         // The character may have changed since the last tick.
         refreshDecisions();
         travelGuardianShell.handle(event, client, strictModeReadiness(), decisions);
+        if (!event.isConsumed())
+        {
+            sayWhyTierLocked(event.getMenuEntry());
+        }
     }
 
-    /** Strict Mode's chat line, which names it and says how to pause (B15). */
+    /**
+     * Clicking something a skill tier doesn't open yet: one chat line that says which tier it
+     * needs, once a minute for each thing. Only where the (Locked) tag would show it.
+     */
+    private void sayWhyTierLocked(MenuEntry entry)
+    {
+        if (entry == null || !MenuTagFilter.mayTag(entry.getType()) || !config.tagLockedOptions()) return;
+        DecisionService ruleDecisions = decisions;
+        if (ruleDecisions.trust() != Trust.TRUSTED) return;
+        CanonicalChunk chunk = chunkLocator().menuTarget(entry);
+        if (chunk == null || ruleDecisions.chunk(chunk).isLocked()) return;
+        LockedThings.Thing thing = menuThing(entry, chunk, ruleDecisions);
+        if (thing == null || thing.getLook() != LockedThings.Look.TIER) return;
+        String label = thing.getTarget().getLabel();
+        if (!tierChatLimiter.shouldReport(label, System.currentTimeMillis())) return;
+        writeTravelChat(label + ": " + thing.getWhy());
+    }
+
+    /** A "[Fate Locked]" chat line: Strict Mode's, which names it and says how to pause (B15), and the skill tier line. */
     private void writeTravelChat(String text)
     {
         ChatMessageBuilder message = new ChatMessageBuilder()
@@ -1724,8 +1772,59 @@ public class FateLockedPlugin extends Plugin
                 && ruleDecisions.travel(travel.getMethod(), travel.getOption()).isLocked();
         }
         GuardedAction action = guardedActionFactory.from(facts, entry, chunkLocator());
-        return action.getChunk() != null
-            && ruleDecisions.chunk(action.getChunk()).isLocked();
+        CanonicalChunk chunk = action.getChunk();
+        if (chunk == null) return false;
+        if (ruleDecisions.chunk(chunk).isLocked()) return true;
+        // In open land, the thing's own row: a locked bank or shop, or a skill tier too low.
+        LockedThings.Thing thing = menuThing(entry, chunk, ruleDecisions);
+        return thing != null && thing.getLook() != LockedThings.Look.OPEN;
+    }
+
+    /** The row for what a menu option is on, an NPC or an object, in its chunk; null for anything else. */
+    private LockedThings.Thing menuThing(MenuEntry entry, CanonicalChunk chunk, DecisionService ruleDecisions)
+    {
+        String name;
+        String[] options;
+        NPC npc = entry.getNpc();
+        if (npc != null)
+        {
+            NPCComposition shown = npc.getTransformedComposition();
+            name = shown != null ? shown.getName() : npc.getName();
+            options = shown != null ? shown.getActions() : null;
+        }
+        else if (isObjectOption(entry.getType()))
+        {
+            ObjectComposition shown = SceneSearch.shown(client, entry.getIdentifier());
+            if (shown == null) return null;
+            name = shown.getName();
+            options = shown.getActions();
+        }
+        else
+        {
+            return null;
+        }
+        return name == null ? null : lockedThings(chunk, ruleDecisions).find(name, options);
+    }
+
+    private static boolean isObjectOption(MenuAction type)
+    {
+        return type == MenuAction.GAME_OBJECT_FIRST_OPTION
+            || type == MenuAction.GAME_OBJECT_SECOND_OPTION
+            || type == MenuAction.GAME_OBJECT_THIRD_OPTION
+            || type == MenuAction.GAME_OBJECT_FOURTH_OPTION
+            || type == MenuAction.GAME_OBJECT_FIFTH_OPTION;
+    }
+
+    /** What a chunk's rows say about the things in it, read once for the rules in force. */
+    LockedThings lockedThings(CanonicalChunk chunk, DecisionService ruleDecisions)
+    {
+        if (lockedThingsFor != ruleDecisions)
+        {
+            lockedThings.clear();
+            lockedThingsFor = ruleDecisions;
+        }
+        return lockedThings.computeIfAbsent(chunk,
+            c -> LockedThings.of(ruleDecisions.details(c).orElse(null)));
     }
 
     /**
@@ -2154,9 +2253,11 @@ public class FateLockedPlugin extends Plugin
             log.warn("New rules could not be applied: {}", ex.getMessage());
             return false;
         }
+        DecisionService before = decisions;
         active = new ActiveRules(candidate.bundle, candidate.snapshot, source, arrival, arrivedAt);
         refreshDecisions();
         show(candidate.bundle, effects);
+        showIsolated("new unlocks", () -> announceUnlocks(UnlockNews.between(before, decisions)));
         return true;
     }
 
@@ -2242,6 +2343,34 @@ public class FateLockedPlugin extends Plugin
         showIsolated("sidebar", this::refreshSidebar);
         showIsolated("gear warning", () -> warnOverTierGear(effects.overTierGear));
         showIsolated("Slayer warning", () -> warnLockedSlayerTask(effects.lockedSlayerTask));
+    }
+
+    /**
+     * What a sync opened, said once: a chat line, the banner, and a glow on the world map over
+     * each chunk it opened until the player stands in it. Nothing when the setting is off.
+     */
+    private void announceUnlocks(UnlockNews news)
+    {
+        if (news.isEmpty() || !config.announceUnlocks()) return;
+        writeTravelChat(news.line());
+        unlockNews = news;
+        unlockShownAt = System.nanoTime();
+        if (!news.getChunks().isEmpty())
+        {
+            Set<CanonicalChunk> next = new LinkedHashSet<>(glowing);
+            next.addAll(news.getChunks());
+            glowing = Collections.unmodifiableList(new ArrayList<>(next));
+        }
+    }
+
+    /** The player stands in a chunk: it no longer glows. */
+    private void visited(CanonicalChunk chunk)
+    {
+        List<CanonicalChunk> now = glowing;
+        if (chunk == null || now.isEmpty() || !now.contains(chunk)) return;
+        List<CanonicalChunk> next = new ArrayList<>(now);
+        next.remove(chunk);
+        glowing = Collections.unmodifiableList(next);
     }
 
     private void showIsolated(String what, Runnable change)
