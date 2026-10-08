@@ -105,13 +105,21 @@ public class FateLockedOutlineOverlay extends Overlay
         for (Outlined thing : found)
         {
             Color colour = palette.text(tone(thing.getLook()));
-            if (thing.getNpc() != null)
+            try
             {
-                outlines.drawOutline(thing.getNpc(), OUTLINE_WIDTH, colour, FEATHER);
+                if (thing.getNpc() != null)
+                {
+                    outlines.drawOutline(thing.getNpc(), OUTLINE_WIDTH, colour, FEATHER);
+                }
+                else
+                {
+                    outlines.drawOutline(thing.getObject(), OUTLINE_WIDTH, colour, FEATHER);
+                }
             }
-            else
+            catch (RuntimeException gone)
             {
-                outlines.drawOutline(thing.getObject(), OUTLINE_WIDTH, colour, FEATHER);
+                // Seen in game (8 Oct): an object can lose its model between the tick's scan and
+                // this frame, and the outline renderer then throws. Skip it until the next scan.
             }
         }
         return null;
