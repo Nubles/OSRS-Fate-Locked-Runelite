@@ -3,6 +3,8 @@ package com.fatelocked;
 import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.ui.Palette;
+import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -39,6 +41,9 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
  */
 public class FateLockedWorldMapOverlay extends Overlay
 {
+    /** New land's glow: the accent's gold, lightly. */
+    static final Color GLOW_FILL = new Color(251, 191, 36, 90);
+    static final BasicStroke GLOW_EDGE = new BasicStroke(2f);
     private final Client client;
     private final FateLockedPlugin plugin;
     private final FateLockedConfig config;
@@ -111,6 +116,11 @@ public class FateLockedWorldMapOverlay extends Overlay
         draw(graphics, current, view, plugin.palette(), mapClip,
             borders.locked() ? outline(current, view) : null,
             borders.grid() ? grid(current, view) : null);
+        List<CanonicalChunk> glow = plugin.getGlowing();
+        if (!glow.isEmpty())
+        {
+            drawGlow(graphics, glow, view, mapClip);
+        }
         if (mode.tooltip())
         {
             tooltip(decisions, view, mapClip, mode.contents());
@@ -162,6 +172,38 @@ public class FateLockedWorldMapOverlay extends Overlay
             graphics.setStroke(Palette.LOCKED_EDGE_STROKE);
             graphics.setColor(palette.lockedEdge());
             graphics.draw(outline);
+        }
+        graphics.setClip(before);
+    }
+
+    /**
+     * The chunks a sync opened that the player hasn't stood in yet, in the accent's gold, over
+     * the rest of the map: filled lightly and edged, so new land stands out until visited.
+     */
+    static void drawGlow(Graphics2D graphics, List<CanonicalChunk> chunks, WorldMapProjection projection, Shape clip)
+    {
+        int west = projection.westChunk();
+        int east = projection.eastChunk();
+        int south = projection.southChunk();
+        int north = projection.northChunk();
+        Shape before = graphics.getClip();
+        graphics.clip(clip);
+        graphics.setStroke(GLOW_EDGE);
+        for (int i = 0; i < chunks.size(); i++)
+        {
+            CanonicalChunk chunk = chunks.get(i);
+            if (chunk.getCy() < south || chunk.getCy() > north || chunk.getCx() < west || chunk.getCx() > east)
+            {
+                continue;
+            }
+            int x0 = projection.lineX(chunk.getCx() << 6);
+            int x1 = projection.lineX((chunk.getCx() + 1) << 6);
+            int y0 = projection.lineY((chunk.getCy() + 1) << 6);
+            int y1 = projection.lineY(chunk.getCy() << 6);
+            graphics.setColor(GLOW_FILL);
+            graphics.fillRect(x0, y0, x1 - x0, y1 - y0);
+            graphics.setColor(Palette.ACCENT);
+            graphics.drawRect(x0, y0, x1 - x0, y1 - y0);
         }
         graphics.setClip(before);
     }
