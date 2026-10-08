@@ -4,7 +4,6 @@ import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.ui.Palette;
 import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -42,7 +41,6 @@ import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 public class FateLockedWorldMapOverlay extends Overlay
 {
     /** New land's glow: the accent's gold, lightly. */
-    static final Color GLOW_FILL = new Color(251, 191, 36, 90);
     static final BasicStroke GLOW_EDGE = new BasicStroke(2f);
     private final Client client;
     private final FateLockedPlugin plugin;
@@ -200,7 +198,7 @@ public class FateLockedWorldMapOverlay extends Overlay
             int x1 = projection.lineX((chunk.getCx() + 1) << 6);
             int y0 = projection.lineY((chunk.getCy() + 1) << 6);
             int y1 = projection.lineY(chunk.getCy() << 6);
-            graphics.setColor(GLOW_FILL);
+            graphics.setColor(Palette.NEW_UNLOCK);
             graphics.fillRect(x0, y0, x1 - x0, y1 - y0);
             graphics.setColor(Palette.ACCENT);
             graphics.drawRect(x0, y0, x1 - x0, y1 - y0);

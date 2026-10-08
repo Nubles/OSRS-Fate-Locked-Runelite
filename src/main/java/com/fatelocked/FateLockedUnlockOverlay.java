@@ -5,7 +5,6 @@ import com.fatelocked.ui.Palette;
 import com.fatelocked.ui.Type;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -28,8 +27,6 @@ public class FateLockedUnlockOverlay extends Overlay
     /** How long the banner stays, then how long it takes to fade, in milliseconds. */
     static final long HOLD_MILLIS = 4000;
     static final long FADE_MILLIS = 1000;
-    private static final Color BACKGROUND = new Color(20, 16, 10, 225);
-    private static final Color HEADLINE = new Color(255, 255, 0);
     private static final BasicStroke BORDER = new BasicStroke(2f);
     private static final int PAD_X = 22;
     private static final int PAD_Y = 12;
@@ -94,7 +91,7 @@ public class FateLockedUnlockOverlay extends Overlay
 
         Composite before = graphics.getComposite();
         graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha / 255f));
-        graphics.setColor(BACKGROUND);
+        graphics.setColor(Palette.BANNER);
         graphics.fillRect(x, y, boxWidth, boxHeight);
         graphics.setColor(Palette.ACCENT);
         graphics.setStroke(BORDER);
@@ -105,7 +102,7 @@ public class FateLockedUnlockOverlay extends Overlay
         graphics.drawString(KICKER, (width - smallMetrics.stringWidth(KICKER)) / 2, line);
         line += smallMetrics.getDescent() + GAP + bigMetrics.getAscent();
         graphics.setFont(big);
-        graphics.setColor(HEADLINE);
+        graphics.setColor(Palette.TITLE);
         graphics.drawString(headline, (width - bigMetrics.stringWidth(headline)) / 2, line);
         if (sub != null)
         {
