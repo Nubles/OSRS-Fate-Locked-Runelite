@@ -451,10 +451,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "outlineLocked",
         name = "Outline locked things",
-        description = "Outlines locked banks, shops, skilling spots and monsters near you in the game view, in the"
-            + " locked colour, or in the not-ready colour when your skill tier doesn't open them yet, with a few words"
-            + " saying why. Off hides every outline; the settings below pick which kinds. Land locked as a whole is"
-            + " left to its borders.",
+        description = "Outlines the banks, shops, skilling spots and monsters near you that you can click, in the"
+            + " game view: red when locked, orange when your skill tier doesn't open them yet, green when open."
+            + " Off hides every outline; the settings below pick which kinds. Land locked as a whole is left to its"
+            + " borders.",
         section = displaySection,
         position = 7
     )
@@ -490,7 +490,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "outlineMonsters",
         name = "Outline monsters and bosses",
-        description = "With Outline locked things on: monsters and bosses the rules lock.",
+        description = "With Outline locked things on: monsters and bosses you can attack.",
         section = displaySection,
         position = 10
     )
@@ -502,13 +502,13 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "outlineOpen",
         name = "Outline open ones too",
-        description = "With Outline locked things on: also outlines the ones you can use, in the unlocked colour.",
+        description = "With Outline locked things on: also outlines the ones you can use, in green.",
         section = displaySection,
         position = 11
     )
     default boolean outlineOpen()
     {
-        return false;
+        return true;
     }
 
     @ConfigItem(

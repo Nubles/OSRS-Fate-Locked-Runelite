@@ -118,9 +118,11 @@ once, the first time the plugin starts.
 - (Locked) tags on right-click options the rules lock, and on skilling spots
   your skill tier doesn't open yet, with a chat line naming the tier when you
   click one; and a four-second warning banner for recognised locked travel.
-- Locked banks, shops, skilling spots and monsters near you outlined in the
-  game view, with a few words saying why. Outline locked things turns every
-  outline off; a setting for each kind, and one for open ones too, sits under it.
+- Banks, shops, skilling spots and monsters near you outlined in the game
+  view: red when locked, orange when your skill tier doesn't open them yet,
+  green when open. Only things you can click are outlined, with no words over
+  them. Outline locked things turns every outline off; a setting for each
+  kind, and one for open ones, sits under it.
 - When a sync brings something new, a chat line naming it, a "Fate unlocked"
   banner for a few seconds, and the new land glowing gold on the world map
   until you stand in it. Announce new unlocks turns it off.

@@ -227,7 +227,7 @@
    "key": "outlineOpen",
    "section": "Display",
    "name": "Outline open ones too",
-   "defaultValue": "Off"
+   "defaultValue": "On"
   },
   {
    "key": "showInfoBoxes",

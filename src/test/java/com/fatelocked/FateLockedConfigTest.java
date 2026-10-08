@@ -51,7 +51,7 @@ public class FateLockedConfigTest
         new Object[]{"outlineBanksAndShops", FateLockedConfig.displaySection, 8, true},
         new Object[]{"outlineSkilling", FateLockedConfig.displaySection, 9, true},
         new Object[]{"outlineMonsters", FateLockedConfig.displaySection, 10, true},
-        new Object[]{"outlineOpen", FateLockedConfig.displaySection, 11, false},
+        new Object[]{"outlineOpen", FateLockedConfig.displaySection, 11, true},
         new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 12, false},
         new Object[]{"colourPreset", FateLockedConfig.displaySection, 13, FateLockedConfig.ColourPreset.DEFAULT},
         new Object[]{"unlockedColor", FateLockedConfig.customColoursSection, 0, new Color(16, 185, 129, 110)},
