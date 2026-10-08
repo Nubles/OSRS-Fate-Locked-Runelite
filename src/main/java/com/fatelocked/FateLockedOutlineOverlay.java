@@ -21,7 +21,6 @@ import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.ObjectComposition;
 import net.runelite.api.Player;
-import net.runelite.api.Point;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
 import net.runelite.api.TileObject;
@@ -30,19 +29,21 @@ import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
-import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 
 /**
- * Locked things outlined in the game view (the owner's call, 8 Oct): a bank booth, shop keeper,
- * skilling spot or monster near the player that the rules lock, in the locked colour, or that a
- * skill tier doesn't open yet, in the not-ready colour, with a few words saying why. Open ones
- * too, in the unlocked colour, if the player asks. What counts is the tracker's own rows
- * ({@link LockedThings}), so the outlines say what the Here card and the (Locked) tag say. Land
- * that is locked as a whole is left to its borders and shade. Advice only: nothing is blocked.
+ * Things outlined in the game view (the owner's calls, 8 Oct): a bank booth, shop keeper,
+ * skilling spot or monster near the player, red when the rules lock it, orange when a skill tier
+ * doesn't open it yet, green when it's open, and nothing written over it. Only things the player
+ * can click are outlined: a tree with no Chop option is scenery, and a monster needs Attack. What
+ * counts is the tracker's own rows ({@link LockedThings}), so the outlines say what the Here card
+ * and the (Locked) tag say. Land that is locked as a whole is left to its borders and shade.
+ * Advice only: nothing is blocked.
  *
- * <p>Outline locked things turns all of it off; a switch for each kind sits under it. What to
- * outline is worked out once a game tick, within a few tiles of the player, never every frame.
+ * <p>A monster keeps the most open look it has had while it's in view, so one walking between
+ * chunks whose rows differ doesn't flicker. Outline locked things turns all of it off; a switch
+ * for each kind sits under it. What to outline is worked out once a game tick, within a few tiles
+ * of the player, never every frame.
  */
 public class FateLockedOutlineOverlay extends Overlay
 {
@@ -60,8 +61,6 @@ public class FateLockedOutlineOverlay extends Overlay
         NPC npc;
         TileObject object;
         LockedThings.Look look;
-        /** Beside it; null for an open one. */
-        String label;
     }
 
     private final Client client;
@@ -71,6 +70,9 @@ public class FateLockedOutlineOverlay extends Overlay
 
     private int scannedTick = -1;
     private List<Outlined> found = Collections.emptyList();
+    /** The look each monster in view has had, for the rules it was seen under. */
+    private Map<NPC, LockedThings.Thing> npcLooks = new IdentityHashMap<>();
+    private DecisionService npcLooksFor;
 
     @Inject
     FateLockedOutlineOverlay(Client client, FateLockedPlugin plugin, FateLockedConfig config,
@@ -90,6 +92,7 @@ public class FateLockedOutlineOverlay extends Overlay
         if (!config.outlineLocked())
         {
             found = Collections.emptyList();
+            npcLooks = new IdentityHashMap<>();
             return null;
         }
         int tick = client.getTickCount();
@@ -105,21 +108,10 @@ public class FateLockedOutlineOverlay extends Overlay
             if (thing.getNpc() != null)
             {
                 outlines.drawOutline(thing.getNpc(), OUTLINE_WIDTH, colour, FEATHER);
-                if (thing.getLabel() != null)
-                {
-                    Point at = thing.getNpc().getCanvasTextLocation(graphics, thing.getLabel(),
-                        thing.getNpc().getLogicalHeight() + 40);
-                    if (at != null) OverlayUtil.renderTextLocation(graphics, at, thing.getLabel(), colour);
-                }
             }
             else
             {
                 outlines.drawOutline(thing.getObject(), OUTLINE_WIDTH, colour, FEATHER);
-                if (thing.getLabel() != null)
-                {
-                    Point at = thing.getObject().getCanvasTextLocation(graphics, thing.getLabel(), 0);
-                    if (at != null) OverlayUtil.renderTextLocation(graphics, at, thing.getLabel(), colour);
-                }
             }
         }
         return null;
@@ -136,6 +128,30 @@ public class FateLockedOutlineOverlay extends Overlay
             default:
                 return Palette.Tone.GOOD;
         }
+    }
+
+    /**
+     * Whether the game offers something to click that the row is about: a monster its Attack,
+     * anything else any option at all. Scenery that shares a name, such as a tree with no Chop
+     * down, offers none.
+     */
+    static boolean clickable(LockedThings.Kind kind, boolean npc, String[] options)
+    {
+        if (options == null) return false;
+        for (String option : options)
+        {
+            if (option == null || option.isEmpty()) continue;
+            if (!npc || kind != LockedThings.Kind.MONSTERS || "attack".equalsIgnoreCase(option)) return true;
+        }
+        return false;
+    }
+
+    /** The more open of two looks for one monster, so it keeps the best one it has had. */
+    static LockedThings.Thing steadier(LockedThings.Thing before, LockedThings.Thing now)
+    {
+        if (now == null || now.getLook() == null) return before;
+        if (before == null || before.getLook() == null) return now;
+        return now.getLook().ordinal() <= before.getLook().ordinal() ? now : before;
     }
 
     /** Whether the settings outline a thing of this kind that looks like this. */
@@ -170,6 +186,8 @@ public class FateLockedOutlineOverlay extends Overlay
         if (me == null) return Collections.emptyList();
         ChunkLocator locator = plugin.chunkLocator();
         List<Outlined> next = new ArrayList<>();
+        Map<NPC, LockedThings.Thing> looks = new IdentityHashMap<>();
+        Map<NPC, LockedThings.Thing> before = npcLooksFor == decisions ? npcLooks : Collections.emptyMap();
 
         if (view.npcs() != null)
         {
@@ -182,14 +200,20 @@ public class FateLockedOutlineOverlay extends Overlay
                 }
                 NPCComposition shown = npc.getTransformedComposition();
                 String name = shown != null ? shown.getName() : npc.getName();
-                LockedThings.Thing thing = thing(decisions, locator.actor(npc), name,
-                    shown != null ? shown.getActions() : null);
+                String[] options = shown != null ? shown.getActions() : null;
+                LockedThings.Thing row = thing(decisions, locator.actor(npc), name, options);
+                if (row != null && !clickable(row.getKind(), true, options)) row = null;
+                LockedThings.Thing thing = steadier(before.get(npc), row);
+                if (thing == null) continue;
+                looks.put(npc, thing);
                 if (wanted(config, thing))
                 {
-                    next.add(new Outlined(npc, null, thing.getLook(), thing.getLabel()));
+                    next.add(new Outlined(npc, null, thing.getLook()));
                 }
             }
         }
+        npcLooks = looks;
+        npcLooksFor = decisions;
 
         Scene scene = view.getScene();
         Tile[][][] tiles = scene == null ? null : scene.getTiles();
@@ -217,9 +241,9 @@ public class FateLockedOutlineOverlay extends Overlay
                     ObjectComposition shown = SceneSearch.shown(client, object);
                     if (shown == null) continue;
                     LockedThings.Thing thing = thing(decisions, chunk, shown.getName(), shown.getActions());
-                    if (wanted(config, thing))
+                    if (wanted(config, thing) && clickable(thing.getKind(), false, shown.getActions()))
                     {
-                        next.add(new Outlined(null, object, thing.getLook(), thing.getLabel()));
+                        next.add(new Outlined(null, object, thing.getLook()));
                     }
                 }
             }

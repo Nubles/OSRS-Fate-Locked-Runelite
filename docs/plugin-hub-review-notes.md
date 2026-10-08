@@ -75,7 +75,7 @@ unchanged. For review:
 - **The menu tag only appends text:** " (Locked)", in the palette's colour.
   A click on an option tagged for a skill tier only adds a chat line; the
   click goes through.
-- **The outlines are drawn, never clicked.** Locked banks, shops, skilling
+- **The outlines are drawn, never clicked.** Banks, shops, skilling
   spots and monsters are outlined with RuneLite's `ModelOutlineRenderer`,
   worked out once a game tick within 12 tiles of the player, and the
   unlock banner is a timed drawing. Neither consumes input.
