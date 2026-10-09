@@ -45,9 +45,29 @@ public class FateLockedOutlineOverlayTest
         assertNull(FateLockedOutlineOverlay.steadier(null, null));
     }
 
+    @Test
+    public void redWhenTheSkillIsntUnlockedOrangeWhenItsTierIsTooLow()
+    {
+        PointTarget yew = PointTarget.of("SKILLING", "Yew tree");
+        assertSame(LockedThings.Look.LOCKED, FateLockedOutlineOverlay.shown(new LockedThings.Thing(yew,
+            LockedThings.Look.TIER, LockedThings.Kind.SKILLING, "Woodcutting tier 6", "", true)));
+        assertSame(LockedThings.Look.TIER, FateLockedOutlineOverlay.shown(new LockedThings.Thing(yew,
+            LockedThings.Look.TIER, LockedThings.Kind.SKILLING, "Woodcutting tier 6", "", false)));
+        assertSame(LockedThings.Look.OPEN, FateLockedOutlineOverlay.shown(OPEN));
+    }
+
+    @Test
+    public void aFarmingPatchIsOutlinedByItsGround()
+    {
+        assertTrue(FateLockedOutlineOverlay.ground(new LockedThings.Thing(PointTarget.of("FARMING", "Hops Patch"),
+            LockedThings.Look.LOCKED, LockedThings.Kind.SKILLING, null, null, false)));
+        assertFalse(FateLockedOutlineOverlay.ground(new LockedThings.Thing(PointTarget.of("SKILLING", "Tree"),
+            LockedThings.Look.LOCKED, LockedThings.Kind.SKILLING, null, null, false)));
+    }
+
     private static LockedThings.Thing thing(LockedThings.Look look)
     {
         return new LockedThings.Thing(PointTarget.of("COMBAT", "Spider"), look, LockedThings.Kind.MONSTERS,
-            null, null);
+            null, null, false);
     }
 }

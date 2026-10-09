@@ -4,9 +4,11 @@ import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.sidebar.LockedThings;
 import com.fatelocked.ui.Palette;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,8 +36,9 @@ import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 /**
  * Things outlined in the game view (the owner's calls, 8 Oct): a bank booth, shop keeper,
  * skilling spot or monster near the player, red when the rules lock it, orange when a skill tier
- * doesn't open it yet, green when it's open, and nothing written over it. Only things the player
- * can click are outlined: a tree with no Chop option is scenery, and a monster needs Attack. What
+ * doesn't open it yet, green when it's open, and nothing written over it. A farming patch is
+ * outlined as the square of ground it covers, since its crop's leaves would shimmer. Only things
+ * the player can click are outlined: a tree with no Chop option is scenery, and a monster needs Attack. What
  * counts is the tracker's own rows ({@link LockedThings}), so the outlines say what the Here card
  * and the (Locked) tag say. Land that is locked as a whole is left to its borders and shade.
  * Advice only: nothing is blocked.
@@ -61,6 +64,8 @@ public class FateLockedOutlineOverlay extends Overlay
         NPC npc;
         TileObject object;
         LockedThings.Look look;
+        /** Drawn as the square of ground it covers, not round its model: a farming patch. */
+        boolean ground;
     }
 
     private final Client client;
@@ -107,7 +112,17 @@ public class FateLockedOutlineOverlay extends Overlay
             Color colour = palette.text(tone(thing.getLook()));
             try
             {
-                if (thing.getNpc() != null)
+                if (thing.isGround())
+                {
+                    Polygon square = thing.getObject().getCanvasTilePoly();
+                    if (square != null)
+                    {
+                        graphics.setColor(colour);
+                        graphics.setStroke(new BasicStroke(OUTLINE_WIDTH));
+                        graphics.draw(square);
+                    }
+                }
+                else if (thing.getNpc() != null)
                 {
                     outlines.drawOutline(thing.getNpc(), OUTLINE_WIDTH, colour, FEATHER);
                 }
@@ -123,6 +138,26 @@ public class FateLockedOutlineOverlay extends Overlay
             }
         }
         return null;
+    }
+
+    /**
+     * The look a thing is outlined in (the owner's colours, 8 Oct): red when it's locked, and
+     * also when its skill isn't unlocked at all; orange only when the skill is unlocked but its
+     * tier doesn't reach the thing yet.
+     */
+    static LockedThings.Look shown(LockedThings.Thing thing)
+    {
+        return thing.getLook() == LockedThings.Look.TIER && thing.isSkillShut() ? LockedThings.Look.LOCKED : thing.getLook();
+    }
+
+    /**
+     * Whether to outline the ground a thing stands on rather than its model. A farming patch's
+     * crop is dozens of thin leaves, and an outline round them shimmers as the camera moves (seen
+     * in game, 9 Oct, on the Lumbridge hops patch).
+     */
+    static boolean ground(LockedThings.Thing thing)
+    {
+        return "FARMING".equals(thing.getTarget().getCategory());
     }
 
     static Palette.Tone tone(LockedThings.Look look)
@@ -216,7 +251,7 @@ public class FateLockedOutlineOverlay extends Overlay
                 looks.put(npc, thing);
                 if (wanted(config, thing))
                 {
-                    next.add(new Outlined(npc, null, thing.getLook()));
+                    next.add(new Outlined(npc, null, shown(thing), false));
                 }
             }
         }
@@ -251,7 +286,7 @@ public class FateLockedOutlineOverlay extends Overlay
                     LockedThings.Thing thing = thing(decisions, chunk, shown.getName(), shown.getActions());
                     if (wanted(config, thing) && clickable(thing.getKind(), false, shown.getActions()))
                     {
-                        next.add(new Outlined(null, object, thing.getLook()));
+                        next.add(new Outlined(null, object, shown(thing), ground(thing)));
                     }
                 }
             }
