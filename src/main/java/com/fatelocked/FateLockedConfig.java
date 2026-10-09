@@ -452,7 +452,8 @@ public interface FateLockedConfig extends Config
         keyName = "outlineLocked",
         name = "Outline locked things",
         description = "Outlines the banks, shops, skilling spots and monsters near you that you can click, in the"
-            + " game view: red when locked, orange when your skill tier doesn't open them yet, green when open."
+            + " game view: red when locked or their skill isn't unlocked, orange when your skill tier doesn't reach them yet,"
+            + " green when open."
             + " Off hides every outline; the settings below pick which kinds. Land locked as a whole is left to its"
             + " borders.",
         section = displaySection,

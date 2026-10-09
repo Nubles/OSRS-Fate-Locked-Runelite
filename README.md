@@ -119,9 +119,10 @@ once, the first time the plugin starts.
   your skill tier doesn't open yet, with a chat line naming the tier when you
   click one; and a four-second warning banner for recognised locked travel.
 - Banks, shops, skilling spots and monsters near you outlined in the game
-  view: red when locked, orange when your skill tier doesn't open them yet,
-  green when open. Only things you can click are outlined, with no words over
-  them. Outline locked things turns every outline off; a setting for each
+  view: red when locked (or when their skill isn't unlocked at all), orange
+  when the skill is unlocked but its tier doesn't open them yet, green when
+  open. Only things you can click are outlined, with no words over them, and a
+  farming patch is outlined as the square of ground it covers. Outline locked things turns every outline off; a setting for each
   kind, and one for open ones, sits under it.
 - When a sync brings something new, a chat line naming it, a "Fate unlocked"
   banner for a few seconds, and the new land glowing gold on the world map

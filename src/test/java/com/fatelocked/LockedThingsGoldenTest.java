@@ -30,6 +30,7 @@ public class LockedThingsGoldenTest
         assertEquals(LockedThings.Kind.SKILLING, yew.getKind());
         assertEquals("Woodcutting tier 6", yew.getLabel());
         assertEquals("Woodcutting tier 6 (level 60) needed; Woodcutting isn't unlocked yet.", yew.getWhy());
+        assertTrue("no Woodcutting tier at all", yew.isSkillShut());
         assertEquals("the game's capitals don't matter", LockedThings.Look.TIER,
             lumbridge().find("YEW TREE", null).getLook());
     }

@@ -48,6 +48,8 @@ public final class LockedThings
         String label;
         /** The whole reason, for the chat line; null when open. */
         String why;
+        /** Whether a {@link Look#TIER} row's skill isn't unlocked at all, so no tier of it opens anything yet. */
+        boolean skillShut;
     }
 
     public static final LockedThings NONE = new LockedThings(false, Collections.emptyList());
@@ -151,11 +153,11 @@ public final class LockedThings
         List<String> clauses = RowChecks.clauses(row.getDetail());
         if (placeLocked || row.getStatus() == PermissionStatus.LOCKED)
         {
-            return new Thing(target, Look.LOCKED, kind, lockedLabel(clauses), lockedWhy(clauses));
+            return new Thing(target, Look.LOCKED, kind, lockedLabel(clauses), lockedWhy(clauses), false);
         }
         if (row.getStatus() == PermissionStatus.ALLOWED)
         {
-            return new Thing(target, Look.OPEN, kind, null, null);
+            return new Thing(target, Look.OPEN, kind, null, null, false);
         }
         SkillLine line = clauses.isEmpty() ? null : SkillLine.parse(clauses.get(0));
         if (row.getStatus() == PermissionStatus.NOT_READY && line != null && line.getCap() < line.getNeeded())
@@ -165,9 +167,10 @@ public final class LockedThings
                 + (line.getCap() <= 0
                     ? line.getSkill() + " isn't unlocked yet."
                     : "yours opens levels 1-" + line.getCap() + ".");
-            return new Thing(target, Look.TIER, kind, line.getSkill() + " tier " + tier, why);
+            return new Thing(target, Look.TIER, kind, line.getSkill() + " tier " + tier, why,
+                line.getCap() <= 0);
         }
-        return new Thing(target, null, kind, null, null);
+        return new Thing(target, null, kind, null, null, false);
     }
 
     /** The lowest tier that opens a level: tier N opens levels 1 to N × 10, and tier 10 up to 99. */

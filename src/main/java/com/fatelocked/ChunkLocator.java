@@ -60,6 +60,14 @@ public final class ChunkLocator
         return locate(actor.getWorldView(), actor.getLocalLocation());
     }
 
+    /** Whether an actor is on the floor its world view shows, rather than upstairs or down. */
+    public boolean onShownFloor(Actor actor)
+    {
+        WorldView view = actor == null ? null : actor.getWorldView();
+        WorldPoint at = actor == null ? null : actor.getWorldLocation();
+        return view != null && at != null && at.getPlane() == view.getPlane();
+    }
+
     /**
      * Where the player stands, for overlays that draw: their rules chunk,
      * and the top-level scene chunk and plane under them (the sea under a

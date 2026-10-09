@@ -4,9 +4,12 @@ import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.sidebar.LockedThings;
 import com.fatelocked.ui.Palette;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,14 +37,17 @@ import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 /**
  * Things outlined in the game view (the owner's calls, 8 Oct): a bank booth, shop keeper,
  * skilling spot or monster near the player, red when the rules lock it, orange when a skill tier
- * doesn't open it yet, green when it's open, and nothing written over it. Only things the player
- * can click are outlined: a tree with no Chop option is scenery, and a monster needs Attack. What
- * counts is the tracker's own rows ({@link LockedThings}), so the outlines say what the Here card
+ * doesn't open it yet, green when it's open, and nothing written over it. A farming patch is
+ * outlined as the square of ground it covers, since its crop's leaves would shimmer. Only things
+ * the player can click are outlined: a tree with no Chop option is scenery, and a monster needs
+ * Attack. What counts is the tracker's own rows ({@link LockedThings}), so the outlines say what the Here card
  * and the (Locked) tag say. Land that is locked as a whole is left to its borders and shade.
  * Advice only: nothing is blocked.
  *
- * <p>A monster keeps the most open look it has had while it's in view, so one walking between
- * chunks whose rows differ doesn't flicker. Outline locked things turns all of it off; a switch
+ * <p>A monster or person is outlined by the shape round them, kept steady on the frames their
+ * model is missing from, and only on the player's own floor, so one upstairs isn't drawn on the
+ * ground below. A monster keeps the most open look it has had while it's in view, so one walking
+ * between chunks whose rows differ doesn't flicker. Outline locked things turns all of it off; a switch
  * for each kind sits under it. What to outline is worked out once a game tick, within a few tiles
  * of the player, never every frame.
  */
@@ -61,6 +67,8 @@ public class FateLockedOutlineOverlay extends Overlay
         NPC npc;
         TileObject object;
         LockedThings.Look look;
+        /** Drawn as the square of ground it covers, not round its model: a farming patch. */
+        boolean ground;
     }
 
     private final Client client;
@@ -72,6 +80,12 @@ public class FateLockedOutlineOverlay extends Overlay
     private List<Outlined> found = Collections.emptyList();
     /** The look each monster in view has had, for the rules it was seen under. */
     private Map<NPC, LockedThings.Thing> npcLooks = new IdentityHashMap<>();
+    /**
+     * The last shape each outlined monster had on screen. Seen in game (9 Oct, with 117 HD): a
+     * monster's model is missing on every other frame, so an outline drawn round the model
+     * flashed on and off; the last shape fills the frames it's missing from.
+     */
+    private Map<NPC, Shape> hulls = new IdentityHashMap<>();
     private DecisionService npcLooksFor;
 
     @Inject
@@ -93,6 +107,7 @@ public class FateLockedOutlineOverlay extends Overlay
         {
             found = Collections.emptyList();
             npcLooks = new IdentityHashMap<>();
+            hulls = new IdentityHashMap<>();
             return null;
         }
         int tick = client.getTickCount();
@@ -105,16 +120,68 @@ public class FateLockedOutlineOverlay extends Overlay
         for (Outlined thing : found)
         {
             Color colour = palette.text(tone(thing.getLook()));
-            if (thing.getNpc() != null)
+            try
             {
-                outlines.drawOutline(thing.getNpc(), OUTLINE_WIDTH, colour, FEATHER);
+                if (thing.isGround())
+                {
+                    Polygon square = thing.getObject().getCanvasTilePoly();
+                    if (square != null)
+                    {
+                        graphics.setColor(colour);
+                        graphics.setStroke(new BasicStroke(OUTLINE_WIDTH));
+                        graphics.draw(square);
+                    }
+                }
+                else if (thing.getNpc() != null)
+                {
+                    Shape hull = thing.getNpc().getConvexHull();
+                    if (hull != null)
+                    {
+                        hulls.put(thing.getNpc(), hull);
+                    }
+                    else
+                    {
+                        hull = hulls.get(thing.getNpc());
+                    }
+                    if (hull != null)
+                    {
+                        graphics.setColor(colour);
+                        graphics.setStroke(new BasicStroke(OUTLINE_WIDTH));
+                        graphics.draw(hull);
+                    }
+                }
+                else
+                {
+                    outlines.drawOutline(thing.getObject(), OUTLINE_WIDTH, colour, FEATHER);
+                }
             }
-            else
+            catch (RuntimeException gone)
             {
-                outlines.drawOutline(thing.getObject(), OUTLINE_WIDTH, colour, FEATHER);
+                // Seen in game (8 Oct): an object can lose its model between the tick's scan and
+                // this frame, and the outline renderer then throws. Skip it until the next scan.
             }
         }
         return null;
+    }
+
+    /**
+     * The look a thing is outlined in (the owner's colours, 8 Oct): red when it's locked, and
+     * also when its skill isn't unlocked at all; orange only when the skill is unlocked but its
+     * tier doesn't reach the thing yet.
+     */
+    static LockedThings.Look shown(LockedThings.Thing thing)
+    {
+        return thing.getLook() == LockedThings.Look.TIER && thing.isSkillShut() ? LockedThings.Look.LOCKED : thing.getLook();
+    }
+
+    /**
+     * Whether to outline the ground a thing stands on rather than its model. A farming patch's
+     * crop is dozens of thin leaves, and an outline round them shimmers as the camera moves (seen
+     * in game, 9 Oct, on the Lumbridge hops patch).
+     */
+    static boolean ground(LockedThings.Thing thing)
+    {
+        return "FARMING".equals(thing.getTarget().getCategory());
     }
 
     static Palette.Tone tone(LockedThings.Look look)
@@ -194,7 +261,8 @@ public class FateLockedOutlineOverlay extends Overlay
             for (NPC npc : view.npcs())
             {
                 if (npc == null || npc.getLocalLocation() == null
-                    || npc.getLocalLocation().distanceTo(me) > RADIUS * 128)
+                    || npc.getLocalLocation().distanceTo(me) > RADIUS * 128
+                    || !locator.onShownFloor(npc))
                 {
                     continue;
                 }
@@ -208,12 +276,13 @@ public class FateLockedOutlineOverlay extends Overlay
                 looks.put(npc, thing);
                 if (wanted(config, thing))
                 {
-                    next.add(new Outlined(npc, null, thing.getLook()));
+                    next.add(new Outlined(npc, null, shown(thing), false));
                 }
             }
         }
         npcLooks = looks;
         npcLooksFor = decisions;
+        hulls.keySet().retainAll(looks.keySet());
 
         Scene scene = view.getScene();
         Tile[][][] tiles = scene == null ? null : scene.getTiles();
@@ -243,7 +312,7 @@ public class FateLockedOutlineOverlay extends Overlay
                     LockedThings.Thing thing = thing(decisions, chunk, shown.getName(), shown.getActions());
                     if (wanted(config, thing) && clickable(thing.getKind(), false, shown.getActions()))
                     {
-                        next.add(new Outlined(null, object, thing.getLook()));
+                        next.add(new Outlined(null, object, shown(thing), ground(thing)));
                     }
                 }
             }
