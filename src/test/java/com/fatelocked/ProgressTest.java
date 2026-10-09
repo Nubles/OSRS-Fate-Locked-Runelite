@@ -45,7 +45,7 @@ public class ProgressTest
                 trusted(golden(id)).progress());
         }
         Progress mid = trusted(golden("vanilla-mid")).progress();
-        assertEquals(new Progress(Progress.AREAS, 15, 187, mid.getChunksUnlocked(), 624), mid);
+        assertEquals(new Progress(Progress.AREAS, 15, 187, mid.getChunksUnlocked(), 623), mid);
     }
 
     /** Without the tracker's progress, or with a malformed one, today's counts from the area lists. */
@@ -90,9 +90,9 @@ public class ProgressTest
     public void aChunkedRunCountsChunks() throws Exception
     {
         Progress walk = trusted(golden("chunked-walk")).progress();
-        assertEquals(new Progress(Progress.CHUNKS, 7, 624, 7, 624), walk);
-        assertEquals("7/624 · 1%", ProgressText.hudLine(walk));
-        assertEquals("7 of 624 chunks unlocked", ProgressText.infoBoxTooltip(walk));
+        assertEquals(new Progress(Progress.CHUNKS, 7, 623, 7, 623), walk);
+        assertEquals("7/623 · 1%", ProgressText.hudLine(walk));
+        assertEquals("7 of 623 chunks unlocked", ProgressText.infoBoxTooltip(walk));
     }
 
     @Test
@@ -120,7 +120,7 @@ public class ProgressTest
     /**
      * The owner's call T7 in the accuracy review: the percentage is of what the count beside it
      * counts. vanilla-mid has 15 of 187 areas, which is 8% on the HUD, the infobox and the run
-     * card; its 46 of 624 chunks, which the percentage used to count, are 7%.
+     * card; its 46 of 623 chunks, which the percentage used to count, are 7%.
      */
     @Test
     public void thePercentIsOfWhatTheCountCounts() throws Exception

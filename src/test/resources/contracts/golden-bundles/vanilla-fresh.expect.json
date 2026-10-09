@@ -4,7 +4,7 @@
  "covers": "Misthalin free, nothing rolled",
  "gameModeId": "vanilla",
  "account": "Iron Example",
- "oceanChunkCount": 548,
+ "oceanChunkCount": 549,
  "chunks": {
   "15,43": false,
   "15,44": false,
@@ -3527,7 +3527,7 @@
   "total": 187,
   "chunks": {
    "unlocked": 32,
-   "total": 624
+   "total": 623
   }
  },
  "spentBosses": [],

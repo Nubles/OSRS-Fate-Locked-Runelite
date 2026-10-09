@@ -4,7 +4,7 @@
  "covers": "Custom Lumbridge-only start with bank locks off",
  "gameModeId": "custom",
  "account": "Iron Example",
- "oceanChunkCount": 548,
+ "oceanChunkCount": 549,
  "chunks": {
   "15,43": false,
   "15,44": false,
@@ -3518,7 +3518,7 @@
   "total": 187,
   "chunks": {
    "unlocked": 9,
-   "total": 624
+   "total": 623
   }
  },
  "spentBosses": [],
