@@ -254,7 +254,6 @@ public class FateLockedOutlineOverlay extends Overlay
         ChunkLocator locator = plugin.chunkLocator();
         List<Outlined> next = new ArrayList<>();
         Map<NPC, LockedThings.Thing> looks = new IdentityHashMap<>();
-        int plane = view.getPlane();
         Map<NPC, LockedThings.Thing> before = npcLooksFor == decisions ? npcLooks : Collections.emptyMap();
 
         if (view.npcs() != null)
@@ -263,7 +262,7 @@ public class FateLockedOutlineOverlay extends Overlay
             {
                 if (npc == null || npc.getLocalLocation() == null
                     || npc.getLocalLocation().distanceTo(me) > RADIUS * 128
-                    || npc.getWorldLocation().getPlane() != plane)
+                    || !locator.onShownFloor(npc))
                 {
                     continue;
                 }
@@ -287,6 +286,7 @@ public class FateLockedOutlineOverlay extends Overlay
 
         Scene scene = view.getScene();
         Tile[][][] tiles = scene == null ? null : scene.getTiles();
+        int plane = view.getPlane();
         if (tiles == null || plane < 0 || plane >= tiles.length) return next;
         Tile[][] floor = tiles[plane];
         Map<Integer, CanonicalChunk> zones = new HashMap<>();
