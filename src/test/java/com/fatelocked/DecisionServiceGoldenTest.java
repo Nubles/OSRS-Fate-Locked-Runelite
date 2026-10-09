@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,6 +74,14 @@ public class DecisionServiceGoldenTest
         assertEquals(id + " entries", List.of(), mismatches);
     }
 
+    /**
+     * Chunks the tracker opens during Pandemonium without the run owning them
+     * (Nubles/OSRS-Fate-Locked utils/pandemoniumRoute.ts): the sea to The
+     * Pandemonium, the island and the Shipyard.
+     */
+    private static final Set<String> PANDEMONIUM_ROUTE =
+        Set.of("47,48", "47,47", "48,46", "48,47", "47,46", "32,42");
+
     /** Owned or not, as the tracker says, the sea included (R1); NOT_READY is owned but not yet usable. */
     @Test
     public void everyTrackerChunkIsOwnedOrLocked()
@@ -84,6 +93,7 @@ public class DecisionServiceGoldenTest
         {
             Decision decision = service.chunk(GoldenBundleContractTest.chunk(entry.getKey()));
             if (!rulesChunks().has(entry.getKey())) sea++;
+            if (PANDEMONIUM_ROUTE.contains(entry.getKey()) && decision.getStatus() == PermissionStatus.ALLOWED) continue;
             boolean owned = decision.getStatus() == PermissionStatus.ALLOWED
                 || decision.getStatus() == PermissionStatus.NOT_READY;
             if (owned != entry.getValue().getAsBoolean() || decision.getStatus() == PermissionStatus.UNKNOWN)
