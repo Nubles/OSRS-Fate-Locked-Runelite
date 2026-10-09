@@ -9,6 +9,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
+import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,13 +39,15 @@ import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
  * skilling spot or monster near the player, red when the rules lock it, orange when a skill tier
  * doesn't open it yet, green when it's open, and nothing written over it. A farming patch is
  * outlined as the square of ground it covers, since its crop's leaves would shimmer. Only things
- * the player can click are outlined: a tree with no Chop option is scenery, and a monster needs Attack. What
- * counts is the tracker's own rows ({@link LockedThings}), so the outlines say what the Here card
+ * the player can click are outlined: a tree with no Chop option is scenery, and a monster needs
+ * Attack. What counts is the tracker's own rows ({@link LockedThings}), so the outlines say what the Here card
  * and the (Locked) tag say. Land that is locked as a whole is left to its borders and shade.
  * Advice only: nothing is blocked.
  *
- * <p>A monster keeps the most open look it has had while it's in view, so one walking between
- * chunks whose rows differ doesn't flicker. Outline locked things turns all of it off; a switch
+ * <p>A monster or person is outlined by the shape round them, kept steady on the frames their
+ * model is missing from, and only on the player's own floor, so one upstairs isn't drawn on the
+ * ground below. A monster keeps the most open look it has had while it's in view, so one walking
+ * between chunks whose rows differ doesn't flicker. Outline locked things turns all of it off; a switch
  * for each kind sits under it. What to outline is worked out once a game tick, within a few tiles
  * of the player, never every frame.
  */
@@ -77,6 +80,12 @@ public class FateLockedOutlineOverlay extends Overlay
     private List<Outlined> found = Collections.emptyList();
     /** The look each monster in view has had, for the rules it was seen under. */
     private Map<NPC, LockedThings.Thing> npcLooks = new IdentityHashMap<>();
+    /**
+     * The last shape each outlined monster had on screen. Seen in game (9 Oct, with 117 HD): a
+     * monster's model is missing on every other frame, so an outline drawn round the model
+     * flashed on and off; the last shape fills the frames it's missing from.
+     */
+    private Map<NPC, Shape> hulls = new IdentityHashMap<>();
     private DecisionService npcLooksFor;
 
     @Inject
@@ -98,6 +107,7 @@ public class FateLockedOutlineOverlay extends Overlay
         {
             found = Collections.emptyList();
             npcLooks = new IdentityHashMap<>();
+            hulls = new IdentityHashMap<>();
             return null;
         }
         int tick = client.getTickCount();
@@ -124,7 +134,21 @@ public class FateLockedOutlineOverlay extends Overlay
                 }
                 else if (thing.getNpc() != null)
                 {
-                    outlines.drawOutline(thing.getNpc(), OUTLINE_WIDTH, colour, FEATHER);
+                    Shape hull = thing.getNpc().getConvexHull();
+                    if (hull != null)
+                    {
+                        hulls.put(thing.getNpc(), hull);
+                    }
+                    else
+                    {
+                        hull = hulls.get(thing.getNpc());
+                    }
+                    if (hull != null)
+                    {
+                        graphics.setColor(colour);
+                        graphics.setStroke(new BasicStroke(OUTLINE_WIDTH));
+                        graphics.draw(hull);
+                    }
                 }
                 else
                 {
@@ -230,6 +254,7 @@ public class FateLockedOutlineOverlay extends Overlay
         ChunkLocator locator = plugin.chunkLocator();
         List<Outlined> next = new ArrayList<>();
         Map<NPC, LockedThings.Thing> looks = new IdentityHashMap<>();
+        int plane = view.getPlane();
         Map<NPC, LockedThings.Thing> before = npcLooksFor == decisions ? npcLooks : Collections.emptyMap();
 
         if (view.npcs() != null)
@@ -237,7 +262,8 @@ public class FateLockedOutlineOverlay extends Overlay
             for (NPC npc : view.npcs())
             {
                 if (npc == null || npc.getLocalLocation() == null
-                    || npc.getLocalLocation().distanceTo(me) > RADIUS * 128)
+                    || npc.getLocalLocation().distanceTo(me) > RADIUS * 128
+                    || npc.getWorldLocation().getPlane() != plane)
                 {
                     continue;
                 }
@@ -257,10 +283,10 @@ public class FateLockedOutlineOverlay extends Overlay
         }
         npcLooks = looks;
         npcLooksFor = decisions;
+        hulls.keySet().retainAll(looks.keySet());
 
         Scene scene = view.getScene();
         Tile[][][] tiles = scene == null ? null : scene.getTiles();
-        int plane = view.getPlane();
         if (tiles == null || plane < 0 || plane >= tiles.length) return next;
         Tile[][] floor = tiles[plane];
         Map<Integer, CanonicalChunk> zones = new HashMap<>();
