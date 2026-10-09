@@ -4,7 +4,7 @@
  "covers": "Chunked with only the free start chunk",
  "gameModeId": "chunked",
  "account": "Iron Example",
- "oceanChunkCount": 548,
+ "oceanChunkCount": 549,
  "chunks": {
   "15,43": false,
   "15,44": false,
@@ -3520,10 +3520,10 @@
  "progress": {
   "unit": "chunks",
   "unlocked": 1,
-  "total": 624,
+  "total": 623,
   "chunks": {
    "unlocked": 1,
-   "total": 624
+   "total": 623
   }
  },
  "spentBosses": [],

@@ -4,7 +4,7 @@
  "covers": "Chunked walk west from Lumbridge into Asgarnia",
  "gameModeId": "chunked",
  "account": "Iron Example",
- "oceanChunkCount": 548,
+ "oceanChunkCount": 549,
  "chunks": {
   "15,43": false,
   "15,44": false,
@@ -3529,10 +3529,10 @@
  "progress": {
   "unit": "chunks",
   "unlocked": 7,
-  "total": 624,
+  "total": 623,
   "chunks": {
    "unlocked": 7,
-   "total": 624
+   "total": 623
   }
  },
  "spentBosses": [],
