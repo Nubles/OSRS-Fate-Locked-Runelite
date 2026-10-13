@@ -193,7 +193,9 @@ final class SidebarShots
 
     static StatusCardModel upToDate()
     {
-        return StatusCardModel.of(Tone.GOOD, "Rules up to date", "Synced 2 min ago for " + CHARACTER + ".");
+        return StatusCardModel.of(Tone.GOOD, StatusCardPresenter.TRACKER_RULES,
+            "The tracker sent these rules for " + CHARACTER + " at 11:42. RuneLite last checked 2 min ago.")
+            .withActions(CardAction.CHECK_NOW, null);
     }
 
     static StrictModeModel active()

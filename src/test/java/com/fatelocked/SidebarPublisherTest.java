@@ -18,13 +18,13 @@ public class SidebarPublisherTest
     {
         FateLockedPanel panel = mock(FateLockedPanel.class);
         SidebarPublisher publisher = new SidebarPublisher(panel);
-        StatusCardModel upToDate = StatusCardModel.of(Tone.GOOD, "Rules up to date", "Synced just now.");
+        StatusCardModel upToDate = StatusCardModel.of(Tone.GOOD, "Using the tracker's rules", "Synced just now.");
 
         publisher.status(upToDate);
-        publisher.status(StatusCardModel.of(Tone.GOOD, "Rules up to date", "Synced just now."));
+        publisher.status(StatusCardModel.of(Tone.GOOD, "Using the tracker's rules", "Synced just now."));
         verify(panel, times(1)).showStatus(upToDate);
 
-        StatusCardModel older = StatusCardModel.of(Tone.GOOD, "Rules up to date", "Synced 1 min ago.");
+        StatusCardModel older = StatusCardModel.of(Tone.GOOD, "Using the tracker's rules", "Synced 1 min ago.");
         publisher.status(older);
         verify(panel, times(1)).showStatus(older);
 

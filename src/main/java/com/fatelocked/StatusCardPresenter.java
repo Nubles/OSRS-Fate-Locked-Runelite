@@ -19,7 +19,12 @@ import java.time.Instant;
  */
 final class StatusCardPresenter
 {
-    static final String UP_TO_DATE = "Rules up to date";
+    /**
+     * Tracker rules the relay still confirms. Never "up to date": an unchanged relay copy
+     * doesn't mean the tracker managed to send its latest rules (a failed send, a second
+     * device), so the card says when the tracker sent them instead.
+     */
+    static final String TRACKER_RULES = "Using the tracker's rules";
     static final String OUT_OF_DATE = "Rules may be out of date";
     static final String STRICT_WAITS = "Strict Mode is inactive until the rules refresh.";
 
@@ -126,10 +131,19 @@ final class StatusCardPresenter
         String failure = failure(connection, facts);
         if (facts.isFresh())
         {
-            String detail = "Synced " + ago(lastSync, facts)
-                + (facts.isBound() ? " for " + name(facts.getBoundAccount()) + "." : ". These rules name no"
-                    + " character, so Strict Mode stays off.");
-            return StatusCardModel.of(Tone.GOOD, UP_TO_DATE, failure == null ? detail : detail + " " + failure);
+            String forWhom = facts.isBound() ? " for " + name(facts.getBoundAccount()) : "";
+            // When the tracker sent them, from the rules themselves, and when RuneLite last
+            // heard from the relay: the relay answering says nothing about the rules' age.
+            String detail = facts.getExportedAt() == null
+                ? "Synced " + ago(lastSync, facts) + forWhom + "."
+                : "The tracker sent these rules" + forWhom + " " + time(facts.getExportedAt(), facts)
+                    + ". RuneLite last checked " + ago(lastSync, facts) + ".";
+            if (!facts.isBound())
+            {
+                detail += " These rules name no character, so Strict Mode stays off.";
+            }
+            return StatusCardModel.of(Tone.GOOD, TRACKER_RULES, failure == null ? detail : detail + " " + failure)
+                .withActions(CardAction.CHECK_NOW, null);
         }
         return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE,
             "Last synced " + ago(lastSync, facts) + ". " + (failure == null ? "" : failure + " ") + STRICT_WAITS)

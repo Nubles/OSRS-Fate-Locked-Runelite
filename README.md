@@ -22,8 +22,8 @@ The normal same-PC setup is:
    warning to turn on online sync.
 3. In the GitHub Pages tab RuneLite opens, confirm the current tracker
    profile.
-4. Return to RuneLite: the status card says **Rules up to date** and when
-   it last synced.
+4. Return to RuneLite: the status card says **Using the tracker's rules**,
+   when the tracker sent them and when RuneLite last checked.
 5. Use clipboard or file import only if the relay is unavailable.
 
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
@@ -34,10 +34,17 @@ character, so it can link the two.
 Once connected, RuneLite checks the tracker every minute while you play,
 every 5 minutes at the login screen, and at once when you log in. To pick
 up a change you have just made in the web tracker, press **Check now** in
-Connection & backup (the status card offers it too when the rules may be
-out of date); it works once every 10 seconds. When a check fails, the
-status card says why and when the next check is, never more than 5 minutes
-away unless the relay asks RuneLite to wait longer.
+Connection & backup or on the status card; it works once every 10 seconds.
+When a check fails, the status card says why and when the next check is,
+never more than 5 minutes away unless the relay asks RuneLite to wait
+longer.
+
+The status card never says the rules are up to date. RuneLite can see only
+that the relay's copy hasn't changed, not whether the tracker managed to
+send its latest rules: a send that failed, or a roll on another device,
+leaves the copy as it was. So the card shows when the tracker sent the
+rules in use, and when RuneLite last checked. If the send time is older
+than your last roll, open the web tracker so it sends them again.
 
 **Re-pair tracker…** in Connection & backup pairs RuneLite with another
 tracker profile, and asks first. RuneLite keeps your current pairing until

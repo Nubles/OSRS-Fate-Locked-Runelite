@@ -110,6 +110,11 @@ public class SectionPresentersTest
         assertTrue(online.isCanDisconnect());
         assertEquals("Online", online.getSummary());
         assertEquals("Rules from the tracker, last synced at 11:58.", online.getSource());
+        // With the rules' own export time, when the tracker sent them is kept apart from
+        // when RuneLite last heard from the relay.
+        assertEquals("Rules the tracker sent at 09:15, last checked at 11:58.", ConnectionPresenter.present(connected,
+            true, true, FateLockedPlugin.RulesSource.RELAY, Instant.parse("2026-10-01T09:15:00Z"), NOW,
+            ZoneOffset.UTC).getSource());
 
         ConnectionModel off = ConnectionPresenter.present(TrackerConnectionSnapshot.disconnected(), false, false,
             FateLockedPlugin.RulesSource.IMPORT, NOW.minusSeconds(3600), NOW, ZoneOffset.UTC);

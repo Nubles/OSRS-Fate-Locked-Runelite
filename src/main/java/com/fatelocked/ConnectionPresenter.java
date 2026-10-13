@@ -40,9 +40,16 @@ final class ConnectionPresenter
         switch (source)
         {
             case RELAY:
-                return snapshot.getLastSync() == null ? "Rules from the tracker, saved by the last start."
-                    : "Rules from the tracker, last synced at " + LocalTimeText.of(snapshot.getLastSync(), now, zone)
-                        + ".";
+                if (exportedAt == null)
+                {
+                    return snapshot.getLastSync() == null ? "Rules from the tracker, saved by the last start."
+                        : "Rules from the tracker, last synced at "
+                            + LocalTimeText.of(snapshot.getLastSync(), now, zone) + ".";
+                }
+                // When the tracker sent them, apart from when RuneLite last heard from the relay.
+                String sent = "Rules the tracker sent at " + LocalTimeText.of(exportedAt, now, zone);
+                return snapshot.getLastSync() == null ? sent + ", saved by the last start."
+                    : sent + ", last checked at " + LocalTimeText.of(snapshot.getLastSync(), now, zone) + ".";
             case IMPORT:
                 return "Rules from the clipboard" + exported(exportedAt, now, zone);
             case FILE:

@@ -46,8 +46,9 @@ public final class KitGallery
 
         Card status = new Card();
         status.setAccent(Palette.defaults().text(Tone.GOOD));
-        status.add(text("Rules up to date", Type.title(), Palette.defaults().text(Tone.GOOD), 1));
-        status.add(text("Synced 2 min ago for Iron Example.", Type.body(), Palette.TEXT_MUTED, 0));
+        status.add(text("Using the tracker's rules", Type.title(), Palette.defaults().text(Tone.GOOD), 1));
+        status.add(text("The tracker sent these rules for Iron Example at 11:42. RuneLite last checked 2 min ago.",
+            Type.body(), Palette.TEXT_MUTED, 0));
         root.add(status);
 
         Card waiting = new Card();

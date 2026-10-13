@@ -61,7 +61,7 @@ public class SidebarViewsTest
             buttons.get(1).doClick();
             assertEquals(Collections.singletonList(CardAction.USE_BACKUP), pressed);
 
-            card.apply(StatusCardModel.of(Tone.GOOD, "Rules up to date", "Synced just now."));
+            card.apply(StatusCardModel.of(Tone.GOOD, "Using the tracker's rules", "Synced just now."));
             assertTrue("no actions, no buttons", buttons(card).isEmpty());
         });
     }
