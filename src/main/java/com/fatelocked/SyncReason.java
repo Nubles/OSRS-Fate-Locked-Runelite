@@ -22,7 +22,7 @@ enum SyncReason
     CONFIRM_REPAIR("Confirm the new pairing"),
     /** A re-pairing got no profile within 10 minutes, so the working pairing was kept. */
     REPAIR_ABANDONED("Kept your pairing"),
-    /** The relay's copy lapsed: it keeps a profile 24 hours after the last publish. */
+    /** The relay's copy lapsed: it keeps a profile only for a set time after the last publish. */
     NO_RECENT_UPDATE("No recent update"),
     /** The owner pressed Disconnect in the web tracker: this code will send nothing more. */
     GONE("Disconnected in the web tracker"),

@@ -20,7 +20,7 @@ import org.junit.Test;
 /**
  * Stage 3's done-when: a presenter test covers every row of the status table in the UX
  * report (U-ux.md "Proposed target UX"). Rows 9 and 11 are the Here card's
- * (HerePresenterGoldenTest); the status card must stay "up to date" through them.
+ * (HerePresenterGoldenTest); the status card must keep using the tracker's rules through them.
  */
 public class StatusTableTest
 {
@@ -75,10 +75,37 @@ public class StatusTableTest
     }
 
     @Test
-    public void row4ConnectedSaysHowLongAgoAndForWhom()
+    public void row4ConnectedSaysWhenTheTrackerSentTheRulesAndWhenRuneLiteLastChecked()
+    {
+        StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(2), true)
+            .exportedAt(NOW.minus(Duration.ofMinutes(30))).build());
+        assertCard(card, Tone.GOOD, "Using the tracker's rules", CardAction.CHECK_NOW, null);
+        assertEquals("The tracker sent these rules for Iron Example at 11:30. RuneLite last checked 2 min ago.",
+            card.getDetail());
+    }
+
+    @Test
+    public void row4AnUnchangedRelayCopyNeverClaimsTheRulesAreUpToDate()
+    {
+        // A 304 just now confirms only that the relay's copy hasn't changed: a send that failed,
+        // or a roll on another device, leaves it as it was. The card shows the rules' own age.
+        StatusCardModel yesterday = StatusCardPresenter.present(synced(Duration.ofSeconds(5), true)
+            .exportedAt(Instant.parse("2026-09-30T21:10:00Z")).build());
+        assertCard(yesterday, Tone.GOOD, "Using the tracker's rules", CardAction.CHECK_NOW, null);
+        assertEquals("The tracker sent these rules for Iron Example at Wed 21:10. RuneLite last checked just now.",
+            yesterday.getDetail());
+
+        StatusCardModel weeksAgo = StatusCardPresenter.present(synced(Duration.ofSeconds(5), true)
+            .exportedAt(Instant.parse("2026-09-12T08:05:00Z")).build());
+        assertEquals("The tracker sent these rules for Iron Example at 12 Sep 08:05. RuneLite last checked just now.",
+            weeksAgo.getDetail());
+    }
+
+    @Test
+    public void row4RulesWithNoExportTimeSayWhenTheyLastSyncedWithoutClaimingUpToDate()
     {
         StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(2), true).build());
-        assertCard(card, Tone.GOOD, "Rules up to date", null, null);
+        assertCard(card, Tone.GOOD, "Using the tracker's rules", CardAction.CHECK_NOW, null);
         assertEquals("Synced 2 min ago for Iron Example.", card.getDetail());
     }
 
@@ -95,14 +122,16 @@ public class StatusTableTest
     }
 
     @Test
-    public void row5AFailedCheckWhileStillFreshStaysUpToDate()
+    public void row5AFailedCheckWhileStillFreshKeepsTheRulesAgeApartFromTheConnection()
     {
         StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(4), true)
+            .exportedAt(NOW.minus(Duration.ofMinutes(10)))
             .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, NOW.minus(Duration.ofMinutes(4)),
                 "41", SyncReason.BUSY, NOW.plus(Duration.ofMinutes(1))))
             .build());
-        assertCard(card, Tone.GOOD, "Rules up to date", null, null);
-        assertTrue(card.getDetail(), card.getDetail().endsWith("check less often; next check at 12:01."));
+        assertCard(card, Tone.GOOD, "Using the tracker's rules", CardAction.CHECK_NOW, null);
+        assertEquals("The tracker sent these rules for Iron Example at 11:50. RuneLite last checked 4 min ago."
+            + " The tracker asked RuneLite to check less often; next check at 12:01.", card.getDetail());
     }
 
     @Test
@@ -114,6 +143,9 @@ public class StatusTableTest
             .build());
         assertCard(card, Tone.PENDING, "Tracker copy expired", CardAction.OPEN_TRACKER, null);
         assertTrue(card.getDetail(), card.getDetail().endsWith("Your current rules stay in use."));
+        // True however long the relay keeps a copy: it names no period.
+        assertTrue(card.getDetail(), card.getDetail().startsWith("The tracker hasn't sent your rules recently."));
+        assertTrue(card.getDetail(), !card.getDetail().contains("hours"));
     }
 
     @Test
@@ -155,10 +187,10 @@ public class StatusTableTest
     }
 
     @Test
-    public void rows9To11LeaveTheStatusCardUpToDate()
+    public void rows9To11LeaveTheStatusCardOnTheTrackersRules()
     {
         // A locked area, a paused Strict Mode and an instance are the Here card's and Strict Mode's to show.
-        assertEquals("Rules up to date",
+        assertEquals("Using the tracker's rules",
             StatusCardPresenter.present(synced(Duration.ofSeconds(20), true).build()).getTitle());
     }
 
@@ -190,6 +222,10 @@ public class StatusTableTest
     {
         StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(1), true).bound(false).build());
         assertEquals("Synced 1 min ago. These rules name no character, so Strict Mode stays off.", card.getDetail());
+        StatusCardModel sent = StatusCardPresenter.present(synced(Duration.ofMinutes(1), true).bound(false)
+            .exportedAt(NOW.minus(Duration.ofMinutes(3))).build());
+        assertEquals("The tracker sent these rules at 11:57. RuneLite last checked 1 min ago. These rules name no"
+            + " character, so Strict Mode stays off.", sent.getDetail());
     }
 
     @Test
@@ -222,15 +258,19 @@ public class StatusTableTest
             {
                 for (RulesSource source : RulesSource.values())
                 {
-                    StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(20), false)
-                        .source(source)
-                        .connection(TrackerConnectionSnapshot.of(state, NOW.minus(Duration.ofMinutes(20)), "41",
-                            reason, null))
-                        .build());
-                    assertNotNull(reason + " " + state + " " + source, card.getTitle());
-                    assertNotNull(reason + " " + state + " " + source, card.getDetail());
-                    assertTrue(card.getDetail(), !card.getDetail().contains("null"));
-                    seen.add(reason);
+                    for (boolean fresh : new boolean[]{true, false})
+                    {
+                        StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(20), fresh)
+                            .source(source)
+                            .connection(TrackerConnectionSnapshot.of(state, NOW.minus(Duration.ofMinutes(20)), "41",
+                                reason, null))
+                            .build());
+                        assertNotNull(reason + " " + state + " " + source, card.getTitle());
+                        assertNotNull(reason + " " + state + " " + source, card.getDetail());
+                        assertTrue(card.getDetail(), !card.getDetail().contains("null"));
+                        assertTrue(card.getTitle(), !card.getTitle().toLowerCase().contains("up to date"));
+                        seen.add(reason);
+                    }
                 }
             }
         }

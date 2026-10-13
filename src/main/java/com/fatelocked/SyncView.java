@@ -132,8 +132,8 @@ final class SyncView
                 action = Action.CONNECT;
                 break;
             case NO_RECENT_UPDATE:
-                detail = "The tracker hasn't sent your rules in the last 24 hours."
-                    + " Open the web tracker to send them again.";
+                detail = "The tracker hasn't sent your rules recently."
+                    + " Open the web tracker so it can send them again.";
                 action = Action.OPEN_TRACKER;
                 break;
             case OLDER_RULES:

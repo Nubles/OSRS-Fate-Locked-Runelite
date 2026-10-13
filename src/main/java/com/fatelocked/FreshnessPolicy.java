@@ -10,6 +10,10 @@ import java.time.Instant;
  * <p>Tracker rules stay fresh while the relay keeps confirming them. Backups (files and
  * the clipboard), and tracker rules no longer being checked, count from when the
  * tracker exported them, so an old file can never block anything.
+ *
+ * <p>Fresh tracker rules are ones the relay confirmed lately, not necessarily the
+ * tracker's latest: a 304 says only that the relay's copy hasn't changed. So the status
+ * card never calls them up to date; it shows when the tracker exported them.
  */
 final class FreshnessPolicy
 {
