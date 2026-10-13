@@ -143,6 +143,9 @@ public class StatusTableTest
             .build());
         assertCard(card, Tone.PENDING, "Tracker copy expired", CardAction.OPEN_TRACKER, null);
         assertTrue(card.getDetail(), card.getDetail().endsWith("Your current rules stay in use."));
+        // True however long the relay keeps a copy: it names no period.
+        assertTrue(card.getDetail(), card.getDetail().startsWith("The tracker hasn't sent your rules recently."));
+        assertTrue(card.getDetail(), !card.getDetail().contains("hours"));
     }
 
     @Test

@@ -71,7 +71,7 @@ final class SidebarShots
                 Collections.emptyList()), run(), connected()));
         shots.put("new-06-expired", () -> sidebar(icons,
             StatusCardModel.of(Tone.PENDING, "Tracker copy expired",
-                "The tracker hasn't sent your rules in the last 24 hours. Open the web tracker to send them"
+                "The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
                     + " again.")
                 .withActions(CardAction.OPEN_TRACKER, null),
             here("vanilla-mid", 50, 50, true), active(), run(), connected()));

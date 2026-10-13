@@ -152,7 +152,7 @@ public final class GuideScreenshots
                 .withActions(CardAction.CHECK_NOW, null), true));
         shots.add(status("status-expired", icons,
             StatusCardModel.of(Tone.PENDING, "Tracker copy expired",
-                "The tracker hasn't sent your rules in the last 24 hours. Open the web tracker to send them again.")
+                "The tracker hasn't sent your rules recently. Open the web tracker so it can send them again.")
                 .withActions(CardAction.OPEN_TRACKER, null), true));
         shots.add(status("status-backup", icons,
             StatusCardModel.of(Tone.NEUTRAL, "Using a backup",

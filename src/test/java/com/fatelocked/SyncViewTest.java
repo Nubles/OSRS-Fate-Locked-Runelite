@@ -86,6 +86,9 @@ public class SyncViewTest
 
         assertEquals(SyncView.Tone.AMBER, view.tone);
         assertEquals(SyncView.Action.OPEN_TRACKER, view.action);
+        // True however long the relay keeps a copy (24 hours now, 30 days later): no period named.
+        assertEquals("The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
+            + " again.", view.detail);
     }
 
     @Test

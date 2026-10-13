@@ -320,7 +320,7 @@ final class SyncMachine
      * started is waiting for the browser, that is expected: say "Confirm in
      * browser" and keep checking, quickly at first. After 10 minutes, say no
      * profile arrived. Otherwise the relay's copy has lapsed (it keeps one
-     * for 24 hours after the web app last published): the pairing still
+     * only for a set time after the web app last published): the pairing still
      * works, and opening the web tracker sends the rules again. The rules
      * stay active, but their version is forgotten, so the next check sends
      * no validator and imports whatever version the relay has next, even

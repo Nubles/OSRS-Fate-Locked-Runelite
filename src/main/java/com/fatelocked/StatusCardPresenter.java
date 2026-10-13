@@ -74,7 +74,7 @@ final class StatusCardPresenter
                     .withActions(CardAction.OPEN_TRACKER, null);
             case NO_RECENT_UPDATE:
                 return StatusCardModel.of(Tone.PENDING, "Tracker copy expired",
-                    "The tracker hasn't sent your rules in the last 24 hours. Open the web tracker to send them"
+                    "The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
                         + " again. " + keptRules(facts))
                     .withActions(CardAction.OPEN_TRACKER, null);
             case OLDER_RULES:
