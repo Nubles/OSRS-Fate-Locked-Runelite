@@ -111,7 +111,7 @@ public final class RuneliteRulesManifest
     private transient DetectionTables detection;
     /**
      * The bosses and raids, by the tracker's boss key, whose kills don't roll again this run: in
-     * Vanilla, each has given every Standard Key it holds. Null when the bundle doesn't send them, or
+     * Vanilla and Chunked, each has given every Standard Key it holds. Null when the bundle doesn't send them, or
      * they aren't a list.
      */
     @Getter(AccessLevel.NONE)

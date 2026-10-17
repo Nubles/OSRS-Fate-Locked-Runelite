@@ -15,6 +15,8 @@ import lombok.Value;
  *     from unlocked land; a new locked area next to the last one posts its line only.</li>
  * <li>The same locked area waits a minute before it alerts again, so walking along a border
  *     doesn't repeat it.</li>
+ * <li>In Chunked an area can be part owned, so stepping from an owned chunk into a locked chunk
+ *     of the same area still alerts.</li>
  * <li>A place the rules don't decide says nothing. Not ready is owned, so it never alerts.</li>
  * </ul>
  *
@@ -51,8 +53,9 @@ final class LockedAreaAlerts
     Alert enter(PermissionStatus status, String area, int tick, FateLockedConfig.LockedAreaAlert level,
         boolean announce)
     {
-        boolean sameArea = area.equals(lastArea);
         boolean fromLocked = lastStatus == PermissionStatus.LOCKED;
+        // Same area, unless it just turned locked: a part-owned Chunked area.
+        boolean sameArea = area.equals(lastArea) && (status != PermissionStatus.LOCKED || fromLocked);
         lastArea = area;
         lastStatus = status;
         if (status == PermissionStatus.UNKNOWN || sameArea)

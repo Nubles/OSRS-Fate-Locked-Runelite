@@ -22,7 +22,7 @@ public class UnlockNews
 {
     public static final UnlockNews NONE = new UnlockNews(Collections.emptyList(), Collections.emptySet());
 
-    /** What opened, by the tracker's names, areas first. */
+    /** What opened, by the tracker's names, areas first (in Chunked, the chunks first). */
     List<String> names;
     /** The chunks that were locked and aren't now. */
     Set<CanonicalChunk> chunks;
@@ -50,7 +50,9 @@ public class UnlockNews
         }
 
         Set<String> names = new LinkedHashSet<>();
-        for (String area : after.areas().keySet())
+        // A Chunked area opens with any one of its chunks, so name the chunks instead (below).
+        boolean chunked = "chunked".equals(now.getGameModeId());
+        for (String area : chunked ? Collections.<String>emptySet() : after.areas().keySet())
         {
             if (before.area(area).isLocked() && !after.area(area).isLocked())
             {
@@ -96,6 +98,18 @@ public class UnlockNews
             {
                 chunks.add(chunk);
             }
+        }
+        if (chunked)
+        {
+            // Chunks first, as areas come first in the other modes: "Crafting Guild chunk".
+            Set<String> named = new LinkedHashSet<>();
+            for (CanonicalChunk chunk : chunks)
+            {
+                String name = after.chunkName(chunk);
+                named.add((name == null || name.trim().isEmpty() ? chunk.getCx() + "," + chunk.getCy() : name.trim()) + " chunk");
+            }
+            named.addAll(names);
+            names = named;
         }
         return new UnlockNews(Collections.unmodifiableList(new ArrayList<>(names)),
             Collections.unmodifiableSet(chunks));
