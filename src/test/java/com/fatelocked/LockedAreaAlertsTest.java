@@ -46,6 +46,19 @@ public class LockedAreaAlertsTest
         assertEquals("a minute on", FULL, alerts.enter(PermissionStatus.LOCKED, "Falador", 110, ALL, false));
     }
 
+    /** Chunked: an area can be part owned, so its locked chunks still alert. */
+    @Test
+    public void aLockedChunkOfTheSameAreaStillAlerts()
+    {
+        assertEquals(LINE, alerts.enter(PermissionStatus.ALLOWED, "Lumbridge", 0, ALL, true));
+        assertEquals(FULL, alerts.enter(PermissionStatus.LOCKED, "Lumbridge", 1, ALL, true));
+        assertEquals(NONE, alerts.enter(PermissionStatus.LOCKED, "Lumbridge", 2, ALL, true));
+        assertEquals("back on owned land says nothing new", NONE, alerts.enter(PermissionStatus.ALLOWED, "Lumbridge", 3, ALL, true));
+        assertEquals("within a minute", NONE, alerts.enter(PermissionStatus.LOCKED, "Lumbridge", 4, ALL, true));
+        alerts.enter(PermissionStatus.ALLOWED, "Lumbridge", 104, ALL, true);
+        assertEquals("a minute on", FULL, alerts.enter(PermissionStatus.LOCKED, "Lumbridge", 105, ALL, true));
+    }
+
     @Test
     public void notReadyAndUndecidedPlacesNeverAlert()
     {

@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The bosses and raids whose kills the tracker won't roll again this run: in Vanilla, each one that
+ * The bosses and raids whose kills the tracker won't roll again this run: in Vanilla and Chunked, each one that
  * has given every Standard Key it holds, as Brutus has after his one. RuneLite neither records their
  * kills nor offers the ones it already has, so a spent boss doesn't say "added to your Roll inbox"
  * after every kill. Rules without the tracker's list spend none.

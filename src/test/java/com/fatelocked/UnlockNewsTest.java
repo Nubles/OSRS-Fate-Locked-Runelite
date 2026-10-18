@@ -64,6 +64,40 @@ public class UnlockNewsTest
         assertEquals("Unlocked a new chunk.", one.line());
     }
 
+    /** Chunked: an area opens with any one of its chunks, so the news names the chunk instead. */
+    @Test
+    public void aChunkedRollNamesTheChunkNotItsArea() throws Exception
+    {
+        UnlockNews news = UnlockNews.between(chunkedWalk(rules -> { }), chunkedWalk(UnlockNewsTest::aChunkLater));
+
+        assertEquals(java.util.Collections.singleton(CRAFTING_GUILD), news.getChunks());
+        assertEquals("Crafting Guild chunk", news.getNames().get(0));
+        assertTrue(news.getNames().toString(), news.getNames().stream().noneMatch(name -> name.startsWith("Falador")));
+        assertEquals("Unlocked Crafting Guild chunk.", news.line());
+    }
+
+    private static final CanonicalChunk CRAFTING_GUILD = new CanonicalChunk(45, 51);
+
+    /** The chunked-walk run a roll later: 45,51 (the Crafting Guild) unlocked. */
+    private static void aChunkLater(JsonObject bundle)
+    {
+        JsonObject rules = bundle.getAsJsonObject("rules");
+        rules.getAsJsonObject("unlocks").getAsJsonArray("chunks").add("45,51");
+        bundle.getAsJsonArray("unlockedChunks").add("45,51");
+        rules.getAsJsonObject("chunks").getAsJsonObject("45,51").addProperty("entry", "ALLOWED");
+        rules.getAsJsonObject("chunkEntries").addProperty("45,51", "ALLOWED");
+    }
+
+    private static DecisionService chunkedWalk(Consumer<JsonObject> change) throws Exception
+    {
+        JsonObject bundle = GSON.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("chunked-walk.bundle.json.gz")),
+            JsonObject.class);
+        change.accept(bundle);
+        return DecisionService.create(RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, GSON.toJson(bundle))),
+            "iron example", "iron example");
+    }
+
     /** Seers' Village rolled, its chunk open, a bank, a Woodcutting tier and the axe shops. */
     private static void aRollLater(JsonObject rules)
     {
