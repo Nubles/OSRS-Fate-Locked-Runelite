@@ -16,7 +16,8 @@ import net.runelite.api.widgets.WidgetUtil;
  * later. A confirm clicked before then would read the code the dials showed before the turn, so
  * an instance remembers the last click that may have turned them, and {@link #settled} gives no
  * code (Strict Mode then lets the click through) until the dials have changed or two ticks have
- * passed.
+ * passed. With two turning clicks inside those two ticks, a change may be only the first of them,
+ * an in-between code, so it gives no code at all until two ticks after the last one.
  */
 final class FairyRingDial
 {
@@ -30,6 +31,8 @@ final class FairyRingDial
 
     private int turnedAt = NEVER;
     private String codeWhenTurned;
+    /** Whether the last turning click came within {@link #SETTLE_TICKS} of the one before it. */
+    private boolean another;
 
     /** The code three dial values spell, such as "CKS"; null when one is out of range. */
     static String code(int left, int middle, int right)
@@ -91,22 +94,30 @@ final class FairyRingDial
     /** A click that may turn the dials, at this tick, while they showed this code. */
     void turned(int tick, String code)
     {
+        another = recent(tick);
         turnedAt = tick;
         codeWhenTurned = code;
     }
 
     /**
-     * The code a confirm at this tick goes to, given what the dials show: null when they may still
-     * be turning (a turning click less than {@link #SETTLE_TICKS} ago, and they still show the code
-     * they showed then), or when there is no code.
+     * The code a confirm at this tick goes to, given what the dials show. Null when they may still
+     * be turning: a turning click less than {@link #SETTLE_TICKS} ago that came within as long of
+     * another (the change seen may be only the first), or that is the only one but the dials still
+     * show the code they showed then. Null when there is no code.
      */
     String settled(int tick, String code)
     {
         if (code == null) return null;
-        if (turnedAt == NEVER) return code;
+        if (!recent(tick)) return code;
+        return another || code.equals(codeWhenTurned) ? null : code;
+    }
+
+    /** Whether the last turning click was less than {@link #SETTLE_TICKS} before this tick. */
+    private boolean recent(int tick)
+    {
+        if (turnedAt == NEVER) return false;
         long since = (long) tick - turnedAt;
         // A tick count that went back (a new login) means the turn is long past.
-        boolean recent = since >= 0 && since < SETTLE_TICKS;
-        return recent && code.equals(codeWhenTurned) ? null : code;
+        return since >= 0 && since < SETTLE_TICKS;
     }
 }

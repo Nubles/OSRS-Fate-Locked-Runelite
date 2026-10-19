@@ -81,6 +81,57 @@ public class FairyRingDialTest
         assertEquals("a tick count that went back means a new login", "AIP", dial.settled(3, "AIP"));
     }
 
+    /** Two quick turns: the dials changing may be only the first one landing, an in-between code. */
+    @Test
+    public void twoTurnsInsideTheWindowGiveNoCodeUntilTwoTicksAfterTheLast()
+    {
+        FairyRingDial dial = new FairyRingDial();
+        dial.turned(10, "AIP");
+        dial.turned(10, "AIP");
+        assertNull("both on one tick, the first has landed", dial.settled(11, "AIS"));
+        assertNull("both have landed, but nothing says so", dial.settled(11, "AIR"));
+        assertEquals("two ticks after the last", "AIR", dial.settled(12, "AIR"));
+
+        FairyRingDial lagging = new FairyRingDial();
+        lagging.turned(20, "AIP");
+        lagging.turned(21, "AIP");
+        assertNull("the first landed after the second click", lagging.settled(22, "AIS"));
+        assertEquals("two ticks after the last", "AIR", lagging.settled(23, "AIR"));
+
+        FairyRingDial landed = new FairyRingDial();
+        landed.turned(30, "AIP");
+        landed.turned(31, "AIS");
+        assertNull("the second click saw the first land; the change could still be a third dial's",
+            landed.settled(32, "AIR"));
+        assertNull(landed.settled(32, "AIS"));
+
+        FairyRingDial apart = new FairyRingDial();
+        apart.turned(40, "AIP");
+        apart.turned(42, "AIS");
+        assertNull("two ticks apart is one turn at a time", apart.settled(42, "AIS"));
+        assertEquals("the dials changed: that one turn arrived", "AIR", apart.settled(43, "AIR"));
+    }
+
+    @Test
+    public void aSecondTurnBeforeTheFirstLandsKeepsTheConfirmOpen()
+    {
+        dials(2, 2, 1);
+        when(client.getTickCount()).thenReturn(100);
+        MenuFactsReader reader = new MenuFactsReader(client, new FairyRingDial());
+
+        reader.read(widget(MenuAction.CC_OP, InterfaceID.Fairyrings._2_CLOCKWISE, 1));
+        when(client.getTickCount()).thenReturn(101);
+        reader.read(widget(MenuAction.CC_OP, InterfaceID.Fairyrings._3_CLOCKWISE, 1));
+        when(client.getTickCount()).thenReturn(102);
+        dials(2, 3, 1);
+        assertNull("only the first turn has landed", reader.read(
+            widget(MenuAction.CC_OP, InterfaceID.Fairyrings.CONFIRM, 1)).getFairyRingCode());
+        when(client.getTickCount()).thenReturn(103);
+        dials(2, 3, 2);
+        assertEquals("CJR", reader.read(widget(MenuAction.CC_OP, InterfaceID.Fairyrings.CONFIRM, 1))
+            .getFairyRingCode());
+    }
+
     @Test
     public void theConfirmButtonIsTheTripAndTheRestOfTheDialsMayTurnThem()
     {
