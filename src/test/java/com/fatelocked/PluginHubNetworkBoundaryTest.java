@@ -32,7 +32,9 @@ public class PluginHubNetworkBoundaryTest
         String compactController =
             controllerSource.replaceAll("\\s+", " ");
 
-        assertEquals(1, occurrences(allSource, "new Request.Builder()"));
+        // The rules check, and the badge requests (badgeRequestsGoToTheFixedRelayFromOneClass).
+        assertEquals(2, occurrences(allSource, "new Request.Builder()"));
+        assertEquals(1, occurrences(controllerSource, "new Request.Builder()"));
         assertTrue(compactController.contains(
             "TrackerConnectionSettings.RELAY_BASE_URL"
                 + " + \"/r/\" + token.code"));
@@ -46,7 +48,8 @@ public class PluginHubNetworkBoundaryTest
             "/events",
             "/acks",
             "/suggest",
-            "/state",
+            "/state");
+        assertAbsent(allSourceExcept(sources, "BadgeRelay.java"),
             "RequestBody",
             "FateEventRelayClient",
             "FateEventOutbox",
@@ -62,6 +65,35 @@ public class PluginHubNetworkBoundaryTest
 
         assertEquals(1, occurrences(allSource, "@PluginDescriptor("));
         assertEquals(1, occurrences(allSource, "NavigationButton.builder()"));
+    }
+
+    /**
+     * Badges (CONTRACT section 2) add the plugin's only uploads, behind online sync's consent and
+     * the default-off Share my badge: GET /badges, and POST and DELETE /r/<code>/badge with the
+     * name and tier as JSON, to the same fixed relay, from one class.
+     */
+    @Test
+    public void badgeRequestsGoToTheFixedRelayFromOneClass()
+        throws Exception
+    {
+        Map<Path, String> sources = productionSources();
+        String relaySource = sourceNamed(sources, "BadgeRelay.java");
+        String compactRelay = relaySource.replaceAll("\\s+", " ");
+        String compactPlugin = sourceNamed(sources, "FateLockedPlugin.java").replaceAll("\\s+", " ");
+
+        assertEquals(1, occurrences(relaySource, "new Request.Builder()"));
+        assertTrue(compactRelay.contains("new Request.Builder().url(relayBase + path)"));
+        assertTrue(compactPlugin.contains(
+            "new BadgeRelay(okHttpClient, gson, TrackerConnectionSettings.RELAY_BASE_URL)"));
+        assertEquals(1, occurrences(compactPlugin, "new BadgeRelay("));
+        assertTrue(compactRelay.contains("request(\"/badges\").get()"));
+        assertTrue(compactRelay.contains("return \"/r/\" + code + \"/badge\";"));
+        assertEquals(1, occurrences(relaySource, ".post("));
+        assertEquals(1, occurrences(relaySource, ".delete()"));
+        assertEquals(1, occurrences(relaySource, "RequestBody.create(JSON, gson.toJson(new Badge(name, tier)))"));
+        assertFalse(relaySource.contains(".put("));
+        assertFalse(relaySource.contains(".patch("));
+        assertAbsent(compactRelay, "http://", "https://", "localhost", "127.0.0.1");
     }
 
     @Test
@@ -109,6 +141,19 @@ public class PluginHubNetworkBoundaryTest
                     path, read(path)));
         }
         return sources;
+    }
+
+    private static String allSourceExcept(Map<Path, String> sources, String fileName)
+    {
+        StringBuilder text = new StringBuilder();
+        for (Map.Entry<Path, String> entry : sources.entrySet())
+        {
+            if (!entry.getKey().getFileName().toString().equals(fileName))
+            {
+                text.append(entry.getValue()).append('\n');
+            }
+        }
+        return text.toString();
     }
 
     private static String sourceNamed(

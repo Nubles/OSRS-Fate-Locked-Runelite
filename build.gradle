@@ -113,9 +113,11 @@ tasks.register('verifyPluginHubJar') {
                         "shaded dependency found: ${prefix}")
                 }
             }
+            // The badge requests' class is the one that sends a body (badge name and tier).
             String classText = entries
                 .findAll {
                     !it.directory && it.name.endsWith('.class')
+                        && !it.name.startsWith('com/fatelocked/badges/BadgeRelay')
                 }
                 .collect {
                     new String(
@@ -128,8 +130,9 @@ tasks.register('verifyPluginHubJar') {
             String routeText = entries
                 .findAll {
                     !it.directory
-                        && it.name.startsWith(
+                        && (it.name.startsWith(
                             'com/fatelocked/TrackerConnectionController')
+                            || it.name.startsWith('com/fatelocked/badges/BadgeRelay'))
                         && it.name.endsWith('.class')
                 }
                 .collect {
