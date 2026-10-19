@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -60,6 +61,40 @@ public class FairyRingDialLineTest
         String text = FairyRingDialLine.present("CKS", withReason(reason)).getText();
         assertTrue(text, text.startsWith("CKS: Locked: Needs every one"));
         assertEquals("CKS: Locked: ".length() + FairyRingDialLine.MAX_REASON, text.length());
+    }
+
+    /** A frame with nothing changed only draws: the line is made again only for a new key. */
+    @Test
+    public void theLineIsMadeAgainOnlyWhenTheCodeRulesOrPaletteChange()
+    {
+        FairyRingDialLine.Cache cache = new FairyRingDialLine.Cache();
+        Palette palette = Palette.defaults();
+        FairyRingDialLine.Line line = cache.line("CKS", rules, palette);
+        assertEquals("CKS: Locked: Karamja", line.getText());
+        assertEquals(palette.text(Palette.Tone.BAD), cache.color());
+        for (int frame = 0; frame < 50; frame++)
+        {
+            assertSame(line, cache.line("CKS", rules, palette));
+        }
+        assertEquals(1, cache.computed());
+
+        assertEquals("AIQ: Unlocked", cache.line("AIQ", rules, palette).getText());
+        assertEquals(palette.text(Palette.Tone.GOOD), cache.color());
+        assertEquals(2, cache.computed());
+
+        Palette colourBlind = Palette.of(Palette.Preset.COLOUR_BLIND_SAFE, null, null, null);
+        cache.line("AIQ", rules, colourBlind);
+        assertEquals(colourBlind.text(Palette.Tone.GOOD), cache.color());
+        assertEquals(3, cache.computed());
+
+        // Another character logs in: the plugin makes new decisions, which say nothing to them.
+        assertNull(cache.line("AIQ", DecisionService.create(rules.rules(), NetworkFixtures.PLAYER, "someone else"),
+            colourBlind));
+        assertNull(cache.color());
+        assertEquals(4, cache.computed());
+        assertNull(cache.line(null, rules, colourBlind));
+        assertNull(cache.line(null, rules, colourBlind));
+        assertEquals(5, cache.computed());
     }
 
     /** Above the dials where the view leaves room; otherwise inside their top edge, never over them. */
