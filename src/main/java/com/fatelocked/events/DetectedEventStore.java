@@ -26,8 +26,13 @@ import java.util.function.LongSupplier;
  * accounts/&lt;account hash&gt;/detected-events.json. Another RuneLite on this computer may share the
  * file, so every write merges with what is on disk (LocalFileMerge), and a state never goes back:
  * Dismissed wins over Sent, Sent over Copied, and Copied over New. Events older than 30 days go,
- * as the tracker refuses them, and the newest 250 stay. A build from before Sent reads a Sent
- * entry as one it can't use and leaves it out.
+ * as the tracker refuses them, and the newest 250 stay.
+ *
+ * <p>A build from before Sent, sharing the file, reads a Sent entry as one it can't use and
+ * leaves it out, and its next write, which merges only the entries it could read, removes it
+ * from the file (a newer RuneLite still running writes back what it holds, but one that opens
+ * the file afterwards won't see it). Such an event has already reached the relay, so the
+ * tracker still gets it. This build doesn't guard against that; it is only said here.
  *
  * <p>Events recorded before Stage 4 live in event-history.json, which this never reads: they
  * have no state, and some carry old labels (plan decision 8).
