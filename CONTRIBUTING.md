@@ -92,7 +92,8 @@ in `runelite/plugin-hub`, not `main`. To release:
 
 ## Plugin Hub architecture
 
-The shipped plugin constructs two HTTP requests, both to the fixed relay:
+The shipped plugin constructs two kinds of HTTP request, all to the fixed relay.
+For the rules and Send to tracker:
 
 ```text
 GET  https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>
@@ -115,10 +116,22 @@ tracker repository (`workers/fate-relay`); until it is deployed, the route
 answers a plain 404, which the card reads as "the relay can't take events
 yet".
 
-There is no configurable host, receipt, acknowledgement, suggestion write,
-status callback, or relay write token. Browser handoffs open only the fixed
-GitHub Pages tracker URL and contain the random pairing code, never
-RuneLite-observed gameplay.
+Badges add three, all from `badges.BadgeRelay` to the same relay and behind
+the same consent:
+
+```text
+GET    https://fate-relay.fatelocked.workers.dev/badges
+POST   https://fate-relay.fatelocked.workers.dev/r/<code>/badge   {"name": ..., "tier": 0..4}
+DELETE https://fate-relay.fatelocked.workers.dev/r/<code>/badge
+```
+
+The list is fetched at login and every 30 minutes while a Badges show
+setting is on, with `If-None-Match`; the POST is sent only with the
+default-off **Share my badge** on, for the character the rules are bound to
+(`badges.BadgePolicy`). There is no configurable host, receipt,
+acknowledgement, suggestion write, status callback, or relay write token.
+Browser handoffs open only the fixed GitHub Pages tracker URL and contain the
+random pairing code, never RuneLite-observed gameplay.
 
 The controller uses RuneLite's injected `OkHttpClient` asynchronously, with a
 20-second limit on the whole call and a 1 MiB cap on the reply; stopping the
@@ -291,15 +304,16 @@ The clean source, test, and standard-jar gate:
 gradle clean check --no-daemon
 ```
 
-`PluginHubNetworkBoundaryTest` proves that production source has two request
+`PluginHubNetworkBoundaryTest` proves that production source has three request
 builders (the rules check's GET in `TrackerConnectionController`, Send to
 tracker's POST in `TrackerInboxSender`, which only the Roll inbox card's
-button starts), one descriptor, one navigation button, the fixed relay
-paths, a request body nowhere but Send to tracker, and no prohibited runtime
-mechanism. `verifyPluginHubJar` rejects shaded dependency trees, legacy relay
-routes, retired relay classes, local hosts, request body support outside
-`TrackerInboxSender`, and any route in Send to tracker's classes but
-`/inbox`.
+button starts, and `BadgeRelay`'s, each with its fixed relay paths), one
+descriptor, one navigation button, a request body nowhere but Send to
+tracker and `BadgeRelay`, and no prohibited runtime mechanism.
+`verifyPluginHubJar` rejects shaded dependency trees, legacy relay routes,
+retired relay classes, local hosts, request body support outside
+`TrackerInboxSender` and `BadgeRelay`, and any route in Send to tracker's
+classes but `/inbox`.
 
 All dependencies remain `compileOnly` for production. Keep the plugin Java
 only. Do not add reflection, JNI, subprocesses, dynamic class loading, an

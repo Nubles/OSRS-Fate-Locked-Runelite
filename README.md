@@ -29,9 +29,10 @@ The normal same-PC setup is:
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
 relay. It sends gameplay data there only when you press **Send to tracker**
 in the Roll inbox card (see
-[Roll Inbox ownership and privacy](#roll-inbox-ownership-and-privacy)). The
-relay sees the IP address used for the HTTPS requests, and the rules it
-holds name your character, so it can link the two.
+[Roll Inbox ownership and privacy](#roll-inbox-ownership-and-privacy)), and
+your character name and milestone only if you turn on **Share my badge** (see
+[Badges](#badges)). The relay sees the IP address used for the HTTPS
+requests, and the rules it holds name your character, so it can link the two.
 
 Once connected, RuneLite checks the tracker every minute while you play,
 every 5 minutes at the login screen, and at once when you log in. To pick
@@ -95,8 +96,8 @@ their own:
    file backups.
 
 Here starts open. Every setting is in RuneLite's configuration, under Fate
-Locked Ironman: 27 settings in six sections (Tracker, Strict Mode, Alerts,
-Display, Custom colours and Backup). Settings from before Stage 3 carry over
+Locked Ironman: 31 settings in seven sections (Tracker, Strict Mode, Alerts,
+Display, Badges, Custom colours and Backup). Settings from before Stage 3 carry over
 once, the first time the plugin starts.
 
 ## Main features
@@ -142,9 +143,35 @@ once, the first time the plugin starts.
 - Strict Mode, which blocks only travel the tracker's travel table matches
   by id, to one place it locks, with fail-open safeguards, a status that
   says when it cannot act, a 60-second pause, and a bounded local audit log.
+- Badges: a key before the name, in chat and above the head, of each player
+  who shares their Fate Locked milestone, and yours on the list if you
+  choose (see [Badges](#badges)).
 - What RuneLite notices, listed in the Roll inbox card for the tracker:
   levels, quests, finished diary tiers, combat achievements, collection log
   items, clues, boss and raid kills, Slayer tasks and new pets.
+
+## Badges
+
+Players who share their Fate Locked milestone get a pixel-art key before
+their name in chat and above their head: iron under 25% of their run, bronze
+at 25% (Wayfarer), silver at 50% (Pathfinder), gold at 75% (Trailblazer) and
+crystal at 100% (Fate Unbound). The settings are under Badges in RuneLite's
+configuration, and all three need **Online sync**; with it off they do
+nothing.
+
+- **Show badges in chat** (on) and **Show badges above heads** (on):
+  RuneLite downloads the public badge list from the Fate Locked relay at
+  login and every 30 minutes while you play. The key goes before the name in
+  public, private, friends chat and clan messages, after any icon the game
+  already shows there, and above players on your floor.
+- **Share my badge** (off) puts your character name and milestone on that
+  public list, which the relay serves to every player of the plugin. It is
+  sent only for the character your run is linked to, with the tracker
+  connected: when your name or milestone changes, and otherwise at most once
+  a day. Nothing else about your run is sent. Turning it off, or pressing
+  **Disconnect**, removes you from the list. If online sync is off at that
+  moment, the removal waits until it is on again; the relay drops a badge
+  that hasn't been sent for 30 days.
 
 ## Roll Inbox ownership and privacy
 

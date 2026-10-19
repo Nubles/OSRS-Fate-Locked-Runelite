@@ -54,6 +54,9 @@ public class FateLockedConfigTest
         new Object[]{"outlineOpen", FateLockedConfig.displaySection, 11, true},
         new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 12, false},
         new Object[]{"colourPreset", FateLockedConfig.displaySection, 13, FateLockedConfig.ColourPreset.DEFAULT},
+        new Object[]{"badgesInChat", FateLockedConfig.badgesSection, 0, true},
+        new Object[]{"badgesAboveHeads", FateLockedConfig.badgesSection, 1, true},
+        new Object[]{"shareBadge", FateLockedConfig.badgesSection, 2, false},
         new Object[]{"unlockedColor", FateLockedConfig.customColoursSection, 0, new Color(16, 185, 129, 110)},
         new Object[]{"frontierColor", FateLockedConfig.customColoursSection, 1, new Color(245, 158, 11, 100)},
         new Object[]{"lockedColor", FateLockedConfig.customColoursSection, 2, new Color(239, 68, 68, 110)},
@@ -88,7 +91,8 @@ public class FateLockedConfigTest
             }
         }
         assertEquals(Arrays.asList(FateLockedConfig.trackerSection, FateLockedConfig.strictModeSection,
-            FateLockedConfig.alertsSection, FateLockedConfig.displaySection, FateLockedConfig.customColoursSection,
+            FateLockedConfig.alertsSection, FateLockedConfig.displaySection, FateLockedConfig.badgesSection,
+            FateLockedConfig.customColoursSection,
             FateLockedConfig.backupSection), sections.values().stream()
             .sorted((a, b) -> Integer.compare(a.position(), b.position()))
             .map(section -> sections.entrySet().stream().filter(e -> e.getValue() == section).findFirst().get().getKey())
@@ -231,6 +235,13 @@ public class FateLockedConfigTest
         assertSays("outlineLocked", "Off hides every outline");
         assertSays("announceUnlocks", "a chat line", "a banner", "glowing on the world map");
         assertSays("frontierColor", "you can unlock next");
+        // Badges: what sharing puts where, that it's undone by turning it off, and online sync's part.
+        assertSays("shareBadge", "your character name and milestone", "public list the Fate Locked relay serves to"
+            + " every player of the plugin", "Turning it off removes you from the list", "Off by default",
+            "with Online sync on");
+        assertSays("badgesInChat", "Needs Online sync", "downloads the public badge list", "at login and every 30"
+            + " minutes");
+        assertSays("badgesAboveHeads", "Needs Online sync", "on your floor");
     }
 
     private static void assertSays(String key, String... claims)

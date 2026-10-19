@@ -22,9 +22,10 @@ public class PluginHubNetworkBoundaryTest
     };
 
     /**
-     * Two requests, each to the fixed relay: the rules check, GET /r/&lt;code&gt;, in the connection
-     * controller, and Send to tracker, POST /r/&lt;code&gt;/inbox, in the inbox sender, which the
-     * player starts with a click. Nothing else in the plugin builds a request or a request body.
+     * Three request builders, each to the fixed relay: the rules check, GET /r/&lt;code&gt;, in the
+     * connection controller; Send to tracker, POST /r/&lt;code&gt;/inbox, in the inbox sender, which
+     * the player starts with a click; and the badge requests in BadgeRelay. Nothing else in the
+     * plugin builds a request or a request body.
      */
     @Test
     public void productionSourceHasTheTwoFixedRelayRequestsAndNoOthers()
@@ -39,7 +40,9 @@ public class PluginHubNetworkBoundaryTest
         String senderSource = sourceNamed(sources, "TrackerInboxSender.java");
         String compactSender = senderSource.replaceAll("\\s+", " ");
 
-        assertEquals(2, occurrences(allSource, "new Request.Builder()"));
+        // The rules check, Send to tracker, and the badge requests
+        // (badgeRequestsGoToTheFixedRelayFromOneClass).
+        assertEquals(3, occurrences(allSource, "new Request.Builder()"));
 
         assertEquals(1, occurrences(controllerSource, "new Request.Builder()"));
         assertTrue(compactController.contains(
@@ -70,9 +73,10 @@ public class PluginHubNetworkBoundaryTest
 
         for (Map.Entry<Path, String> source : sources.entrySet())
         {
-            if (!source.getKey().getFileName().toString().equals("TrackerInboxSender.java"))
+            String file = source.getKey().getFileName().toString();
+            if (!file.equals("TrackerInboxSender.java") && !file.equals("BadgeRelay.java"))
             {
-                assertFalse("a request body outside the inbox sender: " + source.getKey(),
+                assertFalse("a request body outside the inbox sender and badge relay: " + source.getKey(),
                     source.getValue().contains("RequestBody"));
             }
         }
@@ -115,6 +119,34 @@ public class PluginHubNetworkBoundaryTest
         assertEquals(1, occurrences(plugin, "panel.onSendToTracker(this::sendToTracker)"));
         // Declared, and handed to the button: never called on a timer or an event.
         assertEquals(2, occurrences(plugin, "sendToTracker"));
+    }
+
+    /**
+     * Badges (CONTRACT section 2) add the plugin's only uploads, behind online sync's consent and
+     * the default-off Share my badge: GET /badges, and POST and DELETE /r/<code>/badge with the
+     * name and tier as JSON, to the same fixed relay, from one class.
+     */
+    @Test
+    public void badgeRequestsGoToTheFixedRelayFromOneClass()
+        throws Exception
+    {
+        Map<Path, String> sources = productionSources();
+        String relaySource = sourceNamed(sources, "BadgeRelay.java");
+        String compactRelay = relaySource.replaceAll("\\s+", " ");
+        String compactWiring = sourceNamed(sources, "BadgeWiring.java").replaceAll("\\s+", " ");
+
+        assertEquals(1, occurrences(relaySource, "new Request.Builder()"));
+        assertTrue(compactRelay.contains("new Request.Builder().url(relayBase + path)"));
+        assertTrue(compactWiring.contains("new BadgeRelay(http, gson, TrackerConnectionSettings.RELAY_BASE_URL)"));
+        assertEquals(1, occurrences(String.join("\n", sources.values()), "new BadgeRelay("));
+        assertTrue(compactRelay.contains("request(\"/badges\").get()"));
+        assertTrue(compactRelay.contains("return \"/r/\" + code + \"/badge\";"));
+        assertEquals(1, occurrences(relaySource, ".post("));
+        assertEquals(1, occurrences(relaySource, ".delete()"));
+        assertEquals(1, occurrences(relaySource, "RequestBody.create(JSON, gson.toJson(new Badge(name, tier)))"));
+        assertFalse(relaySource.contains(".put("));
+        assertFalse(relaySource.contains(".patch("));
+        assertAbsent(compactRelay, "http://", "https://", "localhost", "127.0.0.1");
     }
 
     @Test
@@ -162,6 +194,19 @@ public class PluginHubNetworkBoundaryTest
                     path, read(path)));
         }
         return sources;
+    }
+
+    private static String allSourceExcept(Map<Path, String> sources, String fileName)
+    {
+        StringBuilder text = new StringBuilder();
+        for (Map.Entry<Path, String> entry : sources.entrySet())
+        {
+            if (!entry.getKey().getFileName().toString().equals(fileName))
+            {
+                text.append(entry.getValue()).append('\n');
+            }
+        }
+        return text.toString();
     }
 
     private static String sourceNamed(

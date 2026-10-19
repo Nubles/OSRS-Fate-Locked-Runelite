@@ -537,9 +537,59 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigSection(
+        name = "Badges",
+        description = "Fate Locked keys beside the names of players who share their milestone",
+        position = 4
+    )
+    String badgesSection = "badgesSection";
+
+    @ConfigItem(
+        keyName = "badgesInChat",
+        name = "Show badges in chat",
+        description = "A key before the name of each player who shares their Fate Locked badge, in public, private,"
+            + " friends chat and clan messages: iron under 25% of their run, then bronze, silver, gold and crystal at"
+            + " 25, 50, 75 and 100%. Needs Online sync: RuneLite downloads the public badge list from the Fate Locked"
+            + " relay at login and every 30 minutes.",
+        section = badgesSection,
+        position = 0
+    )
+    default boolean badgesInChat()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "badgesAboveHeads",
+        name = "Show badges above heads",
+        description = "The same key above the head of each player near you on your floor who shares a badge. Needs"
+            + " Online sync, as Show badges in chat does.",
+        section = badgesSection,
+        position = 1
+    )
+    default boolean badgesAboveHeads()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "shareBadge",
+        name = "Share my badge",
+        description = "Puts your character name and milestone (under 25%, Wayfarer, Pathfinder, Trailblazer or Fate"
+            + " Unbound) on a public list the Fate Locked relay serves to every player of the plugin. Only for the"
+            + " character your run is linked to, with Online sync on and the tracker connected. Turning it off"
+            + " removes you from the list. Off by default.",
+        section = badgesSection,
+        position = 2
+    )
+    default boolean shareBadge()
+    {
+        return false;
+    }
+
+    @ConfigSection(
         name = "Custom colours",
         description = "Used when Colours is set to Custom",
-        position = 4,
+        position = 5,
         closedByDefault = true
     )
     String customColoursSection = "customColoursSection";
@@ -587,7 +637,7 @@ public interface FateLockedConfig extends Config
     @ConfigSection(
         name = "Backup",
         description = "For runs without online sync",
-        position = 5,
+        position = 6,
         closedByDefault = true
     )
     String backupSection = "backupSection";

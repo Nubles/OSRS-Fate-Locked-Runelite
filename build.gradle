@@ -113,8 +113,9 @@ tasks.register('verifyPluginHubJar') {
                         "shaded dependency found: ${prefix}")
                 }
             }
-            // Send to tracker's POST, on the player's click, is the one
-            // request with a body: only its classes may name RequestBody.
+            // Two requests carry a body, each from its own classes: Send to
+            // tracker's POST, on the player's click, and the badge requests
+            // (badge name and tier). Only those classes may name RequestBody.
             def isInboxSender = { String name ->
                 name.startsWith('com/fatelocked/TrackerInboxSender')
             }
@@ -122,6 +123,7 @@ tasks.register('verifyPluginHubJar') {
                 .findAll {
                     !it.directory && it.name.endsWith('.class')
                         && !isInboxSender(it.name)
+                        && !it.name.startsWith('com/fatelocked/badges/BadgeRelay')
                 }
                 .collect {
                     new String(
@@ -134,8 +136,9 @@ tasks.register('verifyPluginHubJar') {
             String routeText = entries
                 .findAll {
                     !it.directory
-                        && it.name.startsWith(
+                        && (it.name.startsWith(
                             'com/fatelocked/TrackerConnectionController')
+                            || it.name.startsWith('com/fatelocked/badges/BadgeRelay'))
                         && it.name.endsWith('.class')
                 }
                 .collect {
