@@ -63,6 +63,7 @@
   "Strict Mode",
   "Alerts",
   "Display",
+  "Badges",
   "Custom colours",
   "Backup"
  ],
@@ -77,6 +78,12 @@
    "key": "strictMode",
    "section": "Strict Mode",
    "name": "Strict Mode",
+   "defaultValue": "Off"
+  },
+  {
+   "key": "blockNetworks",
+   "section": "Strict Mode",
+   "name": "Block networks and boats",
    "defaultValue": "Off"
   },
   {
@@ -132,6 +139,12 @@
    "key": "announceUnlocks",
    "section": "Alerts",
    "name": "Announce new unlocks",
+   "defaultValue": "On"
+  },
+  {
+   "key": "fairyRingDialStatus",
+   "section": "Alerts",
+   "name": "Fairy ring dial status",
    "defaultValue": "On"
   },
   {
@@ -245,6 +258,24 @@
     "Colour-blind safe",
     "Custom"
    ]
+  },
+  {
+   "key": "badgesInChat",
+   "section": "Badges",
+   "name": "Show badges in chat",
+   "defaultValue": "On"
+  },
+  {
+   "key": "badgesAboveHeads",
+   "section": "Badges",
+   "name": "Show badges above heads",
+   "defaultValue": "On"
+  },
+  {
+   "key": "shareBadge",
+   "section": "Badges",
+   "name": "Share my badge",
+   "defaultValue": "Off"
   },
   {
    "key": "unlockedColor",
