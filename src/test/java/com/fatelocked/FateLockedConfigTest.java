@@ -40,6 +40,7 @@ public class FateLockedConfigTest
         new Object[]{"rollNudges", FateLockedConfig.alertsSection, 4, true},
         new Object[]{"useNotifier", FateLockedConfig.alertsSection, 5, false},
         new Object[]{"announceUnlocks", FateLockedConfig.alertsSection, 6, true},
+        new Object[]{FateLockedConfig.FAIRY_RING_DIAL_KEY, FateLockedConfig.alertsSection, 7, true},
         new Object[]{"hudMode", FateLockedConfig.displaySection, 0, FateLockedConfig.HudMode.COMPACT},
         new Object[]{"worldMapMode", FateLockedConfig.displaySection, 1,
             FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS},
@@ -233,10 +234,12 @@ public class FateLockedConfigTest
         assertSays("announceUnlocks", "a chat line", "a banner", "glowing on the world map");
         assertSays("frontierColor", "you can unlock next");
         // Networks and boats: opt-in, one place only, and the options that pick their place are never stopped
-        // (StrictModeGuardTest, StrictModeGateTest).
+        // (StrictModeGuardTest, StrictModeGateTest, BlockNetworksTest).
         assertSays(FateLockedConfig.BLOCK_NETWORKS_KEY, "goes to one place your rules lock", "a code dialled on it",
             "Options where you pick the place after the click", "are never stopped", "Off by default",
             "only tagged (Locked)");
+        // The dial line is advice only (FairyRingDialLineTest).
+        assertSays(FateLockedConfig.FAIRY_RING_DIAL_KEY, "names the code dialled", "it never stops anything");
     }
 
     private static void assertSays(String key, String... claims)

@@ -23,6 +23,7 @@ public interface FateLockedConfig extends Config
     String NETWORK_ACCESS_KEY = "trackerNetworkAccess";
     /** Strict Mode also stops one-place network and boat trips (off by default). */
     String BLOCK_NETWORKS_KEY = "blockNetworks";
+    String FAIRY_RING_DIAL_KEY = "fairyRingDialStatus";
     String NETWORK_WARNING = "This feature submits your IP address to a 3rd-party server "
         + "not controlled or verified by RuneLite developers.";
 
@@ -365,6 +366,19 @@ public interface FateLockedConfig extends Config
         position = 6
     )
     default boolean announceUnlocks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = FAIRY_RING_DIAL_KEY,
+        name = "Fairy ring dial status",
+        description = "While a fairy ring's dials are open, one line beside them names the code dialled and what"
+            + " your rules say about it, such as CKS: Unlocked. It only tells you; it never stops anything.",
+        section = alertsSection,
+        position = 7
+    )
+    default boolean fairyRingDialStatus()
     {
         return true;
     }
