@@ -1718,7 +1718,7 @@ public class FateLockedPlugin extends Plugin
             AccountBinding.boundAccount(getBundle()),
             loggedInName(),
             ruleDecisions.trust() == Trust.TRUSTED && ruleDecisions.isBound(),
-            rulesAreFresh());
+            rulesAreFresh()).withNetworks(config.blockNetworks());
     }
     /**
      * Whether the active rules are recent enough for Strict Mode to act on.
@@ -1758,9 +1758,9 @@ public class FateLockedPlugin extends Plugin
     /**
      * Whether a menu option is tagged (F4, G14). Travel the tracker's table
      * matches by id is tagged only for an exact LOCKED decision, one place,
-     * as Strict Mode reads it; networks and boats, which Strict Mode never
-     * blocks, are tagged the same way. Anything else is tagged by the chunk
-     * it stands in.
+     * as Strict Mode reads it; networks and boats, which Strict Mode blocks
+     * only with "Block networks and boats" on, are tagged the same way.
+     * Anything else is tagged by the chunk it stands in.
      */
     private boolean taggedLocked(MenuEntry entry, DecisionService ruleDecisions)
     {

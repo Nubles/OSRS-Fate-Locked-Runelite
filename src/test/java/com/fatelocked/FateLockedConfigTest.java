@@ -30,7 +30,8 @@ public class FateLockedConfigTest
     private static final List<Object[]> EXPECTED = Arrays.asList(
         new Object[]{FateLockedConfig.NETWORK_ACCESS_KEY, FateLockedConfig.trackerSection, 0, false},
         new Object[]{"strictMode", FateLockedConfig.strictModeSection, 0, false},
-        new Object[]{"pauseStrictModeHotkey", FateLockedConfig.strictModeSection, 1, Keybind.NOT_SET},
+        new Object[]{FateLockedConfig.BLOCK_NETWORKS_KEY, FateLockedConfig.strictModeSection, 1, false},
+        new Object[]{"pauseStrictModeHotkey", FateLockedConfig.strictModeSection, 2, Keybind.NOT_SET},
         new Object[]{"lockedAreaAlert", FateLockedConfig.alertsSection, 0,
             FateLockedConfig.LockedAreaAlert.CHAT_SOUND_FADE},
         new Object[]{"announceAreaChanges", FateLockedConfig.alertsSection, 1, true},
@@ -231,6 +232,11 @@ public class FateLockedConfigTest
         assertSays("outlineLocked", "Off hides every outline");
         assertSays("announceUnlocks", "a chat line", "a banner", "glowing on the world map");
         assertSays("frontierColor", "you can unlock next");
+        // Networks and boats: opt-in, one place only, and the options that pick their place are never stopped
+        // (StrictModeGuardTest, StrictModeGateTest).
+        assertSays(FateLockedConfig.BLOCK_NETWORKS_KEY, "goes to one place your rules lock", "a code dialled on it",
+            "Options where you pick the place after the click", "are never stopped", "Off by default",
+            "only tagged (Locked)");
     }
 
     private static void assertSays(String key, String... claims)

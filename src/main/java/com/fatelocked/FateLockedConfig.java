@@ -21,6 +21,8 @@ public interface FateLockedConfig extends Config
 {
     String GROUP = "fatelocked";
     String NETWORK_ACCESS_KEY = "trackerNetworkAccess";
+    /** Strict Mode also stops one-place network and boat trips (off by default). */
+    String BLOCK_NETWORKS_KEY = "blockNetworks";
     String NETWORK_WARNING = "This feature submits your IP address to a 3rd-party server "
         + "not controlled or verified by RuneLite developers.";
 
@@ -237,11 +239,27 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = BLOCK_NETWORKS_KEY,
+        name = "Block networks and boats",
+        description = "Also stops a network or boat trip that goes to one place your rules lock, as a teleport is"
+            + " stopped: a fairy ring's Zanaris or Last-destination, or a code dialled on it; a charter's Charter-to;"
+            + " a glider, ferry or boat option that names one place. Options where you pick the place after the"
+            + " click, such as Travel, Glider or Fly, are never stopped. Off by default: they are only tagged"
+            + " (Locked).",
+        section = strictModeSection,
+        position = 1
+    )
+    default boolean blockNetworks()
+    {
+        return false;
+    }
+
+    @ConfigItem(
         keyName = "pauseStrictModeHotkey",
         name = "Pause hotkey",
         description = "Pauses Strict Mode for 60 seconds. Not set by default.",
         section = strictModeSection,
-        position = 1
+        position = 2
     )
     default Keybind pauseStrictModeHotkey()
     {
