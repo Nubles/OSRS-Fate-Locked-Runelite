@@ -92,14 +92,26 @@ in `runelite/plugin-hub`, not `main`. To release:
 
 ## Plugin Hub architecture
 
-The shipped plugin constructs one HTTP request:
+The shipped plugin constructs one HTTP request for the rules:
 
 ```text
 GET https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>
 ```
 
 The optional `If-None-Match` header allows an unchanged bundle to return
-`304`. There is no configurable host, plugin POST, event relay, receipt,
+`304`. Badges add three, all from `badges.BadgeRelay` to the same relay and
+behind the same consent:
+
+```text
+GET    https://fate-relay.fatelocked.workers.dev/badges
+POST   https://fate-relay.fatelocked.workers.dev/r/<code>/badge   {"name": ..., "tier": 0..4}
+DELETE https://fate-relay.fatelocked.workers.dev/r/<code>/badge
+```
+
+The list is fetched at login and every 30 minutes while a Badges show
+setting is on, with `If-None-Match`; the POST is sent only with the
+default-off **Share my badge** on, for the character the rules are bound to
+(`badges.BadgePolicy`). There is no configurable host, event relay, receipt,
 acknowledgement, suggestion write, status callback, or relay write token. Browser
 handoffs open only the fixed GitHub Pages tracker URL and contain the random
 pairing code, never RuneLite-observed gameplay.
@@ -274,11 +286,13 @@ The clean source, test, and standard-jar gate:
 gradle clean check --no-daemon
 ```
 
-`PluginHubNetworkBoundaryTest` proves that production source has one request
-builder, one descriptor, one navigation button, the fixed relay path, and no
-prohibited runtime mechanism. `verifyPluginHubJar` rejects shaded dependency
-trees, legacy relay routes, retired relay classes, local hosts, and request
-body support.
+`PluginHubNetworkBoundaryTest` proves that production source has two request
+builders (the rules check's and `BadgeRelay`'s, each with its fixed relay
+paths), one descriptor, one navigation button, and no prohibited runtime
+mechanism, and that only `BadgeRelay` builds a request body.
+`verifyPluginHubJar` rejects shaded dependency trees, legacy relay routes,
+retired relay classes, local hosts, and request body support outside
+`BadgeRelay`.
 
 All dependencies remain `compileOnly` for production. Keep the plugin Java
 only. Do not add reflection, JNI, subprocesses, dynamic class loading, an
