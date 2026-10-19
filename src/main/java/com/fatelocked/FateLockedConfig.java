@@ -229,8 +229,8 @@ public interface FateLockedConfig extends Config
         description = "Stops a teleport it recognises exactly, with one place it can go, when fresh rules for this"
             + " character lock that place. It also stops one to an unlocked place when you haven't unlocked that kind"
             + " of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A worn item's teleport, such"
-            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped."
-            + " Off by default.",
+            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped,"
+            + " apart from the network and boat trips Block networks and boats adds. Off by default.",
         section = strictModeSection,
         position = 0
     )

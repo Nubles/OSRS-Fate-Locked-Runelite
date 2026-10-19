@@ -6,8 +6,10 @@ import com.fatelocked.rules.PermissionStatus;
 
 /**
  * Strict Mode decides only exactly matched travel. Walking, NPCs, objects,
- * banks and equipment are never blocked; the menu tags and the locked-bank
- * and over-tier gear warnings cover them.
+ * banks and equipment are never blocked, apart from a network or boat option
+ * on an object or NPC (a fairy ring, a charter crew) that the table matches
+ * to one place, with "Block networks and boats" on; the menu tags and the
+ * locked-bank and over-tier gear warnings cover the rest.
  */
 public final class StrictModeGuard
 {

@@ -1617,7 +1617,8 @@ public class FateLockedPlugin extends Plugin
      * fresh rules bound to this character prove the destination locked. The
      * readiness the sidebar shows is the one gate for the only click the
      * plugin ever consumes; walking, NPCs, objects, banks and equipment are
-     * never blocked.
+     * never blocked, apart from one-place network and boat trips with "Block
+     * networks and boats" on.
      */
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
