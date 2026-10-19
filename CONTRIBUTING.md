@@ -92,23 +92,39 @@ in `runelite/plugin-hub`, not `main`. To release:
 
 ## Plugin Hub architecture
 
-The shipped plugin constructs one HTTP request:
+The shipped plugin constructs two HTTP requests, both to the fixed relay:
 
 ```text
-GET https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>
+GET  https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>
+POST https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>/inbox
 ```
 
-The optional `If-None-Match` header allows an unchanged bundle to return
-`304`. There is no configurable host, plugin POST, event relay, receipt,
-acknowledgement, suggestion write, status callback, or relay write token. Browser
-handoffs open only the fixed GitHub Pages tracker URL and contain the random
-pairing code, never RuneLite-observed gameplay.
+The GET is the rules check. The optional `If-None-Match` header allows an
+unchanged bundle to return `304`.
+
+The POST is **Send to tracker**, sent only when the player presses the Roll
+inbox card's button (`TrackerInboxSender`, with what each reply means in the
+pure `RelayInbox`). Its body is exactly what Copy for tracker puts on the
+clipboard, `{"format":"fate-locked-runelite-events","events":[...]}`, at most
+100 events and 64 KiB a request; more events go in further requests, one
+after another. It has a 5-second connect, 10-second read and 15-second
+whole-call limit, no silent retry of a dropped connection, no redirect, and
+is never repeated by itself: a failure ends the send and the card says why.
+Each event the relay takes turns Sent. The relay's contract for it is in the
+tracker repository (`workers/fate-relay`); until it is deployed, the route
+answers a plain 404, which the card reads as "the relay can't take events
+yet".
+
+There is no configurable host, receipt, acknowledgement, suggestion write,
+status callback, or relay write token. Browser handoffs open only the fixed
+GitHub Pages tracker URL and contain the random pairing code, never
+RuneLite-observed gameplay.
 
 The controller uses RuneLite's injected `OkHttpClient` asynchronously, with a
 20-second limit on the whole call and a 1 MiB cap on the reply; stopping the
 plugin, withdrawing consent or re-pairing cancels the call in flight. A
-separate, default-off `trackerNetworkAccess` setting gates pairing and every
-relay check. The Connect action and sidebar toggle show the same third-party
+separate, default-off `trackerNetworkAccess` setting gates pairing, every
+relay check and Send to tracker. The Connect action and sidebar toggle show the same third-party
 IP-address warning as the native RuneLite config item. Existing pairing codes
 and the retired `onlineSync` setting do not imply consent. Revoking access
 invalidates pending imports and pauses checks without deleting the pairing.
@@ -137,7 +153,7 @@ through `SerialFileWriter`.
 ## Local files
 
 Each OSRS account's files live in `accounts/<account hash>/` in the data
-directory: `detected-events.json` (what RuneLite noticed, each New, Copied or
+directory: `detected-events.json` (what RuneLite noticed, each New, Copied, Sent or
 Dismissed, for 30 days, the newest 250), `strict-mode-events.json` (the
 newest 100 Strict Mode audit entries), and `quests.json` and
 `diary-tiers.json` (the quests and diary tiers the account has finished, so
@@ -166,7 +182,8 @@ run loaded, on a world that saves to the account, for the character the
 rules are bound to, with a roll reminder, or for any character while they
 are bound to none, without one. They never roll or change the tracker. The
 Roll inbox card's **Copy for tracker** puts its events on the clipboard when
-the player clicks, the plugin's only clipboard write (`ClipboardBoundaryTest`).
+the player clicks, the plugin's only clipboard write (`ClipboardBoundaryTest`);
+its **Send to tracker** posts the New ones to the relay, also only on a click.
 
 ## Bundle and rule ownership
 
@@ -274,11 +291,15 @@ The clean source, test, and standard-jar gate:
 gradle clean check --no-daemon
 ```
 
-`PluginHubNetworkBoundaryTest` proves that production source has one request
-builder, one descriptor, one navigation button, the fixed relay path, and no
-prohibited runtime mechanism. `verifyPluginHubJar` rejects shaded dependency
-trees, legacy relay routes, retired relay classes, local hosts, and request
-body support.
+`PluginHubNetworkBoundaryTest` proves that production source has two request
+builders (the rules check's GET in `TrackerConnectionController`, Send to
+tracker's POST in `TrackerInboxSender`, which only the Roll inbox card's
+button starts), one descriptor, one navigation button, the fixed relay
+paths, a request body nowhere but Send to tracker, and no prohibited runtime
+mechanism. `verifyPluginHubJar` rejects shaded dependency trees, legacy relay
+routes, retired relay classes, local hosts, request body support outside
+`TrackerInboxSender`, and any route in Send to tracker's classes but
+`/inbox`.
 
 All dependencies remain `compileOnly` for production. Keep the plugin Java
 only. Do not add reflection, JNI, subprocesses, dynamic class loading, an

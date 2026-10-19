@@ -27,9 +27,11 @@ The normal same-PC setup is:
 5. Use clipboard or file import only if the relay is unavailable.
 
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
-relay. It does not upload player or gameplay data. The relay sees the IP
-address used for the HTTPS request, and the rules it holds name your
-character, so it can link the two.
+relay. It sends gameplay data there only when you press **Send to tracker**
+in the Roll inbox card (see
+[Roll Inbox ownership and privacy](#roll-inbox-ownership-and-privacy)). The
+relay sees the IP address used for the HTTPS requests, and the rules it
+holds name your character, so it can link the two.
 
 Once connected, RuneLite checks the tracker every minute while you play,
 every 5 minutes at the login screen, and at once when you log in. To pick
@@ -63,8 +65,8 @@ again.
 Online sync is off by default, including for existing pairings. No relay
 requests are made until you accept the warning. Canceling leaves sync
 disabled. Turn off **Online sync** in Connection & backup, or under Tracker
-in RuneLite's configuration, at any time to stop syncing. Clipboard and
-file imports remain available offline.
+in RuneLite's configuration, at any time to stop syncing and sending.
+Clipboard and file imports, and Copy for tracker, remain available offline.
 
 ## The sidebar
 
@@ -87,7 +89,8 @@ their own:
 3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate
    Points, the ritual and the next goal.
 4. **Roll inbox**: what RuneLite noticed that may be worth a roll, with
-   **Copy for tracker** to paste it into the tracker's Roll Inbox.
+   **Send to tracker** (while online sync is on) and **Copy for tracker**
+   to bring it into the tracker's Roll Inbox.
 5. **Connection & backup**: online sync, the pairing, and the clipboard and
    file backups.
 
@@ -150,10 +153,18 @@ that may be worth a roll: levels, quests, finished diary tiers, combat
 achievements, collection log items (only with the game's own collection
 log notification on), clues, boss and raid kills, Slayer tasks and new
 pets. The game doesn't say which pet, so the tracker asks; each pet gives its
-Omni-Key once. Each shows New until it's copied; Dismiss hides one. **Copy for tracker** puts
-them on the clipboard, and the tracker's Roll Inbox reads them with
-**Paste from RuneLite**: nothing rolls until you choose Roll there, and
-logging by hand stays open. Events older than 30 days go, as the tracker
+Omni-Key once. Each shows New until it's sent or copied; Dismiss hides one.
+
+With online sync on and a pairing in use, the card's button is **Send to
+tracker**: it sends the New events to the relay, up to 100 in a request, and
+the tracker adds them to its Roll Inbox as **Paste from RuneLite** does.
+Each the relay takes shows Sent; the line under the button says how it went,
+and a send that fails is never retried by itself. **Copy for tracker** stays
+beside it, and is the button while online sync is off: it puts every event,
+sent ones too, on the clipboard, and the tracker's Roll Inbox reads them
+with **Paste from RuneLite**. The tracker keeps an event it already has
+once. Nothing rolls until you choose Roll there, and logging by hand stays
+open. Events older than 30 days go, as the tracker
 refuses them, and the newest 250 stay. In Vanilla, a boss or raid that has
 given every Standard Key it holds, such as Brutus after his one, can't roll
 again, so its kills aren't listed and get no reminder.
@@ -165,8 +176,11 @@ while the run is linked to no one, without reminders; and nothing for any
 other character. When it notices nothing, the card says why. Detection
 never rolls and never changes the tracker.
 
-**Local only — RuneLite does not upload gameplay data.** Events leave
-RuneLite only when you click Copy for tracker, by the clipboard.
+**Events leave RuneLite only when you press Send to tracker**, or by the
+clipboard when you click Copy for tracker. Sent events wait on the relay
+for at most 30 days, until your tracker takes them; only someone holding
+your pairing code can add to them, and only your tracker can read them.
+RuneLite never sends them by itself.
 
 **Open web Roll Inbox** opens the tracker's Roll Inbox in the browser. It
 carries no events; paste them there.
