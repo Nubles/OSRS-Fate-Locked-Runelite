@@ -21,8 +21,13 @@ public class PluginHubNetworkBoundaryTest
         "eventToken.", "stateToken.", "suggestToken.", "ackToken."
     };
 
+    /**
+     * Two requests, each to the fixed relay: the rules check, GET /r/&lt;code&gt;, in the connection
+     * controller, and Send to tracker, POST /r/&lt;code&gt;/inbox, in the inbox sender, which the
+     * player starts with a click. Nothing else in the plugin builds a request or a request body.
+     */
     @Test
-    public void productionSourceHasOneFixedInboundRequestBoundary()
+    public void productionSourceHasTheTwoFixedRelayRequestsAndNoOthers()
         throws Exception
     {
         Map<Path, String> sources = productionSources();
@@ -31,8 +36,12 @@ public class PluginHubNetworkBoundaryTest
             sources, "TrackerConnectionController.java");
         String compactController =
             controllerSource.replaceAll("\\s+", " ");
+        String senderSource = sourceNamed(sources, "TrackerInboxSender.java");
+        String compactSender = senderSource.replaceAll("\\s+", " ");
 
-        assertEquals(1, occurrences(allSource, "new Request.Builder()"));
+        assertEquals(2, occurrences(allSource, "new Request.Builder()"));
+
+        assertEquals(1, occurrences(controllerSource, "new Request.Builder()"));
         assertTrue(compactController.contains(
             "TrackerConnectionSettings.RELAY_BASE_URL"
                 + " + \"/r/\" + token.code"));
@@ -41,13 +50,38 @@ public class PluginHubNetworkBoundaryTest
         assertFalse(controllerSource.contains(".put("));
         assertFalse(controllerSource.contains(".patch("));
         assertFalse(controllerSource.contains(".delete("));
+        assertFalse(controllerSource.contains("RequestBody"));
+
+        assertEquals(1, occurrences(senderSource, "new Request.Builder()"));
+        assertTrue(compactSender.contains(
+            ".url(TrackerConnectionSettings.RELAY_BASE_URL + RelayInbox.path(send.code))"
+                + " .post(RequestBody.create(JSON, batch.body))"));
+        assertTrue(sourceNamed(sources, "RelayInbox.java")
+            .contains("return \"/r/\" + code + \"/inbox\";"));
+        assertEquals(1, occurrences(senderSource, ".post("));
+        assertFalse(senderSource.contains(".get()"));
+        assertFalse(senderSource.contains(".put("));
+        assertFalse(senderSource.contains(".patch("));
+        assertFalse(senderSource.contains(".delete("));
+        // Sent once, to the relay: no silent retry, no redirect elsewhere.
+        assertTrue(compactSender.contains(".retryOnConnectionFailure(false)"));
+        assertTrue(compactSender.contains(".followRedirects(false)"));
+        assertTrue(compactSender.contains(".followSslRedirects(false)"));
+
+        for (Map.Entry<Path, String> source : sources.entrySet())
+        {
+            if (!source.getKey().getFileName().toString().equals("TrackerInboxSender.java"))
+            {
+                assertFalse("a request body outside the inbox sender: " + source.getKey(),
+                    source.getValue().contains("RequestBody"));
+            }
+        }
 
         assertAbsent(allSource,
             "/events",
             "/acks",
             "/suggest",
             "/state",
-            "RequestBody",
             "FateEventRelayClient",
             "FateEventOutbox",
             "localhost",
