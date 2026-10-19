@@ -4,6 +4,7 @@ import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.ConnectionModel;
 import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.RollInboxView;
 import com.fatelocked.sidebar.RunModel;
 import com.fatelocked.sidebar.Sidebar;
 import com.fatelocked.sidebar.StatusCardModel;
@@ -283,8 +284,10 @@ class FateLockedPanel extends PluginPanel
         return JOptionPane.showOptionDialog(
             this,
             "<html><body style='width: 320px'>" + FateLockedConfig.NETWORK_WARNING
-                + "<br><br>RuneLite retrieves rules from the Fate Locked relay. "
-                + "It does not upload gameplay data.<br><br>Allow online sync?</body></html>",
+                + "<br><br>RuneLite retrieves rules from the Fate Locked relay. It sends the Roll"
+                + " inbox's events there only when you press " + RollInboxView.SEND_TO_TRACKER
+                + "; they wait for at most 30 days, until your tracker takes them, and only your"
+                + " tracker can read them.<br><br>Allow online sync?</body></html>",
             "Fate Locked online sync", JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE, null, options, options[1]) == 0;
     }

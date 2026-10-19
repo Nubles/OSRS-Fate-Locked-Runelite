@@ -20,8 +20,8 @@ public class ConnectionView extends Section
 {
     public static final String TITLE = "Connection & backup";
     static final String PRIVACY = "RuneLite fetches your rules from the Fate Locked relay, which sees your"
-        + " IP address. Nothing from your game is uploaded. The rules name your character, so the relay"
-        + " can link the two.";
+        + " IP address. The Roll inbox's events go there only when you click " + RollInboxView.SEND_TO_TRACKER
+        + ", and only your tracker can read them. The rules name your character, so the relay can link the two.";
 
     private final ToggleSwitch sync = new ToggleSwitch();
     private Consumer<Boolean> onSyncToggle = on -> { };

@@ -202,8 +202,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = NETWORK_ACCESS_KEY,
         name = "Online sync",
-        description = "Get your rules from the Fate Locked relay. Off by default; imports from the clipboard and backup"
-            + " files work without it.",
+        description = "Get your rules from the Fate Locked relay, and send the Roll inbox's events there when you press"
+            + " Send to tracker. Off by default; imports from the clipboard and backup files work without it.",
         section = trackerSection,
         position = 0,
         warning = NETWORK_WARNING
