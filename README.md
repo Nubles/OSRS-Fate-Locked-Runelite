@@ -68,7 +68,7 @@ again.
 Online sync is off by default, including for existing pairings. No relay
 requests are made until you accept the warning. Canceling leaves sync
 disabled. Turn off **Online sync** in Connection & backup, or under Tracker
-in RuneLite's configuration, at any time to stop syncing and sending.
+in RuneLite's configuration, at any time to stop syncing, sending and badges.
 Clipboard and file imports, and Copy for tracker, remain available offline.
 
 ## The sidebar

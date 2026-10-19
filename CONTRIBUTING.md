@@ -92,8 +92,8 @@ in `runelite/plugin-hub`, not `main`. To release:
 
 ## Plugin Hub architecture
 
-The shipped plugin constructs two kinds of HTTP request, all to the fixed relay.
-For the rules and Send to tracker:
+The shipped plugin constructs five HTTP requests, all to the fixed relay and
+from three classes. Two are for the rules and Send to tracker:
 
 ```text
 GET  https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>

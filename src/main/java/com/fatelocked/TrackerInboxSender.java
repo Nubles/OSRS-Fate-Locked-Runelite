@@ -23,8 +23,10 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
- * Send to tracker: the plugin's one write to the relay, POST /r/&lt;code&gt;/inbox, only ever when the
- * player presses the Roll inbox card's button. The events go in requests of at most 100, one after
+ * Send to tracker: POST /r/&lt;code&gt;/inbox, the plugin's only request that carries the player's
+ * events, only ever when the player presses the Roll inbox card's button. (The plugin's other
+ * requests are the rules check, GET /r/&lt;code&gt;, and the badges' GET /badges and POST and
+ * DELETE /r/&lt;code&gt;/badge.) The events go in requests of at most 100, one after
  * another, each with Copy for tracker's body; a failure ends the send, and nothing is retried. A
  * request's events turn Sent only when the relay stored every one of them. What the replies mean
  * is RelayInbox's.

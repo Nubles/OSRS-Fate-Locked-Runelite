@@ -28,7 +28,7 @@ public class PluginHubNetworkBoundaryTest
      * plugin builds a request or a request body.
      */
     @Test
-    public void productionSourceHasTheTwoFixedRelayRequestsAndNoOthers()
+    public void productionSourceHasTheFixedRelayRequestsAndNoOthers()
         throws Exception
     {
         Map<Path, String> sources = productionSources();
@@ -122,8 +122,8 @@ public class PluginHubNetworkBoundaryTest
     }
 
     /**
-     * Badges (CONTRACT section 2) add the plugin's only uploads, behind online sync's consent and
-     * the default-off Share my badge: GET /badges, and POST and DELETE /r/<code>/badge with the
+     * Badges (CONTRACT section 2) add three requests behind online sync's consent: GET /badges,
+     * and, only with the default-off Share my badge, POST and DELETE /r/<code>/badge with the
      * name and tier as JSON, to the same fixed relay, from one class.
      */
     @Test

@@ -20,8 +20,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * Runs the tracker connection: the one relay request, its threads and its
- * locking. What each reply means is RelayContract's; the state and timing
+ * Runs the tracker connection: the rules check, GET /r/<code>, its threads
+ * and its locking. What each reply means is RelayContract's; the state and timing
  * that follow are SyncMachine's, always changed under pollLock.
  */
 @Slf4j

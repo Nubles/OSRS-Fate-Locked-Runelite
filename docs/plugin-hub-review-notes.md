@@ -13,10 +13,10 @@ Official references checked while preparing this candidate:
 
 ## What Send to tracker changes
 
-Send to tracker adds the plugin's first write to the relay. It changes
-nothing the plugin can block. For review:
+Send to tracker adds the one request that carries the player's events to
+the relay. It changes nothing the plugin can block. For review:
 
-- **A second request, on the player's click only.** The Roll inbox card's
+- **A request on the player's click only.** The Roll inbox card's
   primary button, while online sync is on and a pairing is in use (once the
   browser has confirmed it), is **Send to tracker**. A click sends the card's New events with
   `POST https://fate-relay.fatelocked.workers.dev/r/<code>/inbox`, the same
@@ -149,7 +149,8 @@ Stage 4 changes what the plugin notices and lets the player hand to the
 tracker, not what it can block. Strict Mode stops the same travel as before;
 only its descriptions say more exactly what that is. For review:
 
-- **No new network.** The one request and its consent are as below.
+- **No new network.** Stage 4 added no request; the rules check it relied on,
+  and its consent, are under [Network boundary](#network-boundary).
 - **One clipboard write, on the player's click.** The Roll inbox card lists
   what RuneLite noticed, with **Copy for tracker**. On that click, on the
   Swing thread, the plugin writes those events as text to the system
@@ -184,8 +185,9 @@ only its descriptions say more exactly what that is. For review:
 Stage 3 changes what the plugin shows, not what it can block. Strict Mode is
 unchanged. For review:
 
-- **No new network.** The one request and its consent are as below. One
-  local file is new, `spots.json`, under Local data.
+- **No new network.** Stage 3 added no request; the rules check and its
+  consent are under [Network boundary](#network-boundary). One local file is
+  new, `spots.json`, under Local data.
 - **Drawing stays inside what the game shows.** Chunk borders are drawn tile
   by tile within 32 tiles of the player, inside the loaded scene, with no
   chunk fills; a short band of shade marks the locked side. The world map is
@@ -246,8 +248,9 @@ unchanged. For review:
 
 ## Network boundary
 
-The plugin constructs these requests, all to the fixed relay. For the rules
-and Send to tracker:
+The plugin constructs five requests, all to the fixed relay: the rules
+check, Send to tracker, and three for badges. For the rules and Send to
+tracker:
 
 ```text
 GET  https://fate-relay.fatelocked.workers.dev/r/<32-lowercase-hex-code>
