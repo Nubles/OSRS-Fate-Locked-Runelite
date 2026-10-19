@@ -38,10 +38,12 @@ public class TravelAction
     /** EXACT when the table matched the click by id. */
     Confidence confidence;
 
-    /** The trip a table match is. */
+    /** The trip a table match is. A dialled fairy ring code reads as "Fairy ring to CKS". */
     public static TravelAction of(TravelMatch match, MenuFacts facts)
     {
-        return new TravelAction(match.getMethod().getId(), match.getOption().getText(), label(facts),
+        String code = facts == null ? null : facts.getFairyRingCode();
+        String label = code == null ? label(facts) : match.getMethod().getLabel() + " to " + code;
+        return new TravelAction(match.getMethod().getId(), match.getOption().getText(), label,
             match.getOption().getTo(), match.getMethod().isAdvisory(), Confidence.EXACT);
     }
 
