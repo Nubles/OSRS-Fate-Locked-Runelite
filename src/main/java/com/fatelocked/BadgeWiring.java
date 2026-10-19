@@ -13,8 +13,8 @@ import net.runelite.client.config.ConfigManager;
 import okhttp3.OkHttpClient;
 
 /**
- * Connects a start's {@link BadgeService} to the plugin: its settings, the pairing and online
- * sync's consent, the run's bound character and progress, and the fixed relay.
+ * Connects a start's {@link BadgeService} to the plugin: its settings, the pairing (once its
+ * profile is on the relay, as the tracker connection says) and online sync's consent, the run's bound character and progress, and the fixed relay.
  */
 final class BadgeWiring
 {
@@ -26,6 +26,7 @@ final class BadgeWiring
         OkHttpClient http,
         Gson gson,
         TrackerConnectionSettings connection,
+        Supplier<String> profileCode,
         FateLockedConfig config,
         ConfigManager configManager,
         Client client,
@@ -64,7 +65,8 @@ final class BadgeWiring
             @Override
             public String pairingCode()
             {
-                return connection.pairingCode();
+                String code = profileCode.get();
+                return code == null ? "" : code;
             }
         };
         BadgeService.Store store = new BadgeService.Store()

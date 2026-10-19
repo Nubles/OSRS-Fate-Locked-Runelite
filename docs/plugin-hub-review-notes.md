@@ -17,8 +17,8 @@ Send to tracker adds the plugin's first write to the relay. It changes
 nothing the plugin can block. For review:
 
 - **A second request, on the player's click only.** The Roll inbox card's
-  primary button, while online sync is on and a pairing is in use, is
-  **Send to tracker**. A click sends the card's New events with
+  primary button, while online sync is on and a pairing is in use (once the
+  browser has confirmed it), is **Send to tracker**. A click sends the card's New events with
   `POST https://fate-relay.fatelocked.workers.dev/r/<code>/inbox`, the same
   fixed host and pairing code as the rules check. Nothing sends them on a
   timer, at login or on any game event (`PluginHubNetworkBoundaryTest` pins
@@ -58,8 +58,11 @@ online sync off, the Badges settings do nothing and no badge request is made.
   25%, Wayfarer, Pathfinder, Trailblazer, Fate Unbound, from the run's
   progress percent), as `{"name": ..., "tier": ...}` to
   `POST /r/<pairing code>/badge`. Only for the character the rules are bound
-  to, with a pairing in use; when the name or milestone changes, otherwise at
-  most once a day. Nothing else about the run or the player is sent.
+  to, with a pairing in use whose profile the tracker has published (not
+  while a first pairing still waits for the browser); when the name or
+  milestone changes, otherwise at most once a day. A post the relay refuses
+  for want of a profile is tried again after 10 minutes, or when the
+  connection changes. Nothing else about the run or the player is sent.
 - **It is public, and the setting says so.** The setting's description says
   it puts the character name and milestone on a public list the Fate Locked
   relay serves to every player of the plugin, and that turning it off removes

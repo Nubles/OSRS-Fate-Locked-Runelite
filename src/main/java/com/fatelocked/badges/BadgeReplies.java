@@ -39,7 +39,10 @@ public final class BadgeReplies
     {
         /** Done: the badge is on the list, or off it. */
         DONE,
-        /** A POST the relay refused for want of a profile: try again only after a change or a day. */
+        /**
+         * A POST the relay refused for want of a profile (it may not be published yet): the badge
+         * isn't up; try again after a longer wait, or once the connection changes.
+         */
         NO_PROFILE,
         /** Busy, broken or unreachable: try again after a wait. */
         RETRY

@@ -225,8 +225,9 @@ final class TrackerConnectionController
     }
 
     /**
-     * The pairing code Send to tracker posts to: the saved one, while online sync is on and no
-     * re-pairing is waiting to replace it; null otherwise.
+     * The pairing code Send to tracker posts to: the saved one, while online sync is on, its
+     * profile is on the relay ({@link #profileCode}) and no re-pairing is waiting to replace it;
+     * null otherwise.
      */
     String sendCode()
     {
@@ -236,9 +237,32 @@ final class TrackerConnectionController
         }
         synchronized (pollLock)
         {
-            String saved = settings.pairingCode();
-            return stopped || pendingCode != null || saved.isEmpty() ? null : saved;
+            String saved = profileCodeLocked();
+            return pendingCode != null || saved.isEmpty() ? null : saved;
         }
+    }
+
+    /**
+     * The saved pairing code, once its profile is taken to be on the relay: while online sync is
+     * on and no first pairing started here still waits for the browser to confirm it (the relay
+     * would answer "no profile"); "" otherwise. A re-pairing waiting to deliver keeps the saved
+     * code, whose profile still works. The player's badge posts to this.
+     */
+    String profileCode()
+    {
+        if (!settings.networkAccessAllowed())
+        {
+            return "";
+        }
+        synchronized (pollLock)
+        {
+            return profileCodeLocked();
+        }
+    }
+
+    private String profileCodeLocked()
+    {
+        return stopped || machine.firstPairingWaiting() ? "" : settings.pairingCode();
     }
 
     private String activeCodeLocked()

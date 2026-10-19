@@ -395,6 +395,48 @@ public class TrackerConnectionControllerTest
         assertNull(controller.sendCode());
     }
 
+    /**
+     * A first pairing saves its code before the browser confirms it; until the relay delivers its
+     * rules there is no profile there, so neither Send to tracker nor the player's badge posts.
+     */
+    @Test
+    public void aFirstPairingOffersNoProfileUntilTheBrowserConfirmsIt() throws Exception
+    {
+        assertEquals("a saved pairing from an earlier start", INITIAL_CODE, controller.profileCode());
+
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        String code = settings.pairingCode();
+        assertEquals("", controller.profileCode());
+        assertNull(controller.sendCode());
+
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals("not yet published", "", controller.profileCode());
+
+        clock.advanceSeconds(5);
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(code, controller.profileCode());
+        assertEquals(code, controller.sendCode());
+
+        // A re-pairing keeps the working profile for badges; Send to tracker waits for it.
+        controller.beginPairing();
+        assertEquals(code, controller.profileCode());
+        assertNull(controller.sendCode());
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+        assertEquals("not without online sync", "", controller.profileCode());
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+        controller.stop();
+        assertEquals("", controller.profileCode());
+    }
+
     @Test
     public void disconnectingForgetsThePairingAtOnceAndChecksNothingMore() throws Exception
     {

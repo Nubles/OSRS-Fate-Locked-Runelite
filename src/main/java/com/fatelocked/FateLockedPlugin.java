@@ -494,7 +494,7 @@ public class FateLockedPlugin extends Plugin
             Clock.systemUTC(),
             started::run,
             relayImporter,
-            snapshot -> started.run(this::refreshSidebar));
+            snapshot -> started.run(this::trackerConnectionChanged));
         inboxSender = new TrackerInboxSender(okHttpClient, gson, connectionSettings, executor,
             System::currentTimeMillis);
 
@@ -3324,7 +3324,8 @@ public class FateLockedPlugin extends Plugin
                 badgeIcons = new BadgeIcons();
             }
             badgeIcons.register(chatIconManager);
-            badges = BadgeWiring.create(okHttpClient, gson, connectionSettings, config, configManager, client,
+            badges = BadgeWiring.create(okHttpClient, gson, connectionSettings, this::trackerProfileCode, config,
+                configManager, client,
                 badgeIcons, this::getBundle, this::loggedInName, () -> decisions, started::run);
             eventBus.register(badges);
             overlayManager.add(badges.overlay());
@@ -3334,6 +3335,24 @@ public class FateLockedPlugin extends Plugin
         {
             // Badges are a nicety: the rest of the plugin starts without them.
             log.warn("Could not start badges: {}", error.getMessage());
+        }
+    }
+
+    /** The pairing code whose profile the relay holds, for the player's badge; "" for none. */
+    private String trackerProfileCode()
+    {
+        TrackerConnectionController controller = connectionController;
+        return controller == null ? "" : controller.profileCode();
+    }
+
+    /** The tracker connection showed something new, on the client thread. */
+    private void trackerConnectionChanged()
+    {
+        refreshSidebar();
+        BadgeService current = badges;
+        if (current != null)
+        {
+            current.connectionChanged();
         }
     }
 

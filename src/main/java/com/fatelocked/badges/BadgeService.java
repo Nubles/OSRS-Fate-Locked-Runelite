@@ -36,6 +36,11 @@ public final class BadgeService
     static final long FETCH_EVERY_MILLIS = TimeUnit.MINUTES.toMillis(30);
     /** The wait after a failed request, unless the relay asks for another. */
     static final long RETRY_MILLIS = TimeUnit.MINUTES.toMillis(5);
+    /**
+     * The wait after a post the relay refused for want of a profile, unless the connection
+     * changes first: the tracker may not have published it yet.
+     */
+    static final long NO_PROFILE_RETRY_MILLIS = TimeUnit.MINUTES.toMillis(10);
     /** How many game ticks pass between looks at the player's own badge (about 6 seconds). */
     static final int DECIDE_EVERY_TICKS = 10;
     /** The code the player's badge went up under, so it can come down after a re-pairing. */
@@ -76,7 +81,10 @@ public final class BadgeService
 
         boolean share();
 
-        /** The saved pairing code, or "". */
+        /**
+         * The pairing code whose profile the relay holds, or "": none saved, or a first pairing
+         * still waiting for the browser to confirm it.
+         */
         String pairingCode();
     }
 
@@ -127,6 +135,8 @@ public final class BadgeService
 
     private BadgePolicy.Shared shared = BadgePolicy.Shared.NONE;
     private long nextSendAt;
+    /** Whether the last post was refused for want of a profile, and the wait is for that. */
+    private boolean waitingForProfile;
     private InFlight sending;
     private int ticksToDecide;
 
@@ -265,6 +275,24 @@ public final class BadgeService
         {
             objects[objectCount - 3] = BadgeChat.withBadge(name, tag);
         }
+    }
+
+    /**
+     * The tracker connection changed (a pairing confirmed, replaced or gone), on the client thread:
+     * a post waiting for the profile to appear may go now, and the badge is looked at again.
+     */
+    public void connectionChanged()
+    {
+        if (stopped)
+        {
+            return;
+        }
+        if (waitingForProfile)
+        {
+            waitingForProfile = false;
+            nextSendAt = 0;
+        }
+        decide();
     }
 
     void settingsChanged()
@@ -453,11 +481,17 @@ public final class BadgeService
         boolean post = action.getKind() == BadgePolicy.Kind.POST;
         BadgeReplies.Sent outcome = status < 0 ? BadgeReplies.Sent.RETRY
             : post ? BadgeReplies.posted(status) : BadgeReplies.deleted(status);
+        waitingForProfile = false;
         switch (outcome)
         {
-            case DONE:
             case NO_PROFILE:
-                // A refused post waits for a change or a day too, rather than asking every few seconds.
+                // The tracker may not have published the profile yet: the badge isn't up, so it is
+                // sent again after a wait, or as soon as the connection changes.
+                waitingForProfile = true;
+                nextSendAt = now + NO_PROFILE_RETRY_MILLIS;
+                log.debug("Badge not sent: no profile yet");
+                break;
+            case DONE:
                 nextSendAt = 0;
                 if (post)
                 {

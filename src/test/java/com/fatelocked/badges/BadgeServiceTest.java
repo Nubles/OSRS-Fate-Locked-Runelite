@@ -459,14 +459,71 @@ public class BadgeServiceTest
         assertTrue(stored.isEmpty());
     }
 
+    /** No profile yet (the tracker hasn't published it): the badge isn't up, so it's sent again. */
     @Test
-    public void aRefusedPostWaitsForAChangeOrADay()
+    public void aPostRefusedForWantOfAProfileIsTriedAgainInTenMinutes()
     {
         share = true;
         service.start();
         sent.get(0).reply.replied(404, null, null, "{\"error\":\"no profile\"}");
+        assertEquals("the code, so it can come down", CODE, stored.get(BadgeService.SHARED_CODE_KEY));
+        assertNull("but not taken as shared", stored.get(BadgeService.SHARED_KEY));
+        assertNull(service.shared().getName());
+
         ticks(BadgeService.DECIDE_EVERY_TICKS * 5);
+        now += 9 * MINUTE;
+        ticks(BadgeService.DECIDE_EVERY_TICKS);
         assertEquals(1, count("POST"));
+        now += MINUTE;
+        ticks(BadgeService.DECIDE_EVERY_TICKS);
+        assertEquals(2, count("POST"));
+        last().reply.replied(200, null, null, "{\"ok\":true}");
+        assertEquals("2|" + now + "|Iron Example", stored.get(BadgeService.SHARED_KEY));
+    }
+
+    /** A change on the connection (the pairing confirmed) sends it without the wait. */
+    @Test
+    public void aPostWaitingForTheProfileGoesWhenTheConnectionChanges()
+    {
+        share = true;
+        service.start();
+        sent.get(0).reply.replied(404, null, null, "{\"error\":\"no profile\"}");
+        service.connectionChanged();
+        assertEquals(2, count("POST"));
+        last().reply.replied(200, null, null, null);
+
+        // Otherwise a connection change only looks again: nothing to send.
+        service.connectionChanged();
+        assertEquals(2, count("POST"));
+    }
+
+    /** A failure's wait isn't cut short by a connection change: it isn't about the profile. */
+    @Test
+    public void aConnectionChangeKeepsAFailuresWait()
+    {
+        share = true;
+        service.start();
+        sent.get(0).reply.failed();
+        service.connectionChanged();
+        assertEquals(1, count("POST"));
+        now += 5 * MINUTE;
+        service.connectionChanged();
+        assertEquals(2, count("POST"));
+    }
+
+    /** No code while a first pairing waits for the browser: nothing posts until it confirms. */
+    @Test
+    public void nothingPostsUntilThePairingsProfileIsThere()
+    {
+        share = true;
+        code = "";
+        service.start();
+        ticks(BadgeService.DECIDE_EVERY_TICKS * 3);
+        assertEquals(0, count("POST"));
+
+        code = CODE;
+        service.connectionChanged();
+        assertEquals("POST /r/" + CODE + "/badge Iron Example 2", last().what);
     }
 
     // ── Chat ─────────────────────────────────────────────────────────────────
