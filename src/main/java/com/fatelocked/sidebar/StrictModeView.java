@@ -137,6 +137,10 @@ public class StrictModeView extends Section
         {
             body.add(Sidebar.text(model.getDetail(), Type.small(), Palette.TEXT_MUTED, 0));
         }
+        if (model.getScope() != null)
+        {
+            body.add(Sidebar.text(model.getScope(), Type.small(), Palette.TEXT_MUTED, 0));
+        }
         if (!model.getRecent().isEmpty())
         {
             body.add(new Hairline());
