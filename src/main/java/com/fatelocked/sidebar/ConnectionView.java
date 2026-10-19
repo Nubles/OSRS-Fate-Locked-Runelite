@@ -21,7 +21,9 @@ public class ConnectionView extends Section
     public static final String TITLE = "Connection & backup";
     static final String PRIVACY = "RuneLite fetches your rules from the Fate Locked relay, which sees your"
         + " IP address. The Roll inbox's events go there only when you click " + RollInboxView.SEND_TO_TRACKER
-        + ", and only your tracker can read them. The rules name your character, so the relay can link the two.";
+        + ", and only your tracker can read them. RuneLite also fetches the public list of Fate Locked badges"
+        + " unless both Show badges settings are off, and sends your character name and milestone there only if"
+        + " you turn on Share my badge. The rules name your character, so the relay can link the two.";
 
     private final ToggleSwitch sync = new ToggleSwitch();
     private Consumer<Boolean> onSyncToggle = on -> { };

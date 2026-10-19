@@ -29,8 +29,10 @@ The normal same-PC setup is:
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
 relay. It sends gameplay data there only when you press **Send to tracker**
 in the Roll inbox card (see
-[Roll Inbox ownership and privacy](#roll-inbox-ownership-and-privacy)), and
-your character name and milestone only if you turn on **Share my badge** (see
+[Roll Inbox ownership and privacy](#roll-inbox-ownership-and-privacy)). With
+online sync on, RuneLite also downloads the public list of Fate Locked
+badges, unless both **Show badges** settings are off, and uploads your
+character name and milestone only if you turn on **Share my badge** (see
 [Badges](#badges)). The relay sees the IP address used for the HTTPS
 requests, and the rules it holds name your character, so it can link the two.
 

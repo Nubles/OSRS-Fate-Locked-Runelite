@@ -278,16 +278,21 @@ class FateLockedPanel extends PluginPanel
             JOptionPane.QUESTION_MESSAGE, null, options, options[1]) == 0;
     }
 
+    /** What online sync sends and fetches, as the consent dialog says it under RuneLite's warning. */
+    static final String NETWORK_CONSENT = "RuneLite retrieves rules from the Fate Locked relay. It sends the Roll"
+        + " inbox's events there only when you press " + RollInboxView.SEND_TO_TRACKER
+        + "; they wait for at most 30 days, until your tracker takes them, and only your"
+        + " tracker can read them. It also downloads the public list of Fate Locked badges,"
+        + " unless both Show badges settings are off, and uploads your character name and"
+        + " milestone only if you turn on Share my badge.";
+
     boolean confirmNetworkConnection()
     {
         Object[] options = {"Enable online sync", "Cancel"};
         return JOptionPane.showOptionDialog(
             this,
             "<html><body style='width: 320px'>" + FateLockedConfig.NETWORK_WARNING
-                + "<br><br>RuneLite retrieves rules from the Fate Locked relay. It sends the Roll"
-                + " inbox's events there only when you press " + RollInboxView.SEND_TO_TRACKER
-                + "; they wait for at most 30 days, until your tracker takes them, and only your"
-                + " tracker can read them.<br><br>Allow online sync?</body></html>",
+                + "<br><br>" + NETWORK_CONSENT + "<br><br>Allow online sync?</body></html>",
             "Fate Locked online sync", JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE, null, options, options[1]) == 0;
     }

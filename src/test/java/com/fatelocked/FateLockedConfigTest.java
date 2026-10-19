@@ -244,6 +244,13 @@ public class FateLockedConfigTest
         assertSays("badgesInChat", "Needs Online sync", "downloads the public badge list", "at login and every 30"
             + " minutes");
         assertSays("badgesAboveHeads", "Needs Online sync", "on your floor");
+        // Online sync's consent covers badges: the list comes down by default, the player's own only on request.
+        assertSays(FateLockedConfig.NETWORK_ACCESS_KEY, "Also downloads the public list of Fate Locked badges unless"
+            + " both Show badges settings are off, and uploads your character name and milestone only with Share my"
+            + " badge on.");
+        assertTrue(FateLockedPanel.NETWORK_CONSENT, FateLockedPanel.NETWORK_CONSENT.endsWith(" It also downloads the"
+            + " public list of Fate Locked badges, unless both Show badges settings are off, and uploads your"
+            + " character name and milestone only if you turn on Share my badge."));
         // Networks and boats: opt-in, one place only, and the options that pick their place are never stopped
         // (StrictModeGuardTest, StrictModeGateTest, BlockNetworksTest).
         assertSays(FateLockedConfig.BLOCK_NETWORKS_KEY, "goes to one place your rules lock", "a code dialled on it",

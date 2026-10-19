@@ -206,7 +206,9 @@ public interface FateLockedConfig extends Config
         keyName = NETWORK_ACCESS_KEY,
         name = "Online sync",
         description = "Get your rules from the Fate Locked relay, and send the Roll inbox's events there when you press"
-            + " Send to tracker. Off by default; imports from the clipboard and backup files work without it.",
+            + " Send to tracker. Also downloads the public list of Fate Locked badges unless both Show badges settings"
+            + " are off, and uploads your character name and milestone only with Share my badge on. Off by default;"
+            + " imports from the clipboard and backup files work without it.",
         section = trackerSection,
         position = 0,
         warning = NETWORK_WARNING

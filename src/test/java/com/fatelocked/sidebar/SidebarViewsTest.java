@@ -494,6 +494,23 @@ public class SidebarViewsTest
         });
     }
 
+    /** The card under the consent switch says what online sync fetches and sends, badges too. */
+    @Test
+    public void theConnectionCardSaysWhatOnlineSyncFetchesAndSends() throws Exception
+    {
+        assertEquals("RuneLite fetches your rules from the Fate Locked relay, which sees your IP address. The Roll"
+            + " inbox's events go there only when you click Send to tracker, and only your tracker can read them."
+            + " RuneLite also fetches the public list of Fate Locked badges unless both Show badges settings are"
+            + " off, and sends your character name and milestone there only if you turn on Share my badge. The"
+            + " rules name your character, so the relay can link the two.", ConnectionView.PRIVACY);
+        onEdt(() -> {
+            ConnectionView connection = new ConnectionView();
+            connection.setExpanded(true);
+            connection.apply(new ConnectionModel(false, null, null, CardAction.CONNECT, false, false, "Off"));
+            assertTrue(texts(connection).contains(ConnectionView.PRIVACY));
+        });
+    }
+
     private static List<String> texts(Container root)
     {
         return all(root, com.fatelocked.ui.TextBlock.class::isInstance).stream()

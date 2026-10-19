@@ -140,7 +140,8 @@ The controller uses RuneLite's injected `OkHttpClient` asynchronously, with a
 20-second limit on the whole call and a 1 MiB cap on the reply; stopping the
 plugin, withdrawing consent or re-pairing cancels the call in flight. A
 separate, default-off `trackerNetworkAccess` setting gates pairing, every
-relay check and Send to tracker. The Connect action and sidebar toggle show the same third-party
+relay check, Send to tracker and badges (the list's download and the
+player's own badge). The Connect action and sidebar toggle show the same third-party
 IP-address warning as the native RuneLite config item. Existing pairing codes
 and the retired `onlineSync` setting do not imply consent. Revoking access
 invalidates pending imports and pauses checks without deleting the pairing.

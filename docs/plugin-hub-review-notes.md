@@ -79,6 +79,13 @@ online sync off, the Badges settings do nothing and no badge request is made.
   milestones, at most 5000, read up to 512 KiB, with a 10-second limit on the
   call. A failure keeps the last list and tries again in 5 minutes; a 404
   (a relay without badges) means no badges.
+- **Consent.** The two show settings are on by default and need only online
+  sync, so a player who already allowed it starts downloading the list after
+  updating. The warning dialog, Online sync's description and the Connection
+  & backup card say so: with online sync on, RuneLite also downloads the
+  public list of Fate Locked badges, unless both Show badges settings are
+  off, and uploads the character name and milestone only with Share my
+  badge on.
 - **Chat.** Five 9x13 key icons, registered once with `ChatIconManager`. On
   RuneLite's `chatMessageBuilding` callback the line being built gets
   `<img=N>` before the sender's name (the recipient's for a sent private
