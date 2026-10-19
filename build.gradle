@@ -113,9 +113,17 @@ tasks.register('verifyPluginHubJar') {
                         "shaded dependency found: ${prefix}")
                 }
             }
+            // Two requests carry a body, each from its own classes: Send to
+            // tracker's POST, on the player's click, and the badge requests
+            // (badge name and tier). Only those classes may name RequestBody.
+            def isInboxSender = { String name ->
+                name.startsWith('com/fatelocked/TrackerInboxSender')
+            }
             String classText = entries
                 .findAll {
                     !it.directory && it.name.endsWith('.class')
+                        && !isInboxSender(it.name)
+                        && !it.name.startsWith('com/fatelocked/badges/BadgeRelay')
                 }
                 .collect {
                     new String(
@@ -128,8 +136,9 @@ tasks.register('verifyPluginHubJar') {
             String routeText = entries
                 .findAll {
                     !it.directory
-                        && it.name.startsWith(
+                        && (it.name.startsWith(
                             'com/fatelocked/TrackerConnectionController')
+                            || it.name.startsWith('com/fatelocked/badges/BadgeRelay'))
                         && it.name.endsWith('.class')
                 }
                 .collect {
@@ -147,6 +156,33 @@ tasks.register('verifyPluginHubJar') {
                 '/events', '/acks', '/suggest', '/state'
             ].each { forbidden ->
                 if (routeText.contains(forbidden)) {
+                    throw new GradleException(
+                        "forbidden jar route: ${forbidden}")
+                }
+            }
+            // Send to tracker's classes build POST /r/<code>/inbox and no
+            // other route. They name com/fatelocked/events/FateEvent, so
+            // "/events" can't be looked for in them.
+            String inboxText = entries
+                .findAll {
+                    !it.directory
+                        && (isInboxSender(it.name)
+                            || it.name.startsWith('com/fatelocked/RelayInbox'))
+                        && it.name.endsWith('.class')
+                }
+                .collect {
+                    new String(
+                        zip.getInputStream(it).bytes,
+                        java.nio.charset.StandardCharsets.ISO_8859_1)
+                }.join('\n')
+            if (!inboxText.contains('/inbox')) {
+                throw new GradleException(
+                    'no Send to tracker route in the jar')
+            }
+            [
+                '/ack', '/suggest', '/state'
+            ].each { forbidden ->
+                if (inboxText.contains(forbidden)) {
                     throw new GradleException(
                         "forbidden jar route: ${forbidden}")
                 }

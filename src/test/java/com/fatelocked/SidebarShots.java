@@ -20,6 +20,7 @@ import com.fatelocked.ui.Section;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -144,6 +145,33 @@ final class SidebarShots
             .newEvents(3)
             .notice(FateLockedPlugin.COPY_FAILED)
             .build()));
+        // Send to tracker, with online sync on and a pairing in use.
+        shots.put("roll-inbox-6-send", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(false))
+            .more(2)
+            .newEvents(7)
+            .canSend(true)
+            .build()));
+        shots.put("roll-inbox-7-sending", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(false))
+            .more(2)
+            .newEvents(7)
+            .canSend(true)
+            .sending(true)
+            .build()));
+        shots.put("roll-inbox-8-sent", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(sent())
+            .more(2)
+            .sent(7)
+            .canSend(true)
+            .notice(RelayInbox.notice(7, 7, RelayInbox.Outcome.SENT))
+            .build()));
+        shots.put("roll-inbox-9-send-failed", () -> rollInbox(icons, RollInboxModel.builder()
+            .rows(noticed(false).subList(0, 3))
+            .newEvents(3)
+            .canSend(true)
+            .notice(RelayInbox.notice(0, 3, RelayInbox.Outcome.NOT_YET))
+            .build()));
         return shots;
     }
 
@@ -165,11 +193,23 @@ final class SidebarShots
     static List<Row> noticed(boolean copied)
     {
         return Arrays.asList(
-            new Row("1", FateEventType.SLAYER_TASK, "Abyssal demons", "Slayer", true, copied),
-            new Row("2", FateEventType.COLLECTION_LOG, "Dragon warhammer", null, false, copied),
-            new Row("3", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, copied),
-            new Row("4", FateEventType.COMBAT_ACHIEVEMENT, "Noxious Foe", null, false, copied),
-            new Row("5", FateEventType.CLUE_CASKET, "Clue scroll (hard)", null, false, copied));
+            new Row("1", FateEventType.SLAYER_TASK, "Abyssal demons", "Slayer", true, copied, false),
+            new Row("2", FateEventType.COLLECTION_LOG, "Dragon warhammer", null, false, copied, false),
+            new Row("3", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, copied, false),
+            new Row("4", FateEventType.COMBAT_ACHIEVEMENT, "Noxious Foe", null, false, copied, false),
+            new Row("5", FateEventType.CLUE_CASKET, "Clue scroll (hard)", null, false, copied, false));
+    }
+
+    /** The five events, sent to the tracker. */
+    static List<Row> sent()
+    {
+        List<Row> sent = new ArrayList<>();
+        for (Row row : noticed(false))
+        {
+            sent.add(new Row(row.getEventId(), row.getType(), row.getLabel(), row.getSkill(), row.isNeedsChecking(),
+                false, true));
+        }
+        return sent;
     }
 
     static JComponent sidebar(IconSource icons, StatusCardModel status, HereModel here,

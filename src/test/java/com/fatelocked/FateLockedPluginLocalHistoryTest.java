@@ -65,6 +65,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -737,6 +738,148 @@ public class FateLockedPluginLocalHistoryTest
         harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 14 hard Treasure Trails."));
         verify(harness.panel).showRollInbox(argThat(model -> model.getNewEvents() == 1 && model.getCopied() == 2
             && model.getNotice() == null));
+    }
+
+    /**
+     * Send to tracker, through the plugin: on the card's click only the New events go, with Copy for
+     * tracker's body, to the pairing's inbox; each the relay takes turns Sent in the account's file,
+     * and the card says so. Copy for tracker after it still copies them all.
+     */
+    @Test
+    public void sendToTrackerSendsTheNewEventsWhichThenAreSent() throws Exception
+    {
+        Harness harness = harness("send");
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+        when(harness.panel.copyToClipboard(anyString())).thenReturn(true);
+        invokeNoArg(harness.plugin, "copyForTracker");
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 13 hard Treasure Trails."));
+        String fresh = events(harness).get(1).getEventId();
+
+        okhttp3.mockwebserver.MockWebServer server = new okhttp3.mockwebserver.MockWebServer();
+        server.enqueue(new okhttp3.mockwebserver.MockResponse().setBody("{\"accepted\":1,\"held\":1}"));
+        server.start();
+        try
+        {
+            TrackerInboxSender sender = useRelay(harness, server, SEND_CODE);
+            // The card offers it, now online sync is on with a pairing in use.
+            invokeNoArg(harness.plugin, "updatePanelRollInbox");
+            verify(harness.panel).showRollInbox(argThat(model -> model.isCanSend() && model.getNewEvents() == 1));
+
+            invokeNoArg(harness.plugin, "sendToTracker");
+
+            String notice = "Sent 1. It's waiting in your tracker's Roll Inbox.";
+            verify(harness.panel, timeout(10_000)).showRollInbox(argThat(model -> model.getNewEvents() == 0
+                && model.getSent() == 1 && model.getCopied() == 1 && notice.equals(model.getNotice())
+                && !model.isSending()));
+            assertFalse(sender.sending());
+            okhttp3.mockwebserver.RecordedRequest request = server.takeRequest();
+            assertEquals("POST", request.getMethod());
+            assertEquals("/r/" + SEND_CODE + "/inbox", request.getPath());
+            JsonObject body = harness.gson.fromJson(request.getBody().readUtf8(), JsonObject.class);
+            assertEquals(DetectedEventStore.FORMAT, body.get("format").getAsString());
+            assertEquals(1, body.getAsJsonArray("events").size());
+            assertEquals(fresh, body.getAsJsonArray("events").get(0).getAsJsonObject().get("eventId").getAsString());
+            assertEquals(List.of(DetectedEventStore.Status.COPIED, DetectedEventStore.Status.SENT), statuses(harness));
+            // Kept in the account's file, for the next start.
+            assertEquals(List.of(DetectedEventStore.Status.COPIED, DetectedEventStore.Status.SENT),
+                new DetectedEventStore(harness.gson, harness.historyPath).entries().stream()
+                    .map(DetectedEventStore.Entry::getStatus).collect(Collectors.toList()));
+
+            // Nothing New: a second send asks nothing of the relay; a copy still takes both.
+            invokeNoArg(harness.plugin, "sendToTracker");
+            assertEquals(1, server.getRequestCount());
+            clearInvocations(harness.panel);
+            when(harness.panel.copyToClipboard(anyString())).thenReturn(true);
+            invokeNoArg(harness.plugin, "copyForTracker");
+            ArgumentCaptor<String> copy = ArgumentCaptor.forClass(String.class);
+            verify(harness.panel).copyToClipboard(copy.capture());
+            assertEquals(2, harness.gson.fromJson(copy.getValue(), JsonObject.class).getAsJsonArray("events").size());
+            assertEquals(List.of(DetectedEventStore.Status.COPIED, DetectedEventStore.Status.SENT), statuses(harness));
+        }
+        finally
+        {
+            server.shutdown();
+        }
+    }
+
+    @Test
+    public void sendToTrackerThatFailsLeavesTheEventsNewAndSaysWhy() throws Exception
+    {
+        Harness harness = harness("send-failed");
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+
+        okhttp3.mockwebserver.MockWebServer server = new okhttp3.mockwebserver.MockWebServer();
+        server.enqueue(new okhttp3.mockwebserver.MockResponse().setResponseCode(404).setBody("not found"));
+        server.start();
+        try
+        {
+            useRelay(harness, server, SEND_CODE);
+            invokeNoArg(harness.plugin, "sendToTracker");
+
+            verify(harness.panel, timeout(10_000)).showRollInbox(argThat(model -> model.getNewEvents() == 1
+                && "The relay can't take events yet. Use Copy for tracker.".equals(model.getNotice())));
+            assertEquals(List.of(DetectedEventStore.Status.NEW), statuses(harness));
+            assertEquals(1, server.getRequestCount());
+        }
+        finally
+        {
+            server.shutdown();
+        }
+    }
+
+    @Test
+    public void sendToTrackerIsntOfferedWithoutAPairingInUse() throws Exception
+    {
+        Harness harness = harness("send-off");
+        readForDetectors(harness);
+        harness.plugin.onChatMessage(chat(ChatMessageType.GAMEMESSAGE, "You have completed 12 hard Treasure Trails."));
+        verify(harness.panel).showRollInbox(argThat(model -> !model.isCanSend() && model.getNewEvents() == 1));
+
+        okhttp3.mockwebserver.MockWebServer server = new okhttp3.mockwebserver.MockWebServer();
+        server.start();
+        try
+        {
+            // Online sync off, or a re-pairing waiting: the controller names no code to send to.
+            useRelay(harness, server, null);
+            invokeNoArg(harness.plugin, "sendToTracker");
+
+            assertEquals(0, server.getRequestCount());
+            assertEquals(List.of(DetectedEventStore.Status.NEW), statuses(harness));
+        }
+        finally
+        {
+            server.shutdown();
+        }
+    }
+
+    private static final String SEND_CODE = "0123456789abcdef0123456789abcdef";
+
+    /**
+     * Send to tracker, as startUp sets it up, but with its requests going to this server and a
+     * connection controller that names this code to send to.
+     */
+    private static TrackerInboxSender useRelay(Harness harness, okhttp3.mockwebserver.MockWebServer server,
+        String code) throws Exception
+    {
+        ConfigManager configManager = mock(ConfigManager.class);
+        when(configManager.getConfiguration(anyString(), anyString())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(1);
+            if (FateLockedConfig.NETWORK_ACCESS_KEY.equals(key)) return "true";
+            return TrackerConnectionSettings.PAIRING_CODE_KEY.equals(key) ? SEND_CODE : null;
+        });
+        okhttp3.OkHttpClient http = new okhttp3.OkHttpClient.Builder()
+            .addInterceptor(chain -> chain.proceed(chain.request().newBuilder()
+                .url(server.url(chain.request().url().encodedPath())).build()))
+            .build();
+        TrackerInboxSender sender = new TrackerInboxSender(http, harness.gson,
+            new TrackerConnectionSettings(configManager), Runnable::run, System::currentTimeMillis);
+        TrackerConnectionController controller = mock(TrackerConnectionController.class);
+        when(controller.sendCode()).thenReturn(code);
+        setField(harness.plugin, "inboxSender", sender);
+        setField(harness.plugin, "connectionController", controller);
+        return sender;
     }
 
     @Test

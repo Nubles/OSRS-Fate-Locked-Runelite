@@ -13,6 +13,7 @@ import java.util.Map;
 
 import static com.fatelocked.events.DetectedEventStore.Status.COPIED;
 import static com.fatelocked.events.DetectedEventStore.Status.NEW;
+import static com.fatelocked.events.DetectedEventStore.Status.SENT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -42,6 +43,45 @@ public class RollInboxPresenterTest
         assertEquals("Copied 5 events.", model.getNotice());
         assertFalse(model.getRows().get(1).isCopied());
         assertTrue(model.getRows().get(2).isCopied());
+    }
+
+    /** Send to tracker: a Sent event leaves New, as a Copied one does, and its row says Sent. */
+    @Test
+    public void countsWhatWasSentApartFromWhatIsNew()
+    {
+        List<DetectedEventStore.Entry> offered = List.of(
+            entry("a", FateEventType.QUEST, "Quest a", EventConfidence.EXACT, NEW),
+            entry("b", FateEventType.QUEST, "Quest b", EventConfidence.EXACT, SENT),
+            entry("c", FateEventType.QUEST, "Quest c", EventConfidence.EXACT, SENT),
+            entry("d", FateEventType.QUEST, "Quest d", EventConfidence.EXACT, COPIED));
+
+        RollInboxModel model = RollInboxPresenter.present(offered, 0, false, true,
+            "Sent 2. They're waiting in your tracker's Roll Inbox.", null, true, false);
+
+        assertEquals(1, model.getNewEvents());
+        assertEquals(2, model.getSent());
+        assertEquals(1, model.getCopied());
+        assertTrue(model.isCanSend());
+        assertFalse(model.isSending());
+        assertFalse(model.getRows().get(0).isSent());
+        assertTrue(model.getRows().get(1).isSent());
+        assertFalse(model.getRows().get(1).isCopied());
+        assertTrue(model.getRows().get(3).isCopied());
+        assertFalse(model.getRows().get(3).isSent());
+    }
+
+    @Test
+    public void offersSendOnlyWhenItCanAndSaysWhileItSends()
+    {
+        List<DetectedEventStore.Entry> offered = List.of(
+            entry("a", FateEventType.QUEST, "Quest a", EventConfidence.EXACT, NEW));
+
+        assertFalse(RollInboxPresenter.present(offered, 0, false, true, null, null).isCanSend());
+        assertTrue(RollInboxPresenter.present(offered, 0, false, true, null, null, true, true).isSending());
+        // A send can't be under way where Send to tracker isn't offered.
+        RollInboxModel off = RollInboxPresenter.present(offered, 0, false, true, null, null, false, true);
+        assertFalse(off.isCanSend());
+        assertFalse(off.isSending());
     }
 
     @Test

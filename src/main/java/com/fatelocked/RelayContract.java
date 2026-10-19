@@ -4,8 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 /**
- * What a reply to the plugin's one request, GET /r/<code>, means. Decided
- * here in one place and without side effects; the connection controller
+ * What a reply to the rules check, GET /r/<code>, means. Decided
+ * here in one place and without side effects (Send to tracker's replies
+ * are RelayInbox's, and the badge requests' BadgeReplies'); the connection controller
  * acts on the answer. The web app's contracts/relay/relay-get.json lists
  * the replies, from the relay and from what can stand in front of it, and
  * the outcome each must have.

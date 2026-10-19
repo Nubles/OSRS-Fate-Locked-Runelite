@@ -4,6 +4,7 @@ import com.fatelocked.sidebar.CardAction;
 import com.fatelocked.sidebar.ConnectionModel;
 import com.fatelocked.sidebar.HereModel;
 import com.fatelocked.sidebar.RollInboxModel;
+import com.fatelocked.sidebar.RollInboxView;
 import com.fatelocked.sidebar.RunModel;
 import com.fatelocked.sidebar.Sidebar;
 import com.fatelocked.sidebar.StatusCardModel;
@@ -169,6 +170,12 @@ class FateLockedPanel extends PluginPanel
         sidebar.rollInbox().onCopy(handler);
     }
 
+    /** Called, on the Swing thread, when the player sends the Roll inbox's new events to the tracker. */
+    void onSendToTracker(Runnable handler)
+    {
+        sidebar.rollInbox().onSend(handler);
+    }
+
     /** Called, on the Swing thread, with the id of an event the player dismissed from the Roll inbox. */
     void onDismissEvent(Consumer<String> handler)
     {
@@ -271,14 +278,21 @@ class FateLockedPanel extends PluginPanel
             JOptionPane.QUESTION_MESSAGE, null, options, options[1]) == 0;
     }
 
+    /** What online sync sends and fetches, as the consent dialog says it under RuneLite's warning. */
+    static final String NETWORK_CONSENT = "RuneLite retrieves rules from the Fate Locked relay. It sends the Roll"
+        + " inbox's events there only when you press " + RollInboxView.SEND_TO_TRACKER
+        + "; they wait for at most 30 days, until your tracker takes them, and only your"
+        + " tracker can read them. It also downloads the public list of Fate Locked badges,"
+        + " unless both Show badges settings are off, and uploads your character name and"
+        + " milestone only if you turn on Share my badge.";
+
     boolean confirmNetworkConnection()
     {
         Object[] options = {"Enable online sync", "Cancel"};
         return JOptionPane.showOptionDialog(
             this,
             "<html><body style='width: 320px'>" + FateLockedConfig.NETWORK_WARNING
-                + "<br><br>RuneLite retrieves rules from the Fate Locked relay. "
-                + "It does not upload gameplay data.<br><br>Allow online sync?</body></html>",
+                + "<br><br>" + NETWORK_CONSENT + "<br><br>Allow online sync?</body></html>",
             "Fate Locked online sync", JOptionPane.YES_NO_OPTION,
             JOptionPane.WARNING_MESSAGE, null, options, options[1]) == 0;
     }

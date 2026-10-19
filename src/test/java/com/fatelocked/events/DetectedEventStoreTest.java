@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import static com.fatelocked.events.DetectedEventStore.Status.COPIED;
 import static com.fatelocked.events.DetectedEventStore.Status.DISMISSED;
 import static com.fatelocked.events.DetectedEventStore.Status.NEW;
+import static com.fatelocked.events.DetectedEventStore.Status.SENT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -112,6 +113,46 @@ public class DetectedEventStoreTest
         store.mark(Collections.singletonList("a"), NEW);
         store.mark(Collections.singletonList("a"), COPIED);
         assertEquals(before, writes.get());
+    }
+
+    /**
+     * Send to tracker's Sent is kept as Copied is, in the account's file: it survives a restart, a
+     * copy after it leaves it Sent, and only a dismissal moves it on.
+     */
+    @Test
+    public void keepsSentAcrossARestartAndACopyAfterIt() throws IOException
+    {
+        DetectedEventStore store = store();
+        store.record(quest("sent", NOW));
+        store.record(quest("copied", NOW + 1));
+        store.record(quest("new", NOW + 2));
+        store.mark(Collections.singletonList("copied"), COPIED);
+        store.mark(Collections.singletonList("sent"), SENT);
+        // Copy for tracker takes every event, and marks them all Copied.
+        store.mark(Arrays.asList("sent", "copied", "new"), COPIED);
+        store.mark(Collections.singletonList("copied"), SENT);
+
+        DetectedEventStore reloaded = store();
+        assertEquals(Arrays.asList(SENT, SENT, COPIED),
+            reloaded.entries().stream().map(DetectedEventStore.Entry::getStatus).collect(Collectors.toList()));
+        assertEquals(Arrays.asList("new", "copied", "sent"), ids(reloaded.offered("run-1")));
+        assertTrue(new String(Files.readAllBytes(file), StandardCharsets.UTF_8).contains("\"status\":\"SENT\""));
+
+        reloaded.mark(Collections.singletonList("sent"), DISMISSED);
+        assertEquals(Arrays.asList("new", "copied"), ids(store().offered("run-1")));
+    }
+
+    @Test
+    public void anotherRuneLitesSendIsKeptWhenBothWrite() throws IOException
+    {
+        DetectedEventStore first = store();
+        first.record(quest("a", NOW));
+        DetectedEventStore second = store();
+        first.mark(Collections.singletonList("a"), SENT);
+        // The second still holds it New, and copies it: the send stands.
+        second.mark(Collections.singletonList("a"), COPIED);
+
+        assertEquals(SENT, store().entries().get(0).getStatus());
     }
 
     @Test

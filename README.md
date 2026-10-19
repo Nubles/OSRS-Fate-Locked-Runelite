@@ -27,9 +27,14 @@ The normal same-PC setup is:
 5. Use clipboard or file import only if the relay is unavailable.
 
 RuneLite retrieves a complete v4 rules bundle from the fixed Fate Locked
-relay. It does not upload player or gameplay data. The relay sees the IP
-address used for the HTTPS request, and the rules it holds name your
-character, so it can link the two.
+relay. It sends gameplay data there only when you press **Send to tracker**
+in the Roll inbox card (see
+[Roll Inbox ownership and privacy](#roll-inbox-ownership-and-privacy)). With
+online sync on, RuneLite also downloads the public list of Fate Locked
+badges, unless both **Show badges** settings are off, and uploads your
+character name and milestone only if you turn on **Share my badge** (see
+[Badges](#badges)). The relay sees the IP address used for the HTTPS
+requests, and the rules it holds name your character, so it can link the two.
 
 Once connected, RuneLite checks the tracker every minute while you play,
 every 5 minutes at the login screen, and at once when you log in. To pick
@@ -63,8 +68,8 @@ again.
 Online sync is off by default, including for existing pairings. No relay
 requests are made until you accept the warning. Canceling leaves sync
 disabled. Turn off **Online sync** in Connection & backup, or under Tracker
-in RuneLite's configuration, at any time to stop syncing. Clipboard and
-file imports remain available offline.
+in RuneLite's configuration, at any time to stop syncing, sending and badges.
+Clipboard and file imports, and Copy for tracker, remain available offline.
 
 ## The sidebar
 
@@ -87,13 +92,14 @@ their own:
 3. **Run**: whose run it is, progress, Keys, Omni-Keys, Chaos Keys, Fate
    Points, the ritual and the next goal.
 4. **Roll inbox**: what RuneLite noticed that may be worth a roll, with
-   **Copy for tracker** to paste it into the tracker's Roll Inbox.
+   **Send to tracker** (while online sync is on) and **Copy for tracker**
+   to bring it into the tracker's Roll Inbox.
 5. **Connection & backup**: online sync, the pairing, and the clipboard and
    file backups.
 
 Here starts open. Every setting is in RuneLite's configuration, under Fate
-Locked Ironman: 27 settings in six sections (Tracker, Strict Mode, Alerts,
-Display, Custom colours and Backup). Settings from before Stage 3 carry over
+Locked Ironman: 33 settings in seven sections (Tracker, Strict Mode, Alerts,
+Display, Badges, Custom colours and Backup). Settings from before Stage 3 carry over
 once, the first time the plugin starts.
 
 ## Main features
@@ -139,9 +145,40 @@ once, the first time the plugin starts.
 - Strict Mode, which blocks only travel the tracker's travel table matches
   by id, to one place it locks, with fail-open safeguards, a status that
   says when it cannot act, a 60-second pause, and a bounded local audit log.
+  Networks and boats are only tagged unless you turn on Block networks and
+  boats.
+- While a fairy ring's dials are open, one line names the code dialled and
+  what your rules say about it ("CKS: Unlocked", "CKS: Locked: …"), with
+  Strict Mode on or off. Fairy ring dial status, under Alerts, turns it off.
+- Badges: a key before the name, in chat and above the head, of each player
+  who shares their Fate Locked milestone, and yours on the list if you
+  choose (see [Badges](#badges)).
 - What RuneLite notices, listed in the Roll inbox card for the tracker:
   levels, quests, finished diary tiers, combat achievements, collection log
   items, clues, boss and raid kills, Slayer tasks and new pets.
+
+## Badges
+
+Players who share their Fate Locked milestone get a pixel-art key before
+their name in chat and above their head: iron under 25% of their run, bronze
+at 25% (Wayfarer), silver at 50% (Pathfinder), gold at 75% (Trailblazer) and
+crystal at 100% (Fate Unbound). The settings are under Badges in RuneLite's
+configuration, and all three need **Online sync**; with it off they do
+nothing.
+
+- **Show badges in chat** (on) and **Show badges above heads** (on):
+  RuneLite downloads the public badge list from the Fate Locked relay at
+  login and every 30 minutes while you play. The key goes before the name in
+  public, private, friends chat and clan messages, after any icon the game
+  already shows there, and above players on your floor.
+- **Share my badge** (off) puts your character name and milestone on that
+  public list, which the relay serves to every player of the plugin. It is
+  sent only for the character your run is linked to, with the tracker
+  connected: when your name or milestone changes, and otherwise at most once
+  a day. Nothing else about your run is sent. Turning it off, or pressing
+  **Disconnect**, removes you from the list. If online sync is off at that
+  moment, the removal waits until it is on again; the relay drops a badge
+  that hasn't been sent for 30 days.
 
 ## Roll Inbox ownership and privacy
 
@@ -150,10 +187,20 @@ that may be worth a roll: levels, quests, finished diary tiers, combat
 achievements, collection log items (only with the game's own collection
 log notification on), clues, boss and raid kills, Slayer tasks and new
 pets. The game doesn't say which pet, so the tracker asks; each pet gives its
-Omni-Key once. Each shows New until it's copied; Dismiss hides one. **Copy for tracker** puts
-them on the clipboard, and the tracker's Roll Inbox reads them with
-**Paste from RuneLite**: nothing rolls until you choose Roll there, and
-logging by hand stays open. Events older than 30 days go, as the tracker
+Omni-Key once. Each shows New until it's sent or copied; Dismiss hides one.
+
+With online sync on and a pairing in use, the card's button is **Send to
+tracker**: it sends the New events to the relay, up to 100 in a request, and
+the tracker adds them to its Roll Inbox as **Paste from RuneLite** does.
+Each the relay takes shows Sent; the line under the button says how it went,
+and a send that fails is never retried by itself. The relay holds at most
+250 events waiting for your tracker, so if it can't take them all, none of
+that request shows Sent: open the tracker, then send again. **Copy for tracker** stays
+beside it, and is the button while online sync is off: it puts every event,
+sent ones too, on the clipboard, and the tracker's Roll Inbox reads them
+with **Paste from RuneLite**. The tracker keeps an event it already has
+once. Nothing rolls until you choose Roll there, and logging by hand stays
+open. Events older than 30 days go, as the tracker
 refuses them, and the newest 250 stay. In Vanilla, a boss or raid that has
 given every Standard Key it holds, such as Brutus after his one, can't roll
 again, so its kills aren't listed and get no reminder.
@@ -165,8 +212,11 @@ while the run is linked to no one, without reminders; and nothing for any
 other character. When it notices nothing, the card says why. Detection
 never rolls and never changes the tracker.
 
-**Local only — RuneLite does not upload gameplay data.** Events leave
-RuneLite only when you click Copy for tracker, by the clipboard.
+**Events leave RuneLite only when you press Send to tracker**, or by the
+clipboard when you click Copy for tracker. Sent events wait on the relay
+for at most 30 days, until your tracker takes them; only someone holding
+your pairing code can add to them, and only your tracker can read them.
+RuneLite never sends them by itself.
 
 **Open web Roll Inbox** opens the tracker's Roll Inbox in the browser. It
 carries no events; paste them there.
@@ -207,8 +257,10 @@ rules.
 Strict Mode is off by default. It never removes, reorders or creates menu
 entries and never performs an action. It consumes a click in one case only:
 the tracker's travel table matches the click by id (a spell by its spellbook
-and name; a tablet, scroll or teleport item by its item id), the option goes
-to one place, and fresh rules bound to the logged-in character lock it.
+and name; a tablet, scroll or teleport item by its item id; with Block
+networks and boats on, also a network or boat by its object or NPC id), the
+option goes to one place, and fresh rules bound to the logged-in character
+lock it.
 The tracker locks a trip when the place is locked, or when the run hasn't
 unlocked what the trip needs, such as a spellbook, Teleport Tablets or
 Jewelry Teleports.
@@ -216,19 +268,31 @@ Jewelry Teleports.
 An option that picks its place after the click, such as a jewellery Rub, is
 never blocked. Fairy rings, spirit trees, gliders, charters, boats and the
 other networks are matched too, and an option to one locked place is tagged
-(Locked), but they are never blocked in this release. Walking, NPCs, objects
-(including doors, stairs and ladders), banks and equipment are never
-blocked; the (Locked) menu tags, the locked-bank warning and the over-tier
-gear warning cover them.
+(Locked). By default that is all: they are never blocked. **Block networks
+and boats**, a Strict Mode setting that is off by default, blocks them as it
+blocks a teleport, under the same rule: the table matches the option by id,
+it goes to exactly one place, and the tracker locks it. That covers a fairy
+ring's Zanaris and Last-destination (CKS), a code dialled on the fairy ring
+and confirmed, a charter crew's Charter-to options, Glider-to Gandius, and a
+ferry or boat option naming one port. An option that can go to several
+places, such as a spirit tree's Travel, a glider's Glider, a balloon's Fly or
+a charter's Charter, is never blocked. A dialled code is read from the dials
+when its confirm button is clicked; if the dials may still be turning, the
+click goes through. Apart from those, walking, NPCs, objects (including
+doors, stairs and ladders), banks and equipment are never blocked; the
+(Locked) menu tags, the locked-bank warning and the over-tier gear warning
+cover them.
 
 Missing, invalid, legacy, future, stale, unbound, wrong-character,
 unmatched, several-place, Allowed, Not ready and Unknown decisions fail
 open. Rules saved before the tracker sent a travel table can't match any
 trip, so Strict Mode reads Inactive until the tracker syncs them again. The
 sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
-why, and the HUD shows it while it is on. The pause turns it off for 60
-seconds and resumes automatically. A block's notice may suggest a trip the
-player carries that the tracker allows; the plugin never uses it for them.
+why, and the HUD shows it while it is on; while it is Active or Paused, both
+say whether networks and boats are blocked or tagged only. The pause turns
+it off for 60 seconds and resumes automatically. A block's notice may
+suggest a trip the player carries that the tracker allows; the plugin never
+uses it for them.
 
 This behavior is adjacent to RuneLite's restrictions on conditional menu
 entry changes, so it is limited to travel matched by id and does not claim

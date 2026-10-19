@@ -1,6 +1,8 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import com.fatelocked.badges.BadgeIcons;
+import com.fatelocked.badges.BadgeService;
 import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
@@ -98,6 +100,7 @@ import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.Notifier;
+import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.callback.ClientThread;
@@ -187,6 +190,7 @@ public class FateLockedPlugin extends Plugin
     @Inject private FateLockedFlashOverlay flashOverlay;
     @Inject private FateLockedUnlockOverlay unlockOverlay;
     @Inject private FateLockedOutlineOverlay outlineOverlay;
+    @Inject private FateLockedFairyRingOverlay fairyRingOverlay;
     @Inject private ChatMessageManager chatMessageManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private FateLockedPanel panel;
@@ -204,6 +208,7 @@ public class FateLockedPlugin extends Plugin
     @Inject private OkHttpClient okHttpClient;
     @Inject private ConfigManager configManager;
     @Inject private TrackerConnectionSettings connectionSettings;
+    @Inject private ChatIconManager chatIconManager;
 
     /** This start's way onto the client thread; closed while the plugin is off. */
     private volatile ClientThreadGate gate = ClientThreadGate.closed();
@@ -214,6 +219,12 @@ public class FateLockedPlugin extends Plugin
     private SavedRulesStore savedRules;
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
+    /** Send to tracker's requests; made by startUp. */
+    private TrackerInboxSender inboxSender;
+    /** The badge keys, loaded and handed to the chat icon manager once for the plugin's life. */
+    private BadgeIcons badgeIcons;
+    /** This start's badges: other players' keys, and the player's own on the relay's list. */
+    private BadgeService badges;
     private final RepeatedValueLimiter invalidImportLimiter =
         new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
     /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
@@ -379,6 +390,8 @@ public class FateLockedPlugin extends Plugin
     private int shownWarningCount = -1;
     /** Why the Roll inbox says nothing is noticed, as it shows it; null while something is. */
     private String shownQuiet;
+    /** Whether the Roll inbox offers Send to tracker, as it shows it. */
+    private boolean shownCanSend;
     private NavigationButton navButton;
 
     /** The quests are read again this often, in ticks (a minute), for any finished without the quest scroll. */
@@ -481,7 +494,9 @@ public class FateLockedPlugin extends Plugin
             Clock.systemUTC(),
             started::run,
             relayImporter,
-            snapshot -> started.run(this::refreshSidebar));
+            snapshot -> started.run(this::trackerConnectionChanged));
+        inboxSender = new TrackerInboxSender(okHttpClient, gson, connectionSettings, executor,
+            System::currentTimeMillis);
 
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
@@ -515,6 +530,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(flashOverlay);
         overlayManager.add(unlockOverlay);
         overlayManager.add(outlineOverlay);
+        overlayManager.add(fairyRingOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
         travelBlockOverlay.setPalette(this::palette);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
@@ -531,6 +547,7 @@ public class FateLockedPlugin extends Plugin
             FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         panel.onHereFold(this::saveHereOpen);
         panel.onCopyForTracker(this::copyForTracker);
+        panel.onSendToTracker(this::sendToTracker);
         panel.onDismissEvent(this::dismissEvent);
         panel.openHere(hereOpen());
         panel.onHerePoint((category, row) -> gate.run(() -> pointTo(category, row)));
@@ -550,6 +567,7 @@ public class FateLockedPlugin extends Plugin
         });
         loadSavedRules();
         loadSpots();
+        startBadges(started);
         keyManager.registerKeyListener(reimportHotkey);
         keyManager.registerKeyListener(pauseStrictHotkey);
         startTrackerPoll();
@@ -561,6 +579,7 @@ public class FateLockedPlugin extends Plugin
         // First, so nothing this start queued can bring rules back later.
         gate.close();
         stopTrackerPoll();
+        stopBadges();
         if (travelOverlayLifecycle != null)
         {
             try
@@ -580,6 +599,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.remove(flashOverlay);
         overlayManager.remove(unlockOverlay);
         overlayManager.remove(outlineOverlay);
+        overlayManager.remove(fairyRingOverlay);
         if (navButton != null)
         {
             clientToolbar.removeNavigation(navButton);
@@ -775,6 +795,10 @@ public class FateLockedPlugin extends Plugin
             {
                 panel.showStrictModeIntro();
             }
+        }
+        else if (FateLockedConfig.BLOCK_NETWORKS_KEY.equals(key))
+        {
+            updateStrictModePanel();
         }
         else if (FateLockedConfig.NETWORK_ACCESS_KEY.equals(key))
         {
@@ -1607,7 +1631,8 @@ public class FateLockedPlugin extends Plugin
      * fresh rules bound to this character prove the destination locked. The
      * readiness the sidebar shows is the one gate for the only click the
      * plugin ever consumes; walking, NPCs, objects, banks and equipment are
-     * never blocked.
+     * never blocked, apart from one-place network and boat trips with "Block
+     * networks and boats" on.
      */
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
@@ -1696,7 +1721,7 @@ public class FateLockedPlugin extends Plugin
     {
         StrictModeStatusView status = StrictModeStatusView.of(
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
-            strictModeReadiness().getReason());
+            strictModeReadiness().getReason(), config.blockNetworks());
         strictModeStatus = status;
         refreshSidebar();
     }
@@ -1718,7 +1743,7 @@ public class FateLockedPlugin extends Plugin
             AccountBinding.boundAccount(getBundle()),
             loggedInName(),
             ruleDecisions.trust() == Trust.TRUSTED && ruleDecisions.isBound(),
-            rulesAreFresh());
+            rulesAreFresh()).withNetworks(config.blockNetworks());
     }
     /**
      * Whether the active rules are recent enough for Strict Mode to act on.
@@ -1758,9 +1783,9 @@ public class FateLockedPlugin extends Plugin
     /**
      * Whether a menu option is tagged (F4, G14). Travel the tracker's table
      * matches by id is tagged only for an exact LOCKED decision, one place,
-     * as Strict Mode reads it; networks and boats, which Strict Mode never
-     * blocks, are tagged the same way. Anything else is tagged by the chunk
-     * it stands in.
+     * as Strict Mode reads it; networks and boats, which Strict Mode blocks
+     * only with "Block networks and boats" on, are tagged the same way.
+     * Anything else is tagged by the chunk it stands in.
      */
     private boolean taggedLocked(MenuEntry entry, DecisionService ruleDecisions)
     {
@@ -2663,8 +2688,9 @@ public class FateLockedPlugin extends Plugin
         TrackerConnectionSettings settings = connectionSettings;
         models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
             settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
-        // A login, a logout, another character or new rules can start or stop the noticing.
-        if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet))
+        // A login, a logout, another character or new rules can start or stop the noticing;
+        // online sync, a pairing or a re-pairing can offer or take away Send to tracker.
+        if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet) || (trackerSendCode() != null) != shownCanSend)
         {
             updatePanelRollInbox();
         }
@@ -3285,6 +3311,64 @@ public class FateLockedPlugin extends Plugin
         return ImageUtil.loadImageResource(FateLockedPlugin.class, "nav_icon.png");
     }
 
+    /**
+     * Badges: other players' keys in chat and over heads, and the player's own on the relay's
+     * public list when they share it. Nothing reaches the relay without online sync's consent.
+     */
+    private void startBadges(ClientThreadGate started)
+    {
+        try
+        {
+            if (badgeIcons == null)
+            {
+                badgeIcons = new BadgeIcons();
+            }
+            badgeIcons.register(chatIconManager);
+            badges = BadgeWiring.create(okHttpClient, gson, connectionSettings, this::trackerProfileCode, config,
+                configManager, client,
+                badgeIcons, this::getBundle, this::loggedInName, () -> decisions, started::run);
+            eventBus.register(badges);
+            overlayManager.add(badges.overlay());
+            started.run(badges::start);
+        }
+        catch (RuntimeException error)
+        {
+            // Badges are a nicety: the rest of the plugin starts without them.
+            log.warn("Could not start badges: {}", error.getMessage());
+        }
+    }
+
+    /** The pairing code whose profile the relay holds, for the player's badge; "" for none. */
+    private String trackerProfileCode()
+    {
+        TrackerConnectionController controller = connectionController;
+        return controller == null ? "" : controller.profileCode();
+    }
+
+    /** The tracker connection showed something new, on the client thread. */
+    private void trackerConnectionChanged()
+    {
+        refreshSidebar();
+        BadgeService current = badges;
+        if (current != null)
+        {
+            current.connectionChanged();
+        }
+    }
+
+    private void stopBadges()
+    {
+        BadgeService stopping = badges;
+        badges = null;
+        if (stopping == null)
+        {
+            return;
+        }
+        eventBus.unregister(stopping);
+        overlayManager.remove(stopping.overlay());
+        stopping.stop();
+    }
+
     private void startTrackerPoll()
     {
         // The lightweight scheduler tick keeps initial pairing responsive.
@@ -3304,6 +3388,10 @@ public class FateLockedPlugin extends Plugin
         if (connectionController != null)
         {
             connectionController.stop();
+        }
+        if (inboxSender != null)
+        {
+            inboxSender.stop();
         }
     }
 
@@ -3369,11 +3457,14 @@ public class FateLockedPlugin extends Plugin
             : SpentBosses.without(rules, store.offered(rules == null ? null : rules.getRunId()));
         shownWarningCount = activeWarningCount();
         shownQuiet = rollInboxQuiet();
+        shownCanSend = trackerSendCode() != null;
+        TrackerInboxSender sender = inboxSender;
         SidebarPublisher models = sidebarModels();
         if (models != null)
         {
             models.rollInbox(RollInboxPresenter.present(events, shownWarningCount, historySaveFailed,
-                AccountBinding.boundAccount(rules) != null, rollInboxNotice, shownQuiet));
+                AccountBinding.boundAccount(rules) != null, rollInboxNotice, shownQuiet, shownCanSend,
+                sender != null && sender.sending()));
         }
     }
 
@@ -3431,6 +3522,68 @@ public class FateLockedPlugin extends Plugin
                 log.warn("Could not mark the copied events", ex);
             }
             onClient.run(this::updatePanelRollInbox);
+        });
+    }
+
+    /** The pairing code Send to tracker posts to, or null while the card doesn't offer it. */
+    private String trackerSendCode()
+    {
+        TrackerConnectionController controller = connectionController;
+        return controller == null ? null : controller.sendCode();
+    }
+
+    /**
+     * Send to tracker, from the card's button on the Swing thread: the New events the Roll inbox
+     * offers go to the relay, for the tracker's Roll Inbox, and each the relay takes turns Sent.
+     * Only ever on this click; a failure says so on the card and is not retried.
+     */
+    private void sendToTracker()
+    {
+        DetectedEventStore store = detectedEvents;
+        FateLockedBundle rules = getBundle();
+        TrackerInboxSender sender = inboxSender;
+        String code = trackerSendCode();
+        if (store == null || rules == null || sender == null || code == null) return;
+        List<FateEvent> events = new ArrayList<>();
+        for (DetectedEventStore.Entry entry : SpentBosses.without(rules, store.offered(rules.getRunId())))
+        {
+            if (entry.getStatus() == DetectedEventStore.Status.NEW) events.add(entry.getEvent());
+        }
+        ClientThreadGate onClient = gate;
+        sender.send(code, events, store::copyOf, new TrackerInboxSender.Listener()
+        {
+            @Override
+            public void started()
+            {
+                // Before any reply can say how it went: the card shows Sending.
+                rollInboxNotice = null;
+                onClient.run(FateLockedPlugin.this::updatePanelRollInbox);
+            }
+
+            @Override
+            public void sent(List<String> eventIds)
+            {
+                fileWriter.submit(() -> {
+                    try
+                    {
+                        store.mark(eventIds, DetectedEventStore.Status.SENT);
+                    }
+                    catch (IOException ex)
+                    {
+                        // They wait on the relay all the same; sending them again is harmless.
+                        log.warn("Could not mark the sent events", ex);
+                    }
+                });
+            }
+
+            @Override
+            public void finished(String notice)
+            {
+                // Said on this account's card only: another account may have logged in since.
+                if (detectedEvents == store) rollInboxNotice = notice;
+                // After the marks queued before it, so the card shows them.
+                fileWriter.submit(() -> onClient.run(FateLockedPlugin.this::updatePanelRollInbox));
+            }
         });
     }
 

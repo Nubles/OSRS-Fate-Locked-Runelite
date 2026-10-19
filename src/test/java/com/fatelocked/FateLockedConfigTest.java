@@ -30,7 +30,8 @@ public class FateLockedConfigTest
     private static final List<Object[]> EXPECTED = Arrays.asList(
         new Object[]{FateLockedConfig.NETWORK_ACCESS_KEY, FateLockedConfig.trackerSection, 0, false},
         new Object[]{"strictMode", FateLockedConfig.strictModeSection, 0, false},
-        new Object[]{"pauseStrictModeHotkey", FateLockedConfig.strictModeSection, 1, Keybind.NOT_SET},
+        new Object[]{FateLockedConfig.BLOCK_NETWORKS_KEY, FateLockedConfig.strictModeSection, 1, false},
+        new Object[]{"pauseStrictModeHotkey", FateLockedConfig.strictModeSection, 2, Keybind.NOT_SET},
         new Object[]{"lockedAreaAlert", FateLockedConfig.alertsSection, 0,
             FateLockedConfig.LockedAreaAlert.CHAT_SOUND_FADE},
         new Object[]{"announceAreaChanges", FateLockedConfig.alertsSection, 1, true},
@@ -39,6 +40,7 @@ public class FateLockedConfigTest
         new Object[]{"rollNudges", FateLockedConfig.alertsSection, 4, true},
         new Object[]{"useNotifier", FateLockedConfig.alertsSection, 5, false},
         new Object[]{"announceUnlocks", FateLockedConfig.alertsSection, 6, true},
+        new Object[]{FateLockedConfig.FAIRY_RING_DIAL_KEY, FateLockedConfig.alertsSection, 7, true},
         new Object[]{"hudMode", FateLockedConfig.displaySection, 0, FateLockedConfig.HudMode.COMPACT},
         new Object[]{"worldMapMode", FateLockedConfig.displaySection, 1,
             FateLockedConfig.WorldMapMode.SHADING_TOOLTIP_CONTENTS},
@@ -54,6 +56,9 @@ public class FateLockedConfigTest
         new Object[]{"outlineOpen", FateLockedConfig.displaySection, 11, true},
         new Object[]{"showInfoBoxes", FateLockedConfig.displaySection, 12, false},
         new Object[]{"colourPreset", FateLockedConfig.displaySection, 13, FateLockedConfig.ColourPreset.DEFAULT},
+        new Object[]{"badgesInChat", FateLockedConfig.badgesSection, 0, true},
+        new Object[]{"badgesAboveHeads", FateLockedConfig.badgesSection, 1, true},
+        new Object[]{"shareBadge", FateLockedConfig.badgesSection, 2, false},
         new Object[]{"unlockedColor", FateLockedConfig.customColoursSection, 0, new Color(16, 185, 129, 110)},
         new Object[]{"frontierColor", FateLockedConfig.customColoursSection, 1, new Color(245, 158, 11, 100)},
         new Object[]{"lockedColor", FateLockedConfig.customColoursSection, 2, new Color(239, 68, 68, 110)},
@@ -88,7 +93,8 @@ public class FateLockedConfigTest
             }
         }
         assertEquals(Arrays.asList(FateLockedConfig.trackerSection, FateLockedConfig.strictModeSection,
-            FateLockedConfig.alertsSection, FateLockedConfig.displaySection, FateLockedConfig.customColoursSection,
+            FateLockedConfig.alertsSection, FateLockedConfig.displaySection, FateLockedConfig.badgesSection,
+            FateLockedConfig.customColoursSection,
             FateLockedConfig.backupSection), sections.values().stream()
             .sorted((a, b) -> Integer.compare(a.position(), b.position()))
             .map(section -> sections.entrySet().stream().filter(e -> e.getValue() == section).findFirst().get().getKey())
@@ -231,6 +237,27 @@ public class FateLockedConfigTest
         assertSays("outlineLocked", "Off hides every outline");
         assertSays("announceUnlocks", "a chat line", "a banner", "glowing on the world map");
         assertSays("frontierColor", "you can unlock next");
+        // Badges: what sharing puts where, that it's undone by turning it off, and online sync's part.
+        assertSays("shareBadge", "your character name and milestone", "public list the Fate Locked relay serves to"
+            + " every player of the plugin", "Turning it off removes you from the list", "Off by default",
+            "with Online sync on");
+        assertSays("badgesInChat", "Needs Online sync", "downloads the public badge list", "at login and every 30"
+            + " minutes");
+        assertSays("badgesAboveHeads", "Needs Online sync", "on your floor");
+        // Online sync's consent covers badges: the list comes down by default, the player's own only on request.
+        assertSays(FateLockedConfig.NETWORK_ACCESS_KEY, "Also downloads the public list of Fate Locked badges unless"
+            + " both Show badges settings are off, and uploads your character name and milestone only with Share my"
+            + " badge on.");
+        assertTrue(FateLockedPanel.NETWORK_CONSENT, FateLockedPanel.NETWORK_CONSENT.endsWith(" It also downloads the"
+            + " public list of Fate Locked badges, unless both Show badges settings are off, and uploads your"
+            + " character name and milestone only if you turn on Share my badge."));
+        // Networks and boats: opt-in, one place only, and the options that pick their place are never stopped
+        // (StrictModeGuardTest, StrictModeGateTest, BlockNetworksTest).
+        assertSays(FateLockedConfig.BLOCK_NETWORKS_KEY, "goes to one place your rules lock", "a code dialled on it",
+            "Options where you pick the place after the click", "are never stopped", "Off by default",
+            "only tagged (Locked)");
+        // The dial line is advice only (FairyRingDialLineTest).
+        assertSays(FateLockedConfig.FAIRY_RING_DIAL_KEY, "names the code dialled", "it never stops anything");
     }
 
     private static void assertSays(String key, String... claims)

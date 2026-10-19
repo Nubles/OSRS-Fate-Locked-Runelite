@@ -58,6 +58,25 @@ public class SectionPresentersTest
         assertTrue("an off switch hides what it stopped", off.getRecent().isEmpty());
     }
 
+    /** The card says what Strict Mode does with networks and boats, while it can stop something. */
+    @Test
+    public void strictModeSaysWhetherNetworksAndBoatsAreBlocked()
+    {
+        assertEquals("Networks and boats: blocked", StrictModeSectionPresenter.present(
+            StrictModeStatusView.of(true, false, 0, null, true), null).getScope());
+        assertEquals("Networks and boats: tagged only", StrictModeSectionPresenter.present(
+            StrictModeStatusView.of(true, false, 0, null, false), null).getScope());
+        assertEquals("Networks and boats: blocked", StrictModeSectionPresenter.present(
+            StrictModeStatusView.of(true, true, 42, null, true), null).getScope());
+        assertEquals("the older status has networks tagged only", "Networks and boats: tagged only",
+            StrictModeSectionPresenter.present(StrictModeStatusView.of(true, false, 0, null), null).getScope());
+        assertNull("inactive stops nothing", StrictModeSectionPresenter.present(
+            StrictModeStatusView.of(true, false, 0, "you are not logged in", true), null).getScope());
+        assertNull(StrictModeSectionPresenter.present(StrictModeStatusView.of(false, false, 0, null, true), null)
+            .getScope());
+        assertNull(StrictModeModel.off().getScope());
+    }
+
     @Test
     public void theRunShowsWhoseItIsItsIdByFourCharactersAndProgressWithItsUnit() throws Exception
     {

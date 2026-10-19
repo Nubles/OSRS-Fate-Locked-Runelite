@@ -24,23 +24,35 @@ public final class RollInboxPresenter
     {
     }
 
+    /** The card without Send to tracker. */
+    public static RollInboxModel present(List<DetectedEventStore.Entry> offered, int warnings, boolean saveFailed,
+        boolean linked, String notice, String quiet)
+    {
+        return present(offered, warnings, saveFailed, linked, notice, quiet, false, false);
+    }
+
     /**
      * @param offered this run's events the Roll inbox offers, newest first
      * @param linked  whether the run is linked to a character
-     * @param notice  what the last copy did, or null
+     * @param notice  what the last send or copy did, or null
      * @param quiet   why RuneLite notices nothing for the character logged in, or null
+     * @param canSend whether Send to tracker is offered: online sync on, with a pairing in use
+     * @param sending whether a send is under way
      */
     public static RollInboxModel present(List<DetectedEventStore.Entry> offered, int warnings, boolean saveFailed,
-        boolean linked, String notice, String quiet)
+        boolean linked, String notice, String quiet, boolean canSend, boolean sending)
     {
         List<RollInboxModel.Row> rows = new ArrayList<>();
         Set<String> characters = new LinkedHashSet<>();
         int copied = 0;
+        int sent = 0;
         for (DetectedEventStore.Entry entry : offered)
         {
             FateEvent event = entry.getEvent();
             boolean isCopied = entry.getStatus() == DetectedEventStore.Status.COPIED;
+            boolean isSent = entry.getStatus() == DetectedEventStore.Status.SENT;
             if (isCopied) copied++;
+            if (isSent) sent++;
             if (event.getAccount() != null && !event.getAccount().trim().isEmpty())
             {
                 characters.add(event.getAccount().trim());
@@ -51,14 +63,17 @@ public final class RollInboxPresenter
                 rows.add(new RollInboxModel.Row(event.getEventId(), event.getEventType(),
                     label != null && !label.trim().isEmpty() ? label
                         : event.getEventType() == FateEventType.PET_DROP ? NEW_PET : UNNAMED, skill(event),
-                    event.getConfidence() == EventConfidence.UNCERTAIN, isCopied));
+                    event.getConfidence() == EventConfidence.UNCERTAIN, isCopied, isSent));
             }
         }
         return RollInboxModel.builder()
             .rows(rows)
             .more(offered.size() - rows.size())
-            .newEvents(offered.size() - copied)
+            .newEvents(offered.size() - copied - sent)
             .copied(copied)
+            .sent(sent)
+            .canSend(canSend)
+            .sending(canSend && sending)
             .warnings(warnings)
             .saveFailed(saveFailed)
             .character(linked || characters.isEmpty() ? null : listed(new ArrayList<>(characters)))

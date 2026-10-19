@@ -21,6 +21,9 @@ public interface FateLockedConfig extends Config
 {
     String GROUP = "fatelocked";
     String NETWORK_ACCESS_KEY = "trackerNetworkAccess";
+    /** Strict Mode also stops one-place network and boat trips (off by default). */
+    String BLOCK_NETWORKS_KEY = "blockNetworks";
+    String FAIRY_RING_DIAL_KEY = "fairyRingDialStatus";
     String NETWORK_WARNING = "This feature submits your IP address to a 3rd-party server "
         + "not controlled or verified by RuneLite developers.";
 
@@ -202,8 +205,10 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = NETWORK_ACCESS_KEY,
         name = "Online sync",
-        description = "Get your rules from the Fate Locked relay. Off by default; imports from the clipboard and backup"
-            + " files work without it.",
+        description = "Get your rules from the Fate Locked relay, and send the Roll inbox's events there when you press"
+            + " Send to tracker. Also downloads the public list of Fate Locked badges unless both Show badges settings"
+            + " are off, and uploads your character name and milestone only with Share my badge on. Off by default;"
+            + " imports from the clipboard and backup files work without it.",
         section = trackerSection,
         position = 0,
         warning = NETWORK_WARNING
@@ -226,8 +231,8 @@ public interface FateLockedConfig extends Config
         description = "Stops a teleport it recognises exactly, with one place it can go, when fresh rules for this"
             + " character lock that place. It also stops one to an unlocked place when you haven't unlocked that kind"
             + " of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A worn item's teleport, such"
-            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped."
-            + " Off by default.",
+            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped,"
+            + " apart from the network and boat trips Block networks and boats adds. Off by default.",
         section = strictModeSection,
         position = 0
     )
@@ -237,11 +242,27 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = BLOCK_NETWORKS_KEY,
+        name = "Block networks and boats",
+        description = "Also stops a network or boat trip that goes to one place your rules lock, as a teleport is"
+            + " stopped: a fairy ring's Zanaris or Last-destination, or a code dialled on it; a charter's Charter-to;"
+            + " a glider, ferry or boat option that names one place. Options where you pick the place after the"
+            + " click, such as Travel, Glider or Fly, are never stopped. Off by default: they are only tagged"
+            + " (Locked).",
+        section = strictModeSection,
+        position = 1
+    )
+    default boolean blockNetworks()
+    {
+        return false;
+    }
+
+    @ConfigItem(
         keyName = "pauseStrictModeHotkey",
         name = "Pause hotkey",
         description = "Pauses Strict Mode for 60 seconds. Not set by default.",
         section = strictModeSection,
-        position = 1
+        position = 2
     )
     default Keybind pauseStrictModeHotkey()
     {
@@ -347,6 +368,19 @@ public interface FateLockedConfig extends Config
         position = 6
     )
     default boolean announceUnlocks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = FAIRY_RING_DIAL_KEY,
+        name = "Fairy ring dial status",
+        description = "While a fairy ring's dials are open, one line beside them names the code dialled and what"
+            + " your rules say about it, such as CKS: Unlocked. It only tells you; it never stops anything.",
+        section = alertsSection,
+        position = 7
+    )
+    default boolean fairyRingDialStatus()
     {
         return true;
     }
@@ -537,9 +571,59 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigSection(
+        name = "Badges",
+        description = "Fate Locked keys beside the names of players who share their milestone",
+        position = 4
+    )
+    String badgesSection = "badgesSection";
+
+    @ConfigItem(
+        keyName = "badgesInChat",
+        name = "Show badges in chat",
+        description = "A key before the name of each player who shares their Fate Locked badge, in public, private,"
+            + " friends chat and clan messages: iron under 25% of their run, then bronze, silver, gold and crystal at"
+            + " 25, 50, 75 and 100%. Needs Online sync: RuneLite downloads the public badge list from the Fate Locked"
+            + " relay at login and every 30 minutes.",
+        section = badgesSection,
+        position = 0
+    )
+    default boolean badgesInChat()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "badgesAboveHeads",
+        name = "Show badges above heads",
+        description = "The same key above the head of each player near you on your floor who shares a badge. Needs"
+            + " Online sync, as Show badges in chat does.",
+        section = badgesSection,
+        position = 1
+    )
+    default boolean badgesAboveHeads()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "shareBadge",
+        name = "Share my badge",
+        description = "Puts your character name and milestone (under 25%, Wayfarer, Pathfinder, Trailblazer or Fate"
+            + " Unbound) on a public list the Fate Locked relay serves to every player of the plugin. Only for the"
+            + " character your run is linked to, with Online sync on and the tracker connected. Turning it off"
+            + " removes you from the list. Off by default.",
+        section = badgesSection,
+        position = 2
+    )
+    default boolean shareBadge()
+    {
+        return false;
+    }
+
+    @ConfigSection(
         name = "Custom colours",
         description = "Used when Colours is set to Custom",
-        position = 4,
+        position = 5,
         closedByDefault = true
     )
     String customColoursSection = "customColoursSection";
@@ -587,7 +671,7 @@ public interface FateLockedConfig extends Config
     @ConfigSection(
         name = "Backup",
         description = "For runs without online sync",
-        position = 5,
+        position = 6,
         closedByDefault = true
     )
     String backupSection = "backupSection";

@@ -215,10 +215,10 @@ public final class GuideScreenshots
             Sidebar sidebar = upToDate(icons);
             sidebar.rollInbox().apply(RollInboxModel.builder()
                 .rows(Arrays.asList(
-                    new RollInboxModel.Row("1", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, false),
-                    new RollInboxModel.Row("2", FateEventType.BOSS_KILL, "Vorkath", null, false, false),
-                    new RollInboxModel.Row("3", FateEventType.SLAYER_TASK, "Gargoyles", "Slayer", true, false),
-                    new RollInboxModel.Row("4", FateEventType.QUEST, "Cook's Assistant", null, false, true)))
+                    new RollInboxModel.Row("1", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, false, false),
+                    new RollInboxModel.Row("2", FateEventType.BOSS_KILL, "Vorkath", null, false, false, false),
+                    new RollInboxModel.Row("3", FateEventType.SLAYER_TASK, "Gargoyles", "Slayer", true, false, false),
+                    new RollInboxModel.Row("4", FateEventType.QUEST, "Cook's Assistant", null, false, true, false)))
                 .newEvents(3).copied(1).warnings(1).build());
             return open(sidebar, sidebar.rollInbox());
         }, Sidebar::rollInbox,

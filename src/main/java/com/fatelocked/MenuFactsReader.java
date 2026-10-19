@@ -14,7 +14,10 @@ import java.util.regex.Pattern;
 
 /**
  * Reads a menu entry into {@link MenuFacts} (A9), on the client thread: it
- * reads the spellbook varbit and, for a worn item, the clicked widget.
+ * reads the spellbook varbit and, for a worn item, the clicked widget. A
+ * reader for clicks, given the {@link FairyRingDial}, also reads a fairy
+ * ring's dials for a click on their confirm button, and notes any other
+ * click on the dials or their travel log, which may turn them.
  */
 final class MenuFactsReader
 {
@@ -22,12 +25,22 @@ final class MenuFactsReader
         Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
     /** A worn slot draws its item in its second child. */
     private static final int WORN_ITEM_CHILD = 1;
+    /** A component's first op, as a CC_OP entry's identifier gives it: the confirm button's left click. */
+    private static final int CONFIRM_OP = 1;
 
     private final Client client;
+    /** The dials' turns, for clicks; null for a reader of menu entries as they are added. */
+    private final FairyRingDial dial;
 
     MenuFactsReader(Client client)
     {
+        this(client, null);
+    }
+
+    MenuFactsReader(Client client, FairyRingDial dial)
+    {
         this.client = client;
+        this.dial = dial;
     }
 
     MenuFacts read(MenuEntry entry)
@@ -44,14 +57,31 @@ final class MenuFactsReader
             case CC_OP:
             case CC_OP_LOW_PRIORITY:
             {
-                int group = WidgetUtil.componentToInterface(entry.getParam1());
-                facts.kind(MenuFacts.Kind.WIDGET).interfaceGroup(group).itemId(itemId(entry, group));
+                int component = entry.getParam1();
+                int group = WidgetUtil.componentToInterface(component);
+                facts.kind(MenuFacts.Kind.WIDGET).interfaceGroup(group).componentId(component)
+                    .itemId(itemId(entry, group));
                 if (group == InterfaceID.MAGIC_SPELLBOOK)
                 {
                     facts.spellbook(client.getVarbitValue(VarbitID.SPELLBOOK));
                 }
+                // The confirm button's first op is the trip; any other op on it is left alone.
+                if (FairyRingDial.isConfirm(component) && entry.getIdentifier() == CONFIRM_OP)
+                {
+                    facts.fairyRingCode(confirmedCode());
+                }
+                else
+                {
+                    noteTurn(component);
+                }
                 break;
             }
+            case WIDGET_TYPE_1:
+            case WIDGET_TYPE_4:
+            case WIDGET_TYPE_5:
+                // Older button kinds: never a trip here, but one on the dials may turn them.
+                noteTurn(entry.getParam1());
+                break;
             case GAME_OBJECT_FIRST_OPTION:
             case GAME_OBJECT_SECOND_OPTION:
             case GAME_OBJECT_THIRD_OPTION:
@@ -73,6 +103,22 @@ final class MenuFactsReader
                 break;
         }
         return facts.build();
+    }
+
+    /** The code a confirm goes to, when this reader follows the dials; null otherwise or while unsure. */
+    private String confirmedCode()
+    {
+        if (dial == null) return null;
+        return dial.settled(client.getTickCount(), FairyRingDial.read(client));
+    }
+
+    /** A click on the dials or their travel log, other than the confirm, may turn them. */
+    private void noteTurn(int component)
+    {
+        if (dial != null && FairyRingDial.mayTurn(component))
+        {
+            dial.turned(client.getTickCount(), FairyRingDial.read(client));
+        }
     }
 
     /**

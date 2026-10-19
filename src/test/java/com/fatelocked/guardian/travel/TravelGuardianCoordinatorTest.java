@@ -146,7 +146,7 @@ public class TravelGuardianCoordinatorTest
         assertNotBlocked(item(AMULET_OF_GLORY_4, "Rub", "Amulet of glory(4)"), PermissionStatus.UNKNOWN);
     }
 
-    /** Owner decision 2: networks and boats are tagged, never blocked, in Stage 2. */
+    /** Owner decision 2: networks and boats are only tagged unless "Block networks and boats" is on (BlockNetworksTest). */
     @Test
     public void advisoryTravelIsNeverBlocked()
     {

@@ -22,11 +22,17 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 
 /**
- * What RuneLite noticed for one character (Stage 4), each event New, Copied or Dismissed, in
+ * What RuneLite noticed for one character (Stage 4), each event New, Copied, Sent or Dismissed, in
  * accounts/&lt;account hash&gt;/detected-events.json. Another RuneLite on this computer may share the
  * file, so every write merges with what is on disk (LocalFileMerge), and a state never goes back:
- * Dismissed wins over Copied, and Copied over New. Events older than 30 days go, as the tracker
- * refuses them, and the newest 250 stay.
+ * Dismissed wins over Sent, Sent over Copied, and Copied over New. Events older than 30 days go,
+ * as the tracker refuses them, and the newest 250 stay.
+ *
+ * <p>A build from before Sent, sharing the file, reads a Sent entry as one it can't use and
+ * leaves it out, and its next write, which merges only the entries it could read, removes it
+ * from the file (a newer RuneLite still running writes back what it holds, but one that opens
+ * the file afterwards won't see it). Such an event has already reached the relay, so the
+ * tracker still gets it. This build doesn't guard against that; it is only said here.
  *
  * <p>Events recorded before Stage 4 live in event-history.json, which this never reads: they
  * have no state, and some carry old labels (plan decision 8).
@@ -39,10 +45,13 @@ public final class DetectedEventStore
     static final int MAX_EVENTS = 250;
     static final long MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000;
 
-    /** In the order a merge prefers: a later state wins. */
+    /**
+     * In the order a merge prefers: a later state wins. Sent is the relay's (Send to tracker), and
+     * comes after Copied so a copy after a send leaves the event Sent.
+     */
     public enum Status
     {
-        NEW, COPIED, DISMISSED
+        NEW, COPIED, SENT, DISMISSED
     }
 
     @Value
@@ -129,7 +138,7 @@ public final class DetectedEventStore
     }
 
     /**
-     * What the Roll inbox offers: this run's events that are New or Copied and young enough for
+     * What the Roll inbox offers: this run's events that are New, Copied or Sent and young enough for
      * the tracker, newest first. A pet is offered too: the tracker asks which pet it was, and each
      * pet gives its Omni-Key once.
      */
