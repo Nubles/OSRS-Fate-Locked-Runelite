@@ -118,7 +118,8 @@ asks it to. For review:
   goes is the tracker's table (its `codes`). It fails open: a dial turns on
   the server, so a confirm within two ticks of another click on the dials or
   their travel log that still shows the code from before is let through, as
-  is any other op, any other kind of widget click, and a code the table
+  is one within two ticks of two such clicks close together (a change may be
+  only the first of them), any other op, any other kind of widget click, and a code the table
   doesn't list or two methods list.
 - **Advice on the dials.** While the dials are open, one line drawn above
   them (or just inside their top edge where there's no room above) names the
@@ -347,8 +348,8 @@ Strict Mode fails open when:
 - the option can go to several places, or its method is advisory (a network
   or boat) and Block networks and boats is off;
 - a fairy ring confirm's code can't be read with certainty (within two ticks
-  of another click on the dials, with the dials unchanged), or isn't in the
-  table;
+  of another click on the dials, with the dials unchanged or with two such
+  clicks close together), or isn't in the table;
 - the tracker's decision is Allowed, Not ready or Unknown; or
 - evaluation throws or required client state is unavailable.
 
