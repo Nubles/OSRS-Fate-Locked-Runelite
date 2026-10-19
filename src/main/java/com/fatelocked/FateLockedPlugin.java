@@ -187,6 +187,7 @@ public class FateLockedPlugin extends Plugin
     @Inject private FateLockedFlashOverlay flashOverlay;
     @Inject private FateLockedUnlockOverlay unlockOverlay;
     @Inject private FateLockedOutlineOverlay outlineOverlay;
+    @Inject private FateLockedFairyRingOverlay fairyRingOverlay;
     @Inject private ChatMessageManager chatMessageManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private FateLockedPanel panel;
@@ -517,6 +518,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(flashOverlay);
         overlayManager.add(unlockOverlay);
         overlayManager.add(outlineOverlay);
+        overlayManager.add(fairyRingOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
         travelBlockOverlay.setPalette(this::palette);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
@@ -582,6 +584,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.remove(flashOverlay);
         overlayManager.remove(unlockOverlay);
         overlayManager.remove(outlineOverlay);
+        overlayManager.remove(fairyRingOverlay);
         if (navButton != null)
         {
             clientToolbar.removeNavigation(navButton);
