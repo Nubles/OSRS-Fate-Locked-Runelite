@@ -27,6 +27,8 @@ final class StatusCardPresenter
     static final String TRACKER_RULES = "Using the tracker's rules";
     static final String OUT_OF_DATE = "Rules may be out of date";
     static final String STRICT_WAITS = "Strict Mode is inactive until the rules refresh.";
+    /** What opening the tracker does about old rules: it sends them again, with a new time. */
+    static final String REFRESH = "Open the tracker, or reload its tab, so it sends them again.";
 
     private StatusCardPresenter()
     {
@@ -145,6 +147,18 @@ final class StatusCardPresenter
             return StatusCardModel.of(Tone.GOOD, TRACKER_RULES, failure == null ? detail : detail + " " + failure)
                 .withActions(CardAction.CHECK_NOW, null);
         }
+        FreshnessPolicy.Verdict freshness = facts.getFreshness();
+        if (freshness != null && freshness.isTrackerRulesOld())
+        {
+            // The relay answers, but the rules are old (ECO-3): a 304 says only that nothing new
+            // reached it, not that the tracker managed to send. Strict Mode lets everything through.
+            String forWhom = facts.isBound() ? " for " + name(facts.getBoundAccount()) : "";
+            String sent = facts.getExportedAt() == null || freshness.getAge() == null ? ""
+                : "The tracker sent these rules" + forWhom + " " + time(facts.getExportedAt(), facts) + ". ";
+            String detail = sent + oldRules(freshness, facts.isStrictMode()) + " " + REFRESH;
+            return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE, failure == null ? detail : detail + " " + failure)
+                .withActions(CardAction.OPEN_TRACKER, CardAction.CHECK_NOW);
+        }
         return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE,
             "Last synced " + ago(lastSync, facts) + ". " + (failure == null ? "" : failure + " ") + STRICT_WAITS)
             .withActions(CardAction.CHECK_NOW, null);
@@ -197,6 +211,20 @@ final class StatusCardPresenter
         }
         return StatusCardModel.of(Tone.NEUTRAL, "Not connected", "Connect the tracker to load your run's rules.")
             .withActions(CardAction.CONNECT, CardAction.USE_BACKUP);
+    }
+
+    /**
+     * The tracker's rules are too old, or of unknown age (ECO-3). With Strict Mode on: "Strict
+     * Mode paused: the rules are 14 h old." The status card and the one chat line say the same.
+     */
+    static String oldRules(FreshnessPolicy.Verdict freshness, boolean strictMode)
+    {
+        String why = freshness.getAge() == null
+            ? "the rules don't say when the tracker sent them"
+            : "the rules are " + Copy.age(freshness.getAge()) + " old";
+        return strictMode
+            ? "Strict Mode paused: " + why + "."
+            : Character.toUpperCase(why.charAt(0)) + why.substring(1) + ", so they may not match your run.";
     }
 
     /** Why the last check failed and when the next one is, or null when it didn't fail. */

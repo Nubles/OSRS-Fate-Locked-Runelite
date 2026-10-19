@@ -59,11 +59,17 @@ public class StrictModeReadiness
         }
         if (!freshRules)
         {
-            return inactive("the rules are more than 15 minutes old");
+            // FreshnessPolicy decides: the tracker's rules sent over 12 hours ago, the
+            // relay silent, or a backup over 15 minutes old. The
+            // status card says which, and how old the rules are.
+            return inactive(STALE_RULES);
         }
         if (paused) return new StrictModeReadiness(State.PAUSED, null);
         return new StrictModeReadiness(State.ACTIVE, null);
     }
+
+    /** Why Strict Mode lets everything through while the rules may be out of date (ECO-3). */
+    public static final String STALE_RULES = "the rules may be out of date; open the tracker to refresh them";
 
     private static StrictModeReadiness inactive(String reason)
     {
