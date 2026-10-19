@@ -138,7 +138,11 @@ public class RollInboxView extends Section
         {
             JPanel copied = new JPanel(new BorderLayout());
             copied.setOpaque(false);
-            copied.add(Sidebar.text(done(model), Type.body(), Palette.TEXT, 0), BorderLayout.WEST);
+            String done = doneUnlessSaid(model);
+            if (!done.isEmpty())
+            {
+                copied.add(Sidebar.text(done, Type.body(), Palette.TEXT, 0), BorderLayout.WEST);
+            }
             copied.add(copyAgain, BorderLayout.EAST);
             body.add(copied);
         }
@@ -174,6 +178,20 @@ public class RollInboxView extends Section
         String sent = SENT + " " + model.getSent();
         return model.getCopied() == 0 ? sent
             : sent + ", " + Terms.COPIED.toLowerCase(Locale.ROOT) + " " + model.getCopied();
+    }
+
+    /**
+     * The done line's words, or "" when the notice under it already opens with them ("Sent 7"
+     * over "Sent 7. They're waiting...", "Copied 5" over "Copied 5 events. ..."): Copy again then
+     * stands alone, so the count isn't said twice.
+     */
+    static String doneUnlessSaid(RollInboxModel model)
+    {
+        String done = done(model);
+        String notice = model.getNotice();
+        boolean said = notice != null && notice.startsWith(done)
+            && (notice.length() == done.length() || !Character.isDigit(notice.charAt(done.length())));
+        return said ? "" : done;
     }
 
     /** An event's row: its type's art, its name, where it stands, and a quiet cross to dismiss it. */

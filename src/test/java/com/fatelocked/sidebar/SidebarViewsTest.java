@@ -385,11 +385,12 @@ public class SidebarViewsTest
             buttons(inbox).get(0).doClick();
             assertEquals(1, sends[0]);
 
-            // Done: what was said stays under the buttons, and Copy again still copies everything.
+            // Done: what was said stays under the buttons, and Copy again still copies everything. The
+            // notice already says how many went, so the line above it doesn't say it again.
             String notice = "Sent 2. They're waiting in your tracker's Roll Inbox.";
             inbox.apply(RollInboxModel.builder().rows(List.of(sent)).sent(2).canSend(true).notice(notice).build());
             assertEquals(null, inbox.getCount());
-            assertTrue(texts(inbox).contains(RollInboxView.SENT + " 2"));
+            assertFalse(texts(inbox).contains(RollInboxView.SENT + " 2"));
             assertTrue(texts(inbox).contains(notice));
             assertEquals(List.of(RollInboxView.COPY_AGAIN, "Open web Roll Inbox"), buttonTexts(inbox));
             buttons(inbox).get(0).doClick();
@@ -408,6 +409,18 @@ public class SidebarViewsTest
         assertEquals("Copied 5", RollInboxView.done(RollInboxModel.builder().copied(5).build()));
         assertEquals("Sent 3", RollInboxView.done(RollInboxModel.builder().sent(3).build()));
         assertEquals("Sent 3, copied 2", RollInboxView.done(RollInboxModel.builder().sent(3).copied(2).build()));
+        // Under a notice that opens with the same words, the line is left to Copy again alone.
+        assertEquals("", RollInboxView.doneUnlessSaid(RollInboxModel.builder().sent(7)
+            .notice("Sent 7. They're waiting in your tracker's Roll Inbox.").build()));
+        assertEquals("", RollInboxView.doneUnlessSaid(RollInboxModel.builder().copied(5)
+            .notice("Copied 5 events. In the tracker's Roll Inbox, choose Paste from RuneLite.").build()));
+        assertEquals("Sent 7", RollInboxView.doneUnlessSaid(RollInboxModel.builder().sent(7).build()));
+        assertEquals("another count", "Sent 7", RollInboxView.doneUnlessSaid(RollInboxModel.builder().sent(7)
+            .notice("Sent 70. They're waiting in your tracker's Roll Inbox.").build()));
+        assertEquals("Sent 3, copied 2", RollInboxView.doneUnlessSaid(RollInboxModel.builder().sent(3).copied(2)
+            .notice("Sent 1. It's waiting in your tracker's Roll Inbox.").build()));
+        assertEquals("Copied 5", RollInboxView.doneUnlessSaid(RollInboxModel.builder().copied(5)
+            .notice("Couldn't copy: the clipboard is busy. Try again.").build()));
         assertTrue(RollInboxView.NOTE, RollInboxView.NOTE.contains(RollInboxView.SEND_TO_TRACKER));
         assertTrue(RollInboxView.NOTE, RollInboxView.NOTE.contains(Terms.COPY_FOR_TRACKER));
     }
