@@ -1,6 +1,8 @@
 package com.fatelocked;
 
 import com.google.gson.Gson;
+import com.fatelocked.badges.BadgeIcons;
+import com.fatelocked.badges.BadgeService;
 import com.fatelocked.events.DetectedEventStore;
 import com.fatelocked.events.FateEventFactory;
 import com.fatelocked.events.FateEvent;
@@ -98,6 +100,7 @@ import net.runelite.api.gameval.VarClientID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.Notifier;
+import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.callback.ClientThread;
@@ -204,6 +207,7 @@ public class FateLockedPlugin extends Plugin
     @Inject private OkHttpClient okHttpClient;
     @Inject private ConfigManager configManager;
     @Inject private TrackerConnectionSettings connectionSettings;
+    @Inject private ChatIconManager chatIconManager;
 
     /** This start's way onto the client thread; closed while the plugin is off. */
     private volatile ClientThreadGate gate = ClientThreadGate.closed();
@@ -214,6 +218,10 @@ public class FateLockedPlugin extends Plugin
     private SavedRulesStore savedRules;
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
+    /** The badge keys, loaded and handed to the chat icon manager once for the plugin's life. */
+    private BadgeIcons badgeIcons;
+    /** This start's badges: other players' keys, and the player's own on the relay's list. */
+    private BadgeService badges;
     private final RepeatedValueLimiter invalidImportLimiter =
         new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
     /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
@@ -550,6 +558,7 @@ public class FateLockedPlugin extends Plugin
         });
         loadSavedRules();
         loadSpots();
+        startBadges(started);
         keyManager.registerKeyListener(reimportHotkey);
         keyManager.registerKeyListener(pauseStrictHotkey);
         startTrackerPoll();
@@ -561,6 +570,7 @@ public class FateLockedPlugin extends Plugin
         // First, so nothing this start queued can bring rules back later.
         gate.close();
         stopTrackerPoll();
+        stopBadges();
         if (travelOverlayLifecycle != null)
         {
             try
@@ -3283,6 +3293,45 @@ public class FateLockedPlugin extends Plugin
     static BufferedImage navigationIcon()
     {
         return ImageUtil.loadImageResource(FateLockedPlugin.class, "nav_icon.png");
+    }
+
+    /**
+     * Badges: other players' keys in chat and over heads, and the player's own on the relay's
+     * public list when they share it. Nothing reaches the relay without online sync's consent.
+     */
+    private void startBadges(ClientThreadGate started)
+    {
+        try
+        {
+            if (badgeIcons == null)
+            {
+                badgeIcons = new BadgeIcons();
+            }
+            badgeIcons.register(chatIconManager);
+            badges = BadgeWiring.create(okHttpClient, gson, connectionSettings, config, configManager, client,
+                badgeIcons, this::getBundle, this::loggedInName, () -> decisions, started::run);
+            eventBus.register(badges);
+            overlayManager.add(badges.overlay());
+            started.run(badges::start);
+        }
+        catch (RuntimeException error)
+        {
+            // Badges are a nicety: the rest of the plugin starts without them.
+            log.warn("Could not start badges: {}", error.getMessage());
+        }
+    }
+
+    private void stopBadges()
+    {
+        BadgeService stopping = badges;
+        badges = null;
+        if (stopping == null)
+        {
+            return;
+        }
+        eventBus.unregister(stopping);
+        overlayManager.remove(stopping.overlay());
+        stopping.stop();
     }
 
     private void startTrackerPoll()

@@ -79,13 +79,12 @@ public class PluginHubNetworkBoundaryTest
         Map<Path, String> sources = productionSources();
         String relaySource = sourceNamed(sources, "BadgeRelay.java");
         String compactRelay = relaySource.replaceAll("\\s+", " ");
-        String compactPlugin = sourceNamed(sources, "FateLockedPlugin.java").replaceAll("\\s+", " ");
+        String compactWiring = sourceNamed(sources, "BadgeWiring.java").replaceAll("\\s+", " ");
 
         assertEquals(1, occurrences(relaySource, "new Request.Builder()"));
         assertTrue(compactRelay.contains("new Request.Builder().url(relayBase + path)"));
-        assertTrue(compactPlugin.contains(
-            "new BadgeRelay(okHttpClient, gson, TrackerConnectionSettings.RELAY_BASE_URL)"));
-        assertEquals(1, occurrences(compactPlugin, "new BadgeRelay("));
+        assertTrue(compactWiring.contains("new BadgeRelay(http, gson, TrackerConnectionSettings.RELAY_BASE_URL)"));
+        assertEquals(1, occurrences(String.join("\n", sources.values()), "new BadgeRelay("));
         assertTrue(compactRelay.contains("request(\"/badges\").get()"));
         assertTrue(compactRelay.contains("return \"/r/\" + code + \"/badge\";"));
         assertEquals(1, occurrences(relaySource, ".post("));
