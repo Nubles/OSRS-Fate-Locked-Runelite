@@ -51,6 +51,9 @@ import static org.mockito.Mockito.when;
 @RunWith(Parameterized.class)
 public class StrictModeGateTest
 {
+    /** The fixture's fairy ring object (bundles/v4-travel.json), whose Zanaris the rules lock. */
+    private static final int FAIRY_RING = 29495;
+
     /** NO_TRAVEL: bound v4 rules saved before the tracker sent a travel table (F6). */
     enum Rules { BOUND, UNBOUND, NONE, LEGACY, NO_TRAVEL }
 
@@ -113,14 +116,41 @@ public class StrictModeGateTest
         MenuOptionClicked teleport = TravelClicks.cast("Falador Teleport");
         MenuOptionClicked dialogue = TravelClicks.click(MenuAction.WIDGET_CONTINUE, "Continue", "");
         MenuOptionClicked wield = TravelClicks.item(4151, "Wield", "Abyssal whip");
+        // The fixture's fairy ring locks Zanaris, one place: off by default, networks are only tagged.
+        MenuOptionClicked zanaris = TravelClicks.object(FAIRY_RING, "Zanaris", "Fairy ring");
         harness.plugin.onMenuOptionClicked(teleport);
         harness.plugin.onMenuOptionClicked(dialogue);
         harness.plugin.onMenuOptionClicked(wield);
+        harness.plugin.onMenuOptionClicked(zanaris);
 
         boolean active = state == StrictModeReadiness.State.ACTIVE;
         verify(teleport, times(active ? 1 : 0)).consume();
         verify(dialogue, never()).consume();
         verify(wield, never()).consume();
+        verify(zanaris, never()).consume();
+        assertEquals(active ? List.of("BLOCKED")
+                : state == StrictModeReadiness.State.PAUSED ? List.of("ALLOWED_PAUSED")
+                : Collections.emptyList(),
+            harness.auditOutcomes());
+        assertEquals(active ? 1 : 0, harness.chat.size());
+    }
+
+    /** With "Block networks and boats" on, a one-place network trip the rules lock goes through the same gate. */
+    @Test
+    public void withNetworksBlockedAOnePlaceNetworkTripIsGatedLikeATeleport() throws Exception
+    {
+        Harness harness = new Harness(true);
+        StrictModeReadiness.State state = harness.plugin.strictModeReadiness().getState();
+        assertEquals("the setting doesn't change the readiness", expectedState(), state);
+
+        MenuOptionClicked zanaris = TravelClicks.object(FAIRY_RING, "Zanaris", "Fairy ring");
+        MenuOptionClicked dialogue = TravelClicks.click(MenuAction.WIDGET_CONTINUE, "Continue", "");
+        harness.plugin.onMenuOptionClicked(zanaris);
+        harness.plugin.onMenuOptionClicked(dialogue);
+
+        boolean active = state == StrictModeReadiness.State.ACTIVE;
+        verify(zanaris, times(active ? 1 : 0)).consume();
+        verify(dialogue, never()).consume();
         assertEquals(active ? List.of("BLOCKED")
                 : state == StrictModeReadiness.State.PAUSED ? List.of("ALLOWED_PAUSED")
                 : Collections.emptyList(),
@@ -155,8 +185,15 @@ public class StrictModeGateTest
 
         private Harness() throws Exception
         {
+            this(false);
+        }
+
+        /** @param networks whether "Block networks and boats" is on */
+        private Harness(boolean networks) throws Exception
+        {
             FateLockedConfig config = mock(FateLockedConfig.class);
             when(config.strictMode()).thenReturn(enabled);
+            when(config.blockNetworks()).thenReturn(networks);
             set("config", config);
 
             Client client = mock(Client.class);

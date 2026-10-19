@@ -51,6 +51,8 @@ final class TravelGuardianPluginShell
     private final AuditSink auditSink;
     private final DiagnosticSink diagnosticSink;
     private final Clock clock;
+    /** A fairy ring's dials, followed across clicks so a confirm is read only once they have settled. */
+    private final FairyRingDial fairyRingDial = new FairyRingDial();
 
     TravelGuardianPluginShell(
         TravelGuardianCoordinator coordinator,
@@ -77,7 +79,7 @@ final class TravelGuardianPluginShell
         TravelGuardianResult result;
         try
         {
-            MenuFacts facts = new MenuFactsReader(client).read(event.getMenuEntry());
+            MenuFacts facts = new MenuFactsReader(client, fairyRingDial).read(event.getMenuEntry());
             result = coordinator.handle(event, facts, readiness, travelRules, availability);
         }
         catch (RuntimeException ex)

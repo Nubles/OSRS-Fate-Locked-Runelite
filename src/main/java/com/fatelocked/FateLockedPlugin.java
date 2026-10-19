@@ -190,6 +190,7 @@ public class FateLockedPlugin extends Plugin
     @Inject private FateLockedFlashOverlay flashOverlay;
     @Inject private FateLockedUnlockOverlay unlockOverlay;
     @Inject private FateLockedOutlineOverlay outlineOverlay;
+    @Inject private FateLockedFairyRingOverlay fairyRingOverlay;
     @Inject private ChatMessageManager chatMessageManager;
     @Inject private ClientToolbar clientToolbar;
     @Inject private FateLockedPanel panel;
@@ -529,6 +530,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.add(flashOverlay);
         overlayManager.add(unlockOverlay);
         overlayManager.add(outlineOverlay);
+        overlayManager.add(fairyRingOverlay);
         travelBlockOverlay.setPauseGuardian(pauseStrictMode);
         travelBlockOverlay.setPalette(this::palette);
         travelOverlayLifecycle = new TravelGuardianOverlayLifecycle(
@@ -597,6 +599,7 @@ public class FateLockedPlugin extends Plugin
         overlayManager.remove(flashOverlay);
         overlayManager.remove(unlockOverlay);
         overlayManager.remove(outlineOverlay);
+        overlayManager.remove(fairyRingOverlay);
         if (navButton != null)
         {
             clientToolbar.removeNavigation(navButton);
@@ -792,6 +795,10 @@ public class FateLockedPlugin extends Plugin
             {
                 panel.showStrictModeIntro();
             }
+        }
+        else if (FateLockedConfig.BLOCK_NETWORKS_KEY.equals(key))
+        {
+            updateStrictModePanel();
         }
         else if (FateLockedConfig.NETWORK_ACCESS_KEY.equals(key))
         {
@@ -1624,7 +1631,8 @@ public class FateLockedPlugin extends Plugin
      * fresh rules bound to this character prove the destination locked. The
      * readiness the sidebar shows is the one gate for the only click the
      * plugin ever consumes; walking, NPCs, objects, banks and equipment are
-     * never blocked.
+     * never blocked, apart from one-place network and boat trips with "Block
+     * networks and boats" on.
      */
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event)
@@ -1713,7 +1721,7 @@ public class FateLockedPlugin extends Plugin
     {
         StrictModeStatusView status = StrictModeStatusView.of(
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
-            strictModeReadiness().getReason());
+            strictModeReadiness().getReason(), config.blockNetworks());
         strictModeStatus = status;
         refreshSidebar();
     }
@@ -1735,7 +1743,7 @@ public class FateLockedPlugin extends Plugin
             AccountBinding.boundAccount(getBundle()),
             loggedInName(),
             ruleDecisions.trust() == Trust.TRUSTED && ruleDecisions.isBound(),
-            rulesAreFresh());
+            rulesAreFresh()).withNetworks(config.blockNetworks());
     }
     /**
      * Whether the active rules are recent enough for Strict Mode to act on.
@@ -1775,9 +1783,9 @@ public class FateLockedPlugin extends Plugin
     /**
      * Whether a menu option is tagged (F4, G14). Travel the tracker's table
      * matches by id is tagged only for an exact LOCKED decision, one place,
-     * as Strict Mode reads it; networks and boats, which Strict Mode never
-     * blocks, are tagged the same way. Anything else is tagged by the chunk
-     * it stands in.
+     * as Strict Mode reads it; networks and boats, which Strict Mode blocks
+     * only with "Block networks and boats" on, are tagged the same way.
+     * Anything else is tagged by the chunk it stands in.
      */
     private boolean taggedLocked(MenuEntry entry, DecisionService ruleDecisions)
     {

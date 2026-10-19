@@ -46,6 +46,7 @@ nothing the plugin can block. For review:
   and nothing rolls until the player chooses Roll there.
 - **Local files.** `detected-events.json` gains a Sent state beside Copied.
   Copy for tracker stays as it was, and still copies sent events too.
+
 ## What badges change
 
 Badges add an opt-in upload and a public download, both to
@@ -86,6 +87,50 @@ online sync off, the Badges settings do nothing and no badge request is made.
   scene's players (none hidden by the Tombs of Amascut's hide-players
   option); a frame only places and draws them. It is a drawing, never a
   click or a menu change.
+
+## What Block networks and boats changes
+
+Strict Mode can now stop a network or boat trip, but only when the player
+asks it to. For review:
+
+- **Off by default, and opt-in.** A new Strict Mode setting, **Block networks
+  and boats** (`blockNetworks`), is off by default. With it off, networks and
+  boats behave exactly as before: matched, tagged (Locked), never blocked.
+  `StrictModeGateTest` drives the plugin with it off and pins that the
+  fixture's locked fairy ring trip is never consumed.
+- **One place, by id, Locked, or nothing.** With it on, a network or boat
+  option is stopped under the same rule as a teleport, through the same one
+  consume site: the tracker's table matches the option by its object or NPC
+  id and exact text, the option goes to exactly one place, the tracker's
+  decision is Locked, and Strict Mode is Active (on, not paused, with fresh
+  rules bound to the logged-in character). Examples: a fairy ring's Zanaris
+  or Last-destination (CKS), a charter crew's Charter-to options,
+  Glider-to Gandius, a ferry option naming one port. An option that can go
+  to several places (a spirit tree's Travel, a glider's Glider, a balloon's
+  Fly, a charter's Charter) is never stopped. The notice, chat line, audit
+  entry and pause are the same as a teleport's. The code holds the limit:
+  the table can't make a several-place option blockable.
+- **The fairy ring's dials.** A left click on the dials' confirm button
+  (interface 398, `InterfaceID.Fairyrings.CONFIRM`, its first op) is read as
+  the trip to the code the dials show, from the three dial varbits
+  (`VarbitID.FAIRYRING_1` to `_3`, as RuneLite's own Fairy Rings plugin reads
+  them). The interface only says which click is the trip; where the code
+  goes is the tracker's table (its `codes`). It fails open: a dial turns on
+  the server, so a confirm within two ticks of another click on the dials or
+  their travel log that still shows the code from before is let through, as
+  is any other op, any other kind of widget click, and a code the table
+  doesn't list or two methods list.
+- **Advice on the dials.** While the dials are open, one line drawn above
+  them (or just inside their top edge where there's no room above) names the
+  code and the tracker's decision, such as "CKS: Locked: Needs Fairy Rings". It is
+  drawn only, reads the dials' varbits and bounds each frame, and works with
+  Strict Mode off. **Fairy ring dial status**, under Alerts (on by default),
+  turns it off.
+- **Says what it covers.** While Strict Mode is Active or Paused, the sidebar
+  card and the HUD say "Networks and boats: blocked" or "tagged only".
+- **No new network, file or click.** No new request or local file, no
+  synthetic input, and still one consume site
+  (`PluginHubClickBoundaryTest`).
 
 ## What Stage 4 changes
 
@@ -263,10 +308,14 @@ spellbook and a spell's name, or a tablet, scroll or teleport item's item
 id), the option goes to one destination, and fresh rules bound to the
 logged-in character lock that trip: the destination, or the unlock the trip
 needs, is locked. It never consumes walking, NPC, object (including doors,
-stairs and ladders), bank or equipment clicks; those get only the passive
-(Locked) menu tag and chat warnings. Fairy rings, spirit trees, gliders,
-charters, boats and the other networks are matched too, and an option to one
-locked place is tagged, but they are never blocked. Because blocking travel
+stairs and ladders), bank or equipment clicks, apart from the network and
+boat trips below; those get only the passive (Locked) menu tag and chat
+warnings. Fairy rings, spirit trees, gliders, charters, boats and the other
+networks are matched too, and an option to one locked place is tagged. They
+are blocked only when the player turns on **Block networks and boats**, off
+by default, and then only under the same rule: matched by object or NPC id,
+one destination, a Locked decision (a fairy ring's dialled code counts as the
+option for that code). Because blocking travel
 is behaviorally adjacent to conditional menu-entry restrictions, we request
 reviewer pre-clearance and do not claim that this behavior is already
 approved.
@@ -295,7 +344,11 @@ Strict Mode fails open when:
 - the click is walking, or an NPC, object, bank or equipment option;
 - the tracker's table doesn't match the click by id, or two of its methods
   do;
-- the option can go to several places, or its method is advisory;
+- the option can go to several places, or its method is advisory (a network
+  or boat) and Block networks and boats is off;
+- a fairy ring confirm's code can't be read with certainty (within two ticks
+  of another click on the dials, with the dials unchanged), or isn't in the
+  table;
 - the tracker's decision is Allowed, Not ready or Unknown; or
 - evaluation throws or required client state is unavailable.
 

@@ -19,6 +19,26 @@ public class StrictModeModel
     CardAction action;
     /** What it stopped lately, newest first; hidden while empty. */
     List<String> recent;
+    /** "Networks and boats: blocked" or "… tagged only", while it can stop something; null otherwise. */
+    String scope;
+
+    public StrictModeModel(boolean on, String word, Palette.Tone tone, String detail, CardAction action,
+        List<String> recent)
+    {
+        this(on, word, tone, detail, action, recent, null);
+    }
+
+    public StrictModeModel(boolean on, String word, Palette.Tone tone, String detail, CardAction action,
+        List<String> recent, String scope)
+    {
+        this.on = on;
+        this.word = word;
+        this.tone = tone;
+        this.detail = detail;
+        this.action = action;
+        this.recent = recent;
+        this.scope = scope;
+    }
 
     public static StrictModeModel off()
     {

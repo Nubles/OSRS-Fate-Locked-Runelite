@@ -44,6 +44,61 @@ public class StrictModeGuardTest
             guard.decideTravel(advisory(), locked, paused()).getOutcome());
     }
 
+    /**
+     * "Block networks and boats": an advisory trip to one place the tracker locks is blocked
+     * like a teleport, and paused like one; several places never are; nothing else changes.
+     */
+    @Test
+    public void blockNetworksCoversOnlyAdvisoryTripsToOnePlace()
+    {
+        TravelDecision locked = travelDecision(PermissionStatus.LOCKED);
+
+        assertEquals(GuardResult.Outcome.BLOCK,
+            guard.decideTravel(advisory(), locked, active().withNetworks(true)).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW_PAUSED,
+            guard.decideTravel(advisory(), locked, paused().withNetworks(true)).getOutcome());
+        assertEquals("off, networks are only tagged", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, active().withNetworks(false)).getOutcome());
+        assertEquals("several places are never blocked", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisorySeveralPlaces(), locked, active().withNetworks(true)).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisorySeveralPlaces(), locked, paused().withNetworks(true)).getOutcome());
+        for (PermissionStatus status : new PermissionStatus[] {
+            PermissionStatus.ALLOWED, PermissionStatus.NOT_READY, PermissionStatus.UNKNOWN})
+        {
+            assertEquals(status.name(), GuardResult.Outcome.ALLOW,
+                guard.decideTravel(advisory(), travelDecision(status), active().withNetworks(true)).getOutcome());
+        }
+        assertEquals("the setting doesn't turn Strict Mode on", GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, off().withNetworks(true)).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, stale().withNetworks(true)).getOutcome());
+        assertEquals(GuardResult.Outcome.ALLOW,
+            guard.decideTravel(advisory(), locked, wrongAccount().withNetworks(true)).getOutcome());
+
+        // Teleports are the same either way.
+        for (boolean networks : new boolean[] {false, true})
+        {
+            assertEquals(GuardResult.Outcome.BLOCK,
+                guard.decideTravel(exactTravel(), locked, active().withNetworks(networks)).getOutcome());
+            assertEquals(GuardResult.Outcome.ALLOW,
+                guard.decideTravel(severalPlaces(), locked, active().withNetworks(networks)).getOutcome());
+            assertEquals(GuardResult.Outcome.ALLOW,
+                guard.decideTravel(unknownTravel(), locked, active().withNetworks(networks)).getOutcome());
+        }
+    }
+
+    @Test
+    public void networksAreOffUnlessTheReadinessSaysSo()
+    {
+        assertEquals(false, active().isNetworks());
+        assertEquals(false, new StrictModeReadiness(StrictModeReadiness.State.ACTIVE, null).isNetworks());
+        StrictModeReadiness covered = active().withNetworks(true);
+        assertEquals(true, covered.isNetworks());
+        assertEquals(active().getState(), covered.getState());
+        assertEquals(stale().getReason(), stale().withNetworks(true).getReason());
+    }
+
     @Test
     public void aPauseLetsOnlyAProvenLockThroughAsPaused()
     {
@@ -127,6 +182,12 @@ public class StrictModeGuardTest
     {
         return new TravelAction("network:fairy-ring", "Zanaris", "Fairy ring to Zanaris",
             Collections.singletonList(new CanonicalChunk(37, 69)), true, TravelAction.Confidence.EXACT);
+    }
+
+    private static TravelAction advisorySeveralPlaces()
+    {
+        return new TravelAction("network:gnome-glider", "Glider", "Gnome glider",
+            Arrays.asList(new CanonicalChunk(38, 54), new CanonicalChunk(46, 46)), true, TravelAction.Confidence.EXACT);
     }
 
     private static TravelAction unknownTravel()

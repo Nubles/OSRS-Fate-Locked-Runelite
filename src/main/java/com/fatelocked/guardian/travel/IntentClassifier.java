@@ -14,8 +14,10 @@ import java.util.List;
  * spellbook and the spell's name on the spellbook, an item by its id in the
  * inventory or worn items, and an object or NPC by its id. Each kind of
  * method matches only its own kind of click, so an object's id is never
- * read as an item's. Anything else, including a click two methods match,
- * isn't travel: Strict Mode leaves it alone.
+ * read as an item's. A click on a fairy ring's confirm button is the trip
+ * to the code its dials show, as the method whose codes list it has it.
+ * Anything else, including a click two methods match, isn't travel: Strict
+ * Mode leaves it alone.
  */
 public final class IntentClassifier
 {
@@ -26,6 +28,11 @@ public final class IntentClassifier
     public TravelMatch classify(MenuFacts facts, TravelTable table)
     {
         if (facts == null || table == null) return null;
+        if (facts.getKind() == MenuFacts.Kind.WIDGET && facts.getComponentId() == InterfaceID.Fairyrings.CONFIRM)
+        {
+            // The interface says which click is the trip; the table says where the code goes.
+            return dialled(facts.getFairyRingCode(), table);
+        }
         TravelMatch match = null;
         for (TravelTable.Method method : candidates(facts, table))
         {
@@ -61,6 +68,24 @@ public final class IntentClassifier
             default:
                 return Collections.emptyList();
         }
+    }
+
+    /**
+     * The trip a fairy ring code is: the code's option in the one method whose codes list it.
+     * Null for no code, a code no method lists, or one two methods list.
+     */
+    public TravelMatch dialled(String code, TravelTable table)
+    {
+        if (code == null || table == null) return null;
+        TravelMatch match = null;
+        for (TravelTable.Method method : table.methods())
+        {
+            TravelTable.Option option = method.getCodes().get(code);
+            if (option == null) continue;
+            if (match != null) return null;
+            match = new TravelMatch(method, option);
+        }
+        return match;
     }
 
     /** The table's name for the spellbook varbit's value; null for one it doesn't know. */

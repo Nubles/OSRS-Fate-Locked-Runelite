@@ -194,6 +194,25 @@ public class HudPresenterTest
             .strict(StrictModeStatusView.of(false, false, 0, null)).build())).get("Strict Mode"));
     }
 
+    /** Under Strict Mode's line, whether networks and boats are blocked, while it can stop something. */
+    @Test
+    public void theHudSaysWhetherNetworksAndBoatsAreBlocked() throws Exception
+    {
+        DecisionService mid = playing("vanilla-mid", "iron example");
+
+        HudModel blocked = HudPresenter.present(facts(mid, LUMBRIDGE)
+            .strict(StrictModeStatusView.of(true, false, 0, null, true)).build());
+        assertEquals("Blocked", lines(blocked).get("Networks"));
+        List<String> order = labels(blocked);
+        assertEquals(order.indexOf("Strict Mode") + 1, order.indexOf("Networks"));
+        assertEquals("Tagged only", lines(HudPresenter.present(facts(mid, LUMBRIDGE)
+            .strict(StrictModeStatusView.of(true, true, 9, null, false)).build())).get("Networks"));
+        assertNull(lines(HudPresenter.present(facts(mid, LUMBRIDGE)
+            .strict(StrictModeStatusView.of(true, false, 0, "you are not logged in", true)).build())).get("Networks"));
+        assertNull(lines(HudPresenter.present(facts(mid, LUMBRIDGE)
+            .strict(StrictModeStatusView.of(false, false, 0, null, true)).build())).get("Networks"));
+    }
+
     /** An older export's Status is its own lock state, as before, and gives no reasons. */
     @Test
     public void anOlderExportShowsItsOwnLockState() throws Exception
