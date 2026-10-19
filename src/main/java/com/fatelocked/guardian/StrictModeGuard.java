@@ -22,7 +22,7 @@ public final class StrictModeGuard
         TravelDecision decision,
         StrictModeReadiness readiness)
     {
-        if (readiness == null || !provesLocked(action, decision))
+        if (readiness == null || !provesLocked(action, decision, readiness.isNetworks()))
         {
             return new GuardResult(GuardResult.Outcome.ALLOW, decision);
         }
@@ -39,15 +39,16 @@ public final class StrictModeGuard
 
     /**
      * The code's outer limit, which the rules can't widen (F3): travel the
-     * tracker's table matched by id, with one destination, not advisory, and
-     * a LOCKED decision. Networks and boats are advisory in Stage 2.
+     * tracker's table matched by id, with one destination, and a LOCKED
+     * decision. An advisory method (a network or a boat) counts only when the
+     * player chose "Block networks and boats"; otherwise it is only tagged.
      */
-    private static boolean provesLocked(TravelAction action, TravelDecision decision)
+    private static boolean provesLocked(TravelAction action, TravelDecision decision, boolean networks)
     {
         return action != null && decision != null
             && action.getConfidence() == TravelAction.Confidence.EXACT
             && action.getDestination() != null
-            && !action.isAdvisory()
+            && (!action.isAdvisory() || networks)
             && decision.getStatus() == PermissionStatus.LOCKED;
     }
 }

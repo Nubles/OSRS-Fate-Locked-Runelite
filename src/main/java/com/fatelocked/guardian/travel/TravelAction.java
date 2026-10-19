@@ -33,7 +33,7 @@ public class TravelAction
     String label;
     /** Every chunk the option can go to; empty when the click isn't travel, or the table doesn't say. */
     List<CanonicalChunk> destinations;
-    /** Tagged but never blocked: networks and boats in Stage 2. */
+    /** A network or boat: tagged, and blocked only with "Block networks and boats" on. */
     boolean advisory;
     /** EXACT when the table matched the click by id. */
     Confidence confidence;
