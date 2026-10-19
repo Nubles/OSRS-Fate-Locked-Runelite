@@ -98,6 +98,25 @@ public class PluginHubNetworkBoundaryTest
         assertEquals(1, occurrences(allSource, "NavigationButton.builder()"));
     }
 
+    /** Send to tracker is called from one place: the Roll inbox card's button, through the plugin. */
+    @Test
+    public void onlyTheCardsButtonSends()
+        throws Exception
+    {
+        Map<Path, String> sources = productionSources();
+        int sends = 0;
+        for (Map.Entry<Path, String> source : sources.entrySet())
+        {
+            sends += occurrences(source.getValue(), "sender.send(");
+        }
+        assertEquals(1, sends);
+        String plugin = sourceNamed(sources, "FateLockedPlugin.java");
+        assertEquals(1, occurrences(plugin, "sender.send("));
+        assertEquals(1, occurrences(plugin, "panel.onSendToTracker(this::sendToTracker)"));
+        // Declared, and handed to the button: never called on a timer or an event.
+        assertEquals(2, occurrences(plugin, "sendToTracker"));
+    }
+
     @Test
     public void legacyTokenNamesExistOnlyInOneWayCleanup()
         throws Exception

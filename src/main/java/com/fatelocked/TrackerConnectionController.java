@@ -224,6 +224,23 @@ final class TrackerConnectionController
         }
     }
 
+    /**
+     * The pairing code Send to tracker posts to: the saved one, while online sync is on and no
+     * re-pairing is waiting to replace it; null otherwise.
+     */
+    String sendCode()
+    {
+        if (!settings.networkAccessAllowed())
+        {
+            return null;
+        }
+        synchronized (pollLock)
+        {
+            String saved = settings.pairingCode();
+            return stopped || pendingCode != null || saved.isEmpty() ? null : saved;
+        }
+    }
+
     private String activeCodeLocked()
     {
         return pendingCode != null ? pendingCode : settings.pairingCode();

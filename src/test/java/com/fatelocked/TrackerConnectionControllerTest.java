@@ -370,6 +370,31 @@ public class TrackerConnectionControllerTest
         assertEquals("/r/" + INITIAL_CODE, takeRelay().getPath());
     }
 
+    /**
+     * Send to tracker posts to the pairing in use: the saved code, while online sync is on and no
+     * re-pairing is waiting to replace it.
+     */
+    @Test
+    public void sendToTrackerGoesToTheWorkingPairingOnly() throws Exception
+    {
+        connect(5, "\"5\"");
+        assertEquals(INITIAL_CODE, controller.sendCode());
+
+        controller.beginPairing();
+        assertNull("not while a re-pairing waits", controller.sendCode());
+        controller.cancelRepair();
+        assertEquals(INITIAL_CODE, controller.sendCode());
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+        assertNull("not without online sync", controller.sendCode());
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+
+        controller.forgetPairing();
+        assertNull("not without a pairing", controller.sendCode());
+        controller.stop();
+        assertNull(controller.sendCode());
+    }
+
     @Test
     public void disconnectingForgetsThePairingAtOnceAndChecksNothingMore() throws Exception
     {

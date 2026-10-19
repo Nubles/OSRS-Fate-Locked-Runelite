@@ -275,7 +275,7 @@ public class SidebarViewsTest
             assertFalse(texts(inbox).contains(RollInboxView.EMPTY));
 
             inbox.apply(RollInboxModel.builder().quiet(quiet).newEvents(1)
-                .rows(List.of(new RollInboxModel.Row("a", FateEventType.QUEST, "Cook's Assistant", null, false, false)))
+                .rows(List.of(new RollInboxModel.Row("a", FateEventType.QUEST, "Cook's Assistant", null, false, false, false)))
                 .build());
             assertTrue(texts(inbox).contains(quiet));
             assertEquals(1, all(inbox, ItemRow.class::isInstance).size());
@@ -294,11 +294,11 @@ public class SidebarViewsTest
             inbox.onCopy(() -> copies[0]++);
             inbox.onDismiss(dismissed::add);
             RollInboxModel.Row copiedRow = new RollInboxModel.Row("c", FateEventType.QUEST, "Cook's Assistant", null,
-                false, true);
+                false, true, false);
             inbox.apply(RollInboxModel.builder()
                 .rows(List.of(
-                    new RollInboxModel.Row("a", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, false),
-                    new RollInboxModel.Row("b", FateEventType.DIARY_TASK, "Varrock Easy", null, true, false),
+                    new RollInboxModel.Row("a", FateEventType.SKILL_LEVEL, "Attack Level 71", "Attack", false, false, false),
+                    new RollInboxModel.Row("b", FateEventType.DIARY_TASK, "Varrock Easy", null, true, false, false),
                     copiedRow))
                 .more(4).newEvents(2).copied(5).character("Zezima").notice("Copied 5 events.").build());
 
@@ -335,6 +335,83 @@ public class SidebarViewsTest
         });
     }
 
+    /**
+     * Send to tracker: with online sync on and a pairing in use it is the card's primary button, with
+     * Copy for tracker kept beside it as the fallback; while it sends it reads Sending and takes no
+     * click; a sent event's row says Sent.
+     */
+    @Test
+    public void theRollInboxSendsToTheTrackerWhenItCan() throws Exception
+    {
+        onEdt(() -> {
+            RollInboxView inbox = new RollInboxView(IconSource.NONE);
+            inbox.setExpanded(true);
+            int[] sends = new int[1];
+            int[] copies = new int[1];
+            inbox.onSend(() -> sends[0]++);
+            inbox.onCopy(() -> copies[0]++);
+            RollInboxModel.Row fresh = new RollInboxModel.Row("a", FateEventType.QUEST, "Cook's Assistant", null,
+                false, false, false);
+            RollInboxModel.Row sent = new RollInboxModel.Row("b", FateEventType.BOSS_KILL, "Vorkath", null,
+                false, false, true);
+
+            // Without online sync, Copy for tracker is the primary button, as before.
+            inbox.apply(RollInboxModel.builder().rows(List.of(fresh)).newEvents(1).build());
+            assertEquals(List.of(Terms.COPY_FOR_TRACKER, "Open web Roll Inbox"), buttonTexts(inbox));
+            assertEquals(FlatButton.Kind.PRIMARY, buttons(inbox).get(0).getKind());
+
+            inbox.apply(RollInboxModel.builder().rows(List.of(fresh, sent)).newEvents(1).sent(1).canSend(true).build());
+            assertEquals("1 new", inbox.getCount());
+            assertEquals(List.of(RollInboxView.SEND_TO_TRACKER, Terms.COPY_FOR_TRACKER, "Open web Roll Inbox"),
+                buttonTexts(inbox));
+            assertEquals(FlatButton.Kind.PRIMARY, buttons(inbox).get(0).getKind());
+            assertEquals(FlatButton.Kind.SECONDARY, buttons(inbox).get(1).getKind());
+            assertTrue(buttons(inbox).get(0).isEnabled());
+            List<ItemRow> rows = all(inbox, ItemRow.class::isInstance).stream().map(ItemRow.class::cast)
+                .collect(Collectors.toList());
+            assertEquals(List.of(Terms.NEW, RollInboxView.SENT),
+                rows.stream().map(row -> row.pill().getWord()).collect(Collectors.toList()));
+            assertEquals(Tone.GOOD, rows.get(1).pill().getTone());
+            buttons(inbox).get(0).doClick();
+            buttons(inbox).get(1).doClick();
+            assertEquals(1, sends[0]);
+            assertEquals(1, copies[0]);
+
+            // Under way: the button says so, and a second click does nothing.
+            inbox.apply(RollInboxModel.builder().rows(List.of(fresh, sent)).newEvents(1).sent(1).canSend(true)
+                .sending(true).build());
+            assertEquals("Sending\u2026", buttons(inbox).get(0).getText());
+            assertFalse(buttons(inbox).get(0).isEnabled());
+            buttons(inbox).get(0).doClick();
+            assertEquals(1, sends[0]);
+
+            // Done: what was said stays under the buttons, and Copy again still copies everything.
+            String notice = "Sent 2. They're waiting in your tracker's Roll Inbox.";
+            inbox.apply(RollInboxModel.builder().rows(List.of(sent)).sent(2).canSend(true).notice(notice).build());
+            assertEquals(null, inbox.getCount());
+            assertTrue(texts(inbox).contains(RollInboxView.SENT + " 2"));
+            assertTrue(texts(inbox).contains(notice));
+            assertEquals(List.of(RollInboxView.COPY_AGAIN, "Open web Roll Inbox"), buttonTexts(inbox));
+            buttons(inbox).get(0).doClick();
+            assertEquals(2, copies[0]);
+
+            // The button works again for the next new event.
+            inbox.apply(RollInboxModel.builder().rows(List.of(fresh, sent)).newEvents(1).sent(1).canSend(true).build());
+            assertTrue(buttons(inbox).get(0).isEnabled());
+            assertEquals(RollInboxView.SEND_TO_TRACKER, buttons(inbox).get(0).getText());
+        });
+    }
+
+    @Test
+    public void theRollInboxSaysWhatBecameOfItsEvents()
+    {
+        assertEquals("Copied 5", RollInboxView.done(RollInboxModel.builder().copied(5).build()));
+        assertEquals("Sent 3", RollInboxView.done(RollInboxModel.builder().sent(3).build()));
+        assertEquals("Sent 3, copied 2", RollInboxView.done(RollInboxModel.builder().sent(3).copied(2).build()));
+        assertTrue(RollInboxView.NOTE, RollInboxView.NOTE.contains(RollInboxView.SEND_TO_TRACKER));
+        assertTrue(RollInboxView.NOTE, RollInboxView.NOTE.contains(Terms.COPY_FOR_TRACKER));
+    }
+
     @Test
     public void eachRowShowsItsTypesArt()
     {
@@ -352,7 +429,7 @@ public class SidebarViewsTest
 
     private static RollInboxModel.Row row(FateEventType type)
     {
-        return new RollInboxModel.Row("id", type, "Label", null, false, false);
+        return new RollInboxModel.Row("id", type, "Label", null, false, false, false);
     }
 
     private static List<String> buttonTexts(Container root)

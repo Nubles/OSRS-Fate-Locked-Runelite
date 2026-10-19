@@ -214,6 +214,8 @@ public class FateLockedPlugin extends Plugin
     private SavedRulesStore savedRules;
     private ScheduledFuture<?> trackerPollFuture;
     private TrackerConnectionController connectionController;
+    /** Send to tracker's requests; made by startUp. */
+    private TrackerInboxSender inboxSender;
     private final RepeatedValueLimiter invalidImportLimiter =
         new RepeatedValueLimiter(TimeUnit.SECONDS.toMillis(30));
     /** Logs each kind of failed tracker tick, and a repeat at most every 15 minutes. */
@@ -379,6 +381,8 @@ public class FateLockedPlugin extends Plugin
     private int shownWarningCount = -1;
     /** Why the Roll inbox says nothing is noticed, as it shows it; null while something is. */
     private String shownQuiet;
+    /** Whether the Roll inbox offers Send to tracker, as it shows it. */
+    private boolean shownCanSend;
     private NavigationButton navButton;
 
     /** The quests are read again this often, in ticks (a minute), for any finished without the quest scroll. */
@@ -482,6 +486,8 @@ public class FateLockedPlugin extends Plugin
             started::run,
             relayImporter,
             snapshot -> started.run(this::refreshSidebar));
+        inboxSender = new TrackerInboxSender(okHttpClient, gson, connectionSettings, executor,
+            System::currentTimeMillis);
 
         travelRuleEvaluator = new TravelRuleEvaluator();
         travelAvailability = new RuneLiteTravelAvailability(client);
@@ -531,6 +537,7 @@ public class FateLockedPlugin extends Plugin
             FateLockedConfig.GROUP, "strictModeIntroSeen", true));
         panel.onHereFold(this::saveHereOpen);
         panel.onCopyForTracker(this::copyForTracker);
+        panel.onSendToTracker(this::sendToTracker);
         panel.onDismissEvent(this::dismissEvent);
         panel.openHere(hereOpen());
         panel.onHerePoint((category, row) -> gate.run(() -> pointTo(category, row)));
@@ -2663,8 +2670,9 @@ public class FateLockedPlugin extends Plugin
         TrackerConnectionSettings settings = connectionSettings;
         models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
             settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
-        // A login, a logout, another character or new rules can start or stop the noticing.
-        if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet))
+        // A login, a logout, another character or new rules can start or stop the noticing;
+        // online sync, a pairing or a re-pairing can offer or take away Send to tracker.
+        if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet) || (trackerSendCode() != null) != shownCanSend)
         {
             updatePanelRollInbox();
         }
@@ -3305,6 +3313,10 @@ public class FateLockedPlugin extends Plugin
         {
             connectionController.stop();
         }
+        if (inboxSender != null)
+        {
+            inboxSender.stop();
+        }
     }
 
     private boolean trackerPaired()
@@ -3369,11 +3381,14 @@ public class FateLockedPlugin extends Plugin
             : SpentBosses.without(rules, store.offered(rules == null ? null : rules.getRunId()));
         shownWarningCount = activeWarningCount();
         shownQuiet = rollInboxQuiet();
+        shownCanSend = trackerSendCode() != null;
+        TrackerInboxSender sender = inboxSender;
         SidebarPublisher models = sidebarModels();
         if (models != null)
         {
             models.rollInbox(RollInboxPresenter.present(events, shownWarningCount, historySaveFailed,
-                AccountBinding.boundAccount(rules) != null, rollInboxNotice, shownQuiet));
+                AccountBinding.boundAccount(rules) != null, rollInboxNotice, shownQuiet, shownCanSend,
+                sender != null && sender.sending()));
         }
     }
 
@@ -3431,6 +3446,68 @@ public class FateLockedPlugin extends Plugin
                 log.warn("Could not mark the copied events", ex);
             }
             onClient.run(this::updatePanelRollInbox);
+        });
+    }
+
+    /** The pairing code Send to tracker posts to, or null while the card doesn't offer it. */
+    private String trackerSendCode()
+    {
+        TrackerConnectionController controller = connectionController;
+        return controller == null ? null : controller.sendCode();
+    }
+
+    /**
+     * Send to tracker, from the card's button on the Swing thread: the New events the Roll inbox
+     * offers go to the relay, for the tracker's Roll Inbox, and each the relay takes turns Sent.
+     * Only ever on this click; a failure says so on the card and is not retried.
+     */
+    private void sendToTracker()
+    {
+        DetectedEventStore store = detectedEvents;
+        FateLockedBundle rules = getBundle();
+        TrackerInboxSender sender = inboxSender;
+        String code = trackerSendCode();
+        if (store == null || rules == null || sender == null || code == null) return;
+        List<FateEvent> events = new ArrayList<>();
+        for (DetectedEventStore.Entry entry : SpentBosses.without(rules, store.offered(rules.getRunId())))
+        {
+            if (entry.getStatus() == DetectedEventStore.Status.NEW) events.add(entry.getEvent());
+        }
+        ClientThreadGate onClient = gate;
+        sender.send(code, events, store::copyOf, new TrackerInboxSender.Listener()
+        {
+            @Override
+            public void started()
+            {
+                // Before any reply can say how it went: the card shows Sending.
+                rollInboxNotice = null;
+                onClient.run(FateLockedPlugin.this::updatePanelRollInbox);
+            }
+
+            @Override
+            public void sent(List<String> eventIds)
+            {
+                fileWriter.submit(() -> {
+                    try
+                    {
+                        store.mark(eventIds, DetectedEventStore.Status.SENT);
+                    }
+                    catch (IOException ex)
+                    {
+                        // They wait on the relay all the same; sending them again is harmless.
+                        log.warn("Could not mark the sent events", ex);
+                    }
+                });
+            }
+
+            @Override
+            public void finished(String notice)
+            {
+                // Said on this account's card only: another account may have logged in since.
+                if (detectedEvents == store) rollInboxNotice = notice;
+                // After the marks queued before it, so the card shows them.
+                fileWriter.submit(() -> onClient.run(FateLockedPlugin.this::updatePanelRollInbox));
+            }
         });
     }
 

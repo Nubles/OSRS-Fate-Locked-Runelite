@@ -169,6 +169,12 @@ class FateLockedPanel extends PluginPanel
         sidebar.rollInbox().onCopy(handler);
     }
 
+    /** Called, on the Swing thread, when the player sends the Roll inbox's new events to the tracker. */
+    void onSendToTracker(Runnable handler)
+    {
+        sidebar.rollInbox().onSend(handler);
+    }
+
     /** Called, on the Swing thread, with the id of an event the player dismissed from the Roll inbox. */
     void onDismissEvent(Consumer<String> handler)
     {

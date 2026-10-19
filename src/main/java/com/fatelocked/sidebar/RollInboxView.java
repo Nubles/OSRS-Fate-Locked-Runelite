@@ -19,19 +19,29 @@ import javax.swing.JPanel;
 
 /**
  * The Roll inbox section, drawn from a {@link RollInboxModel} (Stage 4): what RuneLite noticed this
- * run, with Copy for tracker for the tracker's Paste from RuneLite. Nothing leaves the computer
- * unless the player copies it.
+ * run, with Send to tracker, while online sync is on, and Copy for tracker for the tracker's Paste
+ * from RuneLite. Nothing leaves the computer unless the player sends or copies it.
  */
 public class RollInboxView extends Section
 {
     public static final String TITLE = "Roll inbox";
-    static final String NOTE = "Copied only when you click. RuneLite doesn't upload anything.";
+    /** The card's button that sends the new events to the tracker through the relay. */
+    public static final String SEND_TO_TRACKER = "Send to tracker";
+    /** Send to tracker's button while a send is under way. */
+    static final String SENDING = "Sending\u2026";
+    /** An event the relay has taken for the tracker. */
+    public static final String SENT = "Sent";
+    static final String NOTE = "Nothing leaves RuneLite until you click " + SEND_TO_TRACKER + " or "
+        + Terms.COPY_FOR_TRACKER + ". Sent events wait on the relay for up to 30 days, until your tracker takes them.";
     static final String EMPTY = "Nothing noticed this run yet. Levels, quests, finished diary tiers, kills and"
         + " more show here as you play.";
     static final String COPY_AGAIN = "Copy again";
 
     private final IconSource icons;
     private final FlatButton copy = new FlatButton(Terms.COPY_FOR_TRACKER, FlatButton.Kind.PRIMARY);
+    private final FlatButton send = new FlatButton(SEND_TO_TRACKER, FlatButton.Kind.PRIMARY);
+    /** Copy for tracker beside Send to tracker: the fallback, so not the card's primary button. */
+    private final FlatButton copyInstead = new FlatButton(Terms.COPY_FOR_TRACKER, FlatButton.Kind.SECONDARY);
     private final FlatButton copyAgain = new FlatButton(COPY_AGAIN, FlatButton.Kind.LINK);
     private final FlatButton open = new FlatButton("Open web Roll Inbox", FlatButton.Kind.SECONDARY);
     private Consumer<String> onDismiss = eventId -> { };
@@ -43,6 +53,8 @@ public class RollInboxView extends Section
         super(TITLE, false);
         this.icons = icons;
         copy.setToolTipText("Copy these events for the tracker's " + Terms.PASTE_FROM_RUNELITE);
+        copyInstead.setToolTipText(copy.getToolTipText());
+        send.setToolTipText("Send the new events to your tracker's Roll Inbox through the Fate Locked relay");
         copyAgain.setToolTipText("Copy the events again, for another paste");
         open.setToolTipText("Open the web Roll Inbox");
     }
@@ -51,7 +63,14 @@ public class RollInboxView extends Section
     public void onCopy(Runnable handler)
     {
         replace(copy, e -> handler.run());
+        replace(copyInstead, e -> handler.run());
         replace(copyAgain, e -> handler.run());
+    }
+
+    /** Called when the player sends the new events to the tracker. */
+    public void onSend(Runnable handler)
+    {
+        replace(send, e -> handler.run());
     }
 
     /** Called with an event's id when the player dismisses its row. */
@@ -103,16 +122,23 @@ public class RollInboxView extends Section
         {
             body.add(Sidebar.text("+" + model.getMore() + " more", Type.small(), Palette.TEXT_MUTED, 0));
         }
-        if (model.getNewEvents() > 0)
+        if (model.getNewEvents() > 0 && model.isCanSend())
+        {
+            // A disabled button ignores a second click while the first send is under way.
+            send.setText(model.isSending() ? SENDING : SEND_TO_TRACKER);
+            send.setEnabled(!model.isSending());
+            body.add(send);
+            body.add(copyInstead);
+        }
+        else if (model.getNewEvents() > 0)
         {
             body.add(copy);
         }
-        else if (model.getCopied() > 0)
+        else if (model.getCopied() > 0 || model.getSent() > 0)
         {
             JPanel copied = new JPanel(new BorderLayout());
             copied.setOpaque(false);
-            copied.add(Sidebar.text(Terms.COPIED + " " + model.getCopied(), Type.body(), Palette.TEXT, 0),
-                BorderLayout.WEST);
+            copied.add(Sidebar.text(done(model), Type.body(), Palette.TEXT, 0), BorderLayout.WEST);
             copied.add(copyAgain, BorderLayout.EAST);
             body.add(copied);
         }
@@ -138,12 +164,28 @@ public class RollInboxView extends Section
         return model;
     }
 
+    /** What became of the events once none is new: "Sent 3", "Copied 5", or "Sent 3, copied 2". */
+    static String done(RollInboxModel model)
+    {
+        if (model.getSent() == 0)
+        {
+            return Terms.COPIED + " " + model.getCopied();
+        }
+        String sent = SENT + " " + model.getSent();
+        return model.getCopied() == 0 ? sent
+            : sent + ", " + Terms.COPIED.toLowerCase(Locale.ROOT) + " " + model.getCopied();
+    }
+
     /** An event's row: its type's art, its name, where it stands, and a quiet cross to dismiss it. */
     private JPanel row(RollInboxModel.Row row)
     {
         ItemRow item = new ItemRow();
         item.setPalette(palette);
-        if (row.isCopied())
+        if (row.isSent())
+        {
+            item.show(row.getLabel(), SENT, Palette.Tone.GOOD, null);
+        }
+        else if (row.isCopied())
         {
             item.show(row.getLabel(), Terms.COPIED, Palette.Tone.GOOD, null);
         }

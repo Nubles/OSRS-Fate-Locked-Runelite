@@ -114,6 +114,7 @@ public class TrackerInboxSenderTest
         assertEquals(ids(events.subList(0, 100)), recorder.sent.get(0));
         assertEquals(ids(events.subList(100, 150)), recorder.sent.get(1));
         assertEquals("Sent 150. They're waiting in your tracker's Roll Inbox.", recorder.notice);
+        assertEquals(1, recorder.started);
         assertFalse(sender.sending());
     }
 
@@ -195,6 +196,7 @@ public class TrackerInboxSenderTest
 
         assertEquals(0, server.getRequestCount());
         assertNull(recorder.notice);
+        assertEquals(0, recorder.started);
         assertFalse(sender.sending());
     }
 
@@ -320,6 +322,14 @@ public class TrackerInboxSenderTest
         final List<List<String>> sent = new CopyOnWriteArrayList<>();
         final CountDownLatch finished = new CountDownLatch(1);
         volatile String notice;
+        volatile int started;
+
+        @Override
+        public void started()
+        {
+            assertTrue("before any request is answered", sent.isEmpty() && notice == null);
+            started++;
+        }
 
         @Override
         public void sent(List<String> eventIds)

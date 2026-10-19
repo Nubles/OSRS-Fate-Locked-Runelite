@@ -34,6 +34,11 @@ final class TrackerInboxSender
     /** What a send tells the plugin, on OkHttp's threads. */
     interface Listener
     {
+        /** The send is under way, before any request: called on the thread that asked for it. */
+        default void started()
+        {
+        }
+
         /** The relay stored these events: mark them Sent. */
         void sent(List<String> eventIds);
 
@@ -106,6 +111,7 @@ final class TrackerInboxSender
             }
             active = send;
         }
+        listener.started();
         List<FateEvent> copied = new ArrayList<>(events);
         try
         {
