@@ -46,4 +46,15 @@ public class StrictModeStatusViewTest
         assertTrue(StrictModeStatusView.of(true, true, 9, null).isShownOnHud());
         assertTrue(StrictModeStatusView.of(true, false, 0, "you are not logged in").isShownOnHud());
     }
+
+    @Test
+    public void networksAreShownOnlyWhileItCanStopSomething()
+    {
+        assertFalse(StrictModeStatusView.of(true, false, 0, null).isNetworks());
+        assertTrue(StrictModeStatusView.of(true, false, 0, null, true).isNetworks());
+        assertTrue(StrictModeStatusView.of(true, false, 0, null, true).isScopeShown());
+        assertTrue(StrictModeStatusView.of(true, true, 5, null, false).isScopeShown());
+        assertFalse(StrictModeStatusView.of(true, false, 0, "you are not logged in", true).isScopeShown());
+        assertFalse(StrictModeStatusView.of(false, false, 0, null, true).isScopeShown());
+    }
 }

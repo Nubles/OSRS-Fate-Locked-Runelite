@@ -778,6 +778,10 @@ public class FateLockedPlugin extends Plugin
                 panel.showStrictModeIntro();
             }
         }
+        else if (FateLockedConfig.BLOCK_NETWORKS_KEY.equals(key))
+        {
+            updateStrictModePanel();
+        }
         else if (FateLockedConfig.NETWORK_ACCESS_KEY.equals(key))
         {
             if (connectionController != null)
@@ -1699,7 +1703,7 @@ public class FateLockedPlugin extends Plugin
     {
         StrictModeStatusView status = StrictModeStatusView.of(
             config.strictMode(), strictPause.isPaused(), strictPause.remainingSeconds(),
-            strictModeReadiness().getReason());
+            strictModeReadiness().getReason(), config.blockNetworks());
         strictModeStatus = status;
         refreshSidebar();
     }
