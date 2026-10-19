@@ -71,6 +71,8 @@ public class BadgeServiceTest
     private String boundName = "Iron Example";
     private Progress progress = new Progress(Progress.AREAS, 100, 187, 0, 0);
     private BadgeService service;
+    /** Run as a request is being sent, before the relay hands back its cancel. */
+    private Runnable whileSending = () -> { };
 
     @Before
     public void setUp()
@@ -180,6 +182,7 @@ public class BadgeServiceTest
     {
         Sent request = new Sent(what, reply);
         sent.add(request);
+        whileSending.run();
         return () -> request.cancelled = true;
     }
 
@@ -340,6 +343,43 @@ public class BadgeServiceTest
         assertTrue(request.cancelled);
         request.reply.replied(200, "\"v1\"", null, LIST);
         assertTrue(service.list().isEmpty());
+    }
+
+    /** shutDown stops the service on the Swing thread, maybe while the client thread sends. */
+    @Test
+    public void aSendStartedAsThePluginStopsIsCancelled()
+    {
+        share = true;
+        whileSending = () -> service.stop();
+        service.start();
+        assertEquals(Arrays.asList("POST /r/" + CODE + "/badge Iron Example 2"), requests());
+        assertTrue("stop looked before the relay could cancel it", last().cancelled);
+
+        whileSending = () -> { };
+        service = newService();
+        service.start();
+        sent.get(sent.size() - 1).reply.replied(200, null, null, null);
+        whileSending = () -> service.stop();
+        ticks(1);
+        assertEquals("GET /badges", last().what);
+        assertTrue(last().cancelled);
+    }
+
+    @Test
+    public void nothingIsSentOnceStopped()
+    {
+        share = true;
+        service.start();
+        sent.get(0).reply.replied(200, null, null, null);
+        service.stop();
+
+        share = false;
+        settingsChanged();
+        service.connectionChanged();
+        ticks(BadgeService.DECIDE_EVERY_TICKS * 3);
+        now += TimeUnit.DAYS.toMillis(2);
+        ticks(BadgeService.DECIDE_EVERY_TICKS * 3);
+        assertEquals(Arrays.asList("POST /r/" + CODE + "/badge Iron Example 2"), requests());
     }
 
     // ── The player's own badge ───────────────────────────────────────────────

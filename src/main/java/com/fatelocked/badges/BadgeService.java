@@ -27,7 +27,9 @@ import net.runelite.client.events.ProfileChanged;
  * and every 30 minutes while logged in, only while a badge setting shows it, with its ETag;
  * failures are quiet and keep the list held. The player's own badge follows
  * {@link BadgePolicy}. One start's service is registered on the event bus while the plugin
- * runs; all of its state lives on the client thread, and relay replies are handed back there.
+ * runs; its state lives on the client thread, and relay replies are handed back there. The one
+ * exception is {@link #stop}, from the Swing thread as the plugin shuts down: it reads only the
+ * volatile stop flag and the requests in flight.
  */
 @Slf4j
 public final class BadgeService
@@ -131,13 +133,15 @@ public final class BadgeService
     private volatile BadgeList list = BadgeList.NONE;
     private String etag;
     private long nextFetchAt;
-    private InFlight fetching;
+    /** The list's request in flight; volatile, as {@link #stop} cancels it from another thread. */
+    private volatile InFlight fetching;
 
     private BadgePolicy.Shared shared = BadgePolicy.Shared.NONE;
     private long nextSendAt;
     /** Whether the last post was refused for want of a profile, and the wait is for that. */
     private boolean waitingForProfile;
-    private InFlight sending;
+    /** The badge's request in flight; volatile, as {@link #stop} cancels it from another thread. */
+    private volatile InFlight sending;
     private int ticksToDecide;
 
     public BadgeService(Relay relay, Gson gson, Settings settings, Store store, Run run, Client client,
@@ -179,15 +183,18 @@ public final class BadgeService
         decide();
     }
 
-    /** The plugin is stopping: cancel what's in flight; replies that still come change nothing. */
+    /**
+     * The plugin is stopping, on any thread (shutDown's is the Swing thread): cancel what's in
+     * flight; replies that still come change nothing. Stopped is marked first, and a request the
+     * client thread is starting checks it again once marked in flight and once sent, so a send
+     * that races this is never left running. The client thread's own state (the holders it
+     * scans, which the removed overlay no longer draws) is left to it: nothing reads it again.
+     */
     public void stop()
     {
         stopped = true;
         cancel(fetching);
         cancel(sending);
-        fetching = null;
-        sending = null;
-        holders.clear();
     }
 
     @Subscribe
@@ -247,7 +254,7 @@ public final class BadgeService
     @Subscribe
     public void onScriptCallbackEvent(ScriptCallbackEvent event)
     {
-        if (!CHAT_BUILDING.equals(event.getEventName()) || !sync || !showInChat)
+        if (stopped || !CHAT_BUILDING.equals(event.getEventName()) || !sync || !showInChat)
         {
             return;
         }
@@ -339,6 +346,11 @@ public final class BadgeService
         InFlight request = new InFlight();
         // Marked in flight before the send: a reply can come before fetch returns.
         fetching = request;
+        if (stopped)
+        {
+            fetching = null;
+            return;
+        }
         request.cancel = relay.fetch(etag, new Reply()
         {
             @Override
@@ -353,6 +365,7 @@ public final class BadgeService
                 onClient.accept(() -> fetchFailed(request));
             }
         });
+        cancelIfStopped(request);
     }
 
     private void fetched(InFlight request, int status, String tag, String retryAfter, String body)
@@ -453,6 +466,11 @@ public final class BadgeService
     {
         InFlight inFlight = new InFlight();
         sending = inFlight;
+        if (stopped)
+        {
+            sending = null;
+            return;
+        }
         inFlight.cancel = request.send(new Reply()
         {
             @Override
@@ -467,6 +485,7 @@ public final class BadgeService
                 onClient.accept(() -> sent(inFlight, action, -1, null));
             }
         });
+        cancelIfStopped(inFlight);
     }
 
     /** A send ended: status -1 when it never got an answer. */
@@ -590,6 +609,15 @@ public final class BadgeService
     private static final class InFlight
     {
         volatile Runnable cancel;
+    }
+
+    /** A request sent as the plugin stopped: {@link #stop} may have looked before it could cancel it. */
+    private void cancelIfStopped(InFlight request)
+    {
+        if (stopped)
+        {
+            cancel(request);
+        }
     }
 
     private static void cancel(InFlight request)
