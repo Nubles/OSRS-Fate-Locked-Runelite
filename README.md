@@ -191,7 +191,9 @@ With online sync on and a pairing in use, the card's button is **Send to
 tracker**: it sends the New events to the relay, up to 100 in a request, and
 the tracker adds them to its Roll Inbox as **Paste from RuneLite** does.
 Each the relay takes shows Sent; the line under the button says how it went,
-and a send that fails is never retried by itself. **Copy for tracker** stays
+and a send that fails is never retried by itself. The relay holds at most
+250 events waiting for your tracker, so if it can't take them all, none of
+that request shows Sent: open the tracker, then send again. **Copy for tracker** stays
 beside it, and is the button while online sync is off: it puts every event,
 sent ones too, on the clipboard, and the tracker's Roll Inbox reads them
 with **Paste from RuneLite**. The tracker keeps an event it already has

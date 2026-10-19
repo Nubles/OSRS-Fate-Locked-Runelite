@@ -41,7 +41,7 @@ public class TrackerInboxSenderTest
 {
     private static final String CODE = "0123456789abcdef0123456789abcdef";
     private static final long NOW = 1_790_000_000_000L;
-    private static final String ACCEPTED = "{\"accepted\":100,\"held\":100}";
+    private static final String ACCEPTED = accepted(100);
 
     private final Gson gson = new Gson();
     private final Map<String, String> configuration = new ConcurrentHashMap<>();
@@ -157,6 +157,32 @@ public class TrackerInboxSenderTest
             "The relay isn't working right now. Nothing was sent.");
     }
 
+    /**
+     * The relay keeps the newest 250 waiting: when it stores fewer of a request's events than it
+     * was sent, which it kept isn't known, so none of that request turns Sent and the send stops.
+     */
+    @Test
+    public void aRequestTheRelayKeptOnlyPartOfIsNotMarkedSent() throws Exception
+    {
+        server.enqueue(new MockResponse().setBody(ACCEPTED));
+        server.enqueue(new MockResponse().setBody("{\"accepted\":20,\"held\":250}"));
+
+        sender.send(CODE, events(250), copy, recorder);
+        recorder.await();
+
+        assertEquals("and none after it", 2, server.getRequestCount());
+        assertEquals(1, recorder.sent.size());
+        assertEquals(ids(events(250).subList(0, 100)), recorder.sent.get(0));
+        assertEquals("Sent 100 of 250. Your tracker hasn't taken the events already waiting."
+            + " Open the tracker, then send again.", recorder.notice);
+        assertFalse(sender.sending());
+
+        server.takeRequest();
+        server.takeRequest();
+        assertAfterOneRequest(new MockResponse().setBody("{\"accepted\":0,\"held\":250}"),
+            "Your tracker hasn't taken the events already waiting. Open the tracker, then send again.");
+    }
+
     @Test
     public void aReplyLongerThanAnyRealOneIsNotRead() throws Exception
     {
@@ -169,7 +195,7 @@ public class TrackerInboxSenderTest
     @Test
     public void aSecondClickWhileSendingDoesNothing() throws Exception
     {
-        server.enqueue(new MockResponse().setBody(ACCEPTED).setHeadersDelay(300, TimeUnit.MILLISECONDS));
+        server.enqueue(new MockResponse().setBody(accepted(3)).setHeadersDelay(300, TimeUnit.MILLISECONDS));
 
         assertTrue(sender.send(CODE, events(3), copy, recorder));
         assertTrue(sender.sending());
@@ -179,7 +205,7 @@ public class TrackerInboxSenderTest
         assertEquals(1, server.getRequestCount());
         assertFalse(sender.sending());
         // Once it's over, the next click sends again.
-        server.enqueue(new MockResponse().setBody(ACCEPTED));
+        server.enqueue(new MockResponse().setBody(accepted(3)));
         Recorder again = new Recorder();
         assertTrue(sender.send(CODE, events(3), copy, again));
         again.await();
@@ -238,7 +264,7 @@ public class TrackerInboxSenderTest
     @Test
     public void eventsTheRelayWontTakeAreLeftForCopyForTracker() throws Exception
     {
-        server.enqueue(new MockResponse().setBody(ACCEPTED));
+        server.enqueue(new MockResponse().setBody(accepted(2)));
         List<FateEvent> events = new ArrayList<>(events(2));
         events.add(event("month-old", NOW - 31L * 24 * 60 * 60 * 1000));
 
@@ -259,7 +285,7 @@ public class TrackerInboxSenderTest
     @Test
     public void stoppingThePluginCancelsTheSendQuietly() throws Exception
     {
-        server.enqueue(new MockResponse().setBody(ACCEPTED).setHeadersDelay(2, TimeUnit.SECONDS));
+        server.enqueue(new MockResponse().setBody(accepted(3)).setHeadersDelay(2, TimeUnit.SECONDS));
 
         sender.send(CODE, events(3), copy, recorder);
         assertTrue(sender.sending());
@@ -285,6 +311,12 @@ public class TrackerInboxSenderTest
         assertNotNull(server.takeRequest(1, TimeUnit.SECONDS));
         assertNull(server.takeRequest(200, TimeUnit.MILLISECONDS));
         assertEquals(before + 1, server.getRequestCount());
+    }
+
+    /** The relay's reply when it stored this many of a request's events. */
+    private static String accepted(int count)
+    {
+        return "{\"accepted\":" + count + ",\"held\":" + count + "}";
     }
 
     private static List<FateEvent> events(int count)

@@ -129,6 +129,7 @@ public class RelayInboxTest
 
         assertEquals(1, batches.size());
         assertEquals(List.of("ok", "also-ok"), batches.get(0).ids);
+        assertEquals("what the relay stores when it takes them all", 2, batches.get(0).events);
         assertEquals(Collections.emptyList(),
             RelayInbox.batches(List.of(event("month-old", NOW - 31 * DAY)), copy, NOW));
         assertEquals(Collections.emptyList(), RelayInbox.batches(Collections.emptyList(), copy, NOW));
@@ -138,7 +139,14 @@ public class RelayInboxTest
     public void readsEachReply()
     {
         assertEquals(RelayInbox.Outcome.SENT, classify(200, "{\"accepted\":3,\"held\":3}"));
-        assertEquals(RelayInbox.Outcome.SENT, classify(200, "{\"accepted\":0,\"held\":250}"));
+        assertEquals(RelayInbox.Outcome.SENT, classify(200, "{\"accepted\":3.0,\"held\":250}"));
+        // Fewer stored than sent: the relay keeps the newest 250 waiting, and dropped the rest.
+        assertEquals(RelayInbox.Outcome.NOT_ALL_KEPT, classify(200, "{\"accepted\":0,\"held\":250}"));
+        assertEquals(RelayInbox.Outcome.NOT_ALL_KEPT, classify(200, "{\"accepted\":2,\"held\":250}"));
+        // More than sent, or not a count, isn't the relay's answer.
+        assertEquals(RelayInbox.Outcome.UNREADABLE, classify(200, "{\"accepted\":4,\"held\":4}"));
+        assertEquals(RelayInbox.Outcome.UNREADABLE, classify(200, "{\"accepted\":-1,\"held\":4}"));
+        assertEquals(RelayInbox.Outcome.UNREADABLE, classify(200, "{\"accepted\":1.5,\"held\":4}"));
         // A success that isn't the relay's: a captive portal, or nothing at all.
         assertEquals(RelayInbox.Outcome.UNREADABLE, classify(200, "<html>Sign in to the Wi-Fi</html>"));
         assertEquals(RelayInbox.Outcome.UNREADABLE, classify(200, "{\"held\":3}"));
@@ -192,16 +200,20 @@ public class RelayInboxTest
             RelayInbox.notice(0, 3, RelayInbox.Outcome.STOPPED));
         assertEquals("These events can't be sent. Use Copy for tracker.",
             RelayInbox.notice(0, 3, RelayInbox.Outcome.NOTHING_SENDABLE));
+        assertEquals("Your tracker hasn't taken the events already waiting. Open the tracker, then send again.",
+            RelayInbox.notice(0, 3, RelayInbox.Outcome.NOT_ALL_KEPT));
         // Part way: what went, then why the rest didn't.
         assertEquals("Sent 100 of 150. Couldn't reach the relay. The rest weren't sent.",
             RelayInbox.notice(100, 150, RelayInbox.Outcome.UNREACHABLE));
         assertEquals("Sent 100 of 150. Too many sends. Try again in a minute.",
             RelayInbox.notice(100, 150, RelayInbox.Outcome.BUSY));
+        assertEquals("Sent 100 of 150. Your tracker hasn't taken the events already waiting."
+            + " Open the tracker, then send again.", RelayInbox.notice(100, 150, RelayInbox.Outcome.NOT_ALL_KEPT));
     }
 
     private RelayInbox.Outcome classify(int status, String body)
     {
-        return RelayInbox.classify(gson, status, body);
+        return RelayInbox.classify(gson, status, body, 3);
     }
 
     private static FateEvent event(String id, long occurredAt)

@@ -111,7 +111,10 @@ clipboard, `{"format":"fate-locked-runelite-events","events":[...]}`, at most
 after another. It has a 5-second connect, 10-second read and 15-second
 whole-call limit, no silent retry of a dropped connection, no redirect, and
 is never repeated by itself: a failure ends the send and the card says why.
-Each event the relay takes turns Sent. The relay's contract for it is in the
+A request's events turn Sent only when the reply's `accepted` is the
+request's event count: the relay keeps the newest 250 waiting, and which it
+dropped isn't known, so a shorter count marks none, ends the send and asks
+the player to open the tracker first. The relay's contract for it is in the
 tracker repository (`workers/fate-relay`); until it is deployed, the route
 answers a plain 404, which the card reads as "the relay can't take events
 yet".

@@ -25,8 +25,9 @@ import java.util.function.LongSupplier;
 /**
  * Send to tracker: the plugin's one write to the relay, POST /r/&lt;code&gt;/inbox, only ever when the
  * player presses the Roll inbox card's button. The events go in requests of at most 100, one after
- * another, each with Copy for tracker's body; a failure ends the send, and nothing is retried. What
- * the replies mean is RelayInbox's.
+ * another, each with Copy for tracker's body; a failure ends the send, and nothing is retried. A
+ * request's events turn Sent only when the relay stored every one of them. What the replies mean
+ * is RelayInbox's.
  */
 @Slf4j
 final class TrackerInboxSender
@@ -230,7 +231,7 @@ final class TrackerInboxSender
         RelayInbox.Outcome outcome;
         try (Response current = response)
         {
-            outcome = RelayInbox.classify(gson, current.code(), body(current));
+            outcome = RelayInbox.classify(gson, current.code(), body(current), batch.events);
         }
         catch (IOException | RuntimeException error)
         {

@@ -11,6 +11,7 @@ import com.google.gson.JsonPrimitive;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
 
@@ -39,8 +40,13 @@ final class RelayInbox
     /** What a request, or a whole send, came to. */
     enum Outcome
     {
-        /** The relay stored the request's events. */
+        /** The relay stored all of the request's events. */
         SENT,
+        /**
+         * The relay stored only some of them: it keeps the newest 250 waiting, so the tracker
+         * hasn't taken the ones already there. Which it kept isn't known, so none count as sent.
+         */
+        NOT_ALL_KEPT,
         /** A 404 that isn't the relay's "no profile": a relay without the route yet. */
         NOT_YET,
         /** The relay has no profile for this code, or the tracker disconnected it. */
@@ -66,11 +72,14 @@ final class RelayInbox
     {
         final List<String> ids;
         final String body;
+        /** How many events the relay stores when it takes them all: one per id. */
+        final int events;
 
         Batch(List<String> ids, String body)
         {
             this.ids = Collections.unmodifiableList(new ArrayList<>(ids));
             this.body = body;
+            this.events = new HashSet<>(ids).size();
         }
     }
 
@@ -148,18 +157,29 @@ final class RelayInbox
     }
 
     /**
-     * What a reply to one request means.
+     * What a reply to one request means. A success counts as sent only when the relay says it
+     * stored every event of the request ({"accepted": n} with n the request's events).
      *
-     * @param body the reply's body, or null when it wasn't read or was too long
+     * @param body   the reply's body, or null when it wasn't read or was too long
+     * @param events the request's events
      */
-    static Outcome classify(Gson gson, int status, String body)
+    static Outcome classify(Gson gson, int status, String body, int events)
     {
         if (status >= 200 && status < 300)
         {
             JsonObject reply = object(gson, body);
             JsonElement accepted = reply == null ? null : reply.get("accepted");
-            return accepted instanceof JsonPrimitive && ((JsonPrimitive) accepted).isNumber()
-                ? Outcome.SENT : Outcome.UNREADABLE;
+            if (!(accepted instanceof JsonPrimitive) || !((JsonPrimitive) accepted).isNumber())
+            {
+                return Outcome.UNREADABLE;
+            }
+            double stored = accepted.getAsDouble();
+            if (stored == events)
+            {
+                return Outcome.SENT;
+            }
+            return stored >= 0 && stored < events && stored == Math.rint(stored)
+                ? Outcome.NOT_ALL_KEPT : Outcome.UNREADABLE;
         }
         switch (status)
         {
@@ -210,6 +230,8 @@ final class RelayInbox
     static final String UNREADABLE_NOTICE = "The relay sent a reply RuneLite can't read. Use "
         + Terms.COPY_FOR_TRACKER + ".";
     static final String STOPPED_NOTICE = "Sending stopped when online sync or the pairing changed. Nothing was sent.";
+    static final String NOT_ALL_KEPT_NOTICE = "Your tracker hasn't taken the events already waiting. "
+        + "Open the tracker, then send again.";
     static final String NOTHING_SENDABLE_NOTICE = "These events can't be sent. Use "
         + Terms.COPY_FOR_TRACKER + ".";
 
@@ -254,6 +276,8 @@ final class RelayInbox
                 return STOPPED_NOTICE;
             case NOTHING_SENDABLE:
                 return NOTHING_SENDABLE_NOTICE;
+            case NOT_ALL_KEPT:
+                return NOT_ALL_KEPT_NOTICE;
             case UNAVAILABLE:
             default:
                 return UNAVAILABLE_NOTICE;
