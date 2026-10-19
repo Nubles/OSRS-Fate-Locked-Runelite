@@ -1,8 +1,8 @@
 package com.fatelocked;
 
-import com.fatelocked.ui.Palette;
 import com.fatelocked.ui.Type;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -20,7 +20,8 @@ import net.runelite.client.ui.overlay.OverlayUtil;
  * ({@link FairyRingDialLine}). It is placed by the dials' own bounds, read each frame: centred
  * above them where the game view leaves room (resizable mode), otherwise just inside their top
  * edge, so it covers neither the dials nor the travel log beside them. It only draws; it never
- * takes a click.
+ * takes a click. The line, its colour and its width are kept until the code, the rules, the
+ * palette or the font changes, so a frame does no lookups in the travel table.
  */
 class FateLockedFairyRingOverlay extends Overlay
 {
@@ -30,6 +31,11 @@ class FateLockedFairyRingOverlay extends Overlay
     private final Client client;
     private final FateLockedPlugin plugin;
     private final FateLockedConfig config;
+    private final FairyRingDialLine.Cache lines = new FairyRingDialLine.Cache();
+    /** The last line measured, and in which font: its width is kept while both stay. */
+    private FairyRingDialLine.Line measured;
+    private Font measuredIn;
+    private int width;
 
     @Inject
     FateLockedFairyRingOverlay(Client client, FateLockedPlugin plugin, FateLockedConfig config)
@@ -47,15 +53,20 @@ class FateLockedFairyRingOverlay extends Overlay
         if (!config.fairyRingDialStatus()) return null;
         Rectangle dials = FairyRingDial.bounds(client);
         if (dials == null) return null;
-        FairyRingDialLine.Line line = FairyRingDialLine.present(FairyRingDial.read(client), plugin.decisions());
+        FairyRingDialLine.Line line = lines.line(FairyRingDial.read(client), plugin.decisions(), plugin.palette());
         if (line == null) return null;
-        Palette palette = plugin.palette();
-        graphics.setFont(Type.body());
+        Font font = Type.body();
+        graphics.setFont(font);
         FontMetrics metrics = graphics.getFontMetrics();
-        int width = metrics.stringWidth(line.getText());
+        if (line != measured || font != measuredIn)
+        {
+            measured = line;
+            measuredIn = font;
+            width = metrics.stringWidth(line.getText());
+        }
         int x = dials.x + (dials.width - width) / 2;
         OverlayUtil.renderTextLocation(graphics, new Point(x, baseline(dials, metrics.getAscent(),
-            metrics.getDescent())), line.getText(), palette.text(line.getTone()));
+            metrics.getDescent())), line.getText(), lines.color());
         return null;
     }
 

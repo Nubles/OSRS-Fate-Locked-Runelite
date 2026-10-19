@@ -7,6 +7,8 @@ import com.fatelocked.rules.DecisionService;
 import com.fatelocked.rules.Trust;
 import com.fatelocked.ui.Palette;
 import com.fatelocked.ui.Terms;
+import java.awt.Color;
+import java.util.Objects;
 import lombok.Value;
 
 /**
@@ -30,6 +32,51 @@ final class FairyRingDialLine
     {
         String text;
         Palette.Tone tone;
+    }
+
+    /**
+     * The last line made and what it was made from, so a frame in which nothing changed only
+     * draws: the code dialled, the rules (by identity: a DecisionService is fixed, and the plugin
+     * makes a new one for new rules or another character, so it carries the binding too) and the
+     * palette (by identity: new settings make a new one). Client thread, like the overlay.
+     */
+    static final class Cache
+    {
+        private boolean made;
+        private String code;
+        private DecisionService rules;
+        private Palette palette;
+        private Line line;
+        private Color color;
+        private int computed;
+
+        /** The line for these, made again only when one of them has changed; null as present says. */
+        Line line(String code, DecisionService rules, Palette palette)
+        {
+            if (!made || !Objects.equals(code, this.code) || rules != this.rules || palette != this.palette)
+            {
+                made = true;
+                this.code = code;
+                this.rules = rules;
+                this.palette = palette;
+                line = present(code, rules);
+                color = line == null || palette == null ? null : palette.text(line.getTone());
+                computed++;
+            }
+            return line;
+        }
+
+        /** The colour of the last line, in the palette it was made with; null with no line. */
+        Color color()
+        {
+            return color;
+        }
+
+        /** How many times a line has been made, for tests. */
+        int computed()
+        {
+            return computed;
+        }
     }
 
     private FairyRingDialLine()
