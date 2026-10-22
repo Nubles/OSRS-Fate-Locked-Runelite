@@ -17,6 +17,19 @@ final class PluginTestSupport
     {
     }
 
+    /** The export time the fixture bundles carry. */
+    static final String FIXTURE_EXPORTED_AT = "2026-07-24T10:00:00.000Z";
+
+    /**
+     * A fixture bundle as the relay delivers it from an open tracker: sent just now. Strict
+     * Mode counts the tracker's rules from when they were sent (ECO-3), so a test of what
+     * it blocks needs rules younger than the limit.
+     */
+    static String sentJustNow(String bundleJson)
+    {
+        return bundleJson.replace(FIXTURE_EXPORTED_AT, java.time.Instant.now().toString());
+    }
+
     /**
      * Background and client-thread work runs at once, on the calling
      * thread. FateLockedPluginStartupContractTest checks which thread runs

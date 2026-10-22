@@ -432,6 +432,8 @@ public class FateLockedPlugin extends Plugin
     @Getter private volatile String slayerTaskWarn;
     /** Task we've already chat-warned about, to warn at most once per assignment. */
     private String slayerWarnedFor;
+    /** Whether chat has been told Strict Mode stopped for old rules (ECO-3). */
+    private final StaleRulesNotice staleRulesNotice = new StaleRulesNotice();
     /** Last account name we warned about, so we nag at most once per character. */
     private String lastAccountWarned;
     /**
@@ -1551,6 +1553,7 @@ public class FateLockedPlugin extends Plugin
         refreshDecisions();
         readForDetectors();
         updateStrictModePanel();
+        sayIfRulesOld();
 
         // Once per login, flag if the character doesn't match the bound account.
         checkBoundAccount();
@@ -1722,15 +1725,42 @@ public class FateLockedPlugin extends Plugin
     }
     /**
      * Whether the active rules are recent enough for Strict Mode to act on.
-     * Tracker rules stay fresh while the relay keeps confirming them. File and
-     * clipboard rules, and tracker rules no longer being checked, count from
-     * when the tracker exported them, so an old file can never block anything.
+     * Tracker rules need the relay still answering and the tracker to have sent
+     * them within 12 hours (ECO-3). File and clipboard rules, and tracker rules
+     * no longer being checked, count from when the tracker exported them.
      */
     boolean rulesAreFresh()
     {
+        return rulesFreshness().isFresh();
+    }
+
+    /**
+     * FreshnessPolicy's answer for the rules in force, and why: tracker rules count from
+     * when the tracker sent them, up to 12 hours (ECO-3), and the relay must still be
+     * answering.
+     */
+    FreshnessPolicy.Verdict rulesFreshness()
+    {
         ActiveRules current = active;
-        return FreshnessPolicy.isFresh(current.getSource(), trackerPaired(), trackerLastSync(),
-            current.getBundle().exportedAt(), Instant.now());
+        return FreshnessPolicy.check(current.getSource(), trackerPaired(), trackerLastSync(),
+            current.getBundle().exportedAt(), Instant.now(), FreshnessPolicy.DEFAULT_TRACKER_MAX_AGE);
+    }
+
+    /**
+     * Once, in chat, when the tracker's rules are too old for Strict Mode to block anything,
+     * and once more when fresh rules bring it back (ECO-3).
+     */
+    private void sayIfRulesOld()
+    {
+        String line = staleRulesNotice.next(strictModeReadiness(), rulesFreshness());
+        if (line == null) return;
+        ChatMessageBuilder msg = new ChatMessageBuilder()
+            .append(ChatColorType.HIGHLIGHT).append("[Fate Locked] ")
+            .append(ChatColorType.NORMAL).append(line);
+        chatMessageManager.queue(QueuedMessage.builder()
+            .type(ChatMessageType.GAMEMESSAGE)
+            .runeLiteFormattedMessage(msg.build())
+            .build());
     }
     /**
      * Tag right-click menu entries " (Locked)", in the palette's locked colour: the
@@ -2637,6 +2667,7 @@ public class FateLockedPlugin extends Plugin
         Instant now = Instant.now();
         ZoneId zone = ZoneId.systemDefault();
         String player = loggedInName();
+        FreshnessPolicy.Verdict freshness = rulesFreshness();
         models.status(StatusCardPresenter.present(StatusFacts.builder()
             .connection(connection)
             .source(current.getSource())
@@ -2649,7 +2680,9 @@ public class FateLockedPlugin extends Plugin
             .boundAccount(AccountBinding.boundAccount(bundle))
             .loggedInAs(player)
             .paired(trackerPaired())
-            .fresh(rulesAreFresh())
+            .fresh(freshness.isFresh())
+            .freshness(freshness)
+            .strictMode(config != null && config.strictMode())
             .now(now)
             .zone(zone)
             .build()));
