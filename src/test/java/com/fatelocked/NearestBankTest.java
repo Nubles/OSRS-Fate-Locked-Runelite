@@ -63,8 +63,9 @@ public class NearestBankTest
             FateLockedBundle.Nearest near = allBanks.nearestBank(GoldenBundleContractTest.chunk(key));
             if (near == null || near.getDistanceChunks() != 0) notFound.add(key);
         }
-        // 127 until the accuracy review merged two bank unlocks that opened no bank into their neighbours.
-        assertEquals(125, banks.size());
+        // 127 until the accuracy review merged two bank unlocks that opened no bank into their neighbours,
+        // and 125 until the Falador west bank's deposit box (45,52) joined West Falador.
+        assertEquals(124, banks.size());
         assertTrue(banks.containsAll(POI_MISSED));
         assertEquals(List.of(), notFound);
 
@@ -77,7 +78,7 @@ public class NearestBankTest
                 if (near == null || near.getDistanceChunks() != 0) notInside.add(bank.getKey() + " " + key.getAsString());
             }
         }
-        assertEquals(125, table.size());
+        assertEquals(124, table.size());
         assertEquals(List.of(), notInside);
     }
 
