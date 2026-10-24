@@ -1759,6 +1759,7 @@
    "name": "Cosmic altar",
    "area": "Zanaris",
    "entrances": [
+    "48,55",
     "50,49"
    ]
   },
@@ -1875,7 +1876,8 @@
    "kind": "interior",
    "name": "Death altar",
    "entrances": [
-    "39,51"
+    "39,51",
+    "48,55"
    ]
   },
   "34,77": {
@@ -1999,6 +2001,8 @@
    "kind": "interior",
    "name": "Chaos altar",
    "entrances": [
+    "47,56",
+    "48,55",
     "51,54"
    ]
   },
@@ -2339,7 +2343,8 @@
    "kind": "interior",
    "name": "Nature altar",
    "entrances": [
-    "44,47"
+    "44,47",
+    "48,55"
    ]
   },
   "37,77": {
@@ -2588,7 +2593,8 @@
    "kind": "interior",
    "name": "Law altar",
    "entrances": [
-    "44,52"
+    "44,52",
+    "48,55"
    ]
   },
   "38,77": {
@@ -2805,7 +2811,8 @@
    "kind": "interior",
    "name": "Body altar",
    "entrances": [
-    "47,53"
+    "47,53",
+    "48,55"
    ]
   },
   "39,77": {
@@ -3070,6 +3077,7 @@
    "kind": "interior",
    "name": "Fire altar",
    "entrances": [
+    "48,55",
     "51,50"
    ]
   },
@@ -3283,6 +3291,7 @@
    "kind": "interior",
    "name": "Earth altar",
    "entrances": [
+    "48,55",
     "51,54"
    ]
   },
@@ -3517,6 +3526,7 @@
    "kind": "interior",
    "name": "Water altar",
    "entrances": [
+    "48,55",
     "49,49"
    ]
   },
@@ -3743,7 +3753,8 @@
    "kind": "interior",
    "name": "Mind altar",
    "entrances": [
-    "46,54"
+    "46,54",
+    "48,55"
    ]
   },
   "43,77": {
@@ -3929,6 +3940,7 @@
    "kind": "interior",
    "name": "Blood altar",
    "entrances": [
+    "48,55",
     "56,51"
    ]
   },
@@ -3936,7 +3948,8 @@
    "kind": "interior",
    "name": "Air altar",
    "entrances": [
-    "46,51"
+    "46,51",
+    "48,55"
    ]
   },
   "44,77": {
@@ -4548,8 +4561,7 @@
    "kind": "interior",
    "name": "Abyss",
    "entrances": [
-    "26,59",
-    "28,60"
+    "48,55"
    ]
   },
   "47,76": {
@@ -5911,6 +5923,7 @@
    "kind": "interior",
    "name": "Meiyerditch Laboratories",
    "entrances": [
+    "48,55",
     "56,51"
    ]
   },
@@ -5976,6 +5989,7 @@
    "kind": "interior",
    "name": "Meiyerditch Laboratories",
    "entrances": [
+    "48,55",
     "56,51"
    ]
   },
