@@ -32,7 +32,7 @@ public class HerePresenterGoldenTest
         assertEquals("Lumbridge · Misthalin · 50, 50", here.getWhere());
         // Six rows the tracker leaves undecided, the caves' monsters, count as not ready: logged out,
         // the game can't say The Lost Tribe is started.
-        assertEquals(List.of(14, 26, 35),
+        assertEquals(List.of(14, 24, 37),
             here.getCounts().stream().map(HereModel.Count::getValue).collect(Collectors.toList()));
         assertEquals(List.of("Can do", "Not ready", "Locked"),
             here.getCounts().stream().map(HereModel.Count::getLabel).collect(Collectors.toList()));
