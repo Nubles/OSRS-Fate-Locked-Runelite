@@ -231,9 +231,10 @@ game click in exactly one place, `StrictModeClickHandler.handleTravel`, and
 only when all of these are true:
 
 - Strict Mode is enabled and not paused.
-- The rules are current, valid, non-legacy, and fresh: relay rules the
-  tracker confirmed in the last 15 minutes, or file and clipboard rules
-  exported in the last 15 minutes.
+- The rules are current, valid, non-legacy, and fresh (`FreshnessPolicy`):
+  relay rules the relay answered for in the last 15 minutes and the tracker
+  sent (`exportedAt`) in the last 12 hours, never on a 304 alone (ECO-3);
+  or file and clipboard rules exported in the last 15 minutes.
 - The rules name a bound account, and it matches the logged-in character.
 - The rules carry a travel table, and it matches the click by id: the
   active spellbook and the spell's name, or an item, object or NPC id,

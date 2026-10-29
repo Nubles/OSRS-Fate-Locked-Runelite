@@ -36,6 +36,10 @@ class StatusFacts
     boolean paired;
     /** FreshnessPolicy's answer, which Strict Mode also uses. */
     boolean fresh;
+    /** Why the rules are or aren't fresh, and their age; null when not worked out (older callers). */
+    FreshnessPolicy.Verdict freshness;
+    /** Whether the Strict Mode setting is on, so old rules pause it. */
+    boolean strictMode;
     Instant now;
     ZoneId zone;
 }

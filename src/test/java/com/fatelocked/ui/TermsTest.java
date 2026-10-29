@@ -53,6 +53,11 @@ public class TermsTest
         assertEquals("23 h ago", Copy.ago(Duration.ofHours(23).plusMinutes(59)));
         assertEquals("1 day ago", Copy.ago(Duration.ofHours(24)));
         assertEquals("2 days ago", Copy.ago(Duration.ofHours(48)));
+        // An age without "ago", as "the rules are 14 h old" reads it.
+        assertEquals("under a minute", Copy.age(Duration.ofSeconds(59)));
+        assertEquals("14 h", Copy.age(Duration.ofHours(14).plusMinutes(20)));
+        assertEquals("1 day", Copy.age(Duration.ofHours(30)));
+        assertEquals("3 days", Copy.age(Duration.ofDays(3)));
     }
 
     @Test

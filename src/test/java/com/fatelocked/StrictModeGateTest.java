@@ -143,7 +143,8 @@ public class StrictModeGateTest
     {
         try (InputStream in = StrictModeGateTest.class.getClassLoader().getResourceAsStream(name))
         {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // Sent just now: Strict Mode counts tracker rules from when they were sent (ECO-3).
+            return PluginTestSupport.sentJustNow(new String(in.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
 

@@ -121,6 +121,46 @@ public class StatusTableTest
             + " Strict Mode is inactive until the rules refresh.", card.getDetail());
     }
 
+    /**
+     * ECO-3: the relay answered (a 304) seconds ago, but the tracker sent these rules 14 hours
+     * ago. The card says how old they are, that Strict Mode stopped blocking, and how to refresh.
+     */
+    @Test
+    public void row5OldTrackerRulesPauseStrictModeAndAskForTheTracker()
+    {
+        Instant sent = NOW.minus(Duration.ofHours(14));
+        StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofSeconds(20), false)
+            .exportedAt(sent)
+            .freshness(new FreshnessPolicy.Verdict(FreshnessPolicy.Why.TRACKER_RULES_OLD, Duration.ofHours(14)))
+            .strictMode(true)
+            .build());
+        assertCard(card, Tone.PENDING, "Rules may be out of date", CardAction.OPEN_TRACKER, CardAction.CHECK_NOW);
+        assertEquals("The tracker sent these rules for Iron Example at Wed 22:00. Strict Mode paused: the rules are"
+            + " 14 h old. Open the tracker, or reload its tab, so it sends them again.", card.getDetail());
+
+        StatusCardModel strictOff = StatusCardPresenter.present(synced(Duration.ofSeconds(20), false)
+            .exportedAt(sent)
+            .freshness(new FreshnessPolicy.Verdict(FreshnessPolicy.Why.TRACKER_RULES_OLD, Duration.ofHours(14)))
+            .build());
+        assertEquals("With Strict Mode off, nothing is said to be paused",
+            "The tracker sent these rules for Iron Example at Wed 22:00. The rules are 14 h old, so they may not"
+                + " match your run. Open the tracker, or reload its tab, so it sends them again.",
+            strictOff.getDetail());
+    }
+
+    /** Rules that don't say when the tracker sent them: of unknown age, so Strict Mode lets you through. */
+    @Test
+    public void row5TrackerRulesWithNoSendTimePauseStrictModeToo()
+    {
+        StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofSeconds(20), false)
+            .freshness(new FreshnessPolicy.Verdict(FreshnessPolicy.Why.NO_SEND_TIME, null))
+            .strictMode(true)
+            .build());
+        assertCard(card, Tone.PENDING, "Rules may be out of date", CardAction.OPEN_TRACKER, CardAction.CHECK_NOW);
+        assertEquals("Strict Mode paused: the rules don't say when the tracker sent them. Open the tracker, or"
+            + " reload its tab, so it sends them again.", card.getDetail());
+    }
+
     @Test
     public void row5AFailedCheckWhileStillFreshKeepsTheRulesAgeApartFromTheConnection()
     {

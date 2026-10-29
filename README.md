@@ -46,6 +46,14 @@ leaves the copy as it was. So the card shows when the tracker sent the
 rules in use, and when RuneLite last checked. If the send time is older
 than your last roll, open the web tracker so it sends them again.
 
+For the same reason, Strict Mode stops blocking when the tracker sent the
+rules more than 12 hours ago, or the rules don't say when it sent them: it
+says so once in chat and on the status card ("Strict Mode paused: the rules
+are 14 h old"), rather than enforce locks you may have lifted since. The
+tracker sends the rules each time it opens and each time your run changes,
+so opening it (or reloading its tab) brings Strict Mode back at RuneLite's
+next check. Outlines, tags and warnings keep working throughout.
+
 **Re-pair tracker…** in Connection & backup pairs RuneLite with another
 tracker profile, and asks first. RuneLite keeps your current pairing until
 the new one sends your rules; if none arrives within 10 minutes, or you

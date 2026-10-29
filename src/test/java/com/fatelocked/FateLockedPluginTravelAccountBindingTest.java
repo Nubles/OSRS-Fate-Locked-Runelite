@@ -114,7 +114,8 @@ public class FateLockedPluginTravelAccountBindingTest
 
     private static String lockedBundle() throws Exception
     {
-        return fixtureText("bundles/v4-travel.json");
+        // Sent just now: Strict Mode counts tracker rules from when they were sent (ECO-3).
+        return PluginTestSupport.sentJustNow(fixtureText("bundles/v4-travel.json"));
     }
 
     private static String fixtureText(String name) throws Exception

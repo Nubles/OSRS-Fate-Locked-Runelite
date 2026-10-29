@@ -340,25 +340,36 @@ public class FateLockedRulesSourceTest
         }
     }
 
+    /**
+     * ECO-3: tracker rules are fresh while the relay answers and the tracker sent them less
+     * than 12 hours ago. A 304 a minute ago proves only that nothing newer reached the relay,
+     * so it never makes two-day-old rules fresh.
+     */
     @Test
-    public void trackerRulesStayFreshWhileTheRelayConfirmsThem() throws Exception
+    public void trackerRulesStayFreshWhileTheRelayAnswersAndTheTrackerSentThemLately() throws Exception
     {
         Harness h = new Harness(folder.newFolder("relay"));
         Instant now = Instant.now();
-        // Exported long ago, but confirmed by the relay a minute ago.
-        h.setRules(v4Bundle(now.minus(Duration.ofDays(2))),
-            FateLockedPlugin.RulesSource.RELAY);
         h.paired(true);
 
+        // Sent an hour ago, confirmed a minute ago.
+        h.setRules(v4Bundle(now.minus(Duration.ofHours(1))), FateLockedPlugin.RulesSource.RELAY);
         h.lastSync(now.minus(Duration.ofMinutes(1)));
         assertTrue(h.plugin.rulesAreFresh());
 
+        // The relay silent for 20 minutes: RuneLite can't know whether the tracker sent more.
         h.lastSync(now.minus(Duration.ofMinutes(20)));
         assertFalse(h.plugin.rulesAreFresh());
+        assertEquals(FreshnessPolicy.Why.NOT_CONFIRMED, h.plugin.rulesFreshness().getWhy());
 
-        // Online sync turned off: nothing confirms them, so fall back to the
-        // export time, which is two days old.
+        // Sent two days ago, and the relay's 304 a minute ago changes nothing.
+        h.setRules(v4Bundle(now.minus(Duration.ofDays(2))), FateLockedPlugin.RulesSource.RELAY);
         h.lastSync(now.minus(Duration.ofMinutes(1)));
+        assertFalse(h.plugin.rulesAreFresh());
+        assertEquals(FreshnessPolicy.Why.TRACKER_RULES_OLD, h.plugin.rulesFreshness().getWhy());
+
+        // Online sync turned off: nothing confirms them, so the export time's short window applies.
+        h.setRules(v4Bundle(now.minus(Duration.ofHours(1))), FateLockedPlugin.RulesSource.RELAY);
         h.paired(false);
         assertFalse(h.plugin.rulesAreFresh());
     }

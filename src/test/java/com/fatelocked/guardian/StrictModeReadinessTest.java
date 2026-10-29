@@ -33,7 +33,7 @@ public class StrictModeReadinessTest
     {
         assertInactive("no tracker rules are loaded",
             evaluate(true, true, false, null, null, false, false));
-        assertInactive("the rules are more than 15 minutes old",
+        assertInactive("the rules may be out of date; open the tracker to refresh them",
             evaluate(true, true, true, "Nubles", "Nubles", true, false));
         assertInactive("the rules have no travel table; sync them from the tracker again",
             StrictModeReadiness.evaluate(true, true, true, false, "Nubles", "Nubles", true, true));
@@ -52,7 +52,7 @@ public class StrictModeReadinessTest
             evaluate(true, false, true, "Nubles", null, false, true));
         assertInactive("the profile is for Nubles; you're logged in as Zezima",
             evaluate(true, false, true, " Nubles ", "Zezima", false, true));
-        assertInactive("the rules are more than 15 minutes old",
+        assertInactive("the rules may be out of date; open the tracker to refresh them",
             evaluate(true, false, true, "Nubles", "Nubles", true, false));
     }
 
