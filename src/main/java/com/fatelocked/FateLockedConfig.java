@@ -21,6 +21,9 @@ public interface FateLockedConfig extends Config
 {
     String GROUP = "fatelocked";
     String NETWORK_ACCESS_KEY = "trackerNetworkAccess";
+    /** Strict Mode also stops one-place network and boat trips (off by default). */
+    String BLOCK_NETWORKS_KEY = "blockNetworks";
+    String FAIRY_RING_DIAL_KEY = "fairyRingDialStatus";
     String NETWORK_WARNING = "This feature submits your IP address to a 3rd-party server "
         + "not controlled or verified by RuneLite developers.";
 
@@ -226,8 +229,8 @@ public interface FateLockedConfig extends Config
         description = "Stops a teleport it recognises exactly, with one place it can go, when fresh rules for this"
             + " character lock that place. It also stops one to an unlocked place when you haven't unlocked that kind"
             + " of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A worn item's teleport, such"
-            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped."
-            + " Off by default.",
+            + " as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting on gear are never stopped,"
+            + " apart from the network and boat trips Block networks and boats adds. Off by default.",
         section = strictModeSection,
         position = 0
     )
@@ -237,11 +240,27 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = BLOCK_NETWORKS_KEY,
+        name = "Block networks and boats",
+        description = "Also stops a network or boat trip that goes to one place your rules lock, as a teleport is"
+            + " stopped: a fairy ring's Zanaris or Last-destination, or a code dialled on it; a charter's Charter-to;"
+            + " a glider, ferry or boat option that names one place. Options where you pick the place after the"
+            + " click, such as Travel, Glider or Fly, are never stopped. Off by default: they are only tagged"
+            + " (Locked).",
+        section = strictModeSection,
+        position = 1
+    )
+    default boolean blockNetworks()
+    {
+        return false;
+    }
+
+    @ConfigItem(
         keyName = "pauseStrictModeHotkey",
         name = "Pause hotkey",
         description = "Pauses Strict Mode for 60 seconds. Not set by default.",
         section = strictModeSection,
-        position = 1
+        position = 2
     )
     default Keybind pauseStrictModeHotkey()
     {
@@ -347,6 +366,19 @@ public interface FateLockedConfig extends Config
         position = 6
     )
     default boolean announceUnlocks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = FAIRY_RING_DIAL_KEY,
+        name = "Fairy ring dial status",
+        description = "While a fairy ring's dials are open, one line beside them names the code dialled and what"
+            + " your rules say about it, such as CKS: Unlocked. It only tells you; it never stops anything.",
+        section = alertsSection,
+        position = 7
+    )
+    default boolean fairyRingDialStatus()
     {
         return true;
     }
@@ -525,11 +557,59 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "fateOrb",
+        name = "Fate orb",
+        description = "An orb by the minimap that fills with your Fate toward the Pity Key, shows your Keys, and counts up when a roll misses.",
+        section = displaySection,
+        position = 13
+    )
+    default boolean fateOrb()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "fateOrbGlow",
+        name = "Glow near the Pity Key",
+        description = "With Fate orb on: the orb turns red and glows once your Fate is close to a guaranteed Pity Key.",
+        section = displaySection,
+        position = 14
+    )
+    default boolean fateOrbGlow()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "itemTierMarks",
+        name = "Tier marks on items",
+        description = "A small tier numeral on items in your inventory, bank and worn equipment: green when your unlocked tier allows it, red when it doesn't.",
+        section = displaySection,
+        position = 15
+    )
+    default boolean itemTierMarks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "skillTierMarks",
+        name = "Tier marks on skills",
+        description = "Your unlocked tier on each skill in the Skills tab, orange once your level is past what the tier allows, and a padlock on skills you haven't unlocked.",
+        section = displaySection,
+        position = 16
+    )
+    default boolean skillTierMarks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
         keyName = "colourPreset",
         name = "Colours",
         description = "Default, a set safe for colour-blind players, or your own colours below.",
         section = displaySection,
-        position = 13
+        position = 17
     )
     default ColourPreset colourPreset()
     {

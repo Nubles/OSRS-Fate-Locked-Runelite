@@ -100,7 +100,7 @@ their own:
    file backups.
 
 Here starts open. Every setting is in RuneLite's configuration, under Fate
-Locked Ironman: 27 settings in six sections (Tracker, Strict Mode, Alerts,
+Locked Ironman: 29 settings in six sections (Tracker, Strict Mode, Alerts,
 Display, Custom colours and Backup). Settings from before Stage 3 carry over
 once, the first time the plugin starts.
 
@@ -128,6 +128,13 @@ once, the first time the plugin starts.
 - A chat line per area, and on entering locked land a sound and one short
   fade. Infoboxes for Keys, Fate Points and progress, each movable on its
   own.
+- A Fate orb by the minimap, drawn like the game's own orbs: Fate Points in
+  its box, a ring that fills toward a guaranteed Pity Key and glows when it's
+  close, and your Keys inside.
+- Tier marks in the game's tabs: a Roman numeral on gear in the inventory,
+  bank and worn equipment (green when its slot's tier allows it, red when
+  not), and each skill's unlocked tier in the Skills tab, orange once your
+  level is past it, with a padlock on skills you haven't unlocked.
 - Bank, Slayer-task and over-tier gear warnings, and a different-character
   line at login.
 - (Locked) tags on right-click options the rules lock, and on skilling spots
@@ -147,6 +154,11 @@ once, the first time the plugin starts.
 - Strict Mode, which blocks only travel the tracker's travel table matches
   by id, to one place it locks, with fail-open safeguards, a status that
   says when it cannot act, a 60-second pause, and a bounded local audit log.
+  Networks and boats are only tagged unless you turn on Block networks and
+  boats.
+- While a fairy ring's dials are open, one line names the code dialled and
+  what your rules say about it ("CKS: Unlocked", "CKS: Locked: …"), with
+  Strict Mode on or off. Fairy ring dial status, under Alerts, turns it off.
 - What RuneLite notices, listed in the Roll inbox card for the tracker:
   levels, quests, finished diary tiers, combat achievements, collection log
   items, clues, boss and raid kills, Slayer tasks and new pets.
@@ -215,8 +227,10 @@ rules.
 Strict Mode is off by default. It never removes, reorders or creates menu
 entries and never performs an action. It consumes a click in one case only:
 the tracker's travel table matches the click by id (a spell by its spellbook
-and name; a tablet, scroll or teleport item by its item id), the option goes
-to one place, and fresh rules bound to the logged-in character lock it.
+and name; a tablet, scroll or teleport item by its item id; with Block
+networks and boats on, also a network or boat by its object or NPC id), the
+option goes to one place, and fresh rules bound to the logged-in character
+lock it.
 The tracker locks a trip when the place is locked, or when the run hasn't
 unlocked what the trip needs, such as a spellbook, Teleport Tablets or
 Jewelry Teleports.
@@ -224,19 +238,31 @@ Jewelry Teleports.
 An option that picks its place after the click, such as a jewellery Rub, is
 never blocked. Fairy rings, spirit trees, gliders, charters, boats and the
 other networks are matched too, and an option to one locked place is tagged
-(Locked), but they are never blocked in this release. Walking, NPCs, objects
-(including doors, stairs and ladders), banks and equipment are never
-blocked; the (Locked) menu tags, the locked-bank warning and the over-tier
-gear warning cover them.
+(Locked). By default that is all: they are never blocked. **Block networks
+and boats**, a Strict Mode setting that is off by default, blocks them as it
+blocks a teleport, under the same rule: the table matches the option by id,
+it goes to exactly one place, and the tracker locks it. That covers a fairy
+ring's Zanaris and Last-destination (CKS), a code dialled on the fairy ring
+and confirmed, a charter crew's Charter-to options, Glider-to Gandius, and a
+ferry or boat option naming one port. An option that can go to several
+places, such as a spirit tree's Travel, a glider's Glider, a balloon's Fly or
+a charter's Charter, is never blocked. A dialled code is read from the dials
+when its confirm button is clicked; if the dials may still be turning, the
+click goes through. Apart from those, walking, NPCs, objects (including
+doors, stairs and ladders), banks and equipment are never blocked; the
+(Locked) menu tags, the locked-bank warning and the over-tier gear warning
+cover them.
 
 Missing, invalid, legacy, future, stale, unbound, wrong-character,
 unmatched, several-place, Allowed, Not ready and Unknown decisions fail
 open. Rules saved before the tracker sent a travel table can't match any
 trip, so Strict Mode reads Inactive until the tracker syncs them again. The
 sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
-why, and the HUD shows it while it is on. The pause turns it off for 60
-seconds and resumes automatically. A block's notice may suggest a trip the
-player carries that the tracker allows; the plugin never uses it for them.
+why, and the HUD shows it while it is on; while it is Active or Paused, both
+say whether networks and boats are blocked or tagged only. The pause turns
+it off for 60 seconds and resumes automatically. A block's notice may
+suggest a trip the player carries that the tracker allows; the plugin never
+uses it for them.
 
 This behavior is adjacent to RuneLite's restrictions on conditional menu
 entry changes, so it is limited to travel matched by id and does not claim

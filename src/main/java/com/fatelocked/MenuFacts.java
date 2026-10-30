@@ -48,6 +48,14 @@ public class MenuFacts
     /** The interface the option is on, for {@link Kind#WIDGET}. */
     @Builder.Default
     int interfaceGroup = NONE;
+    /** The component clicked (the menu's param1), for {@link Kind#WIDGET}. */
+    @Builder.Default
+    int componentId = NONE;
+    /**
+     * For a click on a fairy ring's confirm button, the code its dials show, such as "CKS"; null
+     * for any other click, or when the dials may still be turning.
+     */
+    String fairyRingCode;
     /** The item behind an inventory or worn item option. */
     @Builder.Default
     int itemId = NONE;

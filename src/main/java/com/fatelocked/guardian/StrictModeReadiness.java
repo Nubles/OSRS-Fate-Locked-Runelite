@@ -24,6 +24,29 @@ public class StrictModeReadiness
     State state;
     /** Why Strict Mode cannot act; null unless {@link State#INACTIVE}. */
     String reason;
+    /**
+     * Whether a network or boat trip to one place is stopped too, as a teleport is: the
+     * "Block networks and boats" setting. Off, they are only tagged.
+     */
+    boolean networks;
+
+    public StrictModeReadiness(State state, String reason)
+    {
+        this(state, reason, false);
+    }
+
+    public StrictModeReadiness(State state, String reason, boolean networks)
+    {
+        this.state = state;
+        this.reason = reason;
+        this.networks = networks;
+    }
+
+    /** The same readiness, with networks and boats covered or not. */
+    public StrictModeReadiness withNetworks(boolean covered)
+    {
+        return new StrictModeReadiness(state, reason, covered);
+    }
 
     /**
      * The pause is checked last: a pause only matters when Strict Mode could
