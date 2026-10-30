@@ -128,6 +128,13 @@ once, the first time the plugin starts.
 - A chat line per area, and on entering locked land a sound and one short
   fade. Infoboxes for Keys, Fate Points and progress, each movable on its
   own.
+- A Fate orb by the minimap, drawn like the game's own orbs: Fate Points in
+  its box, a ring that fills toward a guaranteed Pity Key and glows when it's
+  close, and your Keys inside.
+- Tier marks in the game's tabs: a Roman numeral on gear in the inventory,
+  bank and worn equipment (green when its slot's tier allows it, red when
+  not), and each skill's unlocked tier in the Skills tab, orange once your
+  level is past it, with a padlock on skills you haven't unlocked.
 - Bank, Slayer-task and over-tier gear warnings, and a different-character
   line at login.
 - (Locked) tags on right-click options the rules lock, and on skilling spots

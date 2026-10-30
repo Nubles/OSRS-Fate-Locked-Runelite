@@ -557,11 +557,59 @@ public interface FateLockedConfig extends Config
     }
 
     @ConfigItem(
+        keyName = "fateOrb",
+        name = "Fate orb",
+        description = "An orb by the minimap that fills with your Fate toward the Pity Key, shows your Keys, and counts up when a roll misses.",
+        section = displaySection,
+        position = 13
+    )
+    default boolean fateOrb()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "fateOrbGlow",
+        name = "Glow near the Pity Key",
+        description = "With Fate orb on: the orb turns red and glows once your Fate is close to a guaranteed Pity Key.",
+        section = displaySection,
+        position = 14
+    )
+    default boolean fateOrbGlow()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "itemTierMarks",
+        name = "Tier marks on items",
+        description = "A small tier numeral on items in your inventory, bank and worn equipment: green when your unlocked tier allows it, red when it doesn't.",
+        section = displaySection,
+        position = 15
+    )
+    default boolean itemTierMarks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+        keyName = "skillTierMarks",
+        name = "Tier marks on skills",
+        description = "Your unlocked tier on each skill in the Skills tab, orange once your level is past what the tier allows, and a padlock on skills you haven't unlocked.",
+        section = displaySection,
+        position = 16
+    )
+    default boolean skillTierMarks()
+    {
+        return true;
+    }
+
+    @ConfigItem(
         keyName = "colourPreset",
         name = "Colours",
         description = "Default, a set safe for colour-blind players, or your own colours below.",
         section = displaySection,
-        position = 13
+        position = 17
     )
     default ColourPreset colourPreset()
     {

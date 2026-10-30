@@ -80,6 +80,12 @@
    "defaultValue": "Off"
   },
   {
+   "key": "blockNetworks",
+   "section": "Strict Mode",
+   "name": "Block networks and boats",
+   "defaultValue": "Off"
+  },
+  {
    "key": "pauseStrictModeHotkey",
    "section": "Strict Mode",
    "name": "Pause hotkey",
@@ -132,6 +138,12 @@
    "key": "announceUnlocks",
    "section": "Alerts",
    "name": "Announce new unlocks",
+   "defaultValue": "On"
+  },
+  {
+   "key": "fairyRingDialStatus",
+   "section": "Alerts",
+   "name": "Fairy ring dial status",
    "defaultValue": "On"
   },
   {
@@ -234,6 +246,30 @@
    "section": "Display",
    "name": "Infoboxes",
    "defaultValue": "Off"
+  },
+  {
+   "key": "fateOrb",
+   "section": "Display",
+   "name": "Fate orb",
+   "defaultValue": "On"
+  },
+  {
+   "key": "fateOrbGlow",
+   "section": "Display",
+   "name": "Glow near the Pity Key",
+   "defaultValue": "On"
+  },
+  {
+   "key": "itemTierMarks",
+   "section": "Display",
+   "name": "Tier marks on items",
+   "defaultValue": "On"
+  },
+  {
+   "key": "skillTierMarks",
+   "section": "Display",
+   "name": "Tier marks on skills",
+   "defaultValue": "On"
   },
   {
    "key": "colourPreset",
