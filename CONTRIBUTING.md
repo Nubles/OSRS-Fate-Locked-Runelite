@@ -241,18 +241,25 @@ only when all of these are true:
   each only for its own kind of click, with the option's exact text. A
   click two methods match is neither's.
 - The option goes to one destination, and its method isn't advisory
-  (networks and boats are, in Stage 2).
+  (networks and boats are), unless the player turned on the default-off
+  `blockNetworks` setting, **Block networks and boats**. A click on a
+  fairy ring's confirm button is the trip to the code its dials show, looked
+  up in the table's `codes`; a confirm that may read the code from before a
+  turn carries none.
 - The tracker's decision for that option is Locked: the destination, or the
   unlock it needs, is locked.
 
 The code keeps limits a bundle can't widen: an option that is never travel
 (Walk here, Attack, Talk-to, Trade, Bank, Wear and the rest) is dropped from
 the table, whatever it says, and the table, each method and each option have
-caps. Walking, NPC, object, bank and equipment clicks are never consumed.
+caps. Walking, NPC, object, bank and equipment clicks are never consumed,
+apart from a network or boat option on an object or NPC that the table
+matches to one locked place while Block networks and boats is on.
 `PluginHubClickBoundaryTest` pins the single consume site and that no menu
 entry is removed, reordered or created. Allowed, Not ready, Unknown, stale,
-unbound, wrong-character, missing, invalid, future, several-place, advisory
-and unmatched inputs fail open. The menu tags read the same classifier and
+unbound, wrong-character, missing, invalid, future, several-place and
+unmatched inputs fail open, and so do advisory ones while Block networks
+and boats is off. The menu tags read the same classifier and
 decision: a travel option is tagged only for an exact Locked decision. Stage
 the four-second explanation and bounded local audit entry before consuming
 the player's click. Never click, activate, select, reorder, remove, path to,

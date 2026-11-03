@@ -85,6 +85,34 @@ public final class Palette
         BasicStroke.JOIN_ROUND);
     public static final BasicStroke PLAIN_EDGE_STROKE = new BasicStroke(1f);
 
+    /** The tracker's tier gems, Opal to Zenyte, for tier marks I to X in the game's tabs. */
+    static final Color[] TIER_GEMS = {
+        new Color(0xd9cfc0), new Color(0x6fbf6a), new Color(0xf08a5a), new Color(0x8aa4ff), new Color(0x2fbf5a),
+        new Color(0xff7878), new Color(0xdcecff), new Color(0xd886f5), new Color(0xa8a8a8), new Color(0xf5a623),
+    };
+    /** The game's orange, for a skill levelled past what its tier opens. */
+    public static final Color TIER_PAST = new Color(0xff981f);
+    /** The game's green, for gear its slot's tier allows. */
+    public static final Color TIER_ALLOWED = new Color(0x00ff00);
+    /** The game's red, for gear above its slot's tier. */
+    public static final Color TIER_ABOVE = new Color(0xff3030);
+    /** Over a skill with no Key yet in the Skills tab. */
+    public static final Color SKILL_LOCKED_DIM = new Color(0, 0, 0, 120);
+    /** The Skills tab padlock: the game's parchment. */
+    public static final Color SKILL_PADLOCK = new Color(0xc8b897);
+
+    /** The Fate orb, drawn like the minimap's orbs. */
+    public static final Color ORB_WELL = new Color(31, 26, 20);
+    public static final Color ORB_RING = new Color(42, 31, 51);
+    public static final Color ORB_FILL = new Color(138, 63, 196);
+    public static final Color ORB_FILL_NEAR = new Color(196, 47, 47);
+    public static final Color ORB_GLOW = new Color(255, 48, 48);
+    public static final Color ORB_CORE = new Color(46, 39, 30);
+    /** The game's own orb number colours and its stack yellow. */
+    public static final Color ORB_GREEN = new Color(0x00ff00);
+    public static final Color ORB_RED = new Color(0xff0000);
+    public static final Color ORB_YELLOW = new Color(0xffff00);
+
     private static final int PILL_ALPHA = 40;
 
     private static final Palette DEFAULT_PALETTE = new Palette(

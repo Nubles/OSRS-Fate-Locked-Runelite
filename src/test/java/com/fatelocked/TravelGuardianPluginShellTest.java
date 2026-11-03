@@ -21,6 +21,8 @@ import com.fatelocked.rules.PermissionStatus;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
 
 import java.time.Clock;
@@ -284,7 +286,7 @@ public class TravelGuardianPluginShellTest
         assertTrue(harness.audit.get(0).isAlternativeAvailable());
     }
 
-    /** Owner decision 2: a fairy ring is matched, and tagged, but never blocked in Stage 2. */
+    /** Owner decision 2: a fairy ring is matched and tagged, but blocked only with "Block networks and boats" on. */
     @Test
     public void advisoryTravelIsMatchedButNeverConsumed()
     {
@@ -296,6 +298,69 @@ public class TravelGuardianPluginShellTest
         verify(zanaris, never()).consume();
         assertTrue(harness.chat.isEmpty());
         assertTrue(harness.audit.isEmpty());
+    }
+
+    /**
+     * "Block networks and boats": a left click on a fairy ring's confirm button is the trip to the
+     * code its dials show (CKS, which the fixture locks), read as RuneLite gives it.
+     */
+    @Test
+    public void aDialledLockedCodeIsBlockedOnlyWithNetworksBlocked()
+    {
+        Harness harness = new Harness();
+        harness.dials(2, 2, 1);
+        TravelGuardianPluginShell shell = harness.actualShell();
+
+        MenuOptionClicked tagged = confirm();
+        assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL, shell.handle(tagged, harness.client, ACTIVE, rules));
+        verify(tagged, never()).consume();
+        assertTrue(harness.audit.isEmpty());
+
+        MenuOptionClicked blocked = confirm();
+        assertEquals(TravelGuardianPluginShell.Route.EXACT_TRAVEL,
+            shell.handle(blocked, harness.client, ACTIVE.withNetworks(true), rules));
+        verify(blocked).consume();
+        assertEquals("Strict Mode blocked Fairy ring to CKS", harness.noticeStore.current().get().getHeadline());
+        assertTrue(harness.chat.get(0), harness.chat.get(0).startsWith("Strict Mode blocked Fairy ring to CKS:"));
+        assertEquals("BLOCKED", harness.audit.get(0).getOutcome());
+        assertEquals("53,54", harness.audit.get(0).getChunk());
+    }
+
+    /** A confirm in the same tick as a turn may still read the old code: it is let through. */
+    @Test
+    public void aConfirmRightAfterATurnIsLetThrough()
+    {
+        Harness harness = new Harness();
+        harness.dials(2, 2, 1);
+        when(harness.client.getTickCount()).thenReturn(50);
+        TravelGuardianPluginShell shell = harness.actualShell();
+
+        MenuOptionClicked turn = TravelClicks.click(MenuAction.CC_OP, "Rotate clockwise", "");
+        when(turn.getMenuEntry().getParam1()).thenReturn(InterfaceID.Fairyrings._1_CLOCKWISE);
+        when(turn.getMenuEntry().getIdentifier()).thenReturn(1);
+        assertEquals(TravelGuardianPluginShell.Route.NOT_TRAVEL,
+            shell.handle(turn, harness.client, ACTIVE.withNetworks(true), rules));
+
+        MenuOptionClicked early = confirm();
+        assertEquals(TravelGuardianPluginShell.Route.NOT_TRAVEL,
+            shell.handle(early, harness.client, ACTIVE.withNetworks(true), rules));
+        verify(early, never()).consume();
+        verify(turn, never()).consume();
+        assertTrue(harness.audit.isEmpty());
+
+        when(harness.client.getTickCount()).thenReturn(52);
+        MenuOptionClicked settled = confirm();
+        shell.handle(settled, harness.client, ACTIVE.withNetworks(true), rules);
+        verify(settled).consume();
+    }
+
+    /** The dials' confirm button, its first op, as a CC_OP entry gives it. */
+    private static MenuOptionClicked confirm()
+    {
+        MenuOptionClicked click = TravelClicks.click(MenuAction.CC_OP, "Confirm", "");
+        when(click.getMenuEntry().getParam1()).thenReturn(InterfaceID.Fairyrings.CONFIRM);
+        when(click.getMenuEntry().getIdentifier()).thenReturn(1);
+        return click;
     }
 
     private static TravelGuardianResult blockedResult(TravelAlternative alternative)
@@ -335,6 +400,14 @@ public class TravelGuardianPluginShellTest
         private final List<String> diagnostics = new ArrayList<>();
         private RuntimeException chatFailure;
         private Exception auditFailure;
+
+        /** The dials' three varbits, as RuneLite's Fairy Rings plugin reads them. */
+        private void dials(int left, int middle, int right)
+        {
+            when(client.getVarbitValue(VarbitID.FAIRYRING_1)).thenReturn(left);
+            when(client.getVarbitValue(VarbitID.FAIRYRING_2)).thenReturn(middle);
+            when(client.getVarbitValue(VarbitID.FAIRYRING_3)).thenReturn(right);
+        }
 
         private TravelGuardianPluginShell actualShell()
         {

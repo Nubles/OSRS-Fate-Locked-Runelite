@@ -510,6 +510,37 @@ public final class DecisionService
         return unlocked == null ? null : new ItemTier(item.getSlot(), item.getTier(), unlocked);
     }
 
+    /**
+     * An item's tier and its slot's unlocked tier wherever the item sits (inventory, bank or
+     * worn), for the tier marks on the game's item slots; null for an unrated item, an older
+     * export, or another character's rules.
+     */
+    public ItemTier itemTierAnywhere(int itemId)
+    {
+        if (trust != Trust.TRUSTED || rules.isEmpty() || rules.isLegacy()) return null;
+        RuneliteRulesManifest manifest = rules.bundle().getRules();
+        if (manifest == null || manifest.getItemRules() == null || manifest.getUnlocks() == null) return null;
+        RuneliteRulesManifest.ItemRule item = manifest.getItemRules().get(String.valueOf(itemId));
+        if (item == null || isBlank(item.getSlot()) || item.getTier() <= 0) return null;
+        Integer unlocked = manifest.getUnlocks().getEquipment().get(item.getSlot());
+        return unlocked == null ? null : new ItemTier(item.getSlot(), item.getTier(), unlocked);
+    }
+
+    /**
+     * Each skill's unlocked tier by the tracker's name ("Attack"), 0 for no Key yet, for the
+     * Skills tab's tier marks; empty for an older export or another character's rules.
+     */
+    public Map<String, Integer> skillTiers()
+    {
+        if (trust != Trust.TRUSTED || rules.isEmpty() || rules.isLegacy()) return Collections.emptyMap();
+        RuneliteRulesManifest manifest = rules.bundle().getRules();
+        if (manifest == null || manifest.getUnlocks() == null || manifest.getUnlocks().getSkills() == null)
+        {
+            return Collections.emptyMap();
+        }
+        return manifest.getUnlocks().getSkills();
+    }
+
     /** Whether an item's equipment tier is unlocked for its slot. */
     public Decision item(int itemId)
     {

@@ -29,7 +29,8 @@ public class StrictModeView extends Section
         + " when fresh rules for this character lock that place. It also stops one to an unlocked place when you"
         + " haven't unlocked that kind of teleport, such as Teleport Tablets, Jewelry Teleports or a spellbook. A"
         + " worn item's teleport, such as a glory's Edgeville, counts. Walking, NPCs, objects, banks and putting"
-        + " on gear are never stopped; tags and warnings cover those. Pause it for 60 seconds here, or with a"
+        + " on gear are never stopped, apart from the network and boat trips Block networks and boats adds in"
+        + " RuneLite's configuration; tags and warnings cover the rest. Pause it for 60 seconds here, or with a"
         + " hotkey you can set in RuneLite's configuration.";
 
     private final ToggleSwitch toggle = new ToggleSwitch();
@@ -136,6 +137,10 @@ public class StrictModeView extends Section
         if (model.getDetail() != null)
         {
             body.add(Sidebar.text(model.getDetail(), Type.small(), Palette.TEXT_MUTED, 0));
+        }
+        if (model.getScope() != null)
+        {
+            body.add(Sidebar.text(model.getScope(), Type.small(), Palette.TEXT_MUTED, 0));
         }
         if (!model.getRecent().isEmpty())
         {

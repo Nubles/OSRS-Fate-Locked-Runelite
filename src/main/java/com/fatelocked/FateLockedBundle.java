@@ -811,6 +811,8 @@ public class FateLockedBundle
         String linkedAccount;
         /** Per-slot unlocked equipment tier (e.g. {"Head":2}). v3+, optional. */
         Map<String, Integer> equipment;
+        /** The Fate a guaranteed Pity Key needs in the run's mode; null when pity is off or an older tracker sent the bundle. */
+        Integer pityThreshold;
     }
 
     private static final class RawBundle

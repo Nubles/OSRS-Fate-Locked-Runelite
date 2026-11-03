@@ -15,8 +15,19 @@ public final class StrictModeSectionPresenter
     public static final String WHAT_IT_DOES = "Stops a teleport to a place your rules lock, or a teleport of a kind"
         + " you haven't unlocked, such as Teleport Tablets.";
 
+    /** What Strict Mode does with networks and boats, while it can stop something. */
+    public static final String NETWORKS_BLOCKED = "Networks and boats: blocked";
+    public static final String NETWORKS_TAGGED = "Networks and boats: tagged only";
+
     private StrictModeSectionPresenter()
     {
+    }
+
+    /** The scope line for a status: blocked or tagged only, while active or paused; null otherwise. */
+    public static String scope(StrictModeStatusView status)
+    {
+        if (status == null || !status.isScopeShown()) return null;
+        return status.isNetworks() ? NETWORKS_BLOCKED : NETWORKS_TAGGED;
     }
 
     /** @param recent what Strict Mode stopped lately, newest first, or null */
@@ -27,10 +38,10 @@ public final class StrictModeSectionPresenter
         {
             case ACTIVE:
                 return new StrictModeModel(true, status.getText(), Tone.GOOD, WHAT_IT_DOES,
-                    CardAction.PAUSE_STRICT_MODE, stopped);
+                    CardAction.PAUSE_STRICT_MODE, stopped, scope(status));
             case PAUSED:
                 return new StrictModeModel(true, status.getText(), Tone.PENDING, null,
-                    CardAction.RESUME_STRICT_MODE, stopped);
+                    CardAction.RESUME_STRICT_MODE, stopped, scope(status));
             case INACTIVE:
                 return new StrictModeModel(true, status.getText(), Tone.PENDING, status.getExplanation(), null,
                     stopped);

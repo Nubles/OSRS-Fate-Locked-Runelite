@@ -331,7 +331,7 @@ public final class TravelTable
         private final Map<String, Option> options;
         /** A fairy ring's codes by code ("CKS"); empty for anything else. */
         private final Map<String, Option> codes;
-        /** Tagged but never blocked: networks and boats in Stage 2. */
+        /** A network or boat: tagged, and blocked only with "Block networks and boats" on. */
         private final boolean advisory;
         private final Map<String, Option> byText = new HashMap<>();
 

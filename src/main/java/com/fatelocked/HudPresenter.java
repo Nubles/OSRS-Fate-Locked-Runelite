@@ -52,6 +52,11 @@ final class HudPresenter
         HereModel here;
     }
 
+    /** The HUD's line for what Strict Mode does with networks and boats, under its own line. */
+    static final String NETWORKS = "Networks";
+    static final String NETWORKS_BLOCKED = "Blocked";
+    static final String NETWORKS_TAGGED = "Tagged only";
+
     private HudPresenter()
     {
     }
@@ -97,6 +102,10 @@ final class HudPresenter
         {
             lines.add(new HudModel.Line(Terms.STRICT_MODE, strict.getText(),
                 strict.getTone() == StrictModeStatusView.Tone.ACTIVE ? Palette.Tone.GOOD : Palette.Tone.PENDING));
+            if (strict.isScopeShown())
+            {
+                lines.add(new HudModel.Line(NETWORKS, strict.isNetworks() ? NETWORKS_BLOCKED : NETWORKS_TAGGED, null));
+            }
         }
         if (chunk != null && decisions.hasNearestData())
         {
