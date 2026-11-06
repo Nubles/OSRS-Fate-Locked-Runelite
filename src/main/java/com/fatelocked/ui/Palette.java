@@ -14,6 +14,10 @@ import net.runelite.client.ui.ColorScheme;
  * default, one safe for colour-blind players (Okabe-Ito based), or the player's
  * custom colours. Colour never carries a status alone: text says it in a word, and
  * a locked edge is dashed over a dark underlay in every preset.
+ *
+ * <p>In game, the colour-blind preset goes further (the owner's pick, 6 Nov): outlines and
+ * tier marks use blue for locked, yellow for a tier too low and white for open, the three
+ * colours red-green colour blindness keeps furthest apart, and locked outlines are dashed.
  */
 public final class Palette
 {
@@ -113,17 +117,22 @@ public final class Palette
     public static final Color ORB_RED = new Color(0xff0000);
     public static final Color ORB_YELLOW = new Color(0xffff00);
 
+    /** The colour-blind preset's in-game colours: locked, a tier too low, and open. */
+    public static final Color SAFE_LOCKED = new Color(0x3d8bff);
+    public static final Color SAFE_TIER = new Color(0xf0e442);
+    public static final Color SAFE_OPEN = Color.WHITE;
+
     private static final int PILL_ALPHA = 40;
 
     private static final Palette DEFAULT_PALETTE = new Palette(
         texts(new Color(52, 211, 153), new Color(245, 158, 11), new Color(248, 113, 113),
             new Color(250, 204, 21)),
-        new Color(60, 10, 10, 110), new Color(250, 204, 21, 130), new Color(248, 113, 113));
+        new Color(60, 10, 10, 110), new Color(250, 204, 21, 130), new Color(248, 113, 113), false);
 
     private static final Palette COLOUR_BLIND_PALETTE = new Palette(
         texts(new Color(86, 180, 233), new Color(230, 159, 0), new Color(248, 113, 113),
             new Color(240, 228, 66)),
-        new Color(20, 20, 40, 110), new Color(240, 228, 66, 120), new Color(248, 113, 113));
+        new Color(20, 20, 40, 110), new Color(240, 228, 66, 120), new Color(248, 113, 113), true);
 
     private final Map<Tone, Color> text;
     private final Map<Tone, Color> pill = new EnumMap<>(Tone.class);
@@ -131,10 +140,13 @@ public final class Palette
     private final Color lockedShade;
     private final Color frontierFill;
     private final Color lockedEdge;
+    private final boolean safeInGame;
 
-    private Palette(Map<Tone, Color> text, Color lockedShade, Color frontierFill, Color lockedEdge)
+    private Palette(Map<Tone, Color> text, Color lockedShade, Color frontierFill, Color lockedEdge,
+        boolean safeInGame)
     {
         this.text = text;
+        this.safeInGame = safeInGame;
         this.lockedShade = lockedShade;
         this.frontierFill = frontierFill;
         this.lockedEdge = lockedEdge;
@@ -164,7 +176,7 @@ public final class Palette
             case CUSTOM:
                 Color lockedText = opaque(locked);
                 return new Palette(texts(opaque(unlocked), DEFAULT_PALETTE.text(Tone.PENDING), lockedText,
-                    opaque(frontier)), locked, frontier, lockedText);
+                    opaque(frontier)), locked, frontier, lockedText, false);
             default:
                 return DEFAULT_PALETTE;
         }
@@ -202,6 +214,50 @@ public final class Palette
     public String hex(Tone tone)
     {
         return hex.get(tone);
+    }
+
+    /**
+     * An outline round a thing in the scene: its text colour, or in the colour-blind preset
+     * blue when locked, yellow when its tier is too low and white when open.
+     */
+    public Color outline(Tone tone)
+    {
+        if (!safeInGame) return text(tone);
+        switch (tone)
+        {
+            case BAD:
+                return SAFE_LOCKED;
+            case PENDING:
+                return SAFE_TIER;
+            case GOOD:
+                return SAFE_OPEN;
+            default:
+                return text(tone);
+        }
+    }
+
+    /** Whether a locked thing's outline is dashed, so its shape says it as well as its colour. */
+    public boolean dashesLockedOutlines()
+    {
+        return safeInGame;
+    }
+
+    /** A gear tier mark its slot's tier allows: the game's green, or white in the colour-blind preset. */
+    public Color tierAllowed()
+    {
+        return safeInGame ? SAFE_OPEN : TIER_ALLOWED;
+    }
+
+    /** A gear tier mark above its slot's tier: the game's red, or blue in the colour-blind preset. */
+    public Color tierAbove()
+    {
+        return safeInGame ? SAFE_LOCKED : TIER_ABOVE;
+    }
+
+    /** A skill levelled past what its tier opens: the game's orange, or yellow in the colour-blind preset. */
+    public Color tierPast()
+    {
+        return safeInGame ? SAFE_TIER : TIER_PAST;
     }
 
     /** Locked land on the world map and the minimap: darker, like fog. */

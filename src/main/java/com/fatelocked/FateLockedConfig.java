@@ -607,7 +607,8 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "colourPreset",
         name = "Colours",
-        description = "Default, a set safe for colour-blind players, or your own colours below.",
+        description = "Default, a set safe for colour-blind players (in game: blue and dashed for locked, yellow for"
+            + " a tier too low, white for open), or your own colours below.",
         section = displaySection,
         position = 17
     )
