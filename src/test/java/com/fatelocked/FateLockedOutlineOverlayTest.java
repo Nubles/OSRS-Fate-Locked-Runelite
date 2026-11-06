@@ -2,6 +2,8 @@ package com.fatelocked;
 
 import com.fatelocked.sidebar.LockedThings;
 import com.fatelocked.sidebar.PointTarget;
+import com.fatelocked.ui.Palette;
+import java.awt.Color;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
@@ -54,6 +56,20 @@ public class FateLockedOutlineOverlayTest
         assertSame(LockedThings.Look.TIER, FateLockedOutlineOverlay.shown(new LockedThings.Thing(yew,
             LockedThings.Look.TIER, LockedThings.Kind.SKILLING, "Woodcutting tier 6", "", false)));
         assertSame(LockedThings.Look.OPEN, FateLockedOutlineOverlay.shown(OPEN));
+    }
+
+    @Test
+    public void onlyLockedThingsAreDashedAndOnlyInTheColourBlindPreset()
+    {
+        Palette safe = Palette.of(Palette.Preset.COLOUR_BLIND_SAFE,
+            Color.BLACK, Color.BLACK, Color.BLACK);
+        assertTrue(FateLockedOutlineOverlay.dashed(safe, Palette.Tone.BAD));
+        assertFalse(FateLockedOutlineOverlay.dashed(safe, Palette.Tone.PENDING));
+        assertFalse(FateLockedOutlineOverlay.dashed(safe, Palette.Tone.GOOD));
+        assertFalse(FateLockedOutlineOverlay.dashed(Palette.defaults(),
+            Palette.Tone.BAD));
+        assertTrue(FateLockedOutlineOverlay.DASHED.getDashArray() != null);
+        assertTrue(FateLockedOutlineOverlay.DASH_UNDERLAY.getLineWidth() > FateLockedOutlineOverlay.DASHED.getLineWidth());
     }
 
     @Test

@@ -150,7 +150,9 @@ once, the first time the plugin starts.
   banner for a few seconds, and the new land glowing gold on the world map
   until you stand in it. Announce new unlocks turns it off.
 - Default, colour-blind safe or custom colours for everything the plugin
-  draws.
+  draws. In game, colour-blind safe outlines and tier marks use blue for
+  locked, yellow for a tier too low and white for open, and locked outlines
+  are dashed, so colour is never the only clue.
 - Strict Mode, which blocks only travel the tracker's travel table matches
   by id, to one place it locks, with fail-open safeguards, a status that
   says when it cannot act, a 60-second pause, and a bounded local audit log.

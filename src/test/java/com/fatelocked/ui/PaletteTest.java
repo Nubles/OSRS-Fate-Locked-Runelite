@@ -130,6 +130,51 @@ public class PaletteTest
     }
 
     @Test
+    public void theColourBlindPresetKeepsLockedTierAndOpenApartInGame()
+    {
+        // The owner's pick (6 Nov): blue, yellow and white in game, further apart for red-green
+        // colour blindness than the default's red, orange and green.
+        Palette safe = Palette.of(Preset.COLOUR_BLIND_SAFE, Color.BLACK, Color.BLACK, Color.BLACK);
+        List<Color> outlines = Arrays.asList(safe.outline(Tone.BAD), safe.outline(Tone.PENDING), safe.outline(Tone.GOOD));
+        List<Color> marks = Arrays.asList(safe.tierAbove(), safe.tierPast(), safe.tierAllowed());
+        assertEquals(outlines, marks);
+        for (Vision vision : Arrays.asList(Vision.PROTAN, Vision.DEUTAN))
+        {
+            double safest = closest(outlines, vision);
+            double today = closest(Arrays.asList(Palette.defaults().outline(Tone.BAD),
+                Palette.defaults().outline(Tone.PENDING), Palette.defaults().outline(Tone.GOOD)), vision);
+            assertTrue(vision + " sees two outlines " + safest + " apart", safest >= 20);
+            assertTrue(vision + ": " + safest + " against the default's " + today, safest > today);
+            for (Color outline : outlines)
+            {
+                for (Color ground : TERRAIN)
+                {
+                    double apart = ColourMaths.difference(outline, ground, vision);
+                    assertTrue(vision + " " + outline + " over " + ground + ": " + apart, apart >= 15);
+                }
+            }
+        }
+        assertTrue(safe.dashesLockedOutlines());
+    }
+
+    @Test
+    public void theOtherPresetsLookAsTheyDidInGame()
+    {
+        Palette custom = Palette.of(Preset.CUSTOM, Color.CYAN, Color.MAGENTA, Color.PINK);
+        for (Palette palette : Arrays.asList(Palette.defaults(), custom))
+        {
+            for (Tone tone : Tone.values())
+            {
+                assertEquals(palette.text(tone), palette.outline(tone));
+            }
+            assertEquals(Palette.TIER_ALLOWED, palette.tierAllowed());
+            assertEquals(Palette.TIER_ABOVE, palette.tierAbove());
+            assertEquals(Palette.TIER_PAST, palette.tierPast());
+            assertTrue(!palette.dashesLockedOutlines());
+        }
+    }
+
+    @Test
     public void aDecisionTakesTheToneOfItsStatus()
     {
         assertEquals(Tone.GOOD, Palette.tone(PermissionStatus.ALLOWED));
@@ -153,7 +198,20 @@ public class PaletteTest
         return closest;
     }
 
-    private static void assertReadable(String what, Color text, Color background)
+    private static double closest(List<Color> colours, Vision vision)
+    {
+        double closest = Double.MAX_VALUE;
+        for (int i = 0; i < colours.size(); i++)
+        {
+            for (int j = i + 1; j < colours.size(); j++)
+            {
+                closest = Math.min(closest, ColourMaths.difference(colours.get(i), colours.get(j), vision));
+            }
+        }
+        return closest;
+    }
+
+        private static void assertReadable(String what, Color text, Color background)
     {
         double ratio = ColourMaths.contrast(text, background);
         assertTrue(what + " " + text + " is " + ratio + ":1 on " + background, ratio >= 4.5);

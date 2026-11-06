@@ -39,6 +39,6 @@ public class FateLockedItemTierOverlay extends WidgetItemOverlay
         Rectangle bounds = widgetItem.getCanvasBounds();
         if (bounds == null) return;
         TierMarks.shadowed(graphics, TierMarks.roman(tier.getTier()), bounds.x, bounds.y + bounds.height - 1,
-            Type.small(), tier.isOver() ? TierMarks.ABOVE : TierMarks.ALLOWED);
+            Type.small(), tier.isOver() ? plugin.palette().tierAbove() : plugin.palette().tierAllowed());
     }
 }

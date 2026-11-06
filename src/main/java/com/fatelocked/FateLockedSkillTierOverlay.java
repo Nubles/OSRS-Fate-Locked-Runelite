@@ -73,7 +73,7 @@ public class FateLockedSkillTierOverlay extends Overlay
             int level = realLevel(skill);
             String numeral = TierMarks.roman(tier);
             TierMarks.shadowed(graphics, numeral, bounds.x + 3, bounds.y + bounds.height - 2, Type.small(),
-                level > TierMarks.levelCap(tier) ? TierMarks.PAST_TIER : TierMarks.gem(tier));
+                level > TierMarks.levelCap(tier) ? plugin.palette().tierPast() : TierMarks.gem(tier));
         }
         return null;
     }

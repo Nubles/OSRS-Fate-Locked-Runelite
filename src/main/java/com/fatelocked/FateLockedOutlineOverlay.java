@@ -57,6 +57,11 @@ public class FateLockedOutlineOverlay extends Overlay
     static final int RADIUS = 12;
     private static final int OUTLINE_WIDTH = 2;
     private static final int FEATHER = 2;
+    private static final BasicStroke SOLID = new BasicStroke(OUTLINE_WIDTH);
+    /** A locked outline in the colour-blind preset: dashes over a dark line, so it reads on any ground. */
+    static final BasicStroke DASHED = new BasicStroke(OUTLINE_WIDTH, BasicStroke.CAP_BUTT,
+        BasicStroke.JOIN_ROUND, 10f, new float[]{6f, 4f}, 0f);
+    static final BasicStroke DASH_UNDERLAY = new BasicStroke(OUTLINE_WIDTH + 2f);
     private static final int ZONE_TILES = 8;
 
     /** One thing to outline, and how. */
@@ -86,6 +91,8 @@ public class FateLockedOutlineOverlay extends Overlay
      * flashed on and off; the last shape fills the frames it's missing from.
      */
     private Map<NPC, Shape> hulls = new IdentityHashMap<>();
+    /** The last clickbox of each object drawn dashed, kept for a frame where the client has none. */
+    private Map<TileObject, Shape> boxes = new IdentityHashMap<>();
     private DecisionService npcLooksFor;
 
     @Inject
@@ -108,6 +115,7 @@ public class FateLockedOutlineOverlay extends Overlay
             found = Collections.emptyList();
             npcLooks = new IdentityHashMap<>();
             hulls = new IdentityHashMap<>();
+            boxes = new IdentityHashMap<>();
             return null;
         }
         int tick = client.getTickCount();
@@ -119,7 +127,9 @@ public class FateLockedOutlineOverlay extends Overlay
         Palette palette = plugin.palette();
         for (Outlined thing : found)
         {
-            Color colour = palette.text(tone(thing.getLook()));
+            Palette.Tone tone = tone(thing.getLook());
+            Color colour = palette.outline(tone);
+            boolean dashed = dashed(palette, tone);
             try
             {
                 if (thing.isGround())
@@ -127,9 +137,7 @@ public class FateLockedOutlineOverlay extends Overlay
                     Polygon square = thing.getObject().getCanvasTilePoly();
                     if (square != null)
                     {
-                        graphics.setColor(colour);
-                        graphics.setStroke(new BasicStroke(OUTLINE_WIDTH));
-                        graphics.draw(square);
+                        stroke(graphics, square, colour, dashed);
                     }
                 }
                 else if (thing.getNpc() != null)
@@ -145,9 +153,29 @@ public class FateLockedOutlineOverlay extends Overlay
                     }
                     if (hull != null)
                     {
-                        graphics.setColor(colour);
-                        graphics.setStroke(new BasicStroke(OUTLINE_WIDTH));
-                        graphics.draw(hull);
+                        stroke(graphics, hull, colour, dashed);
+                    }
+                }
+                else if (dashed)
+                {
+                    // A model outline can't be dashed, so a locked object gets a dashed line round
+                    // its clickbox instead: the same shape the game uses for its hover.
+                    Shape box = thing.getObject().getClickbox();
+                    if (box != null)
+                    {
+                        boxes.put(thing.getObject(), box);
+                    }
+                    else
+                    {
+                        box = boxes.get(thing.getObject());
+                    }
+                    if (box != null)
+                    {
+                        stroke(graphics, box, colour, true);
+                    }
+                    else
+                    {
+                        outlines.drawOutline(thing.getObject(), OUTLINE_WIDTH, colour, FEATHER);
                     }
                 }
                 else
@@ -160,6 +188,10 @@ public class FateLockedOutlineOverlay extends Overlay
                 // Seen in game (8 Oct): an object can lose its model between the tick's scan and
                 // this frame, and the outline renderer then throws. Skip it until the next scan.
             }
+        }
+        if (boxes.size() > 256)
+        {
+            boxes = new IdentityHashMap<>();
         }
         return null;
     }
@@ -182,6 +214,31 @@ public class FateLockedOutlineOverlay extends Overlay
     static boolean ground(LockedThings.Thing thing)
     {
         return "FARMING".equals(thing.getTarget().getCategory());
+    }
+
+    /** Whether a thing in this tone is outlined with dashes: only locked things, in the colour-blind preset. */
+    static boolean dashed(Palette palette, Palette.Tone tone)
+    {
+        return tone == Palette.Tone.BAD && palette.dashesLockedOutlines();
+    }
+
+    /** A line round a shape: solid, or dashes over a dark line. */
+    private static void stroke(Graphics2D graphics, Shape shape, Color colour, boolean dashed)
+    {
+        if (dashed)
+        {
+            graphics.setColor(Palette.UNDERLAY);
+            graphics.setStroke(DASH_UNDERLAY);
+            graphics.draw(shape);
+            graphics.setColor(colour);
+            graphics.setStroke(DASHED);
+        }
+        else
+        {
+            graphics.setColor(colour);
+            graphics.setStroke(SOLID);
+        }
+        graphics.draw(shape);
     }
 
     static Palette.Tone tone(LockedThings.Look look)
