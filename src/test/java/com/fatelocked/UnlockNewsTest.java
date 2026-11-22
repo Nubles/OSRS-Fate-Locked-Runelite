@@ -92,6 +92,45 @@ public class UnlockNewsTest
         assertEquals("Unlocked Crafting Guild chunk.", news.line());
     }
 
+    /**
+     * Audit: Sailing opens the sea the tracker snapshots, but the sea isn't land, so the news
+     * names no sea chunks one by one; only the land that opened with it, and the tier.
+     */
+    @Test
+    public void openingTheSeaNamesNoSeaChunks() throws Exception
+    {
+        UnlockNews news = UnlockNews.between(sameRun("chunked-fresh"), sameRun("chunked-sailing"));
+
+        assertEquals(new java.util.HashSet<>(java.util.Arrays.asList(new CanonicalChunk(49, 49), new CanonicalChunk(49, 50))),
+            news.getChunks());
+        assertEquals(java.util.Arrays.asList("Lumbridge Castle Backyard chunk", "Sailing tier 1",
+                "West Lumbridge Swamp chunk"),
+            news.getNames().stream().sorted().collect(java.util.stream.Collectors.toList()));
+
+        UnlockNews vanilla = UnlockNews.between(sameRun("vanilla-fresh"), sameRun("vanilla-sailing"));
+        java.util.Set<CanonicalChunk> falador = new java.util.HashSet<>();
+        for (String key : new String[] { "45,52", "46,49", "46,51", "46,52", "46,53", "47,49", "47,50", "47,51",
+            "47,52", "47,53" })
+        {
+            falador.add(GoldenBundleContractTest.chunk(key));
+        }
+        assertEquals("the land that opened glows, not the sea", falador, vanilla.getChunks());
+        assertTrue(vanilla.getNames().toString(), vanilla.getNames().contains("Sailing tier 1"));
+        assertTrue(vanilla.getNames().toString(),
+            vanilla.getNames().stream().noneMatch(name -> name.matches("\\d+,\\d+ chunk")));
+    }
+
+    /** A golden as one run, so two of them read as the same run a sync later. */
+    private static DecisionService sameRun(String id) throws Exception
+    {
+        JsonObject bundle = GSON.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz")), JsonObject.class);
+        bundle.addProperty("runId", "same-run");
+        bundle.getAsJsonObject("rules").addProperty("runId", "same-run");
+        return DecisionService.create(RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, GSON.toJson(bundle))),
+            "iron example", "iron example");
+    }
+
     private static final CanonicalChunk CRAFTING_GUILD = new CanonicalChunk(45, 51);
 
     /** The chunked-walk run a roll later: 45,51 (the Crafting Guild) unlocked. */

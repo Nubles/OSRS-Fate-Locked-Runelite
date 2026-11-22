@@ -62,8 +62,12 @@ public class HerePresenterGoldenTest
         {
             String id = (String) scenario[0];
             DecisionService playing = decisions(id, "iron example");
-            for (CanonicalChunk chunk : playing.mappedChunks())
+            // Every snapshot, the sea's too: the Here card shows them though the map draws land only.
+            String json = GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(id + ".bundle.json.gz"));
+            for (String key : GSON.fromJson(json, com.google.gson.JsonObject.class)
+                .getAsJsonObject("rules").getAsJsonObject("chunks").keySet())
             {
+                CanonicalChunk chunk = GoldenBundleContractTest.chunk(key);
                 for (HereModel.Group group : PRESENTER.present(playing, chunk).getGroups())
                 {
                     for (HereModel.Row row : group.getRows())

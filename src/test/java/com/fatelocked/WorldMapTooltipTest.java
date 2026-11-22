@@ -64,7 +64,14 @@ public class WorldMapTooltipTest
                 for (JsonElement key : expected.getAsJsonArray("frontier")) wantFrontier.add(key.getAsString());
             }
 
-            assertEquals(id + " draws the tracker's land", new TreeSet<>(chunks.keySet()), drawn);
+            Set<String> land = new TreeSet<>();
+            for (String key : chunks.keySet())
+            {
+                JsonElement kind = chunks.getAsJsonObject(key).get("kind");
+                if (kind == null || kind.isJsonNull() || !"ocean".equals(kind.getAsString())) land.add(key);
+            }
+            assertTrue(id + " has sea snapshots", land.size() < chunks.size());
+            assertEquals(id + " draws the tracker's land, not its sea", land, drawn);
             assertEquals(id + " colours", List.of(), mismatches);
             assertEquals(id + " frontier", wantFrontier, frontier);
             for (String key : expected.getAsJsonObject("chunks").keySet())
@@ -94,9 +101,8 @@ public class WorldMapTooltipTest
             .endsWith("</br><col=f87171>Locked</col>"));
         assertTrue(WorldMapChunks.tooltip(mid, new CanonicalChunk(39, 53), List.of(), Palette.defaults())
             .endsWith("</br><col=f59e0b>Not ready</col>"));
-        assertEquals("a chunk only the tracker names",
-            "Chunk (16, 44)</br><col=f87171>Locked</col>",
-            WorldMapChunks.tooltip(mid, new CanonicalChunk(16, 44), List.of(), Palette.defaults()));
+        assertNull("the sea the tracker snapshots", WorldMapChunks.tooltip(mid, new CanonicalChunk(16, 44), List.of(),
+            Palette.defaults()));
         assertNull("the sea", WorldMapChunks.tooltip(mid, new CanonicalChunk(40, 41), List.of(), Palette.defaults()));
         assertEquals("the colours follow the palette", "Lumbridge · Misthalin</br><col=56b4e9>Unlocked</col>",
             WorldMapChunks.tooltip(mid, new CanonicalChunk(50, 50), List.of(),
@@ -124,6 +130,23 @@ public class WorldMapTooltipTest
         CanonicalChunk next = frontierOf("chunked-walk").iterator().next();
         assertTrue(DecisionService.create(walkRules, "iron example", "iron example").isFrontier(next));
         assertFalse(DecisionService.create(walkRules, "iron example", "someone else").isFrontier(next));
+    }
+
+    /** Audit: older rules send no kind, so their snapshots stay land; a chunk only the tracker names shows where. */
+    @Test
+    public void aSnapshotWithNoKindIsLand() throws Exception
+    {
+        JsonObject wire = GSON.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")), JsonObject.class);
+        wire.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("16,44").remove("kind");
+        String account = account(wire);
+        DecisionService older = DecisionService.create(
+            RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, GSON.toJson(wire))), account, account);
+
+        assertTrue(older.mappedChunks().contains(new CanonicalChunk(16, 44)));
+        assertEquals("a chunk only the tracker names",
+            "Chunk (16, 44)</br><col=f87171>Locked</col>",
+            WorldMapChunks.tooltip(older, new CanonicalChunk(16, 44), List.of(), Palette.defaults()));
     }
 
     @Test

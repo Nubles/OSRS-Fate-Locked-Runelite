@@ -3,6 +3,7 @@ package com.fatelocked.rules;
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -44,8 +45,11 @@ public final class RulesSnapshot
         this.progress = tracked != null ? tracked : new Progress(
             bundle.isChunkedBundle() ? Progress.CHUNKS : Progress.AREAS,
             bundle.getUnlockedAreas(), bundle.getTotalAreas(), bundle.getUnlockedChunks(), bundle.getTotalChunks());
-        this.bankChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "BANKS", "BANK"));
-        this.shopChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "SHOPS", null));
+        // Every snapshot, sea included: a bank or shop at sea is still the nearest one.
+        Set<CanonicalChunk> snapshots = bundle.isLegacyRules() ? Collections.emptySet()
+            : chunks(bundle.getRules().getChunks().keySet());
+        this.bankChunks = Collections.unmodifiableSet(withRows(bundle, snapshots, "BANKS", "BANK"));
+        this.shopChunks = Collections.unmodifiableSet(withRows(bundle, snapshots, "SHOPS", null));
         List<String> frontierKeys = bundle.isLegacyRules() ? null : bundle.getRules().getFrontier();
         this.frontier = frontierKeys == null ? null : Collections.unmodifiableSet(chunks(frontierKeys));
         RuneliteRulesManifest manifest = bundle.isLegacyRules() ? null : bundle.getRules();
@@ -100,13 +104,13 @@ public final class RulesSnapshot
         return chunks;
     }
 
-    /** The mapped chunks with a row in a category (of one target kind, when given). */
+    /** The snapshotted chunks with a row in a category (of one target kind, when given). */
     private static Set<CanonicalChunk> withRows(
-        FateLockedBundle bundle, Set<CanonicalChunk> mapped, String category, String targetKind)
+        FateLockedBundle bundle, Set<CanonicalChunk> snapshots, String category, String targetKind)
     {
         Set<CanonicalChunk> chunks = new LinkedHashSet<>();
         if (bundle.isLegacyRules()) return chunks;
-        for (CanonicalChunk chunk : mapped)
+        for (CanonicalChunk chunk : snapshots)
         {
             ChunkPermissionSnapshot snapshot = bundle.permissionsAt(chunk).orElse(null);
             List<ChunkPermissionRow> rows = snapshot == null ? null : snapshot.getCategories().get(category);
@@ -123,7 +127,11 @@ public final class RulesSnapshot
         return chunks;
     }
 
-    /** The tracker's chunk keys ("cx,cy"), or an older export's area chunks. */
+    /**
+     * The tracker's land chunk keys ("cx,cy"), or an older export's area chunks. Snapshots of the
+     * sea ("ocean") are left out, as the web map shows land only; their entries still decide.
+     * Older rules send no kind, and those chunks stay land.
+     */
     private static Set<CanonicalChunk> mapped(FateLockedBundle bundle)
     {
         Set<CanonicalChunk> chunks = new LinkedHashSet<>();
@@ -132,7 +140,13 @@ public final class RulesSnapshot
             for (Set<CanonicalChunk> region : bundle.getRegionChunks().values()) chunks.addAll(region);
             return chunks;
         }
-        chunks.addAll(chunks(bundle.getRules().getChunks().keySet()));
+        List<String> land = new ArrayList<>();
+        for (Map.Entry<String, ChunkPermissionSnapshot> snapshot : bundle.getRules().getChunks().entrySet())
+        {
+            if (snapshot.getValue() != null && "ocean".equalsIgnoreCase(snapshot.getValue().getKind())) continue;
+            land.add(snapshot.getKey());
+        }
+        chunks.addAll(chunks(land));
         return chunks;
     }
 
@@ -186,7 +200,7 @@ public final class RulesSnapshot
         return progress;
     }
 
-    /** Every chunk the rules decide, fixed when they load. */
+    /** Every land chunk the rules decide (the sea left out), fixed when they load. */
     Set<CanonicalChunk> mappedChunks()
     {
         return mapped;

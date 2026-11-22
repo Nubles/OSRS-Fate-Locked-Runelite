@@ -102,6 +102,47 @@ public class WorldMapModelTest
         assertTrue(units(WorldMapModel.of(playing).outline()).contains("H49,48"));
     }
 
+    /**
+     * Audit: the sea the tracker snapshots isn't land, so opening it (Sailing) neither shades
+     * it nor lines it. No side the map draws lies between two sea chunks.
+     */
+    @Test
+    public void theSeaIsNeitherShadedNorOutlined() throws Exception
+    {
+        for (String id : new String[] { "vanilla-fresh", "vanilla-sailing", "chunked-sailing" })
+        {
+            JsonObject chunks = GSON.fromJson(GoldenBundleContractTest.gunzip(
+                GoldenBundleContractTest.bytes(id + ".bundle.json.gz")), JsonObject.class)
+                .getAsJsonObject("rules").getAsJsonObject("chunks");
+            Set<CanonicalChunk> sea = new HashSet<>();
+            for (String key : chunks.keySet())
+            {
+                JsonElement kind = chunks.getAsJsonObject(key).get("kind");
+                if (kind != null && !kind.isJsonNull() && "ocean".equals(kind.getAsString()))
+                {
+                    sea.add(GoldenBundleContractTest.chunk(key));
+                }
+            }
+            assertFalse(id + " has sea snapshots", sea.isEmpty());
+            DecisionService playing = playing(id);
+            WorldMapModel model = WorldMapModel.of(playing);
+            for (CanonicalChunk chunk : sea) assertNull(id + " " + chunk, WorldMapChunks.fill(playing, chunk));
+            for (String unit : units(model.outline())) assertFalse(id + " outline " + unit, betweenSea(unit, sea));
+            for (String unit : units(model.grid())) assertFalse(id + " grid " + unit, betweenSea(unit, sea));
+        }
+    }
+
+    /** True when a unit ("V cx,cy" west side, "H cy,cx" south side) has sea on both sides. */
+    private static boolean betweenSea(String unit, Set<CanonicalChunk> sea)
+    {
+        String[] at = unit.substring(1).split(",");
+        int line = Integer.parseInt(at[0]);
+        int along = Integer.parseInt(at[1]);
+        return unit.charAt(0) == 'V'
+            ? sea.contains(new CanonicalChunk(line - 1, along)) && sea.contains(new CanonicalChunk(line, along))
+            : sea.contains(new CanonicalChunk(along, line - 1)) && sea.contains(new CanonicalChunk(along, line));
+    }
+
     /** Each unit of outline wanted: every side where unlocked land meets land that isn't unlocked. */
     private static Set<String> outline(Map<CanonicalChunk, WorldMapChunks.Fill> fills)
     {

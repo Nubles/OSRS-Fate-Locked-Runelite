@@ -317,7 +317,7 @@ public class FateLockedChunkEntryTest
     {
         FateLockedBundle mid = playing("Iron Example");
         DecisionService decisions = DecisionService.create(RulesSnapshot.of(mid), "iron example", "iron example");
-        CanonicalChunk[] sea = adjacentUnnamed(decisions);
+        CanonicalChunk[] sea = adjacentUnnamed(mid, decisions);
 
         walk(sea);
 
@@ -325,11 +325,15 @@ public class FateLockedChunkEntryTest
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
     }
 
-    /** Two neighbouring locked chunks with no area name and the same reason: open sea. */
-    private static CanonicalChunk[] adjacentUnnamed(DecisionService decisions)
+    /**
+     * Two neighbouring locked chunks with no area name and the same reason: open sea. Over every
+     * snapshot the rules send, as the sea isn't among the mapped (land) chunks.
+     */
+    private static CanonicalChunk[] adjacentUnnamed(FateLockedBundle bundle, DecisionService decisions)
     {
-        for (CanonicalChunk chunk : decisions.mappedChunks())
+        for (String key : bundle.getRules().getChunks().keySet())
         {
+            CanonicalChunk chunk = GoldenBundleContractTest.chunk(key);
             CanonicalChunk east = new CanonicalChunk(chunk.getCx() + 1, chunk.getCy());
             Decision here = decisions.chunk(chunk);
             Decision there = decisions.chunk(east);

@@ -216,7 +216,8 @@ public final class DecisionService
 
     /**
      * The chunks the rules decide, for the world map: the tracker's land, or
-     * an older export's areas. The sea the rules don't cover isn't in it.
+     * an older export's areas. The sea isn't in it, whether or not the rules
+     * send its snapshots; {@link #chunk} still decides it.
      */
     public Set<CanonicalChunk> mappedChunks()
     {
