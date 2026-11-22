@@ -7,6 +7,8 @@ import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.Notifier;
 import net.runelite.client.chat.ChatMessageManager;
@@ -154,6 +156,69 @@ public class SlayerChatTest
         when(config.ruleWarnings()).thenReturn(false);
         GearDecisionTest.configChanged(plugin, "ruleWarnings");
         assertNull(plugin.getSlayerTaskWarn());
+    }
+
+    /**
+     * Audit: the combat bracelet's count line every 10 kills (Wiki "Combat bracelet"; RuneLite's
+     * SlayerPluginTest) names no task, so the task and its warning stay.
+     */
+    @Test
+    public void theCombatBraceletsCountLineKeepsTheTask() throws Exception
+    {
+        say(GEM_CHECK, 7);
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+        assertEquals(List.of(), say("You still need to kill 30 monsters to complete your current Slayer assignment", 7));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+    }
+
+    /**
+     * Audit: Krystilia's lines say "in the Wilderness" (RuneLite's SlayerPluginTest; Wiki
+     * "Transcript:Krystilia"). That's her area, not one of Konar's places.
+     */
+    @Test
+    public void krystiliasWildernessLinesAreHerTasksNotKonars() throws Exception
+    {
+        assertEquals(new SlayerAssignment("Suqahs", null, "krystilia"),
+            SlayerAssignment.fromChat("You're assigned to kill Suqahs in the Wilderness; only 211 more to go.", 7));
+        assertEquals(new SlayerAssignment("aberrant spectres", "Catacombs of Kourend", SlayerAssignment.KONAR),
+            SlayerAssignment.fromChat(KONAR_CHECK, 8));
+
+        List<String> lines = say("You're currently assigned to kill bandits in the Wilderness; only 99 more to go. "
+            + "Your reward point tally is 34.", 7);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("bandits") && lines.get(0).contains("is locked: Area locked."));
+        assertEquals("bandits", plugin.getSlayerTaskWarn());
+    }
+
+    /** Audit: once the game's task count reaches 0 the task is done or cancelled, and its warning goes. */
+    @Test
+    public void aFinishedTaskTakesItsWarningAway() throws Exception
+    {
+        say(GEM_CHECK, 7);
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        // Varps read 0 around a logout or hop: that isn't the task ending.
+        plugin.onVarbitChanged(slayerCount(0));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
+        plugin.onVarbitChanged(slayerCount(12));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+        plugin.onVarbitChanged(slayerCount(0));
+        assertNull(plugin.getSlayerTaskWarn());
+
+        // The next task warns again.
+        assertEquals(1, say(GEM_CHECK, 7).size());
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+    }
+
+    private static VarbitChanged slayerCount(int value)
+    {
+        VarbitChanged event = new VarbitChanged();
+        event.setVarbitId(-1);
+        event.setVarpId(VarPlayerID.SLAYER_COUNT);
+        event.setValue(value);
+        return event;
     }
 
     /** The chat lines queued since the last clear. */

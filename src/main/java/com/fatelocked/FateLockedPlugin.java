@@ -984,7 +984,8 @@ public class FateLockedPlugin extends Plugin
         detect(new Signal.Chat(ev.getType().name(), raw));
 
         // Slayer assignment / task-check messages mention the monster: the rules may lock the task.
-        if (m.contains("to kill"))
+        // The combat bracelet's "You still need to kill 30 monsters ..." names no task.
+        if (m.contains("to kill") && !m.contains("still need to kill"))
         {
             SlayerAssignment assignment = SlayerAssignment.fromChat(
                 Text.removeTags(raw), client.getVarbitValue(VarbitID.SLAYER_MASTER));
@@ -1145,6 +1146,12 @@ public class FateLockedPlugin extends Plugin
         {
             // Read once the tick's changes are in: the amount and the streak can come apart.
             slayerReadingDue = true;
+        }
+        if (ev.getVarpId() == VarPlayerID.SLAYER_COUNT && ev.getValue() == 0 && slayerAssignment != null
+            && client.getGameState() == GameState.LOGGED_IN)
+        {
+            // No kills left: the task is done or cancelled, so its warning goes too.
+            forgetSlayerTask();
         }
     }
 

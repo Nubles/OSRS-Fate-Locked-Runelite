@@ -17,7 +17,10 @@ class SlayerAssignment
     private static final Pattern TASK = Pattern.compile(
         "to kill\\s+(?:\\d+\\s+)?(?:the\\s+)?(.+?)(?:\\s+in\\s+(?:the\\s+)?([^;:.]+?))?\\s*(?:[;:.]|$)",
         Pattern.CASE_INSENSITIVE);
-    /** Only Konar gives a place, and the tracker lists her tasks under this name. */
+    /**
+     * Only Konar gives a place (Krystilia's "in the Wilderness" isn't kept), and the tracker
+     * lists her tasks under this name.
+     */
     static final String KONAR = "konar quo maten";
     /** SLAYER_MASTER values RuneLite's own Slayer plugin relies on; the rest aren't verified. */
     private static final int KRYSTILIA = 7;
@@ -38,6 +41,8 @@ class SlayerAssignment
         String task = match.group(1).trim();
         String location = match.group(2) == null ? null : match.group(2).trim();
         if (task.isEmpty()) return null;
+        // Krystilia's lines say "in the Wilderness", which is her area, not one of Konar's places.
+        if (masterVarbit == KRYSTILIA) return new SlayerAssignment(task, null, "krystilia");
         return new SlayerAssignment(task, location, master(masterVarbit, location));
     }
 
