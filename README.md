@@ -100,7 +100,7 @@ their own:
    file backups.
 
 Here starts open. Every setting is in RuneLite's configuration, under Fate
-Locked Ironman: 29 settings in six sections (Tracker, Strict Mode, Alerts,
+Locked Ironman: 34 settings in six sections (Tracker, Strict Mode, Alerts,
 Display, Custom colours and Backup). Settings from before Stage 3 carry over
 once, the first time the plugin starts.
 
