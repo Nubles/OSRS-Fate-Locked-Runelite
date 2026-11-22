@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -651,7 +652,7 @@ public class FateLockedBundle
     {
         if (key == null || key.trim().isEmpty()) return null;
         T found = keyed.get(normMonster(key));
-        return found != null ? found : keyed.get(key.toLowerCase().trim());
+        return found != null ? found : keyed.get(key.toLowerCase(Locale.ROOT).trim());
     }
 
     /** The chunks whose slim monster lists name a monster; empty when none do. */
@@ -686,7 +687,7 @@ public class FateLockedBundle
     /** Lowercase + drop a trailing 's' so slayer plurals match singular monster names. */
     private static String normMonster(String s)
     {
-        String t = s.toLowerCase().trim();
+        String t = s.toLowerCase(Locale.ROOT).trim();
         return t.endsWith("s") ? t.substring(0, t.length() - 1) : t;
     }
 
