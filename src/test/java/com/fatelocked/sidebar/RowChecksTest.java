@@ -121,6 +121,17 @@ public class RowChecksTest
             Collections.emptySet(), false)));
     }
 
+    /** Audit: the Wiki's "Light source" table lists the Max cape and the Jar of Light too. */
+    @Test
+    public void theMaxCapeAndAJarOfLightAreLightSources()
+    {
+        for (int item : new int[] { net.runelite.api.gameval.ItemID.SKILLCAPE_MAX,
+            net.runelite.api.gameval.ItemID.SKILLCAPE_MAX_WORN, net.runelite.api.gameval.ItemID.JAR_OF_LIGHT })
+        {
+            assertTrue(String.valueOf(item), RowChecks.LIGHT_SOURCES.contains(item));
+        }
+    }
+
     @Test
     public void theQuestsNamedAreTheOnesToAskTheGameAbout()
     {
