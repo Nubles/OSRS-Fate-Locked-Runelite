@@ -264,6 +264,26 @@ public class FateLockedChunkEntryTest
         verify(panel, times(2)).showRollInbox(RollInboxModel.builder().build());
     }
 
+    /** Audit: new rules judge the chunk the player stands in again, so the count follows them without a step. */
+    @Test
+    public void theWarningsCountFollowsNewRulesWhileThePlayerStandsStill() throws Exception
+    {
+        loadRules();
+        walk(FALADOR);
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
+
+        // A Key opens Asgarnia while the player stands in Falador.
+        set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(),
+            RULES.replace("[\"Misthalin\"]", "[\"Misthalin\",\"Asgarnia\"]")), FateLockedPlugin.RulesSource.RELAY));
+        walk(FALADOR);
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().build());
+
+        // And back: rules that lock it again count it again.
+        loadRules();
+        walk(FALADOR);
+        verify(panel, times(2)).showRollInbox(RollInboxModel.builder().warnings(1).build());
+    }
+
     /** B6, U10: a golden walk warns once, on the way into Rimmington, and announces each area once. */
     @Test
     public void aGoldenWalkFromLumbridgeToFaladorWarnsOnceAtRimmington() throws Exception

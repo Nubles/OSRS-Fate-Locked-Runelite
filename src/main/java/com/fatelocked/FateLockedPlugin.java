@@ -2333,6 +2333,10 @@ public class FateLockedPlugin extends Plugin
         decisions = DecisionService.create(current.getSnapshot(), bound, player);
         decisionsBound = bound;
         decisionsPlayer = player;
+        // The chunk the player stands in is judged again, so the warnings count follows new
+        // rules without a step into another chunk.
+        CanonicalChunk standing = lastChunk;
+        if (standing != null) lastStatus = decisions.chunk(standing).getStatus();
         // The pins follow the decisions (B9): new rules, a login, another character.
         showIsolated("world map pins", this::refreshWorldMapMarkers);
     }
