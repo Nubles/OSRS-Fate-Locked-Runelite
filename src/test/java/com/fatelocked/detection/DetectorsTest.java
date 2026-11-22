@@ -90,6 +90,23 @@ public class DetectorsTest
         assertEquals(List.of(), new Detectors(null, null, null).on(chat("Your Corporeal Beast kill count is: 4.")));
     }
 
+    /**
+     * Audit: since June 2025 Bryophyta's and Obor's counts go up when their chest is opened, and the
+     * line names the chest (Wiki "Chest (Bryophyta's lair)": "Your Bryophyta chests opened count is:
+     * [number]."). The tracker lists the boss's own name.
+     */
+    @Test
+    public void bryophytasAndOborsChestLinesAreTheirKills()
+    {
+        Detectors detectors = new Detectors(DetectionTables.parse(new JsonParser().parse(("{`bosses`:["
+            + "{`key`:`Bryophyta`,`raid`:false,`killCounts`:[`Bryophyta`]},"
+            + "{`key`:`Obor`,`raid`:false,`killCounts`:[`Obor`]}]}").replace('`', '"'))), null, null);
+
+        assertEquals(List.of("Bryophyta"), labels(detectors.on(chat("Your Bryophyta chests opened count is: 5."))));
+        assertEquals(List.of("Obor"), labels(detectors.on(chat("Your Obor chests opened count is: 12."))));
+        assertEquals(List.of(), detectors.on(chat("Your Barrows chests opened count is: 3.")));
+    }
+
     @Test
     public void aNewerBundleBringsItsTables()
     {

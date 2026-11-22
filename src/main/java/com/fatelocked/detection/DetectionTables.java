@@ -38,6 +38,8 @@ public final class DetectionTables
     }
 
     private final Map<String, Boss> bossesByKillCount;
+    /** The end of a kill-count name that counts a boss's chest, not the boss. */
+    private static final String CHESTS_OPENED = " chests opened";
     private final Map<String, String> questIds;
     private final Set<String> diaryTiers;
 
@@ -102,7 +104,14 @@ public final class DetectionTables
     /** The boss a kill-count line names, or null for a count that is no boss's, such as an agility lap. */
     public Boss bossForKillCount(String name)
     {
-        return bossesByKillCount.get(fold(name));
+        String folded = fold(name);
+        Boss boss = bossesByKillCount.get(folded);
+        // Bryophyta's and Obor's lines name their chest: "Your Bryophyta chests opened count is: 5."
+        if (boss == null && folded.endsWith(CHESTS_OPENED))
+        {
+            boss = bossesByKillCount.get(folded.substring(0, folded.length() - CHESTS_OPENED.length()));
+        }
+        return boss;
     }
 
     /** The tracker's id for a quest by RuneLite's name, or null for one the tracker doesn't list. */
