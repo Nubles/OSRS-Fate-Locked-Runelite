@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -67,7 +68,7 @@ public class UnlockNews
                 if (old != null && old.getStatus() == PermissionStatus.LOCKED
                     && bank.getValue().getStatus() != PermissionStatus.LOCKED && bank.getValue().getName() != null)
                 {
-                    names.add(bank.getValue().getName() + " bank");
+                    names.add(bankName(bank.getValue().getName()));
                 }
             }
         }
@@ -147,5 +148,13 @@ public class UnlockNews
             return "Unlocked " + headline().toLowerCase(java.util.Locale.ROOT) + ".";
         }
         return "Unlocked " + String.join(", ", names) + ".";
+    }
+
+    /** A bank's name as the tracker writes it, with " bank" only when it doesn't already say bank, chest or deposit. */
+    static String bankName(String name)
+    {
+        String lower = name.toLowerCase(Locale.ROOT);
+        boolean named = lower.contains("bank") || lower.contains("chest") || lower.contains("deposit");
+        return named ? name : name + " bank";
     }
 }

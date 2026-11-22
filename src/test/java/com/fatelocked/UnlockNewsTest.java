@@ -37,6 +37,22 @@ public class UnlockNewsTest
         assertTrue(news.line(), news.line().startsWith("Unlocked Seers' Village, "));
     }
 
+    /** Audit: a bank whose name already says bank, chest or deposit isn't called a "bank bank". */
+    @Test
+    public void aBankThatNamesItselfIsNotABankBank() throws Exception
+    {
+        UnlockNews news = UnlockNews.between(mid(rules -> { }), mid(rules -> {
+            for (String bank : new String[] { "7227", "6712", "5678", "4912" })
+            {
+                rules.getAsJsonObject("banks").getAsJsonObject(bank).addProperty("status", "ALLOWED");
+            }
+        }));
+
+        assertEquals(java.util.Arrays.asList("Piscarilius Bank", "Hosidius Kitchen bank chest",
+            "Aldarin dock deposit box", "Tal Teklan bank").stream().sorted().collect(java.util.stream.Collectors.toList()),
+            news.getNames().stream().sorted().collect(java.util.stream.Collectors.toList()));
+    }
+
     @Test
     public void theSameRulesOpenNothing() throws Exception
     {
