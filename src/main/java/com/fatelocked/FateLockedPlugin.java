@@ -876,7 +876,11 @@ public class FateLockedPlugin extends Plugin
     {
         boolean loggedIn = client.getGameState() == GameState.LOGGED_IN;
         awaitingLogin = !loggedIn;
+        long lastAccountHash = loggedInAccountHash;
         loggedInAccountHash = loggedIn ? client.getAccountHash() : -1;
+        // The plugin may have been off while another account logged in: as on a switch
+        // with it running, that account's task isn't this one's. The same account keeps it.
+        if (loggedInAccountHash != lastAccountHash) forgetSlayerTask();
         forgetLoginWarnings();
         resetBaselines();
         trackerLoggedIn(loggedIn);

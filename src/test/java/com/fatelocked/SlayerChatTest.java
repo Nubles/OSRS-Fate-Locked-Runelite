@@ -258,6 +258,38 @@ public class SlayerChatTest
         assertEquals("aberrant spectres", plugin.getSlayerTaskWarn());
     }
 
+    /**
+     * Audit: turning the plugin off and on keeps the task for the same account, and forgets it
+     * when another account logged in meanwhile, as a switch with the plugin running does.
+     */
+    @Test
+    public void aRestartForgetsTheTaskOnlyForAnotherAccount() throws Exception
+    {
+        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
+        when(client.getAccountHash()).thenReturn(111L);
+        startSessionTracking();
+        say(GEM_CHECK, 7);
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        startSessionTracking();
+        refreshDecisions();
+        assertEquals("the same account keeps its task", "bears", plugin.getSlayerTaskWarn());
+
+        clearInvocations(chat);
+        when(client.getAccountHash()).thenReturn(222L);
+        startSessionTracking();
+        refreshDecisions();
+        assertNull(plugin.getSlayerTaskWarn());
+        assertEquals(List.of(), queued());
+    }
+
+    private void startSessionTracking() throws Exception
+    {
+        Method start = FateLockedPlugin.class.getDeclaredMethod("startSessionTracking");
+        start.setAccessible(true);
+        start.invoke(plugin);
+    }
+
     /** A master's dialogue line with this SLAYER_MASTER value; the chat lines it queued. */
     private List<String> dialogue(String message, int master)
     {
