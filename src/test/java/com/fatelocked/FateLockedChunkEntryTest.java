@@ -76,6 +76,11 @@ public class FateLockedChunkEntryTest
     private static final CanonicalChunk EAST_CATHERBY = new CanonicalChunk(44, 53);
     /** vanilla-mid: in Zeah, LOCKED by the tracker and outside the old area lists. */
     private static final CanonicalChunk ZEAH = new CanonicalChunk(16, 44);
+    /** The sea off Zeah: snapshots of kind "ocean" (16,44 and 16,45); ocean places with none (15,44 and 15,43). */
+    private static final CanonicalChunk SEA = new CanonicalChunk(16, 44);
+    private static final CanonicalChunk SEA_NORTH = new CanonicalChunk(16, 45);
+    private static final CanonicalChunk SEA_PLACE = new CanonicalChunk(15, 44);
+    private static final CanonicalChunk SEA_PLACE_SOUTH = new CanonicalChunk(15, 43);
 
     private final Client client = mock(Client.class);
     private final FateLockedConfig config = mock(FateLockedConfig.class);
@@ -326,6 +331,41 @@ public class FateLockedChunkEntryTest
     }
 
     /**
+     * Audit: the sea's chunks are one area whether the sea is open or locked, those with a
+     * snapshot (16,44 and 16,45) and those only the places mark as ocean (15,44 and 15,43) alike.
+     * Each used to be an area of its own: a line, and on a locked sea a notification, per chunk.
+     */
+    @Test
+    public void theOpenSeaIsOneArea() throws Exception
+    {
+        FateLockedBundle sailing = playing("Iron Example", "vanilla-sailing");
+        assertEquals(PermissionStatus.ALLOWED, sailing.permissionsAt(SEA).get().getEntry());
+        assertFalse("no snapshot", sailing.permissionsAt(SEA_PLACE).isPresent());
+
+        walk(SEA, SEA_NORTH, SEA, SEA_PLACE, SEA_PLACE_SOUTH);
+
+        List<String> lines = chatLines();
+        assertEquals(lines.toString(), 1, lines.size());
+        verify(client, never()).playSoundEffect(LOCKED_SOUND);
+        verify(notifier, never()).notify(anyString());
+    }
+
+    @Test
+    public void theLockedSeaIsOneAreaWhereItsChunksHaveNoSnapshot() throws Exception
+    {
+        FateLockedBundle mid = playing("Iron Example");
+        assertFalse("no snapshot", mid.permissionsAt(SEA_PLACE).isPresent());
+
+        walk(SEA_PLACE_SOUTH, SEA_PLACE, SEA, SEA_NORTH);
+
+        List<String> lines = chatLines();
+        assertEquals(lines.toString(), 1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains(": Locked"));
+        verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
+        verify(notifier, times(1)).notify(anyString());
+    }
+
+    /**
      * Two neighbouring locked chunks with no area name and the same reason: open sea. Over every
      * snapshot the rules send, as the sea isn't among the mapped (land) chunks.
      */
@@ -486,8 +526,14 @@ public class FateLockedChunkEntryTest
     /** vanilla-mid, with a character logged in. */
     private FateLockedBundle playing(String name) throws Exception
     {
+        return playing(name, "vanilla-mid");
+    }
+
+    /** A golden bundle, with a character logged in. */
+    private FateLockedBundle playing(String name, String bundle) throws Exception
+    {
         FateLockedBundle mid = FateLockedBundle.loadFromJson(new Gson(),
-            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")));
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(bundle + ".bundle.json.gz")));
         set("active", new ActiveRules(mid, FateLockedPlugin.RulesSource.RELAY));
         when(player.getName()).thenReturn(name);
         return mid;

@@ -206,6 +206,19 @@ public final class DecisionService
         return rules.areaLabel(chunk);
     }
 
+    /**
+     * Whether a chunk is the sea, as the rules mark it ("ocean"): a snapshot's kind, or for a
+     * chunk with no snapshot its place. The sea has no area names, yet it is one area.
+     */
+    public boolean isSea(CanonicalChunk chunk)
+    {
+        if (chunk == null) return false;
+        Optional<ChunkPermissionSnapshot> snapshot = snapshotAt(chunk);
+        if (snapshot.isPresent()) return "ocean".equalsIgnoreCase(snapshot.get().getKind());
+        RuneliteRulesManifest.Place place = rules.placeAt(chunk);
+        return place != null && place.isOcean();
+    }
+
     /** The region (continent) a chunk is in, on any character; null when the rules don't say. */
     public String regionName(CanonicalChunk chunk)
     {

@@ -1619,7 +1619,7 @@ public class FateLockedPlugin extends Plugin
         // they don't map (dungeons, instances, every chunk before rules
         // load), nor another character's rules. NOT_READY is owned, so
         // it never alerts. Lines and alerts are per area, not per chunk.
-        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label),
+        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label, decisions.isSea(current)),
             client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
         if (alert.isLine())
         {
@@ -1898,12 +1898,13 @@ public class FateLockedPlugin extends Plugin
     }
 
     /**
-     * What groups chunks into one area for chat and alerts: the area's name, else the tracker's
-     * reason, so the sea is one area under "Needs Sailing and Pandemonium", else the chunk.
+     * What groups chunks into one area for chat and alerts: the area's name, else the sea as
+     * one area, open or locked, else the tracker's reason, else the chunk.
      */
-    private static String areaKey(CanonicalChunk chunk, Decision entry, String area)
+    private static String areaKey(CanonicalChunk chunk, Decision entry, String area, boolean sea)
     {
         if (area != null) return area;
+        if (sea) return "sea";
         if (entry.getReason() != null) return "reason:" + entry.getReason();
         return "chunk:" + chunk.getCx() + "," + chunk.getCy();
     }
