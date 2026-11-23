@@ -127,6 +127,12 @@ public class ChunkLocatorTest
         assertEquals(new CanonicalChunk((BASE + 70) >> 6, (BASE + 30) >> 6), locator.menuTarget(door));
         MenuEntry item = entry(MenuAction.GROUND_ITEM_THIRD_OPTION, 1, 2);
         assertEquals(new CanonicalChunk(BASE >> 6, BASE >> 6), locator.menuTarget(item));
+
+        // Audit: an item used on the door, or a spell cast on the item, is on the same tile.
+        MenuEntry useOnDoor = entry(MenuAction.WIDGET_TARGET_ON_GAME_OBJECT, 70, 30);
+        assertEquals(new CanonicalChunk((BASE + 70) >> 6, (BASE + 30) >> 6), locator.menuTarget(useOnDoor));
+        MenuEntry grab = entry(MenuAction.WIDGET_TARGET_ON_GROUND_ITEM, 1, 2);
+        assertEquals(new CanonicalChunk(BASE >> 6, BASE >> 6), locator.menuTarget(grab));
     }
 
     @Test

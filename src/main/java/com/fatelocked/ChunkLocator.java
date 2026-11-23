@@ -225,6 +225,9 @@ public final class ChunkLocator
             case GROUND_ITEM_THIRD_OPTION:
             case GROUND_ITEM_FOURTH_OPTION:
             case GROUND_ITEM_FIFTH_OPTION:
+            // An item used on an object, or a spell cast on a ground item: the same tile.
+            case WIDGET_TARGET_ON_GAME_OBJECT:
+            case WIDGET_TARGET_ON_GROUND_ITEM:
                 return true;
             default:
                 return false;

@@ -9,6 +9,7 @@ import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NPC;
 import net.runelite.api.Player;
+import net.runelite.api.WorldView;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuEntryAdded;
 import org.junit.Before;
@@ -80,6 +81,49 @@ public class MenuTagTest
         assertEquals("NOT_READY never tags", "Guard", npcTarget(GLARIALS_TOMB));
         assertEquals("Guard", npcTarget(LUMBRIDGE));
         assertEquals("the sea is locked without Sailing (R1)", "Guard" + TAG, npcTarget(OCEAN));
+    }
+
+    /**
+     * Audit: an item used on an object, or a spell cast on an item on the ground, in a locked
+     * chunk is tagged by its tile, as the object's own option and an item used on an NPC are.
+     */
+    @Test
+    public void anItemUsedOnAnObjectOrASpellOnAGroundItemInALockedChunkIsTagged() throws Exception
+    {
+        playing(golden("vanilla-mid"), "Iron Example");
+        sceneAt(SEERS);
+
+        assertEquals("Furnace" + TAG, target(tileEntry("Smelt", "Furnace", MenuAction.GAME_OBJECT_FIRST_OPTION)));
+        assertEquals("Iron ore -> Furnace" + TAG,
+            target(tileEntry("Use", "Iron ore -> Furnace", MenuAction.WIDGET_TARGET_ON_GAME_OBJECT)));
+        assertEquals("Telekinetic Grab -> Coins" + TAG,
+            target(tileEntry("Cast", "Telekinetic Grab -> Coins", MenuAction.WIDGET_TARGET_ON_GROUND_ITEM)));
+
+        sceneAt(LUMBRIDGE);
+        assertEquals("open land isn't tagged", "Iron ore -> Furnace",
+            target(tileEntry("Use", "Iron ore -> Furnace", MenuAction.WIDGET_TARGET_ON_GAME_OBJECT)));
+    }
+
+    /** The scene starts at this chunk's south-west corner. */
+    private void sceneAt(CanonicalChunk chunk)
+    {
+        WorldView view = TestWorld.topLevel(client);
+        when(view.getBaseX()).thenReturn(chunk.getCx() << 6);
+        when(view.getBaseY()).thenReturn(chunk.getCy() << 6);
+        when(view.getScene().getBaseX()).thenReturn(chunk.getCx() << 6);
+        when(view.getScene().getBaseY()).thenReturn(chunk.getCy() << 6);
+    }
+
+    /** An option on scene tile (20, 20), an object's or a ground item's. */
+    private static MenuEntry tileEntry(String option, String target, MenuAction type)
+    {
+        MenuEntry entry = entry(option, target, type);
+        when(entry.getParam0()).thenReturn(20);
+        when(entry.getParam1()).thenReturn(20);
+        when(entry.getIdentifier()).thenReturn(16469);
+        when(entry.getWorldViewId()).thenReturn(WorldView.TOPLEVEL);
+        when(entry.getItemId()).thenReturn(-1);
+        return entry;
     }
 
     /** E1: the tag is the word players read everywhere, and every reader of menu text removes it. */
