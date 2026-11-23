@@ -180,7 +180,10 @@ final class StatusCardPresenter
         }
         else if (facts.isFresh())
         {
-            detail.append("Strict Mode uses them for 15 minutes after the tracker exported them.");
+            // As the tracker's card says: Strict Mode acts only on rules that name a character.
+            detail.append(facts.isBound()
+                ? "Strict Mode uses them for 15 minutes after the tracker exported them."
+                : "These rules name no character, so Strict Mode stays off.");
         }
         else
         {

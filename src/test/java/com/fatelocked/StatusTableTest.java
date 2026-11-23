@@ -257,6 +257,31 @@ public class StatusTableTest
         assertEquals("RuneLite is asking the tracker for your run's rules.", card.getDetail());
     }
 
+    /** Audit: fresh rules from the clipboard or a backup file that name no character never feed Strict Mode. */
+    @Test
+    public void aBackupNamingNoCharacterSaysStrictModeStaysOff()
+    {
+        StatusCardModel card = StatusCardPresenter.present(facts()
+            .source(RulesSource.IMPORT)
+            .arrival(RulesPrecedence.Arrival.IMPORT)
+            .exportedAt(NOW.minus(Duration.ofMinutes(2)))
+            .trust(Trust.TRUSTED).bound(false).loggedInAs(RUN)
+            .fresh(true)
+            .build());
+        assertEquals("Rules from the clipboard, exported at 11:58. These rules name no character, so Strict Mode"
+            + " stays off.", card.getDetail());
+
+        StatusCardModel file = StatusCardPresenter.present(facts()
+            .source(RulesSource.FILE)
+            .exportedAt(NOW.minus(Duration.ofMinutes(2)))
+            .trust(Trust.TRUSTED).bound(false).loggedInAs(RUN)
+            .fresh(true)
+            .build());
+        assertTrue(file.getDetail(), file.getDetail().startsWith("Rules from a backup file, exported at 11:58."
+            + " These rules name no character, so Strict Mode stays off."));
+        assertTrue(file.getDetail(), !file.getDetail().contains("Strict Mode uses them"));
+    }
+
     @Test
     public void rulesNamingNoCharacterSayStrictModeStaysOff()
     {
