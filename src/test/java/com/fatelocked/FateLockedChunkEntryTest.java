@@ -346,6 +346,9 @@ public class FateLockedChunkEntryTest
 
         List<String> lines = chatLines();
         assertEquals(lines.toString(), 1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("[Fate Locked] Ocean")
+            && lines.get(0).endsWith(": Unlocked"));
+        assertFalse(lines.get(0), lines.get(0).contains("Chunk ("));
         verify(client, never()).playSoundEffect(LOCKED_SOUND);
         verify(notifier, never()).notify(anyString());
     }
@@ -360,9 +363,12 @@ public class FateLockedChunkEntryTest
 
         List<String> lines = chatLines();
         assertEquals(lines.toString(), 1, lines.size());
-        assertTrue(lines.get(0), lines.get(0).contains(": Locked"));
+        assertTrue(lines.get(0), lines.get(0).contains("[Fate Locked] Ocean")
+            && lines.get(0).contains(": Locked"));
+        assertFalse(lines.get(0), lines.get(0).contains("Chunk ("));
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
         verify(notifier, times(1)).notify(anyString());
+        verify(notifier).notify("You've entered a locked area: Ocean");
     }
 
     /**
@@ -454,11 +460,21 @@ public class FateLockedChunkEntryTest
         return shown.getValue();
     }
 
-    /** A chunk the tracker locks outside the old area lists is announced without an area. */
+    /**
+     * A chunk the tracker locks outside the old area lists is announced without an area. The
+     * sea is named "Ocean" now, so this reads 16,44 as an older bundle sends it, with no kind:
+     * a chunk with no name and not marked as sea is named by where it is.
+     */
     @Test
     public void aChunkOnlyTheTrackerMapsIsAnnounced() throws Exception
     {
-        FateLockedBundle mid = playing("Iron Example");
+        Gson gson = new Gson();
+        JsonObject wire = gson.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")), JsonObject.class);
+        wire.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("16,44").remove("kind");
+        FateLockedBundle mid = FateLockedBundle.loadFromJson(gson, gson.toJson(wire));
+        set("active", new ActiveRules(mid, FateLockedPlugin.RulesSource.RELAY));
+        when(player.getName()).thenReturn("Iron Example");
         assertEquals(FateLockedBundle.LockState.UNAUTHORED, mid.lockStateAt(ZEAH));
 
         walk(LUMBRIDGE, ZEAH);

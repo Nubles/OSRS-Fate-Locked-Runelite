@@ -1615,21 +1615,25 @@ public class FateLockedPlugin extends Plugin
         Decision entry = decisions.chunk(current);
         PermissionStatus status = entry.getStatus();
         String label = decisions.areaName(current);
+        boolean sea = decisions.isSea(current);
+        // The sea is one area with no name of its own: its line and notification
+        // say "Ocean", as the rules' places do, not the first chunk the boat entered.
+        String shown = label != null ? label : sea ? "Ocean" : null;
         // Only the rules' own answers are announced (B6): never a chunk
         // they don't map (dungeons, instances, every chunk before rules
         // load), nor another character's rules. NOT_READY is owned, so
         // it never alerts. Lines and alerts are per area, not per chunk.
-        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label, decisions.isSea(current)),
+        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label, sea),
             client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
         if (alert.isLine())
         {
-            announceEntry(current, label, entry);
+            announceEntry(current, shown, entry);
             // A locked area's line is the alert's own: the notification goes with it, sound or
             // not, as the notifications setting says (the owner's call T8).
             if (status == PermissionStatus.LOCKED)
             {
                 notifyIfEnabled("You've entered a locked area: "
-                    + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
+                    + (shown != null ? shown : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
             }
         }
         if (alert.isFade())
