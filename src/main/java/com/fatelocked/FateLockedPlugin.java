@@ -975,6 +975,15 @@ public class FateLockedPlugin extends Plugin
     @Subscribe
     public void onChatMessage(ChatMessage ev)
     {
+        if (ev.getType() == ChatMessageType.DIALOG)
+        {
+            // A master hands out a task in dialogue, with no game message: only the
+            // assignment lines are read, nothing else from the dialogue.
+            String said = ev.getMessage() == null ? "" : ev.getMessage().replace("<br>", " ");
+            learnSlayerTask(SlayerAssignment.fromDialogue(
+                Text.removeTags(said), client.getVarbitValue(VarbitID.SLAYER_MASTER)));
+            return;
+        }
         if (ev.getType() != ChatMessageType.GAMEMESSAGE && ev.getType() != ChatMessageType.SPAM) return;
         String raw = ev.getMessage() == null ? "" : ev.getMessage();
         String m = raw.toLowerCase();
@@ -987,14 +996,17 @@ public class FateLockedPlugin extends Plugin
         // The combat bracelet's "You still need to kill 30 monsters ..." names no task.
         if (m.contains("to kill") && !m.contains("still need to kill"))
         {
-            SlayerAssignment assignment = SlayerAssignment.fromChat(
-                Text.removeTags(raw), client.getVarbitValue(VarbitID.SLAYER_MASTER));
-            if (assignment != null)
-            {
-                slayerAssignment = assignment;
-                recomputeSlayer();
-            }
+            learnSlayerTask(SlayerAssignment.fromChat(
+                Text.removeTags(raw), client.getVarbitValue(VarbitID.SLAYER_MASTER)));
         }
+    }
+
+    /** A task a message stated becomes the current one; a message that states none changes nothing. */
+    private void learnSlayerTask(SlayerAssignment assignment)
+    {
+        if (assignment == null) return;
+        slayerAssignment = assignment;
+        recomputeSlayer();
     }
 
     /** Re-check whether the rules lock the current slayer task. */

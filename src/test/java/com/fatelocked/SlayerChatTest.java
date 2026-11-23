@@ -212,6 +212,64 @@ public class SlayerChatTest
         assertEquals("bears", plugin.getSlayerTaskWarn());
     }
 
+    /**
+     * Audit: a master hands out a task in dialogue with no game message (Wiki transcripts of
+     * Turael, Krystilia and Konar). Only the assignment lines are read; Konar's say "bring
+     * balance to", and Turael's first task ("...kill 15 of them.") names no task this way.
+     */
+    @Test
+    public void aMastersDialogueLineGivesTheTask()
+    {
+        assertEquals(new SlayerAssignment("cows", null, null),
+            SlayerAssignment.fromDialogue("Turael|Excellent, you're doing great. Your new task is to kill 15 cows.", 0));
+        assertEquals(new SlayerAssignment("bears", null, "krystilia"),
+            SlayerAssignment.fromDialogue("Your new task is to kill 42 bears.", 7));
+        assertEquals(new SlayerAssignment("bears", null, "mortimer"),
+            SlayerAssignment.fromDialogue("Your new task is to kill 42 bears.", 10));
+        assertEquals("a place in a new-task line isn't Konar's", new SlayerAssignment("green dragons", null, null),
+            SlayerAssignment.fromDialogue("Your new task is to kill 50 green dragons in the Wilderness.", 0));
+        assertEquals(new SlayerAssignment("aberrant spectres", "Catacombs of Kourend", SlayerAssignment.KONAR),
+            SlayerAssignment.fromDialogue(
+                "You are to bring balance to 105 aberrant spectres in the Catacombs of Kourend.", 0));
+        assertNull(SlayerAssignment.fromDialogue(
+            "We'll start you off hunting cows, you'll need to kill 15 of them.", 0));
+        assertNull(SlayerAssignment.fromDialogue("You must be brave to kill the dragon.", 0));
+        assertNull(SlayerAssignment.fromDialogue(GEM_CHECK, 7));
+        assertNull(SlayerAssignment.fromDialogue(null, 0));
+    }
+
+    /** Audit: the chat handler reads a master's dialogue, so a locked task warns as it is handed out. */
+    @Test
+    public void aTaskHandedOutInDialogueWarns() throws Exception
+    {
+        List<String> lines = dialogue("Krystilia|Your new task is to kill 42 bears.", 7);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("bears") && lines.get(0).contains("is locked: Area locked."));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        // Other dialogue keeps the task.
+        assertEquals(List.of(), dialogue("Guard|You must be brave to kill the dragon.", 7));
+        assertEquals(List.of(), dialogue("Turael|We'll start you off hunting cows, you'll need to kill 15 of them.", 7));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        lines = dialogue("Konar quo Maten|You are to bring balance to 105 aberrant spectres in the<br>Catacombs of Kourend.", 0);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("is locked: Master: Mount Karuulm."));
+        assertEquals("aberrant spectres", plugin.getSlayerTaskWarn());
+    }
+
+    /** A master's dialogue line with this SLAYER_MASTER value; the chat lines it queued. */
+    private List<String> dialogue(String message, int master)
+    {
+        clearInvocations(chat);
+        when(client.getVarbitValue(VarbitID.SLAYER_MASTER)).thenReturn(master);
+        ChatMessage event = new ChatMessage();
+        event.setType(ChatMessageType.DIALOG);
+        event.setMessage(message);
+        plugin.onChatMessage(event);
+        return queued();
+    }
+
     private static VarbitChanged slayerCount(int value)
     {
         VarbitChanged event = new VarbitChanged();
