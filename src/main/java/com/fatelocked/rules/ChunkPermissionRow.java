@@ -10,6 +10,17 @@ public final class ChunkPermissionRow
     private PermissionStatus status;
     private String detail;
     private String targetKind;
+    /**
+     * True on a minigame's ACTIVITIES row, which names a place rather than a thing the game
+     * shows; absent on every other row and in exports from before the field.
+     */
+    private Boolean minigame;
+
+    /** Whether this is a minigame's row. */
+    public boolean isMinigame()
+    {
+        return Boolean.TRUE.equals(minigame);
+    }
 
     ChunkPermissionRow normalized()
     {
@@ -19,6 +30,7 @@ public final class ChunkPermissionRow
         copy.status = status == null ? PermissionStatus.UNKNOWN : status;
         copy.detail = detail;
         copy.targetKind = targetKind;
+        copy.minigame = minigame;
         return copy;
     }
 }

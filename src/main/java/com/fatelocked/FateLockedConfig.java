@@ -499,7 +499,7 @@ public interface FateLockedConfig extends Config
     @ConfigItem(
         keyName = "outlineBanksAndShops",
         name = "Outline banks and shops",
-        description = "With Outline locked things on: bank booths, bank chests, bankers and shop keepers.",
+        description = "With Outline locked things on: bank booths and chests, deposit boxes, bankers and shop keepers.",
         section = displaySection,
         position = 8
     )

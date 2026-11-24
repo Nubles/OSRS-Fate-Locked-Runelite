@@ -257,7 +257,7 @@ public class HereView extends Section
         {
             ItemRow item = new ItemRow().show(row.getName(), row.getWord(), row.getTone(), row.getReason());
             item.setPalette(palette);
-            if (PointTarget.pointable(category))
+            if (PointTarget.pointable(category) && row.isPointable())
             {
                 item.onClick(() -> pointListener.accept(category, row.getName()));
             }

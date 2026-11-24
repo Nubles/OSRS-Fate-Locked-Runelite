@@ -1,0 +1,1360 @@
+{
+ "schema": 1,
+ "about": "Who runs each shop the RuneLite export can name in a SHOPS row: the names the game shows on the NPCs or objects the player trades with there, read from the Infobox Shop owner field of the shop's OSRS Wiki page, and an empty list where the page names no one.",
+ "shops": {
+  "Aaron's Archery Appendages": [
+   "Armour salesman"
+  ],
+  "Aemad's Adventuring Supplies": [
+   "Aemad"
+  ],
+  "Agelus' Farm Shop": [
+   "Agelus"
+  ],
+  "Agility Arena Store": [
+   "Pirate Jackie the Fruit"
+  ],
+  "Agmundi Quality Clothes": [
+   "Agmundi"
+  ],
+  "Ak-Haranu's Exotic Shop": [
+   "Ak-Haranu"
+  ],
+  "Al-Kharid General Store": [
+   "Shop keeper"
+  ],
+  "Aldarin General Store": [
+   "Shopkeeper"
+  ],
+  "Aleck's Hunter Emporium": [
+   "Aleck"
+  ],
+  "Ali's Discount Wares": [
+   "Ali Morrisane"
+  ],
+  "Alice's Farming shop": [
+   "Alice"
+  ],
+  "Allanna's Farming Shop": [
+   "Allanna"
+  ],
+  "Alry the Angler's Angling Accessories": [
+   "Alry the Angler"
+  ],
+  "Amelia's Seed Shop": [
+   "Amelia"
+  ],
+  "Amlodd's Magical Supplies": [
+   "Efa"
+  ],
+  "Aneirin's Armour": [
+   "Aneirin"
+  ],
+  "Apothecary's Potions": [
+   "Apothecary"
+  ],
+  "Arcuani's Archery Supplies": [
+   "Arcuani"
+  ],
+  "Ardougne Baker's Stall": [
+   "Baker"
+  ],
+  "Ardougne Fur Stall": [
+   "Fur Trader"
+  ],
+  "Ardougne Gem Stall": [
+   "Gem merchant"
+  ],
+  "Ardougne Silver Stall": [
+   "Silver merchant"
+  ],
+  "Ardougne Spice Stall": [
+   "Spice seller"
+  ],
+  "Arhein's General Goods": [
+   "Arhein"
+  ],
+  "Armour Shop (Jatizso)": [
+   "Raum Urda-Stein"
+  ],
+  "Armour store": [
+   "Jorzik"
+  ],
+  "Armoury": [
+   "Shop keeper"
+  ],
+  "Arnold's Eclectic Supplies": [
+   "Arnold Lydspor"
+  ],
+  "Artima's Crafting Supplies": [
+   "Artima"
+  ],
+  "Atlazora's Rest": [
+   "Bartender"
+  ],
+  "Auburnvale General Store": [
+   "Shopkeeper"
+  ],
+  "Aubury's Rune Shop": [
+   "Aubury"
+  ],
+  "Aurel's Supplies": [
+   "Aurel"
+  ],
+  "Authentic Throwing Weapons": [
+   "Tribal Weapon Salesman"
+  ],
+  "Ava's Odds and Ends": [
+   "Ava"
+  ],
+  "Baba Yaga's Magic Shop": [
+   "Baba Yaga"
+  ],
+  "Bandit Bargains": [
+   "Bandit shopkeeper"
+  ],
+  "Bandit Duty Free": [
+   "Noterazzo"
+  ],
+  "Barbarian Assault Reward Shop": [
+   "Commander Connad"
+  ],
+  "Barkers' Haberdashery": [
+   "Barker"
+  ],
+  "Battle Runes#Post-miniquest": [
+   "Mage of Zamorak"
+  ],
+  "Battle Runes#Pre-miniquest": [
+   "Mage of Zamorak"
+  ],
+  "Bedabin Village Bartering": [
+   "Bedabin Nomad"
+  ],
+  "Betty's Magic Emporium": [
+   "Betty"
+  ],
+  "Blades by Urbi": [
+   "Urbi"
+  ],
+  "Blair's Armour": [
+   "Blair"
+  ],
+  "Blue Moon Inn": [
+   "Bartender"
+  ],
+  "Blurberry Bar": [
+   "Barman"
+  ],
+  "Bob's Brilliant Axes": [
+   "Bob"
+  ],
+  "Bolkoy's Village Shop": [
+   "Bolkoy"
+  ],
+  "Bounty Hunter Store": [
+   "Emblem Trader"
+  ],
+  "Branwen's Farming Shop": [
+   "Branwen"
+  ],
+  "Brian's Archery Supplies": [
+   "Brian"
+  ],
+  "Brian's Battleaxe Bazaar": [
+   "Brian"
+  ],
+  "Briget's Weapons": [
+   "Briget"
+  ],
+  "Burthorpe Supplies": [
+   "Wistan"
+  ],
+  "Cam Torum Blacksmith": [
+   "Blacksmith"
+  ],
+  "Cam Torum General Store": [
+   "Shopkeeper"
+  ],
+  "Candle Shop": [
+   "Candle maker"
+  ],
+  "Carefree Crafting Stall": [
+   "Nolar"
+  ],
+  "Cassie's Shield Shop": [
+   "Cassie"
+  ],
+  "Castle Wars Ticket Exchange": [
+   "Lanthus"
+  ],
+  "Cobado's Groceries": [
+   "Cobado"
+  ],
+  "Conara's Jewels": [
+   "Conara"
+  ],
+  "Construction supplies": [
+   "Sawmill operator",
+   "Sawmill Operator"
+  ],
+  "Contraband yak produce": [
+   "Vanligga Gastfrihet"
+  ],
+  "Crossbow Shop (Dwarven Mine)": [
+   "Hura"
+  ],
+  "Crossbow Shop (Keldagrim)": [
+   "Hirko"
+  ],
+  "Crossbow Shop (White Wolf Mountain)": [
+   "Holoy"
+  ],
+  "Culinaromancer's Chest": [],
+  "Culinaromancer's Chest#0 Subquests": [],
+  "Culinaromancer's Chest#1 Subquests": [],
+  "Culinaromancer's Chest#2 Subquests": [],
+  "Culinaromancer's Chest#3 Subquests": [],
+  "Culinaromancer's Chest#4 Subquests": [],
+  "Culinaromancer's Chest#5 Subquests": [],
+  "Culinaromancer's Chest#6 Subquests": [],
+  "Culinaromancer's Chest#7 Subquests": [],
+  "Culinaromancer's Chest#8 Subquests": [],
+  "Culinaromancer's Chest#Food": [],
+  "Culinaromancer's Chest#Full": [],
+  "Daga's Scimitar Smithy": [
+   "Daga"
+  ],
+  "Dal's General Ogre Supplies": [
+   "Dal"
+  ],
+  "Dancing Donkey Inn": [
+   "Bartender"
+  ],
+  "Dargaud's Bow and Arrows": [
+   "Bow and Arrow salesman"
+  ],
+  "Darkmeyer General Store": [
+   "Drasdan Ranor"
+  ],
+  "Darkmeyer Lantern Shop": [
+   "Grinka Krast"
+  ],
+  "Darkmeyer Meat Shop": [
+   "Lenyig Karna"
+  ],
+  "Darkmeyer Seamstress": [
+   "Varrian Sobak"
+  ],
+  "Darren's Wilderness Cape Shop": [
+   "Darren"
+  ],
+  "Daryl's Ranging Surplus": [
+   "Daryl"
+  ],
+  "Davon's Amulet Store": [
+   "Davon"
+  ],
+  "Dead Man's Chest": [
+   "Bartender"
+  ],
+  "Deepfin Inn": [
+   "Brikka"
+  ],
+  "Deepfin Point Ore Exchange": [
+   "Korgan"
+  ],
+  "Diango's Toy Store": [
+   "Diango"
+  ],
+  "Dodgy Mike's Second Hand Clothing": [
+   "Mike"
+  ],
+  "Dom Onion's Reward Shop": [
+   "Dominic Onion"
+  ],
+  "Dommik's Crafting Store": [
+   "Dommik"
+  ],
+  "Dorgesh-Kaan General Supplies": [
+   "Lurgon"
+  ],
+  "Dragon Inn": [
+   "Bartender"
+  ],
+  "Draynor Seed Market": [
+   "Olivia"
+  ],
+  "Drogo's Mining Emporium": [
+   "Drogo dwarf"
+  ],
+  "Durrik's Goods": [
+   "Durrik"
+  ],
+  "Dusuri's Star Shop": [
+   "Dusuri"
+  ],
+  "Dwarven shopping store": [
+   "Dwarf"
+  ],
+  "Dyes to Die For": [
+   "Xochitl"
+  ],
+  "Edgeville General Store": [
+   "Shop keeper"
+  ],
+  "Edmond's Wilderness Cape Shop": [
+   "Edmond"
+  ],
+  "Edward's Wilderness Cape Shop": [
+   "Edward"
+  ],
+  "Efaritay's Supplies": [
+   "Efaritay Hallow"
+  ],
+  "Elder Blunn's Spear and Shield Stall": [
+   "Elder Blunn"
+  ],
+  "Elder Coco's Crafting Stall": [
+   "Elder Coco"
+  ],
+  "Elder Krill's Fishing Stall": [
+   "Elder Krill"
+  ],
+  "Elder Raley's Herblore Stall": [
+   "Mag"
+  ],
+  "Elder Reggle's Farming Shop": [
+   "Elder Reggle"
+  ],
+  "Elder Strom's Hunting Stall": [
+   "Elder Strom"
+  ],
+  "Elgan's Exceptional Staffs!": [
+   "Elgan"
+  ],
+  "Emelio's Kebab Shop": [
+   "Emelio"
+  ],
+  "Etceteria Fish": [
+   "Fishmonger"
+  ],
+  "Fairy Fixit's Fairy Enchantment": [
+   "Fairy Fixit"
+  ],
+  "Falador General Store": [
+   "Shop keeper"
+  ],
+  "Falador Party Room": [
+   "Lucy",
+   "Megan"
+  ],
+  "Fancy Clothes Store": [
+   "Asyff"
+  ],
+  "Farmer Gricoller's Rewards": [
+   "Farmer Gricoller"
+  ],
+  "Farming Supplies": [],
+  "Faustus' Fruit and Veg": [
+   "Faustus"
+  ],
+  "Fernahei's Fishing Hut": [
+   "Fernahei"
+  ],
+  "Fight Arena Bar": [
+   "Khazard barman"
+  ],
+  "Filamina's Wares": [
+   "Filamina"
+  ],
+  "Fine Fashions": [
+   "Rometti"
+  ],
+  "Fishing Guild Shop": [
+   "Roachey"
+  ],
+  "Flakes 'n' Flotsam": [
+   "Spirit Angler"
+  ],
+  "Floria's Fashion": [
+   "Floria"
+  ],
+  "Flosi's Fishmongers": [
+   "Flosi Dalksson"
+  ],
+  "Flying Horse Inn": [
+   "Bartender"
+  ],
+  "Flynn's Mace Market": [
+   "Flynn"
+  ],
+  "Food Store": [
+   "Wydin"
+  ],
+  "Forester's Arms": [
+   "Bartender"
+  ],
+  "Forestry Shop": [
+   "Friendly Forester"
+  ],
+  "Fortis Baker's Stall": [
+   "Baker"
+  ],
+  "Fortis Blacksmith": [
+   "Blacksmith"
+  ],
+  "Fortis Fur Stall": [
+   "Fur Merchant"
+  ],
+  "Fortis Gem Stall": [
+   "Gem Merchant"
+  ],
+  "Fortis General Store": [
+   "Shopkeeper"
+  ],
+  "Fortis Silk Stall": [
+   "Silk Merchant"
+  ],
+  "Fortis Spice Stall": [
+   "Spice Merchant"
+  ],
+  "Fossil Island General Store": [
+   "Shop keeper"
+  ],
+  "Frankie's Fishing Emporium": [
+   "Frankie"
+  ],
+  "Fremennik Fish Monger": [
+   "Fish monger"
+  ],
+  "Fremennik Fur Trader": [
+   "Fur trader"
+  ],
+  "Frenita's Cookery Shop": [
+   "Frenita"
+  ],
+  "Frincos' Fabulous Herb Store": [
+   "Frincos"
+  ],
+  "Funch's Fine Groceries": [
+   "Heckel Funch"
+  ],
+  "Gabooty's Tai Bwo Wannai Cooperative": [
+   "Gabooty"
+  ],
+  "Gabooty's Tai Bwo Wannai Drinky Store": [
+   "Gabooty"
+  ],
+  "Gaius' Two Handed Shop": [
+   "Gaius"
+  ],
+  "Garden Centre": [
+   "Garden supplier"
+  ],
+  "Garlic Cocktail Supply": [
+   "Werewolf"
+  ],
+  "Gem Trader": [
+   "Gem trader"
+  ],
+  "General Store (Canifis)": [
+   "Fidelio"
+  ],
+  "Gerrant's Fishy Business": [
+   "Gerrant"
+  ],
+  "Gianne's Restaurant": [
+   "Gnome Waiter"
+  ],
+  "Giants' Foundry Reward Shop": [
+   "Kovac"
+  ],
+  "Grace's Graceful Clothing": [
+   "Grace"
+  ],
+  "Grand Tree Groceries": [
+   "Hudo"
+  ],
+  "Green Gemstone Gems": [
+   "Hervi"
+  ],
+  "Greengrocer of Miscellania": [
+   "Greengrocer"
+  ],
+  "Grud's Herblore Stall": [
+   "Ogre merchant"
+  ],
+  "Grum's Gold Exchange": [
+   "Grum"
+  ],
+  "Guinevere's Dyes": [
+   "Guinevere"
+  ],
+  "Gulluck and Sons": [
+   "Gulluck"
+  ],
+  "Gunslik's Assorted Items": [
+   "Gunslik"
+  ],
+  "Gwyn's Mining Emporium": [
+   "Gwyn"
+  ],
+  "Hair of the Dog": [
+   "Roavar"
+  ],
+  "Hamab's Crafting Emporium": [
+   "Hamab"
+  ],
+  "Happy Heroes' H'emporium": [
+   "Helemos"
+  ],
+  "Harpoon Joe's House of 'Rum'": [
+   "Joe"
+  ],
+  "Harry's Fishing Shop": [
+   "Harry"
+  ],
+  "Hefin Inn": [
+   "Eira"
+  ],
+  "Helmet Shop": [
+   "Peksa"
+  ],
+  "Henderson's Catch of the Day": [
+   "Henderson"
+  ],
+  "Hendor's Awesome Ores": [
+   "Hendor"
+  ],
+  "Herquin's Gems": [
+   "Herquin"
+  ],
+  "Hickton's Archery Emporium": [
+   "Hickton"
+  ],
+  "Honest Jimmy's House of Stuff": [
+   "Honest Jimmy"
+  ],
+  "Horvik's Armour Shop": [
+   "Horvik"
+  ],
+  "Huito's Herbal Supplies": [
+   "Huito"
+  ],
+  "Ian's Wilderness Cape Shop": [
+   "Ian"
+  ],
+  "Ifaba's General Store": [
+   "Ifaba"
+  ],
+  "Imia's Supplies": [
+   "Imia"
+  ],
+  "Initiate Temple Knight Armoury": [
+   "Sir Tiffy Cashien"
+  ],
+  "Iorwerth's Arms": [
+   "Celyn"
+  ],
+  "Irksol (shop)": [
+   "Irksol"
+  ],
+  "Ishmael's Fish He Sells": [
+   "Ishmael"
+  ],
+  "Island Fishmonger": [
+   "Fishmonger"
+  ],
+  "Island Greengrocer": [
+   "Greengrocer"
+  ],
+  "Ivan's Supplies": [
+   "Ivan Strom"
+  ],
+  "Iwan's Maces": [
+   "Iwan"
+  ],
+  "Jamila's Craft Stall": [
+   "Jamila"
+  ],
+  "Jatix's Herblore Shop": [
+   "Jatix"
+  ],
+  "Jennifer's General Supplies": [
+   "Jennifer"
+  ],
+  "Jiminua's Jungle Store": [
+   "Jiminua"
+  ],
+  "Jolly Boar Inn": [
+   "Bartender"
+  ],
+  "Jukat (shop)": [
+   "Jukat"
+  ],
+  "Justine's stuff for the Last Shopper Standing": [
+   "Justine"
+  ],
+  "Karamja General Store": [
+   "Shop keeper"
+  ],
+  "Karamja Wines, Spirits, and Beers": [
+   "Zembo"
+  ],
+  "Kastori Farming Supplies": [
+   "Ameyalli"
+  ],
+  "Kastori General Store": [
+   "Shopkeeper"
+  ],
+  "Keepa Kettilon's store": [
+   "Keepa Kettilon"
+  ],
+  "Keldagrim Stonemason": [
+   "Stonemason"
+  ],
+  "Keldagrim's Best Bread": [
+   "Randivor"
+  ],
+  "Kenelme's Wares": [
+   "Kenelme"
+  ],
+  "Khazard General Store": [
+   "Shop keeper"
+  ],
+  "King Narnode's Royal Seed Pods": [
+   "King Narnode Shareen"
+  ],
+  "King's Axe Inn": [
+   "Barman"
+  ],
+  "Kjut's Kebabs": [
+   "Kjut"
+  ],
+  "Kourend Castle Baker's Stall": [
+   "Baker"
+  ],
+  "Kourend Castle Gem Stall": [
+   "Gem merchant"
+  ],
+  "Larry's Wilderness Cape Shop": [
+   "Larry"
+  ],
+  "Laughing Miner Pub": [
+   "Barmaid"
+  ],
+  "Leagues Reward Shop": [
+   "Leagues Tutor"
+  ],
+  "Leenz's General Supplies": [
+   "Leenz"
+  ],
+  "Legends Guild General Store": [
+   "Fionella"
+  ],
+  "Legends Guild Shop of Useful Items": [
+   "Siegfried Erkle"
+  ],
+  "Leon's Prototype Crossbow": [
+   "Leon"
+  ],
+  "Leprechaun Larry's Farming Supplies": [
+   "Leprechaun Larry"
+  ],
+  "Little Munty's Little Shop": [
+   "Munty"
+  ],
+  "Little Shop of Horace": [
+   "Horace"
+  ],
+  "Lletya Archery Shop": [
+   "Dalldav"
+  ],
+  "Lletya Food Store": [
+   "Gethin"
+  ],
+  "Lletya General Store": [
+   "Eudav"
+  ],
+  "Lletya Seamstress": [
+   "Oronwen"
+  ],
+  "Lliann's Wares": [
+   "Lliann"
+  ],
+  "Logava Gricoller's Cooking Supplies": [
+   "Logava"
+  ],
+  "Lost Property shop": [
+   "Perdu",
+   "Chris"
+  ],
+  "Louie's Armoured Legs Bazaar": [
+   "Louie Legs"
+  ],
+  "Lovecraft's Tackle": [
+   "Ezekial Lovecraft"
+  ],
+  "Lowe's Archery Emporium": [
+   "Lowe"
+  ],
+  "Lumbridge General Store": [
+   "Shop keeper",
+   "Shop assistant"
+  ],
+  "Lunami's Axe Shop": [
+   "Lunami"
+  ],
+  "Lundail's Arena-side Rune Shop": [
+   "Lundail"
+  ],
+  "Mage Arena Staffs": [
+   "Chamber guardian"
+  ],
+  "Magic Guild Store (Mystic Robes)": [
+   "Wizard Sinina"
+  ],
+  "Magic Guild Store (Runes and Staves)": [
+   "Wizard Akutha"
+  ],
+  "Mahogany Homes Reward Shop": [
+   "Amy"
+  ],
+  "Mairin's Market": [
+   "Mairin"
+  ],
+  "Martin Thwait's Lost and Found": [
+   "Martin Thwait"
+  ],
+  "Miltog's Lamps": [
+   "Miltog"
+  ],
+  "Mining Guild Mineral Exchange": [
+   "Belona"
+  ],
+  "Miscellanian Clothes Shop": [
+   "Halla"
+  ],
+  "Miscellanian Food Shop": [
+   "Osvald"
+  ],
+  "Miscellanian General Store": [
+   "Finn"
+  ],
+  "Mistrock Mining Supplies": [
+   "Necto"
+  ],
+  "Mixology Rewards": [
+   "Supervisor Lalo"
+  ],
+  "Moon Clan Fine Clothes": [
+   "Rimae Sirsalis"
+  ],
+  "Moon Clan General Store": [
+   "Melana Moonlander"
+  ],
+  "Moonrise Wines": [
+   "Antonius"
+  ],
+  "Mount Karuulm Weapon Shop": [
+   "Leke quo Keran"
+  ],
+  "Multicannon parts for sale": [
+   "Nulodion"
+  ],
+  "Myreque's Rest": [
+   "Veliaf Hurtz"
+  ],
+  "Mysterious Hallowed Goods": [
+   "Mysterious Stranger"
+  ],
+  "Mysterious Stranger (shop)": [
+   "Mysterious Stranger"
+  ],
+  "Mythical Cape Store": [
+   "Jack"
+  ],
+  "Myths' Guild Armoury": [
+   "Erdan"
+  ],
+  "Myths' Guild Herbalist": [
+   "Primula"
+  ],
+  "Myths' Guild Weaponry": [
+   "Diana"
+  ],
+  "Nardah General Store": [
+   "Kazemde"
+  ],
+  "Nardah Hunter Shop": [
+   "Artimeus"
+  ],
+  "Nardok's Bone Weapons": [
+   "Nardok"
+  ],
+  "Nathifa's Bake Stall": [
+   "Nathifa"
+  ],
+  "Ned's Handmade Rope (100% Wool - not yak, honest!)": [
+   "Ned"
+  ],
+  "Neil's Wilderness Cape Shop": [
+   "Neil"
+  ],
+  "Neitiznot supplies": [
+   "Jofridr Mordstatter"
+  ],
+  "Nemus Retreat (pub)": [
+   "Bartender"
+  ],
+  "Nurmof's Pickaxe Shop": [
+   "Nurmof"
+  ],
+  "Obli's General Store": [
+   "Obli"
+  ],
+  "Old Man Ral's Supplies": [
+   "Old Man Ral"
+  ],
+  "Oobapohk's Javelin Store": [
+   "Oobapohk"
+  ],
+  "Ore seller": [
+   "Ordan"
+  ],
+  "Ore store": [
+   "Hring Hring"
+  ],
+  "Outer Fortis General Store": [
+   "Shopkeeper"
+  ],
+  "Oziach (shop)": [
+   "Oziach"
+  ],
+  "Paramaya Inn": [
+   "Kaleb Paramaya"
+  ],
+  "Pellem's Fur Store": [
+   "Pellem"
+  ],
+  "Pelters' Veg Stall": [
+   "Tramp",
+   "Fadli"
+  ],
+  "Perry's Chop-chop Shop": [
+   "Perry"
+  ],
+  "Petrified Pete's Ore Shop": [
+   "Petrified Pete"
+  ],
+  "Picaria's Fishing Shop": [
+   "Picaria"
+  ],
+  "Pickaxe-Is-Mine": [
+   "Tati",
+   "Sune"
+  ],
+  "Pie Shop": [
+   "Romily Weaklax"
+  ],
+  "Pollnivneach general store": [
+   "Market seller"
+  ],
+  "Port Phasmatys General Store": [
+   "Ghost shopkeeper"
+  ],
+  "Port Roberts Cannonball Stall": [
+   "Iron Bill"
+  ],
+  "Port Roberts Fish Stall": [
+   "Gregory"
+  ],
+  "Port Roberts Fur Stall": [
+   "Perdie"
+  ],
+  "Port Roberts Gem Stall": [
+   "Eleanor"
+  ],
+  "Port Roberts General Store": [
+   "Shopkeeper"
+  ],
+  "Port Roberts Ore Stall": [
+   "Delf"
+  ],
+  "Port Roberts Silk Stall": [
+   "Doria"
+  ],
+  "Port Roberts Silver Stall": [
+   "Amos"
+  ],
+  "Port Roberts Spice Stall": [
+   "Samir"
+  ],
+  "Port Roberts Veg Stall": [
+   "Marla"
+  ],
+  "Prifddinas Foodstuffs": [
+   "Derwen"
+  ],
+  "Prifddinas Gem Stall": [
+   "Glenda"
+  ],
+  "Prifddinas General Store": [
+   "Gwallter"
+  ],
+  "Prifddinas Herbal Supplies": [
+   "Llio"
+  ],
+  "Prifddinas Silver Stall": [
+   "Osian"
+  ],
+  "Prifddinas Spice Stall": [
+   "Caerwyn"
+  ],
+  "Prifddinas' Seamstress": [
+   "Nia"
+  ],
+  "Proselyte Temple Knight Armoury": [
+   "Sir Tiffy Cashien"
+  ],
+  "Prospector Percy's Nugget Shop": [
+   "Prospector Percy"
+  ],
+  "PvP Arena Rewards": [
+   "Mubariz"
+  ],
+  "Quality Armour Shop": [
+   "Saro"
+  ],
+  "Quality Weapons Shop": [
+   "Santiri"
+  ],
+  "Quartermaster's Stores": [
+   "Quartermaster"
+  ],
+  "Quetzacalli Gorge General Store": [
+   "Shopkeeper"
+  ],
+  "Raetul and Co's Cloth Store": [
+   "Raetul"
+  ],
+  "Ramarno's Shard Exchange": [
+   "Ramarno"
+  ],
+  "Ranael's Super Skirt Store": [
+   "Ranael"
+  ],
+  "Ranging Guild Ticket Exchange": [
+   "Ticket Merchant"
+  ],
+  "Rasolo the Wandering Merchant": [
+   "Rasolo"
+  ],
+  "Rat & Bat": [
+   "Carl",
+   "Roy"
+  ],
+  "Ratpit bar (Keldagrim)": [
+   "Rauborn"
+  ],
+  "Ratpit bar (Port Sarim)": [
+   "Barman"
+  ],
+  "Ratpit bar (Varrock)": [
+   "Barman"
+  ],
+  "Razmire Builders Merchants": [
+   "Razmire Keelgan"
+  ],
+  "Razmire General Store": [
+   "Razmire Keelgan"
+  ],
+  "Regath's Wares": [
+   "Regath"
+  ],
+  "Reldak's Leather Armour": [
+   "Reldak"
+  ],
+  "Rellekka Longhall Bar": [
+   "Thora the Barkeep"
+  ],
+  "Richard's Farming shop": [
+   "Richard"
+  ],
+  "Richard's Wilderness Cape Shop": [
+   "Richard"
+  ],
+  "Rimmington General Store": [
+   "Shop keeper"
+  ],
+  "Rising Sun Inn": [
+   "Kaylee",
+   "Emily",
+   "Tina"
+  ],
+  "Rok's Chocs Box": [
+   "Rokuh"
+  ],
+  "Rommik's Crafty Supplies": [
+   "Rommik"
+  ],
+  "Rufus' Meat Emporium": [
+   "Rufus"
+  ],
+  "Rusty Anchor Inn": [
+   "Bartender"
+  ],
+  "Salius' Armour Shop": [
+   "Salius"
+  ],
+  "Salvager Overlook General Store": [
+   "Shopkeeper"
+  ],
+  "Sam's Wilderness Cape Shop": [
+   "Sam"
+  ],
+  "Sarah's Farming shop": [
+   "Sarah"
+  ],
+  "Scavvo's Rune Store": [
+   "Scavvo"
+  ],
+  "Seb's Shipyard Supplies": [
+   "Shipwright Seb"
+  ],
+  "Sebamo's Sublime Staffs": [
+   "Sebamo"
+  ],
+  "Seddu's Adventurer's Store": [
+   "Seddu"
+  ],
+  "Shantay Pass Shop": [
+   "Shantay",
+   "Shantay Guard"
+  ],
+  "Shayzien Styles": [
+   "Robyn"
+  ],
+  "Shields of Mistrock": [
+   "Ichta"
+  ],
+  "Shop of Distaste": [
+   "Fadli"
+  ],
+  "Sian's Ranged Weaponry": [
+   "Sian"
+  ],
+  "Sigmund the Merchant (shop)": [
+   "Sigmund the Merchant"
+  ],
+  "Silver Cog Silver Stall": [
+   "Gulldamar"
+  ],
+  "Simon's Wilderness Cape Shop": [
+   "Simon"
+  ],
+  "Skulgrimen's Battle Gear": [
+   "Skulgrimen"
+  ],
+  "Slayer Equipment (shop)": [
+   "Turael",
+   "Aya",
+   "Spria",
+   "Krystilia",
+   "Mazchna",
+   "Achtryn",
+   "Vannaka",
+   "Chaeldar",
+   "Konar quo Maten",
+   "Nieve",
+   "Steve",
+   "Duradel",
+   "Kuradal",
+   "Mortimer"
+  ],
+  "Smithing Smith's Shop": [
+   "Smith"
+  ],
+  "Solihib's Food Stall": [
+   "Solihib"
+  ],
+  "Soul Wars Reward Shop": [
+   "Nomad"
+  ],
+  "Spike's Spikes": [
+   "Spike"
+  ],
+  "Stick Your Ore Inn": [
+   "Bartender"
+  ],
+  "Stonecutter Supplies": [
+   "Metla"
+  ],
+  "Sulisal's Superb Fishing Store": [
+   "Sulisal"
+  ],
+  "Sunlight's Sanctum": [
+   "Bartender"
+  ],
+  "Sunset Coast General Store": [
+   "Shopkeeper"
+  ],
+  "Supplies's Supplies": [
+   "Mr Supplies Jnr"
+  ],
+  "Tal Teklan General Store": [
+   "Shopkeeper"
+  ],
+  "Tal Teklan Rune Shop": [
+   "Teicuh"
+  ],
+  "Tamayu's Spear Stall": [
+   "Tamayu"
+  ],
+  "Temple Supplies": [
+   "Apprentice Felix"
+  ],
+  "The Asp & Snake Bar": [
+   "Ali the Barman"
+  ],
+  "The Auburn Pub": [
+   "Bartender"
+  ],
+  "The Big Heist Lodge": [
+   "Bartender"
+  ],
+  "The Burrow": [
+   "Huntmaster Gilman"
+  ],
+  "The Cloak and Stagger": [
+   "Oswald"
+  ],
+  "The Crypt": [
+   "Despoina Callidra"
+  ],
+  "The Deeper Lode": [
+   "Fuggy"
+  ],
+  "The Esoterican Arms": [
+   "Runa"
+  ],
+  "The Flaming Arrow": [
+   "Bartender"
+  ],
+  "The Golden Field": [
+   "Richard",
+   "Golova"
+  ],
+  "The Green Ghost": [
+   "Metarialus"
+  ],
+  "The King's Inn": [
+   "King"
+  ],
+  "The Legless Faun": [
+   "Bast"
+  ],
+  "The Lighthouse Store": [
+   "Jossik"
+  ],
+  "The Lost Pickaxe": [
+   "Bartender"
+  ],
+  "The Old Nite": [
+   "Camarst"
+  ],
+  "The Other Inn": [
+   "Mama"
+  ],
+  "The Pandemonium (pub)": [
+   "'Squawking' Steve Beanie"
+  ],
+  "The Rolling Tide": [
+   "Bartender"
+  ],
+  "The Runic Emporium": [
+   "Nahta"
+  ],
+  "The Sheared Ram": [
+   "Bartender"
+  ],
+  "The Shrimp and Parrot": [
+   "Alfonse the waiter",
+   "Charlie the cook"
+  ],
+  "The Spice Is Right": [
+   "Embalmer"
+  ],
+  "The Toad and Chicken": [
+   "Tostig",
+   "Sam",
+   "Rachael"
+  ],
+  "The Toad and Chicken (Games Room)": [
+   "Tostig",
+   "Sam",
+   "Rachael"
+  ],
+  "The Windbreaker": [
+   "Bartender"
+  ],
+  "Thessalia's Fine Clothes": [
+   "Thessalia"
+  ],
+  "Thirus Urkar's Fine Dynamite Store": [
+   "Thirus"
+  ],
+  "Thurid's Brain Buckets": [
+   "Thurid"
+  ],
+  "Thyria's Wares": [
+   "Thyria"
+  ],
+  "Tiadeche's Karambwan Stall": [
+   "Tiadeche"
+  ],
+  "Tizoro's Pickaxes": [
+   "Tizoro"
+  ],
+  "Toci's Gem Store": [
+   "Toci"
+  ],
+  "Tony's Pizza Bases": [
+   "Fat Tony"
+  ],
+  "Toothy's Pickaxes": [
+   "Toothy"
+  ],
+  "Trader Stan's Trading Post": [
+   "Trader Stan",
+   "Trader Crewmember"
+  ],
+  "Trader Sven's Black-market Goods": [
+   "Trader Sven"
+  ],
+  "Tutab's Magical Market": [
+   "Tutab"
+  ],
+  "Two Feet Charley's Fish Shop": [
+   "Charley"
+  ],
+  "Tynan's Fishing Supplies": [
+   "Tynan"
+  ],
+  "TzHaar-Hur-Lek's Ore and Gem Store": [
+   "TzHaar-Hur-Lek"
+  ],
+  "TzHaar-Hur-Rin's Ore and Gem Store": [
+   "TzHaar-Hur-Rin"
+  ],
+  "TzHaar-Hur-Tel's Equipment Store": [
+   "TzHaar-Hur-Tel"
+  ],
+  "TzHaar-Hur-Zal's Equipment Store": [
+   "TzHaar-Hur-Zal"
+  ],
+  "TzHaar-Mej-Roh's Rune Store": [
+   "TzHaar-Mej-Roh"
+  ],
+  "Valaine's Shop of Champions": [
+   "Valaine"
+  ],
+  "Vale Research Exchange": [
+   "Ranulph"
+  ],
+  "Vanessa's Farming shop": [
+   "Vanessa"
+  ],
+  "Vannah's Farming Stall": [
+   "Vannah"
+  ],
+  "Varrock General Store": [
+   "Shop keeper"
+  ],
+  "Varrock Swordshop": [
+   "Shop keeper"
+  ],
+  "Vermundi's Clothes Stall": [
+   "Vermundi"
+  ],
+  "Vigr's Warhammers": [
+   "Vigr"
+  ],
+  "Void Knight Archery Store": [
+   "Squire"
+  ],
+  "Void Knight General Store": [
+   "Squire"
+  ],
+  "Void Knight Magic Store": [
+   "Squire"
+  ],
+  "Warrens Fish Monger": [
+   "Fish monger"
+  ],
+  "Warrens General Store": [
+   "Shop keeper"
+  ],
+  "Warrior Guild Armoury": [
+   "Anton"
+  ],
+  "Warrior Guild Food Shop": [
+   "Lidio"
+  ],
+  "Warrior Guild Potion Shop": [
+   "Lilly"
+  ],
+  "Wayne's Chains! - Chainmail specialist": [
+   "Wayne"
+  ],
+  "Weapons galore": [
+   "Skuli Myrka"
+  ],
+  "West Ardougne General Store": [
+   "Chadwell"
+  ],
+  "Where Wyrmscraig's Wear Wares Were": [
+   "Declan"
+  ],
+  "White Knight Armoury": [
+   "Sir Vyvin"
+  ],
+  "William's Wilderness Cape Shop": [
+   "William"
+  ],
+  "Wine Shop": [
+   "Fortunato"
+  ],
+  "Worm Tongue's Wares": [
+   "Worm Tongue"
+  ],
+  "Yarnio's Baked Goods": [
+   "Yarnio"
+  ],
+  "Yarsul's Prodigious Pickaxes": [
+   "Yarsul"
+  ],
+  "Ye olde Tea Shoppe": [
+   "Tea seller"
+  ],
+  "Yrsa's Accoutrements": [
+   "Yrsa"
+  ],
+  "Zaff's Superior Staffs!": [
+   "Zaff"
+  ],
+  "Zanaris General Store": [
+   "Fairy shop keeper"
+  ],
+  "Zeke's Superior Scimitars": [
+   "Zeke"
+  ],
+  "Zenesha's Plate Mail Body Shop": [
+   "Zenesha"
+  ],
+  "~ Uglug's stuffsies ~": [
+   "Uglug Nar"
+  ]
+ }
+}

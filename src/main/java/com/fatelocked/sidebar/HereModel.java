@@ -126,6 +126,25 @@ public class HereModel
         Palette.Tone tone;
         /** Why it is not ready or locked, or null. */
         String reason;
+        /**
+         * Whether a click can point the game's arrow at it, in a category the card points in; not
+         * for a minigame's row, which names a place rather than a thing.
+         */
+        boolean pointable;
+
+        public Row(String name, String word, Palette.Tone tone, String reason)
+        {
+            this(name, word, tone, reason, true);
+        }
+
+        public Row(String name, String word, Palette.Tone tone, String reason, boolean pointable)
+        {
+            this.name = name;
+            this.word = word;
+            this.tone = tone;
+            this.reason = reason;
+            this.pointable = pointable;
+        }
     }
 
     /** Rows counted by status, in the card's order, leaving out the statuses none has. */
