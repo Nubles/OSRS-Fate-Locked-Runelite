@@ -259,8 +259,11 @@ Strict Mode fails open when:
 The sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
 why. The pause resumes automatically. Blocked clicks produce only a local
 explanation and bounded local audit record. Suggested alternatives are
-display-only and are never activated. `PluginHubClickBoundaryTest` pins the
-single place a click can be consumed.
+display-only and are never activated. Game actions are stopped in that one
+place only, and `PluginHubClickBoundaryTest` pins it. The banner's own Pause
+button takes the mouse press made on it (with that press's release and
+click), so the press pauses Strict Mode and does not also reach the game or
+other plugins under the banner; the test pins that too.
 
 ## Reviewability
 

@@ -227,12 +227,14 @@ rules.
 ## Strict Mode
 
 Strict Mode is off by default. It never removes, reorders or creates menu
-entries and never performs an action. It consumes a click in one case only:
-the tracker's travel table matches the click by id (a spell by its spellbook
+entries and never performs an action. It stops a game action in one case
+only: the tracker's travel table matches the click by id (a spell by its spellbook
 and name; a tablet, scroll or teleport item by its item id; with Block
 networks and boats on, also a network or boat by its object or NPC id), the
 option goes to one place, and fresh rules bound to the logged-in character
-lock it.
+lock it. (The warning banner's own Pause button takes the press made on
+it, so that press pauses Strict Mode and does not reach what lies under the
+banner.)
 The tracker locks a trip when the place is locked, or when the run hasn't
 unlocked what the trip needs, such as a spellbook, Teleport Tablets or
 Jewelry Teleports.

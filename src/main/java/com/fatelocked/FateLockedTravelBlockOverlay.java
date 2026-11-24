@@ -39,6 +39,12 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
     private final BooleanSupplier strictModeEnabled;
     private final BooleanSupplier strictModePaused;
     private volatile InteractionState interactionState;
+    /**
+     * Set when the button took a press, so the release and click that end that press are taken
+     * too: the game and later listeners then see neither half of it.
+     */
+    private boolean pressTaken;
+    private boolean releaseTaken;
     private volatile Supplier<Palette> palette = Palette::defaults;
     private final BackgroundComponent background = new BackgroundComponent();
 
@@ -162,12 +168,24 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
         return new Dimension(width, height);
     }
 
+    /**
+     * A left press on the Pause button pauses Strict Mode and is consumed, so RuneLite passes it
+     * to no later listener and the game does not act on what lies under the banner. Every other
+     * press comes back untouched. RuneLite's MouseManager reads the returned event, so it is
+     * never null.
+     */
     @Override
     public MouseEvent mousePressed(MouseEvent event)
     {
         Runnable pause = null;
         synchronized (interactionLock)
         {
+            // A new press ends the last one: its release and click have come or never will.
+            releaseTaken = false;
+            if (event.getButton() == MouseEvent.BUTTON1)
+            {
+                pressTaken = false;
+            }
             InteractionState snapshot = interactionState;
             if (event.getButton() == MouseEvent.BUTTON1
                 && strictModeEnabled.getAsBoolean()
@@ -177,18 +195,48 @@ public class FateLockedTravelBlockOverlay extends Overlay implements MouseListen
                 && snapshot.canvasButtonBounds.contains(event.getPoint()))
             {
                 pause = snapshot.pauseGuardian;
+                pressTaken = true;
             }
         }
         if (pause != null)
         {
             pause.run();
-            return null;
+            event.consume();
         }
         return event;
     }
 
-    @Override public MouseEvent mouseClicked(MouseEvent event) { return event; }
-    @Override public MouseEvent mouseReleased(MouseEvent event) { return event; }
+    /** The release of a press the button took is consumed too; any other comes back untouched. */
+    @Override
+    public MouseEvent mouseReleased(MouseEvent event)
+    {
+        synchronized (interactionLock)
+        {
+            if (pressTaken && event.getButton() == MouseEvent.BUTTON1)
+            {
+                pressTaken = false;
+                releaseTaken = true;
+                event.consume();
+            }
+        }
+        return event;
+    }
+
+    /** The click that follows a release the button took is consumed; any other comes back untouched. */
+    @Override
+    public MouseEvent mouseClicked(MouseEvent event)
+    {
+        synchronized (interactionLock)
+        {
+            if (releaseTaken && event.getButton() == MouseEvent.BUTTON1)
+            {
+                releaseTaken = false;
+                event.consume();
+            }
+        }
+        return event;
+    }
+
     @Override public MouseEvent mouseEntered(MouseEvent event) { return event; }
     @Override public MouseEvent mouseExited(MouseEvent event) { return event; }
     @Override public MouseEvent mouseDragged(MouseEvent event) { return event; }
