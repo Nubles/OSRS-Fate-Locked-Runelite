@@ -298,6 +298,50 @@ public class StatusTableTest
         assertEquals("RuneLite is asking the tracker for your run's rules.", card.getDetail());
     }
 
+    /**
+     * Audit (plugin-connection.d3[0]): checks that fail before any has worked in this session
+     * say why and when the next one is, and offer Check now, as the README promises, with the
+     * saved rules of the last start and with no rules at all. Before the first answer the card
+     * still says it is checking (the two tests above).
+     */
+    @Test
+    public void checksThatFailBeforeAnyHasWorkedSayWhyAndOfferCheckNow()
+    {
+        SyncReason[] failures = {SyncReason.UNREACHABLE, SyncReason.UNREADABLE, SyncReason.UNAVAILABLE,
+            SyncReason.BUSY};
+        String[] words = {"RuneLite couldn't reach the tracker",
+            "Something other than the tracker answered, such as a Wi-Fi sign-in page",
+            "The tracker had a problem", "The tracker asked RuneLite to check less often"};
+        Instant saved = NOW.minus(Duration.ofHours(20));
+        for (int i = 0; i < failures.length; i++)
+        {
+            // Rules saved by the last start; the sync time, if any, is older than them.
+            for (Instant lastSync : new Instant[]{null, NOW.minus(Duration.ofHours(21))})
+            {
+                StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofHours(21), false)
+                    .arrival(RulesPrecedence.Arrival.SAVED).arrivedAt(saved)
+                    .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, lastSync, null,
+                        failures[i], NOW.plusSeconds(90)))
+                    .build());
+                assertCard(card, Tone.PENDING, "Rules may be out of date", CardAction.CHECK_NOW, null);
+                assertEquals(failures[i] + " " + lastSync, "Rules saved at Wed 16:00 are in use until the tracker"
+                    + " answers. " + words[i] + "; next check at 12:01.", card.getDetail());
+            }
+
+            StatusCardModel none = StatusCardPresenter.present(facts().paired(true)
+                .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null, failures[i],
+                    NOW.plusSeconds(90))).build());
+            assertCard(none, Tone.PENDING, "Couldn't get your rules", CardAction.CHECK_NOW, CardAction.USE_BACKUP);
+            assertEquals(failures[i].name(), "No rules are loaded yet. " + words[i] + "; next check at 12:01.",
+                none.getDetail());
+        }
+        // Not paired, nothing checks: the failure words never appear there.
+        StatusCardModel unpaired = StatusCardPresenter.present(facts()
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null,
+                SyncReason.UNREACHABLE, NOW.plusSeconds(90))).build());
+        assertCard(unpaired, Tone.NEUTRAL, "Not connected", CardAction.CONNECT, CardAction.USE_BACKUP);
+    }
+
     /** Audit: fresh rules from the clipboard or a backup file that name no character never feed Strict Mode. */
     @Test
     public void aBackupNamingNoCharacterSaysStrictModeStaysOff()

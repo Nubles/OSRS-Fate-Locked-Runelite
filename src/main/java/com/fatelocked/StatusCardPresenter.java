@@ -26,6 +26,8 @@ final class StatusCardPresenter
      */
     static final String TRACKER_RULES = "Using the tracker's rules";
     static final String OUT_OF_DATE = "Rules may be out of date";
+    /** Paired, no rules loaded, and every check since this start failed. */
+    static final String NO_RULES_YET = "Couldn't get your rules";
     static final String STRICT_WAITS = "Strict Mode is inactive until the rules refresh.";
     /** What opening the tracker does about old rules: it sends them again, with a new time. */
     static final String REFRESH = "Open the tracker, or reload its tab, so it sends them again.";
@@ -113,7 +115,7 @@ final class StatusCardPresenter
             case RELAY:
                 return tracker(facts, connection, reason);
             default:
-                return nothingLoaded(facts, reason);
+                return nothingLoaded(facts, connection, reason);
         }
     }
 
@@ -133,12 +135,20 @@ final class StatusCardPresenter
         boolean confirmedSinceStart = lastSync != null
             && (facts.getArrival() != RulesPrecedence.Arrival.SAVED || facts.getArrivedAt() == null
                 || !lastSync.isBefore(facts.getArrivedAt()));
+        String failure = failure(connection, facts);
         if (!confirmedSinceStart)
         {
-            return StatusCardModel.of(Tone.NEUTRAL, "Checking with the tracker",
-                "Rules saved " + time(facts.getArrivedAt(), facts) + " are in use until the tracker answers.");
+            String saved = "Rules saved " + time(facts.getArrivedAt(), facts)
+                + " are in use until the tracker answers.";
+            if (failure == null)
+            {
+                return StatusCardModel.of(Tone.NEUTRAL, "Checking with the tracker", saved);
+            }
+            // Every check since this start failed: say why and when the next one is, as the
+            // card does once a check has worked, and offer Check now.
+            return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE, saved + " " + failure)
+                .withActions(CardAction.CHECK_NOW, null);
         }
-        String failure = failure(connection, facts);
         if (facts.isFresh())
         {
             String forWhom = facts.isBound() ? " for " + name(facts.getBoundAccount()) : "";
@@ -207,7 +217,8 @@ final class StatusCardPresenter
     }
 
     /** No rules at all yet. */
-    private static StatusCardModel nothingLoaded(StatusFacts facts, SyncReason reason)
+    private static StatusCardModel nothingLoaded(StatusFacts facts, TrackerConnectionSnapshot connection,
+        SyncReason reason)
     {
         if (reason == SyncReason.SYNC_OFF)
         {
@@ -217,6 +228,12 @@ final class StatusCardPresenter
         }
         if (facts.isPaired())
         {
+            String failure = failure(connection, facts);
+            if (failure != null)
+            {
+                return StatusCardModel.of(Tone.PENDING, NO_RULES_YET, "No rules are loaded yet. " + failure)
+                    .withActions(CardAction.CHECK_NOW, CardAction.USE_BACKUP);
+            }
             return StatusCardModel.of(Tone.PENDING, "Checking with the tracker",
                 "RuneLite is asking the tracker for your run's rules.");
         }
