@@ -53,6 +53,11 @@ final class SyncMachine
     private boolean unconfirmed;
     /** Whether the relay said the owner disconnected this pairing. */
     private boolean pairingGone;
+    /**
+     * Whether the relay's last answer for a working pairing was a 404: its copy
+     * lapsed ("Tracker copy expired") and nothing has come from it since.
+     */
+    private boolean lapsed;
     /** When the player last pressed Check now and it counted. */
     private Instant lastCheckNow;
     /** Whether the player is in game; taken as so until the plugin says otherwise. */
@@ -140,6 +145,7 @@ final class SyncMachine
         rejectedReason = null;
         pairingGone = true;
         unconfirmed = false;
+        lapsed = false;
         after(now, LOGGED_OUT_POLL_SECONDS);
         return show(TrackerConnectionState.EXPIRED, SyncReason.GONE);
     }
@@ -186,6 +192,7 @@ final class SyncMachine
         pairingStartedAt = now;
         repairing = true;
         pairingGone = false;
+        lapsed = false;
         return TrackerConnectionSnapshot.of(
             TrackerConnectionState.WAITING, lastSync, null, SyncReason.CONFIRM_REPAIR, null);
     }
@@ -285,6 +292,7 @@ final class SyncMachine
     {
         lastSync = now;
         unconfirmed = false;
+        lapsed = false;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, acceptedVersion);
     }
@@ -311,6 +319,7 @@ final class SyncMachine
         repairing = false;
         pairingGone = false;
         unconfirmed = false;
+        lapsed = false;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, version);
     }
@@ -324,6 +333,8 @@ final class SyncMachine
     {
         rejectedVersion = RelayContract.canonicalVersion(version);
         rejectedReason = reason;
+        // The relay holds a profile again.
+        lapsed = false;
         return stillRejected(now);
     }
 
@@ -357,6 +368,7 @@ final class SyncMachine
         acceptedVersion = null;
         rejectedVersion = null;
         rejectedReason = null;
+        lapsed = false;
         if (!heldVersion && pairingStartedAt != null)
         {
             long waited = Duration.between(pairingStartedAt, now).getSeconds();
@@ -383,14 +395,17 @@ final class SyncMachine
             // A first pairing from before this session: nothing was confirmed yet.
             return show(TrackerConnectionState.WAITING, SyncReason.NOT_CONFIRMED);
         }
+        lapsed = true;
         return show(TrackerConnectionState.WAITING, SyncReason.NO_RECENT_UPDATE);
     }
 
     /**
      * A check failed: back off as failed does, and show the state and why,
-     * with when the next check is. While a pairing waits for the browser, a
-     * check that got no usable answer keeps that pairing's state, and so its
-     * controls, with why it failed and the next check time.
+     * with when the next check is. While a pairing waits for the browser, or
+     * is known to be disconnected in the tracker ("Disconnected in the web
+     * tracker") or to have lapsed ("No recent update"), a check that got no
+     * usable answer keeps that state, and so its controls, with why it failed
+     * and the next check time.
      */
     TrackerConnectionSnapshot failure(
         TrackerConnectionState state, SyncReason reason, Instant now, long minimumSeconds)
@@ -402,8 +417,14 @@ final class SyncMachine
     private TrackerConnectionSnapshot failureShown(
         TrackerConnectionState state, SyncReason reason, Instant now)
     {
-        if (state == TrackerConnectionState.OFFLINE && !pairingGone && rejectedVersion == null)
+        if (state == TrackerConnectionState.OFFLINE && rejectedVersion == null)
         {
+            if (pairingGone)
+            {
+                // Still ended in the tracker as far as RuneLite knows: Connect still pairs from scratch.
+                return TrackerConnectionSnapshot.of(TrackerConnectionState.EXPIRED, lastSync,
+                    acceptedVersion, SyncReason.GONE, nextCheck).withFailure(reason);
+            }
             if (pairingStartedAt != null && repairing)
             {
                 return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
@@ -422,6 +443,11 @@ final class SyncMachine
             {
                 return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
                     acceptedVersion, SyncReason.NOT_CONFIRMED, nextCheck).withFailure(reason);
+            }
+            if (lapsed)
+            {
+                return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
+                    acceptedVersion, SyncReason.NO_RECENT_UPDATE, nextCheck).withFailure(reason);
             }
         }
         return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, reason, nextCheck);
@@ -484,6 +510,7 @@ final class SyncMachine
         repairing = false;
         pairingGone = false;
         unconfirmed = false;
+        lapsed = false;
         lastSync = null;
         resetChecks();
     }

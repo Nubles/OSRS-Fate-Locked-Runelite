@@ -73,7 +73,8 @@ final class StatusCardPresenter
                     .withActions(CardAction.CONNECT, null);
             case GONE:
                 return StatusCardModel.of(Tone.NEUTRAL, "Disconnected in the tracker",
-                    "The web tracker was told to stop sending rules to this pairing. " + keptRules(facts))
+                    withFailedCheck("The web tracker was told to stop sending rules to this pairing. "
+                        + keptRules(facts), connection, facts))
                     .withActions(CardAction.CONNECT, null);
             case FUTURE_FORMAT:
                 return StatusCardModel.of(Tone.BAD, "Plugin update needed",
@@ -86,8 +87,8 @@ final class StatusCardPresenter
                     .withActions(CardAction.OPEN_TRACKER, null);
             case NO_RECENT_UPDATE:
                 return StatusCardModel.of(Tone.PENDING, "Tracker copy expired",
-                    "The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
-                        + " again. " + keptRules(facts))
+                    withFailedCheck("The tracker hasn't sent your rules recently. Open the web tracker so it"
+                        + " can send them again. " + keptRules(facts), connection, facts))
                     .withActions(CardAction.OPEN_TRACKER, null);
             case OLDER_RULES:
                 return StatusCardModel.of(Tone.PENDING, "Tracker has older rules",

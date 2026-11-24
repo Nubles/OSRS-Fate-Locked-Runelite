@@ -91,8 +91,9 @@ final class SyncView
             ? "\u2014" : LocalTimeText.of(snapshot.getLastSync(), now, zone);
         String nextCheck = snapshot.getNextCheck() == null
             ? "" : " Next check at " + LocalTimeText.of(snapshot.getNextCheck(), now, zone) + ".";
-        // While a pairing waits, why the last check failed, as a failed check says it. A waiting
-        // state carries a next check time only after a check failed.
+        // While a pairing waits, or is known to be disconnected or lapsed, why the last check
+        // failed, as a failed check says it. Those states carry a next check time only after a
+        // check failed.
         String why = snapshot.getFailure() == null ? null : failure(snapshot.getFailure());
         String failed = why != null ? " " + why + nextCheck
             : nextCheck.isEmpty() ? "" : " The last check failed." + nextCheck;
@@ -120,7 +121,7 @@ final class SyncView
             case GONE:
                 detail = "The tracker's owner pressed Disconnect in the web tracker,"
                     + " or paired it again, so it sends no more rules to this"
-                    + " pairing. Press Connect tracker to pair again.";
+                    + " pairing. Press Connect tracker to pair again." + failed;
                 action = Action.CONNECT;
                 break;
             case REPAIR_ABANDONED:
@@ -143,7 +144,7 @@ final class SyncView
                 break;
             case NO_RECENT_UPDATE:
                 detail = "The tracker hasn't sent your rules recently."
-                    + " Open the web tracker so it can send them again.";
+                    + " Open the web tracker so it can send them again." + failed;
                 action = Action.OPEN_TRACKER;
                 break;
             case OLDER_RULES:

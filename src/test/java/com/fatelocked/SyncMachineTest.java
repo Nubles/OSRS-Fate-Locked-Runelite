@@ -556,4 +556,119 @@ public class SyncMachineTest
         assertFalse(machine.firstPairingWaiting());
         assertEquals(SyncReason.NO_RECENT_UPDATE, machine.notFound(true, START.plusSeconds(200)).getReason());
     }
+
+    /**
+     * Audit (own.d1[7]): while a pairing is known to be ended in the tracker, a failed check
+     * keeps "Disconnected in the tracker" and Connect tracker, and adds why it failed and when
+     * the next check is. Connect still pairs from scratch, as the status says.
+     */
+    @Test
+    public void aFailedCheckKeepsADisconnectedPairingsStatusAndButton()
+    {
+        for (String failure : FAILURES)
+        {
+            SyncMachine pairing = new SyncMachine();
+            pairing.accepted("41", START.minusSeconds(600));
+            pairing.gone(START.minusSeconds(300));
+            Instant failedAt = START.plusSeconds(20);
+
+            TrackerConnectionSnapshot failed = fail(pairing, failure, failedAt);
+
+            assertEquals(failure, TrackerConnectionState.EXPIRED, failed.getState());
+            assertEquals(failure, SyncReason.GONE, failed.getReason());
+            assertEquals(failure, reasonOf(failure), failed.getFailure());
+            assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
+            assertTrue(failure, pairing.pairingGone());
+            assertTrue(failure, pairing.checkDue(failed.getNextCheck()));
+            SyncView view = SyncView.of(failed, failedAt, ZoneOffset.UTC);
+            assertEquals(failure, SyncReason.GONE.status, view.status);
+            assertEquals(failure, SyncView.Connect.CONNECT, view.connect);
+            assertEquals(failure, SyncView.Action.CONNECT, view.action);
+            String gone = "The tracker's owner pressed Disconnect in the web tracker, or paired it again, so it"
+                + " sends no more rules to this pairing. Press Connect tracker to pair again.";
+            assertEquals(failure, gone + " " + wordsFor(failure) + ". Next check at 12:00.", view.detail);
+            StatusCardModel card = card(failed, failedAt);
+            assertEquals(failure, "Disconnected in the tracker", card.getTitle());
+            assertEquals(failure, CardAction.CONNECT, card.getPrimary());
+            assertEquals(failure, "The web tracker was told to stop sending rules to this pairing. No rules are"
+                + " loaded. " + wordsFor(failure) + "; next check at 12:00.", card.getDetail());
+
+            // The next answer from the relay shows the plain state again.
+            TrackerConnectionSnapshot again = pairing.gone(failed.getNextCheck());
+            assertNull(failure, again.getFailure());
+            assertNull(failure, again.getNextCheck());
+            assertEquals(failure, gone, SyncView.of(again, failedAt, ZoneOffset.UTC).detail);
+
+            // Rules from the code again: it works, and a failed check says only why.
+            pairing.accepted("42", START.plusSeconds(600));
+            assertEquals(failure, reasonOf(failure), fail(pairing, failure, START.plusSeconds(660)).getReason());
+        }
+    }
+
+    /**
+     * Audit (own.d1[7]): after the relay's copy of a working pairing lapsed, a failed check keeps
+     * "Tracker copy expired" and its Open tracker, and adds why it failed and when the next
+     * check is. The button stays Re-pair tracker: the pairing works.
+     */
+    @Test
+    public void aFailedCheckKeepsALapsedPairingsStatus()
+    {
+        for (String failure : FAILURES)
+        {
+            SyncMachine pairing = new SyncMachine();
+            Instant synced = START.minusSeconds(3600);
+            pairing.accepted("41", synced);
+            pairing.notFound(true, START.minusSeconds(300));
+            Instant failedAt = START.plusSeconds(20);
+
+            TrackerConnectionSnapshot failed = fail(pairing, failure, failedAt);
+
+            assertEquals(failure, TrackerConnectionState.WAITING, failed.getState());
+            assertEquals(failure, SyncReason.NO_RECENT_UPDATE, failed.getReason());
+            assertEquals(failure, reasonOf(failure), failed.getFailure());
+            assertEquals(failure, synced, failed.getLastSync());
+            assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
+            assertFalse(failure, pairing.firstPairingWaiting());
+            SyncView view = SyncView.of(failed, failedAt, ZoneOffset.UTC);
+            assertEquals(failure, SyncReason.NO_RECENT_UPDATE.status, view.status);
+            assertEquals(failure, SyncView.Connect.REPAIR, view.connect);
+            assertEquals(failure, SyncView.Action.OPEN_TRACKER, view.action);
+            String lapsed = "The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
+                + " again.";
+            assertEquals(failure, lapsed + " " + wordsFor(failure) + ". Next check at 12:00.", view.detail);
+            StatusCardModel card = card(failed, failedAt);
+            assertEquals(failure, "Tracker copy expired", card.getTitle());
+            assertEquals(failure, CardAction.OPEN_TRACKER, card.getPrimary());
+            assertEquals(failure, lapsed + " No rules are loaded. " + wordsFor(failure) + "; next check at 12:00.",
+                card.getDetail());
+
+            // Another 404 shows the plain state again.
+            TrackerConnectionSnapshot again = pairing.notFound(false, failed.getNextCheck());
+            assertEquals(failure, SyncReason.NO_RECENT_UPDATE, again.getReason());
+            assertNull(failure, again.getFailure());
+            assertNull(failure, again.getNextCheck());
+            assertEquals(failure, lapsed, SyncView.of(again, failedAt, ZoneOffset.UTC).detail);
+
+            // Rules from the relay again: a failed check says only why.
+            pairing.accepted("42", START.plusSeconds(600));
+            assertEquals(failure, reasonOf(failure), fail(pairing, failure, START.plusSeconds(660)).getReason());
+        }
+    }
+
+    /** Audit (own.d1[7]): a lapse is forgotten once the relay sends anything, even rules RuneLite can't use. */
+    @Test
+    public void aLapseEndsWhenTheRelaySendsRulesAgain()
+    {
+        machine.accepted("41", START);
+        machine.notFound(true, START.plusSeconds(60));
+        machine.rejected("42", SyncReason.FUTURE_FORMAT, START.plusSeconds(120));
+        machine.accepted("43", START.plusSeconds(180));
+
+        assertEquals(SyncReason.UNREACHABLE, machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(240), SyncMachine.FAILURE_BACKOFF_SECONDS).getReason());
+        machine.notFound(true, START.plusSeconds(300));
+        machine.networkAccessChanged(true, true);
+        assertEquals(SyncReason.UNREACHABLE, machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(360), SyncMachine.FAILURE_BACKOFF_SECONDS).getReason());
+    }
 }
