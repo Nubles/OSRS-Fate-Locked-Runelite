@@ -399,17 +399,19 @@ public final class DecisionService
      * The nearest bank the tracker's table allows (R5): here when its
      * facilities are in this chunk, else by its own chunk. From inside an
      * interior it is measured from the entrance, and leaving counts as a
-     * chunk, so a bank at the entrance is never "here".
+     * chunk, so a bank at the entrance is never "here". A place the table
+     * marks deposit-only (Port Sarim's deposit boxes) is not a bank the
+     * player can take anything out of, so it is never the nearest.
      */
     private FateLockedBundle.Nearest nearestTrackedBank(CanonicalChunk from)
     {
-        RuneliteRulesManifest.Bank here = rules.bankIn(from);
+        RuneliteRulesManifest.Bank here = rules.openBankIn(from);
         if (here != null && here.getStatus() == PermissionStatus.ALLOWED) return new FateLockedBundle.Nearest(from, 0);
         CanonicalChunk origin = surfaceOf(from);
         int leaving = origin.equals(from) ? 0 : 1;
         CanonicalChunk best = null;
         int bestDistance = Integer.MAX_VALUE;
-        for (Map.Entry<CanonicalChunk, RuneliteRulesManifest.Bank> entry : rules.banksAt().entrySet())
+        for (Map.Entry<CanonicalChunk, RuneliteRulesManifest.Bank> entry : rules.openBanksAt().entrySet())
         {
             if (entry.getValue().getStatus() != PermissionStatus.ALLOWED) continue;
             CanonicalChunk chunk = entry.getKey();

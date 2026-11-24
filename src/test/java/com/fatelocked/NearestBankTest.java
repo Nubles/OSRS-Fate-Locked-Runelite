@@ -147,6 +147,59 @@ public class NearestBankTest
         assertEquals("Lumbridge · 2 E", hud(lockedPlaying, new CanonicalChunk(48, 50)).get("Bank"));
     }
 
+    /**
+     * plugin-ui.d3[2]: a place the bank table marks depositOnly (Port Sarim's deposit boxes, 47,50)
+     * is not a bank the player can take anything out of, so the Bank line never names it and is
+     * never Here there; South Draynor (48,50) is named instead. Without the field, as before.
+     */
+    @Test
+    public void aDepositOnlyPlaceIsNeverTheNearestBank() throws Exception
+    {
+        CanonicalChunk west = new CanonicalChunk(46, 50);
+        CanonicalChunk sarim = new CanonicalChunk(47, 50);
+        CanonicalChunk draynor = new CanonicalChunk(48, 50);
+
+        DecisionService before = playing(sarimAndDraynor(false));
+        assertEquals(new FateLockedBundle.Nearest(sarim, 1), before.nearestBank(west));
+        assertEquals(new FateLockedBundle.Nearest(sarim, 0), before.nearestBank(sarim));
+        assertEquals("Here", hud(before, sarim).get("Bank"));
+
+        DecisionService marked = playing(sarimAndDraynor(true));
+        assertEquals(new FateLockedBundle.Nearest(draynor, 2), marked.nearestBank(west));
+        assertEquals("Draynor Vill… · 2 E", hud(marked, west).get("Bank"));
+        assertEquals(new FateLockedBundle.Nearest(draynor, 1), marked.nearestBank(sarim));
+        assertFalse(hud(marked, sarim).get("Bank").equals("Here"));
+        assertEquals("Here", hud(marked, draynor).get("Bank"));
+        assertEquals("the locked-bank warning still knows the place", "Port Sarim deposit boxes",
+            marked.bankAt(sarim).getLabel());
+
+        JsonObject onlyBoxes = sarimAndDraynor(true);
+        onlyBoxes.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12338").addProperty("status", "LOCKED");
+        assertNull("with no bank that opens, none, as when no bank is usable", playing(onlyBoxes).nearestBank(west));
+        assertEquals("None unlocked", hud(playing(onlyBoxes), west).get("Bank"));
+    }
+
+    /** custom-lumbridge-banks-off with only Port Sarim's deposit boxes and South Draynor allowed. */
+    private static JsonObject sarimAndDraynor(boolean depositOnly) throws Exception
+    {
+        JsonObject wire = wire("custom-lumbridge-banks-off");
+        for (Map.Entry<String, JsonElement> bank : wire.getAsJsonObject("rules").getAsJsonObject("banks").entrySet())
+        {
+            JsonObject entry = bank.getValue().getAsJsonObject();
+            entry.addProperty("status", bank.getKey().equals("12082") || bank.getKey().equals("12338") ? "ALLOWED" : "LOCKED");
+        }
+        JsonObject sarim = wire.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12082");
+        assertEquals("Port Sarim deposit boxes", sarim.get("name").getAsString());
+        if (depositOnly) sarim.addProperty("depositOnly", true);
+        return wire;
+    }
+
+    private static DecisionService playing(JsonObject wire) throws Exception
+    {
+        return DecisionService.create(RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, wire.toString())),
+            "iron example", "iron example");
+    }
+
     /** The HUD's Compact lines for a player in this chunk, with the nearest bank and shop. */
     private static Map<String, String> hud(DecisionService decisions, CanonicalChunk chunk)
     {

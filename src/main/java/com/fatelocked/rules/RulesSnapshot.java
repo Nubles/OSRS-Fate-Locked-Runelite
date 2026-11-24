@@ -35,6 +35,9 @@ public final class RulesSnapshot
     /** The tracker's bank table, when the rules send it: each bank by its chunk, and by the chunks its facilities are in. */
     private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksAt;
     private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksIn;
+    /** The same two, leaving out the places that only take deposits. */
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> openBanksAt;
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> openBanksIn;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
@@ -57,16 +60,23 @@ public final class RulesSnapshot
         this.places = Collections.unmodifiableMap(byChunk(manifest == null ? null : manifest.getPlaces()));
         Map<CanonicalChunk, RuneliteRulesManifest.Bank> at = new HashMap<>();
         Map<CanonicalChunk, RuneliteRulesManifest.Bank> in = new HashMap<>();
+        Map<CanonicalChunk, RuneliteRulesManifest.Bank> openAt = new HashMap<>();
+        Map<CanonicalChunk, RuneliteRulesManifest.Bank> openIn = new HashMap<>();
         if (manifest != null && manifest.getBanks() != null)
         {
             for (RuneliteRulesManifest.Bank bank : manifest.getBanks().values())
             {
                 for (CanonicalChunk chunk : chunks(Collections.singletonList(bank.getAt()))) at.putIfAbsent(chunk, bank);
                 for (CanonicalChunk chunk : chunks(bank.getPhysical())) in.putIfAbsent(chunk, bank);
+                if (bank.isDepositOnly()) continue;
+                for (CanonicalChunk chunk : chunks(Collections.singletonList(bank.getAt()))) openAt.putIfAbsent(chunk, bank);
+                for (CanonicalChunk chunk : chunks(bank.getPhysical())) openIn.putIfAbsent(chunk, bank);
             }
         }
         this.banksAt = Collections.unmodifiableMap(at);
         this.banksIn = Collections.unmodifiableMap(in);
+        this.openBanksAt = Collections.unmodifiableMap(openAt);
+        this.openBanksIn = Collections.unmodifiableMap(openIn);
     }
 
     /** A map by "cx,cy" key, keyed by chunk instead, skipping keys that aren't one. */
@@ -280,6 +290,18 @@ public final class RulesSnapshot
     Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksAt()
     {
         return banksAt;
+    }
+
+    /** {@link #bankIn}, for a bank that opens: a place that only takes deposits is left out. */
+    RuneliteRulesManifest.Bank openBankIn(CanonicalChunk chunk)
+    {
+        return openBanksIn.get(chunk);
+    }
+
+    /** {@link #banksAt}, for the banks that open: the places that only take deposits are left out. */
+    Map<CanonicalChunk, RuneliteRulesManifest.Bank> openBanksAt()
+    {
+        return openBanksAt;
     }
 
     /** What a chunk that isn't land is, as the rules' places say; null for land or when they don't. */
