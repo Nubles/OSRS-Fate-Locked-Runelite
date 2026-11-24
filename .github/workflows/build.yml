@@ -45,9 +45,13 @@ jobs:
   hub-standard-build:
     runs-on: ubuntu-24.04
     env:
-      PACKAGER_URL: https://github.com/runelite/plugin-hub-tooling/releases/download/v4/bundle.tar.zst
-      # As printed by runelite/plugin-hub's own build (run 36180037455).
-      PACKAGER_SHA256: 627c97f0ae8b86d59dc3e9c666ab75a7c88ed58ec6320967eabc172b36c3dcd5
+      # The packager the Plugin Hub uses today: the PACKAGER_URL line in
+      # runelite/plugin-hub's .github/workflows/build.yml (v6 since 18 Nov 2026).
+      PACKAGER_URL: https://github.com/runelite/plugin-hub-tooling/releases/download/v6/bundle.tar.zst
+      # sha256 of that v6 bundle, computed from a fresh download on 24 Nov 2026
+      # (two separate downloads gave the same value). The Hub's "fetch packager"
+      # step runs sha256sum on the bundle, so its log shows the value to compare.
+      PACKAGER_SHA256: 8ca79aa71611b85ea42ecd81d01e483027d84c158fc34d554521c4407fe76acd
       REPO: ${{ github.event.pull_request.head.repo.clone_url || format('https://github.com/{0}.git', github.repository) }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       # Build only: the packager skips its upload setup, which needs the
@@ -74,8 +78,12 @@ jobs:
           echo "$PACKAGER_SHA256  bundle.tar.zst" | sha256sum -c -
           tar xf bundle.tar.zst
           git clone --quiet --depth 1 https://github.com/runelite/plugin-hub.git plugin-hub
-          grep -q "$PACKAGER_URL" plugin-hub/.github/workflows/build.yml \
-            || echo "::warning::The Plugin Hub now uses a different packager; update PACKAGER_URL and PACKAGER_SHA256"
+          # Fail when the Hub has moved to another packager, because a green
+          # job would then no longer show that the real Hub build passes.
+          if ! grep -qF "$PACKAGER_URL" plugin-hub/.github/workflows/build.yml; then
+            echo "::error::The Plugin Hub now uses a different packager. In .github/workflows/build.yml (hub-standard-build) set PACKAGER_URL to the PACKAGER_URL in runelite/plugin-hub's .github/workflows/build.yml, and PACKAGER_SHA256 to the sha256 that the Hub's 'fetch packager' step prints (or run sha256sum on that bundle)."
+            exit 1
+          fi
           printf 'repository=%s\ncommit=%s\n' "$REPO" "$SHA" > plugin-hub/plugins/fate-locked-ironman
           # The packager reads the entry file's git history.
           git -C plugin-hub -c user.name=ci -c user.email=ci@invalid commit --quiet -am "build $SHA"
