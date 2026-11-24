@@ -209,6 +209,14 @@ with `--check` and fails if the copy differs. `GoldenBundleContractTest`,
 `RelayTransportFixtureTest` and `RelayFixtureStatesTest` check the plugin
 against them.
 
+One golden file ships in the plugin as well: the table of who runs each shop,
+`shop-keepers.json`, which the Here card, the (Locked) tag, the outlines and
+the arrow use to find a shop whose name doesn't give its keeper. When the
+pinned manifest lists it, the script also copies it over
+`src/main/resources/com/fatelocked/sidebar/shop-keepers.json` and `--check`
+compares the two; `ShopKeepersGoldenTest` fails if they differ. Never edit the
+resource by hand.
+
 Since Stage 3 the golden files include the wording contract,
 `runelite-wording.json`, which the web app writes from `data/runeliteWording.ts`:
 the plugin's terms, the words neither says, the settings with their sections,
