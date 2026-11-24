@@ -22,8 +22,9 @@ import org.junit.Test;
  * plugin-ui.d3[3]: a minigame's ACTIVITIES row (minigame: true in the export) names a place, not
  * a thing the game shows, so the Here card offers no click on it, the plugin builds no target or
  * thing from its name, and nothing is tagged or outlined by it. A boss row, and every row of a
- * bundle without the field, is as before. The pinned golden bundles don't carry the field yet,
- * so the test adds it to vanilla-mid's Pest Control row (41,40).
+ * bundle without the field, is as before. The test sets the field on vanilla-mid's Pest Control
+ * row (41,40) itself, and takes it off for the other case, so it holds whether or not the pinned
+ * golden bundles carry the field.
  */
 public class MinigameRowsGoldenTest
 {
@@ -77,6 +78,7 @@ public class MinigameRowsGoldenTest
         JsonObject pest = wire.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("41,40")
             .getAsJsonObject("categories").getAsJsonArray("ACTIVITIES").get(0).getAsJsonObject();
         assertEquals("Pest Control", pest.get("name").getAsString());
+        pest.remove("minigame");
         if (markPestControl) pest.addProperty("minigame", true);
         return DecisionService.create(RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, wire.toString())),
             "iron example", "iron example");
