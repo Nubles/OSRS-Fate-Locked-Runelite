@@ -422,7 +422,7 @@ public class SyncMachineTest
             assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
             assertFalse(failure, pairing.checkDue(failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS - 1)));
             assertTrue(failure, pairing.firstPairingWaiting());
-            SyncView view = SyncView.of(failed, failedAt, ZoneOffset.UTC);
+            SyncView view = pairedView(pairing, failed, failedAt);
             assertEquals(failure, "Confirm in browser", view.status);
             assertEquals(failure, SyncView.Connect.CONNECT, view.connect);
             assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened. "
@@ -451,7 +451,7 @@ public class SyncMachineTest
             TrackerConnectionSnapshot connected = pairing.accepted("1", later.plusSeconds(5));
             assertEquals(failure, TrackerConnectionState.CONNECTED, connected.getState());
             assertFalse(failure, pairing.firstPairingWaiting());
-            assertEquals(failure, SyncView.Connect.REPAIR, SyncView.of(connected, later, ZoneOffset.UTC).connect);
+            assertEquals(failure, SyncView.Connect.REPAIR, pairedView(pairing, connected, later).connect);
         }
     }
 
@@ -474,7 +474,7 @@ public class SyncMachineTest
             assertEquals(failure, synced, failed.getLastSync());
             assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
             assertTrue(failure, pairing.repairing());
-            SyncView view = SyncView.of(failed, failedAt, ZoneOffset.UTC);
+            SyncView view = pairedView(pairing, failed, failedAt);
             assertEquals(failure, SyncView.Connect.CANCEL_REPAIR, view.connect);
             assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened. Until it arrives,"
                 + " RuneLite keeps your current pairing. " + wordsFor(failure) + ". Next check at 12:00.",
@@ -494,7 +494,7 @@ public class SyncMachineTest
             assertNull(failure, waiting.getFailure());
             assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened. Until it arrives,"
                 + " RuneLite keeps your current pairing.", SyncView.of(waiting, later, ZoneOffset.UTC).detail);
-            assertEquals(failure, SyncView.Connect.CANCEL_REPAIR, SyncView.of(waiting, later, ZoneOffset.UTC).connect);
+            assertEquals(failure, SyncView.Connect.CANCEL_REPAIR, pairedView(pairing, waiting, later).connect);
 
             TrackerConnectionSnapshot connected = pairing.accepted("1", later.plusSeconds(5));
             assertEquals(failure, TrackerConnectionState.CONNECTED, connected.getState());
@@ -512,7 +512,7 @@ public class SyncMachineTest
             START.plusSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS + 60), SyncMachine.FAILURE_BACKOFF_SECONDS);
 
         assertEquals(SyncReason.NO_PROFILE, failed.getReason());
-        assertEquals(SyncView.Connect.CONNECT, SyncView.of(failed, START, ZoneOffset.UTC).connect);
+        assertEquals(SyncView.Connect.CONNECT, pairedView(machine, failed, START).connect);
     }
 
     @Test
@@ -537,7 +537,7 @@ public class SyncMachineTest
 
         TrackerConnectionSnapshot missing = machine.notFound(false, START);
         assertEquals(SyncReason.NOT_CONFIRMED, missing.getReason());
-        SyncView view = SyncView.of(missing, START, ZoneOffset.UTC);
+        SyncView view = pairedView(machine, missing, START);
         assertEquals("Pairing not confirmed", view.status);
         assertEquals("This pairing hasn't sent any rules yet. Press Connect tracker to pair again.", view.detail);
         assertEquals(SyncView.Action.CONNECT, view.action);
@@ -550,7 +550,7 @@ public class SyncMachineTest
             SyncReason.UNREACHABLE, START.plusSeconds(60), SyncMachine.FAILURE_BACKOFF_SECONDS);
         assertEquals(SyncReason.NOT_CONFIRMED, failed.getReason());
         assertEquals(START.plusSeconds(90), failed.getNextCheck());
-        assertEquals(SyncView.Connect.CONNECT, SyncView.of(failed, START, ZoneOffset.UTC).connect);
+        assertEquals(SyncView.Connect.CONNECT, pairedView(machine, failed, START).connect);
 
         machine.accepted("1", START.plusSeconds(90));
         assertFalse(machine.firstPairingWaiting());
@@ -580,7 +580,7 @@ public class SyncMachineTest
             assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
             assertTrue(failure, pairing.pairingGone());
             assertTrue(failure, pairing.checkDue(failed.getNextCheck()));
-            SyncView view = SyncView.of(failed, failedAt, ZoneOffset.UTC);
+            SyncView view = pairedView(pairing, failed, failedAt);
             assertEquals(failure, SyncReason.GONE.status, view.status);
             assertEquals(failure, SyncView.Connect.CONNECT, view.connect);
             assertEquals(failure, SyncView.Action.CONNECT, view.action);
@@ -629,7 +629,7 @@ public class SyncMachineTest
             assertEquals(failure, synced, failed.getLastSync());
             assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
             assertFalse(failure, pairing.firstPairingWaiting());
-            SyncView view = SyncView.of(failed, failedAt, ZoneOffset.UTC);
+            SyncView view = pairedView(pairing, failed, failedAt);
             assertEquals(failure, SyncReason.NO_RECENT_UPDATE.status, view.status);
             assertEquals(failure, SyncView.Connect.REPAIR, view.connect);
             assertEquals(failure, SyncView.Action.OPEN_TRACKER, view.action);
@@ -670,5 +670,47 @@ public class SyncMachineTest
         machine.networkAccessChanged(true, true);
         assertEquals(SyncReason.UNREACHABLE, machine.failure(TrackerConnectionState.OFFLINE,
             SyncReason.UNREACHABLE, START.plusSeconds(360), SyncMachine.FAILURE_BACKOFF_SECONDS).getReason());
+    }
+
+    @Test
+    public void refusedRulesDoNotMakeAPairingThatConnectReplacesReadAsRePair()
+    {
+        // A first pairing whose only delivery was refused: Connect replaces the code.
+        SyncMachine first = new SyncMachine();
+        first.pairingStarted(START);
+        TrackerConnectionSnapshot refused = first.rejected("6", SyncReason.FUTURE_FORMAT, START.plusSeconds(5));
+        assertFalse(first.connectKeepsPairing(true));
+        assertEquals(SyncView.Connect.CONNECT, pairedView(first, refused, START).connect);
+        TrackerConnectionSnapshot failed = first.failure(TrackerConnectionState.OFFLINE, SyncReason.UNREACHABLE,
+            START.plusSeconds(10), SyncMachine.FAILURE_BACKOFF_SECONDS);
+        assertEquals(SyncView.Connect.CONNECT, pairedView(first, failed, START).connect);
+
+        // A pairing disconnected in the tracker, then refused rules and a failed check: the same.
+        SyncMachine gone = new SyncMachine();
+        gone.accepted("5", START);
+        gone.gone(START.plusSeconds(60));
+        gone.rejected("6", SyncReason.INVALID_RULES, START.plusSeconds(120));
+        failed = gone.failure(TrackerConnectionState.OFFLINE, SyncReason.UNREACHABLE,
+            START.plusSeconds(180), SyncMachine.FAILURE_BACKOFF_SECONDS);
+        assertFalse(gone.connectKeepsPairing(true));
+        assertEquals(SyncView.Connect.CONNECT, pairedView(gone, failed, START).connect);
+
+        // A working pairing whose newer rules were refused is still kept: Re-pair asks first.
+        SyncMachine working = new SyncMachine();
+        working.accepted("5", START);
+        refused = working.rejected("6", SyncReason.FUTURE_FORMAT, START.plusSeconds(60));
+        assertTrue(working.connectKeepsPairing(true));
+        assertEquals(SyncView.Connect.REPAIR, pairedView(working, refused, START).connect);
+        // Without a saved code there is nothing to keep.
+        assertFalse(working.connectKeepsPairing(false));
+    }
+
+    /**
+     * What the sidebar shows for a machine's snapshot with a saved code, with whether Connect
+     * keeps it, as the controller stamps every snapshot it shows.
+     */
+    private static SyncView pairedView(SyncMachine machine, TrackerConnectionSnapshot shown, Instant now)
+    {
+        return SyncView.of(shown.withConnectKeepingPairing(machine.connectKeepsPairing(true)), now, ZoneOffset.UTC);
     }
 }

@@ -140,8 +140,8 @@ final class TrackerConnectionController
         this.importer = importer;
         this.listener = listener;
         this.currentIdentityCode = settings.pairingCode();
-        snapshot = afterReset(SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired()))
-            .forPairing(settings.pairingCode());
+        snapshot = stampedLocked(
+            afterReset(SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired())));
         listener.accept(snapshot);
     }
 
@@ -161,7 +161,7 @@ final class TrackerConnectionController
                 throw new IllegalStateException("The tracker connection has stopped");
             }
             abandonCheckLocked();
-            if (settings.isPaired() && !machine.firstPairingWaiting() && !machine.pairingGone())
+            if (machine.connectKeepsPairing(settings.isPaired()))
             {
                 // Keep the working pairing until the new one delivers.
                 pendingCode = code;
@@ -786,13 +786,24 @@ final class TrackerConnectionController
      */
     private void showLocked(TrackerConnectionSnapshot shown)
     {
-        TrackerConnectionSnapshot next = shown.forPairing(activeCodeLocked());
+        TrackerConnectionSnapshot next = stampedLocked(shown);
         if (next.equals(snapshot))
         {
             return;
         }
         snapshot = next;
         listener.accept(next);
+    }
+
+    /**
+     * A snapshot with what the sidebar shows of the code in use, and whether
+     * Connect would keep that code (the button reads "Re-pair tracker..." and
+     * asks first) or replace it ("Connect tracker"), as beginPairing decides.
+     */
+    private TrackerConnectionSnapshot stampedLocked(TrackerConnectionSnapshot shown)
+    {
+        return shown.forPairing(activeCodeLocked())
+            .withConnectKeepingPairing(machine.connectKeepsPairing(settings.isPaired()));
     }
 
     /** A current check failed: back off, show why and when the next check is, and end it. */

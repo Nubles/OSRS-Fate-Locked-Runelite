@@ -119,7 +119,7 @@ public class SectionPresentersTest
     public void connectionOffersTheRightPairingButtonAndSaysWhereTheRulesCameFrom()
     {
         TrackerConnectionSnapshot connected = TrackerConnectionSnapshot.connected(NOW.minusSeconds(120), "41")
-            .forPairing("0123456789abcdef0123456789abcdef");
+            .forPairing("0123456789abcdef0123456789abcdef").withConnectKeepingPairing(true);
         ConnectionModel online = ConnectionPresenter.present(connected, true, true, FateLockedPlugin.RulesSource.RELAY,
             RulesPrecedence.Arrival.RELAY, null, NOW, ZoneOffset.UTC);
         assertTrue(online.isOnlineSync());

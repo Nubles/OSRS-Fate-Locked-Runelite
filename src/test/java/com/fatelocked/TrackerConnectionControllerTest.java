@@ -1,5 +1,6 @@
 package com.fatelocked;
 
+import com.fatelocked.sidebar.CardAction;
 import com.google.gson.Gson;
 import net.runelite.client.config.ConfigManager;
 import okhttp3.Call;
@@ -1950,6 +1951,192 @@ public class TrackerConnectionControllerTest
         assertEquals(newCode, controller.activeCode());
         assertEquals(INITIAL_CODE, settings.pairingCode());
     }
+
+    /** One way to reach a state: the steps after a fresh start with the saved code, or none. */
+    private interface Steps
+    {
+        void run() throws Exception;
+    }
+
+    /**
+     * For every state the connection can reach, the connect button says what pressing it does:
+     * "Re-pair tracker..." (whose dialog says the current pairing is kept) exactly when Connect
+     * keeps the code in use until a new pairing delivers, and "Connect tracker" when Connect
+     * replaces the code at once.
+     */
+    @Test
+    public void theConnectButtonSaysWhatConnectDoesInEveryState() throws Exception
+    {
+        SyncView.Connect connect = SyncView.Connect.CONNECT;
+        SyncView.Connect repair = SyncView.Connect.REPAIR;
+        Steps firstPairing = () -> {
+            configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+            restart();
+            controller.beginPairing();
+        };
+        Steps working = () -> connect(5, "\"5\"");
+        Steps gone = () -> {
+            working.run();
+            server.enqueue(new MockResponse().setResponseCode(404)
+                .addHeader("Content-Type", "application/json").setBody("{\"gone\":true}"));
+            controller.poll();
+            takeRelay();
+            waitFor(() -> !controller.pollInFlight());
+        };
+        Steps repairing = () -> {
+            working.run();
+            controller.beginPairing();
+        };
+
+        expectButton("no pairing", connect, () -> {
+            configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+            restart();
+        });
+        expectButton("a saved pairing before its first check", repair, () -> { });
+        expectButton("connected", repair, working);
+        expectButton("connected, then a failed check", repair, then(working, this::failACheck));
+        expectButton("connected, then the relay copy lapsed", repair, then(working, this::answer404));
+        expectButton("connected, then a newer format", repair, then(working, () -> refuse(Refusal.NEWER_FORMAT)));
+        expectButton("connected, then unreadable rules", repair, then(working, () -> refuse(Refusal.UNREADABLE)));
+        expectButton("connected, then an import refused", repair, then(working, () -> refuse(Refusal.IMPORT)));
+        expectButton("connected, then refused rules and a failed check", repair,
+            then(working, () -> refuse(Refusal.NEWER_FORMAT), this::failACheck));
+
+        expectButton("a first pairing waiting for the browser", connect, firstPairing);
+        expectButton("a first pairing, then a failed check", connect, then(firstPairing, this::failACheck));
+        expectButton("a first pairing that ran out", connect, then(firstPairing, () -> {
+            clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
+            answer404();
+        }));
+        for (Refusal refusal : Refusal.values())
+        {
+            expectButton("a first pairing whose only delivery was refused: " + refusal, connect,
+                then(firstPairing, () -> refuse(refusal)));
+            expectButton("a first pairing whose only delivery was refused, then a failed check: " + refusal,
+                connect, then(firstPairing, () -> refuse(refusal), this::failACheck));
+            expectButton("a first pairing whose only delivery was refused, after a restart: " + refusal,
+                connect, then(firstPairing, () -> refuse(refusal), this::restart));
+            expectButton("a first pairing whose only delivery was refused, after a restart and the next check: "
+                + refusal, connect, then(firstPairing, () -> refuse(refusal), this::restart, () -> refuse(refusal)));
+        }
+        expectButton("a first pairing, after a restart", connect, then(firstPairing, this::restart));
+
+        expectButton("disconnected in the tracker", connect, gone);
+        expectButton("disconnected in the tracker, then a failed check", connect, then(gone, this::failACheck));
+        expectButton("disconnected in the tracker, then refused rules", connect,
+            then(gone, () -> refuse(Refusal.NEWER_FORMAT)));
+        expectButton("disconnected in the tracker, then refused rules and a failed check", connect,
+            then(gone, () -> refuse(Refusal.NEWER_FORMAT), this::failACheck));
+
+        expectButton("a re-pairing waiting", SyncView.Connect.CANCEL_REPAIR, repairing);
+        expectButton("a re-pairing, then a failed check", SyncView.Connect.CANCEL_REPAIR,
+            then(repairing, this::failACheck));
+        expectButton("a re-pairing whose new code's rules were refused", repair,
+            then(repairing, () -> refuse(Refusal.NEWER_FORMAT)));
+        expectButton("a re-pairing that ran out", repair, then(repairing, () -> {
+            clock.advanceSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS);
+            answer404();
+        }));
+        expectButton("online sync off", SyncView.Connect.TURN_ON_SYNC, () -> {
+            configuration.remove(FateLockedConfig.NETWORK_ACCESS_KEY);
+            restart();
+        });
+        assertEquals(String.join("\n", mismatches), 0, mismatches.size());
+    }
+
+    private enum Refusal
+    {
+        NEWER_FORMAT,
+        UNREADABLE,
+        IMPORT
+    }
+
+    private static Steps then(Steps... steps)
+    {
+        return () -> {
+            for (Steps step : steps)
+            {
+                step.run();
+            }
+        };
+    }
+
+    /** The relay sends rules this RuneLite refuses. */
+    private void refuse(Refusal refusal) throws Exception
+    {
+        switch (refusal)
+        {
+            case NEWER_FORMAT:
+                importer.readNextPayloadAsAFutureFormat();
+                break;
+            case UNREADABLE:
+                importer.failToPrepareNextPayload();
+                break;
+            default:
+                importer.rejectNextPayload();
+                break;
+        }
+        server.enqueue(relayResponse(6, validV4Payload(), "\"6\""));
+        controller.poll();
+        takeRelay();
+        if (refusal == Refusal.IMPORT)
+        {
+            waitFor(() -> clientTasks.size() == 1);
+            runClientTasks();
+        }
+        waitFor(() -> controller.snapshot().getState() == TrackerConnectionState.IMPORT_FAILED);
+        waitFor(() -> !controller.pollInFlight());
+    }
+
+    private void failACheck() throws Exception
+    {
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+        controller.poll();
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        waitFor(() -> controller.snapshot().getNextCheck() != null);
+        waitFor(() -> !controller.pollInFlight());
+    }
+
+    /**
+     * From a fresh start with the usual saved code, take the steps, then check the button against
+     * what pressing it does: Re-pair keeps the saved code, Connect replaces it.
+     */
+    private void expectButton(String state, SyncView.Connect expected, Steps steps) throws Exception
+    {
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, INITIAL_CODE);
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+        configuration.remove(TrackerConnectionSettings.UNCONFIRMED_PAIRING_KEY);
+        restart();
+        steps.run();
+        assertNull(state, server.takeRequest(0, TimeUnit.MILLISECONDS));
+        assertTrue(state, clientTasks.isEmpty());
+
+        SyncView.Connect shown = view().connect;
+        CardAction button = ConnectionPresenter.present(controller.snapshot(), settings.networkAccessAllowed(),
+            settings.isPaired(), FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.RELAY, null,
+            clock.instant(), ZoneOffset.UTC).getPairingAction();
+        if (shown != expected)
+        {
+            mismatches.add(state + ": the button reads " + shown.label + ", expected " + expected.label);
+        }
+        if (shown == SyncView.Connect.TURN_ON_SYNC || shown == SyncView.Connect.CANCEL_REPAIR)
+        {
+            return;
+        }
+        // Only Re-pair opens the dialog that says the current pairing is kept.
+        assertEquals(state, shown == SyncView.Connect.REPAIR, button == CardAction.REPAIR);
+        String saved = settings.pairingCode();
+        controller.beginPairing();
+        boolean kept = !saved.isEmpty() && saved.equals(settings.pairingCode())
+            && !saved.equals(controller.activeCode());
+        if (kept != (shown == SyncView.Connect.REPAIR))
+        {
+            mismatches.add(state + ": the button reads " + shown.label + " but Connect "
+                + (kept ? "kept" : "replaced") + " the code");
+        }
+    }
+
+    private final List<String> mismatches = new ArrayList<>();
 
     private void connect(int version, String etag) throws Exception
     {

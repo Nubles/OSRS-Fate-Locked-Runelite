@@ -167,6 +167,18 @@ final class SyncMachine
     }
 
     /**
+     * Whether pressing Connect keeps the code in use until a new pairing
+     * delivers (a re-pairing) instead of replacing it at once: only for a
+     * saved code that is not a first pairing still waiting to deliver and
+     * that the tracker has not disconnected. The one test both the pairing
+     * and the connect button's label use.
+     */
+    boolean connectKeepsPairing(boolean paired)
+    {
+        return paired && !firstPairingWaiting() && !pairingGone;
+    }
+
+    /**
      * The saved code came from a first pairing that has never delivered
      * rules, started before this session or before a reset. It counts as a
      * first pairing, so Connect replaces it, but the checks keep the pace of

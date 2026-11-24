@@ -57,7 +57,11 @@ next check. Outlines, tags and warnings keep working throughout.
 **Re-pair tracker…** in Connection & backup pairs RuneLite with another
 tracker profile, and asks first. RuneLite keeps your current pairing until
 the new one sends your rules; if none arrives within 10 minutes, or you
-press **Cancel re-pairing**, nothing changes. With online sync off, the
+press **Cancel re-pairing**, nothing changes. The button reads **Re-pair
+tracker…** only while your pairing works. With no pairing, a first pairing
+that hasn't sent rules RuneLite could use, or a pairing disconnected in the
+tracker, it reads **Connect tracker**: there is nothing to keep, so it
+starts a new pairing at once with a new code. With online sync off, the
 status card offers **Turn on online sync**, which picks up the pairing you
 already have. **Disconnect** forgets the pairing and keeps the rules you
 have.

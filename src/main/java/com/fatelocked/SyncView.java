@@ -55,11 +55,14 @@ final class SyncView
     /** The connect button's job in each state. */
     enum Connect
     {
-        /** No working pairing: pair, asking for consent first if need be. */
+        /**
+         * Connect replaces the code at once, or there is none: pair, asking for consent
+         * first if need be.
+         */
         CONNECT("Connect tracker"),
         /** Paired with online sync off: turn it on and use that pairing. */
         TURN_ON_SYNC("Turn on online sync"),
-        /** A working pairing: ask, then pair again, keeping it until the new one delivers. */
+        /** Connect keeps the code in use: ask, then pair again, keeping it until the new one delivers. */
         REPAIR("Re-pair tracker\u2026"),
         /** A re-pairing is waiting: go back to the working pairing. */
         CANCEL_REPAIR("Cancel re-pairing");
@@ -186,7 +189,7 @@ final class SyncView
         String pairing = snapshot.getPairingEnding() == null
             ? "\u2014" : "\u2026" + snapshot.getPairingEnding();
         return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow,
-            connect(snapshot.getReason()), pairing);
+            connect(snapshot), pairing);
     }
 
     /** Why a check failed, in the sidebar's words, or null for a reason that isn't a failed check. */
@@ -207,23 +210,22 @@ final class SyncView
         }
     }
 
-    private static Connect connect(SyncReason reason)
+    /**
+     * Re-pair (which asks first, saying the current pairing is kept) only when
+     * pressing Connect keeps the code in use; Connect tracker whenever it
+     * replaces the code, as for a first pairing whose rules RuneLite refused
+     * or a pairing disconnected in the tracker.
+     */
+    private static Connect connect(TrackerConnectionSnapshot snapshot)
     {
-        switch (reason)
+        switch (snapshot.getReason())
         {
-            case NOT_PAIRED:
-            case CONFIRM_IN_BROWSER:
-            case NO_PROFILE:
-            case NOT_CONFIRMED:
-            case GONE:
-                // Nothing that works to keep: pair from scratch.
-                return Connect.CONNECT;
             case SYNC_OFF:
                 return Connect.TURN_ON_SYNC;
             case CONFIRM_REPAIR:
                 return Connect.CANCEL_REPAIR;
             default:
-                return Connect.REPAIR;
+                return snapshot.connectKeepsPairing() ? Connect.REPAIR : Connect.CONNECT;
         }
     }
 

@@ -18,6 +18,12 @@ final class TrackerConnectionSnapshot
      * keeps its own reason (and so its controls); null otherwise.
      */
     private final SyncReason failure;
+    /**
+     * Whether pressing Connect now keeps the code in use until a new pairing
+     * delivers (a re-pairing), rather than replacing it at once. Set by the
+     * controller from the same test its pairing uses; false otherwise.
+     */
+    private final boolean connectKeepsPairing;
 
     private TrackerConnectionSnapshot(
         TrackerConnectionState state,
@@ -26,7 +32,8 @@ final class TrackerConnectionSnapshot
         SyncReason reason,
         Instant nextCheck,
         String pairingEnding,
-        SyncReason failure)
+        SyncReason failure,
+        boolean connectKeepsPairing)
     {
         this.state = state;
         this.lastSync = lastSync;
@@ -35,6 +42,7 @@ final class TrackerConnectionSnapshot
         this.nextCheck = nextCheck;
         this.pairingEnding = pairingEnding;
         this.failure = failure;
+        this.connectKeepsPairing = connectKeepsPairing;
     }
 
     TrackerConnectionState getState()
@@ -73,11 +81,24 @@ final class TrackerConnectionSnapshot
         return failure;
     }
 
+    /** Whether pressing Connect now keeps the code in use until a new pairing delivers. */
+    boolean connectKeepsPairing()
+    {
+        return connectKeepsPairing;
+    }
+
+    /** This snapshot, saying whether pressing Connect now keeps the code in use. */
+    TrackerConnectionSnapshot withConnectKeepingPairing(boolean keeps)
+    {
+        return new TrackerConnectionSnapshot(
+            state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, failure, keeps);
+    }
+
     /** This snapshot, saying why the last check failed while a pairing waits. */
     TrackerConnectionSnapshot withFailure(SyncReason why)
     {
         return new TrackerConnectionSnapshot(
-            state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, why);
+            state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, why, connectKeepsPairing);
     }
 
     /** This snapshot for the pairing whose code this is. */
@@ -85,7 +106,7 @@ final class TrackerConnectionSnapshot
     {
         String ending = code == null || code.length() < 4 ? null : code.substring(code.length() - 4);
         return new TrackerConnectionSnapshot(
-            state, lastSync, acceptedVersion, reason, nextCheck, ending, failure);
+            state, lastSync, acceptedVersion, reason, nextCheck, ending, failure, connectKeepsPairing);
     }
 
     /** The short status: the reason's, or the state's own. */
@@ -118,7 +139,7 @@ final class TrackerConnectionSnapshot
         Instant nextCheck)
     {
         return new TrackerConnectionSnapshot(
-            state, lastSync, acceptedVersion, reason, nextCheck, null, null);
+            state, lastSync, acceptedVersion, reason, nextCheck, null, null, false);
     }
 
     private static String stateStatus(TrackerConnectionState state)
@@ -157,12 +178,14 @@ final class TrackerConnectionSnapshot
             && reason == that.reason
             && Objects.equals(nextCheck, that.nextCheck)
             && Objects.equals(pairingEnding, that.pairingEnding)
-            && failure == that.failure;
+            && failure == that.failure
+            && connectKeepsPairing == that.connectKeepsPairing;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, failure);
+        return Objects.hash(state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, failure,
+            connectKeepsPairing);
     }
 }
