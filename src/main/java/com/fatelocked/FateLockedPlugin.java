@@ -2744,7 +2744,8 @@ public class FateLockedPlugin extends Plugin
         models.run(RunPresenter.present(bundle, ruleDecisions, player));
         TrackerConnectionSettings settings = connectionSettings;
         models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
-            settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
+            settings != null && settings.isPaired(), current.getSource(), current.getArrival(), bundle.exportedAt(),
+            now, zone));
         // A login, a logout, another character or new rules can start or stop the noticing.
         if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet))
         {
