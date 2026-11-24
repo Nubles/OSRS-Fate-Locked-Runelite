@@ -140,7 +140,7 @@ final class TrackerConnectionController
         this.importer = importer;
         this.listener = listener;
         this.currentIdentityCode = settings.pairingCode();
-        snapshot = SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired())
+        snapshot = afterReset(SyncMachine.idle(settings.networkAccessAllowed(), settings.isPaired()))
             .forPairing(settings.pairingCode());
         listener.accept(snapshot);
     }
@@ -170,6 +170,7 @@ final class TrackerConnectionController
             else
             {
                 settings.replacePairingCode(code);
+                settings.markPairingUnconfirmed(code);
                 settings.clearLegacySettings();
                 pendingCode = null;
                 currentIdentityCode = code;
@@ -251,7 +252,7 @@ final class TrackerConnectionController
                 pendingCode = null;
                 currentIdentityCode = saved;
                 clearLegacy = !saved.isEmpty();
-                showLocked(machine.pairingReplaced(!saved.isEmpty()));
+                showLocked(afterReset(machine.pairingReplaced(!saved.isEmpty())));
             }
             code = activeCodeLocked();
             if (code.isEmpty())
@@ -358,9 +359,25 @@ final class TrackerConnectionController
         {
             abandonCheckLocked();
             pendingCode = null;
-            showLocked(machine.networkAccessChanged(
-                settings.networkAccessAllowed(), settings.isPaired()));
+            showLocked(afterReset(machine.networkAccessChanged(
+                settings.networkAccessAllowed(), settings.isPaired())));
         }
+    }
+
+    /**
+     * After a start, a consent change or a code changed underneath: a saved code that a
+     * first pairing made and that has never delivered counts as that first pairing
+     * again, so the sidebar doesn't treat it as a working pairing. With sync off, the
+     * reset's own status stays. Unknown counts as working.
+     */
+    private TrackerConnectionSnapshot afterReset(TrackerConnectionSnapshot reset)
+    {
+        if (!settings.pairingUnconfirmed())
+        {
+            return reset;
+        }
+        TrackerConnectionSnapshot unconfirmed = machine.unconfirmedPairing();
+        return settings.networkAccessAllowed() ? unconfirmed : reset;
     }
 
     /**
@@ -394,9 +411,10 @@ final class TrackerConnectionController
         }
         synchronized (pollLock)
         {
-            if (!stopped)
+            if (!stopped && machine.seed(version.trim()))
             {
-                machine.seed(version.trim());
+                // This pairing's rules were saved, so it has delivered.
+                settings.pairingDelivered();
             }
         }
     }
@@ -612,6 +630,7 @@ final class TrackerConnectionController
                             return;
                         }
                         showLocked(machine.confirmed(refreshedAt));
+                        settings.pairingDelivered();
                     }
                 }
                 finally
@@ -697,6 +716,7 @@ final class TrackerConnectionController
                         {
                             commitPendingLocked();
                         }
+                        settings.pairingDelivered();
                         showLocked(machine.accepted(version, acceptedAt));
                     }
                 }

@@ -50,16 +50,24 @@ final class StatusCardPresenter
         {
             case CONFIRM_IN_BROWSER:
                 return StatusCardModel.of(Tone.PENDING, "Waiting for confirmation",
-                    "Confirm this profile in the browser tab RuneLite opened. RuneLite checks every few seconds.")
+                    "Confirm this profile in the browser tab RuneLite opened. "
+                        + (failedCheck(connection, facts) == null ? "RuneLite checks every few seconds."
+                            : failedCheck(connection, facts)))
                     .withActions(CardAction.OPEN_PAGE_AGAIN, CardAction.CANCEL_PAIRING);
             case CONFIRM_REPAIR:
                 return StatusCardModel.of(Tone.PENDING, "Waiting for confirmation",
-                    "Confirm the new profile in the browser tab RuneLite opened. Your current pairing keeps"
-                        + " working until it arrives.")
+                    withFailedCheck("Confirm the new profile in the browser tab RuneLite opened. Your current"
+                        + " pairing keeps working until it arrives.", connection, facts))
                     .withActions(CardAction.OPEN_PAGE_AGAIN, CardAction.CANCEL_REPAIR);
             case NO_PROFILE:
                 return StatusCardModel.of(Tone.BAD, "No profile arrived",
-                    "Nothing was confirmed in the browser within 10 minutes.")
+                    withFailedCheck("Nothing was confirmed in the browser within 10 minutes.", connection, facts))
+                    .withActions(CardAction.CONNECT, null);
+            case NOT_CONFIRMED:
+                // A first pairing from before this start or a reset: no rules ever came from it.
+                return StatusCardModel.of(Tone.PENDING, "Pairing not confirmed",
+                    withFailedCheck("This pairing hasn't sent any rules yet. Press Connect tracker to pair"
+                        + " again.", connection, facts))
                     .withActions(CardAction.CONNECT, null);
             case GONE:
                 return StatusCardModel.of(Tone.NEUTRAL, "Disconnected in the tracker",
@@ -253,6 +261,22 @@ final class StatusCardPresenter
         }
         Instant next = connection.getNextCheck();
         return next == null ? what + "." : what + "; next check " + time(next, facts) + ".";
+    }
+
+    /**
+     * For a pairing that waits: "The last check failed; next check at 12:00." when it did,
+     * or null. Its waiting state carries a next check time only after a failed check.
+     */
+    private static String failedCheck(TrackerConnectionSnapshot connection, StatusFacts facts)
+    {
+        Instant next = connection.getNextCheck();
+        return next == null ? null : "The last check failed; next check " + time(next, facts) + ".";
+    }
+
+    private static String withFailedCheck(String detail, TrackerConnectionSnapshot connection, StatusFacts facts)
+    {
+        String failed = failedCheck(connection, facts);
+        return failed == null ? detail : detail + " " + failed;
     }
 
     private static String keptRules(StatusFacts facts)

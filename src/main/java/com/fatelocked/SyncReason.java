@@ -18,6 +18,11 @@ enum SyncReason
     CONFIRM_IN_BROWSER("Confirm in browser"),
     /** A pairing started here got no profile within 10 minutes. */
     NO_PROFILE("No profile received"),
+    /**
+     * A first pairing saved before this session, or before sync was turned off and on,
+     * has never delivered rules.
+     */
+    NOT_CONFIRMED("Pairing not confirmed"),
     /** A re-pairing waits for its profile; the working pairing stays until it arrives. */
     CONFIRM_REPAIR("Confirm the new pairing"),
     /** A re-pairing got no profile within 10 minutes, so the working pairing was kept. */

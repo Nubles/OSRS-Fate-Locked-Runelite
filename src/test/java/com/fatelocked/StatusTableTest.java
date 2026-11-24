@@ -75,6 +75,26 @@ public class StatusTableTest
     }
 
     @Test
+    public void row3AFirstPairingThatNeverDeliveredBeforeThisStartOffersConnect()
+    {
+        StatusCardModel card = StatusCardPresenter.present(facts().paired(true)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.NOT_CONFIRMED, null)).build());
+        assertCard(card, Tone.PENDING, "Pairing not confirmed", CardAction.CONNECT, null);
+        assertEquals("This pairing hasn't sent any rules yet. Press Connect tracker to pair again.",
+            card.getDetail());
+        // Never the advice for a working pairing whose relay copy lapsed.
+        assertTrue(card.getDetail(), !card.getDetail().contains("web tracker"));
+
+        StatusCardModel failed = StatusCardPresenter.present(facts().paired(true)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.NOT_CONFIRMED, NOW.plusSeconds(30))).build());
+        assertCard(failed, Tone.PENDING, "Pairing not confirmed", CardAction.CONNECT, null);
+        assertEquals("This pairing hasn't sent any rules yet. Press Connect tracker to pair again."
+            + " The last check failed; next check at 12:00.", failed.getDetail());
+    }
+
+    @Test
     public void row4ConnectedSaysWhenTheTrackerSentTheRulesAndWhenRuneLiteLastChecked()
     {
         StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(2), true)

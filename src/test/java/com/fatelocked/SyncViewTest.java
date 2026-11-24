@@ -133,13 +133,26 @@ public class SyncViewTest
             SyncReason.CONFIRM_IN_BROWSER)).connect);
         assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.EXPIRED,
             SyncReason.NO_PROFILE)).connect);
-        // A working pairing is kept: re-pairing asks first.
+        // A first pairing saved by an earlier start that never delivered: nothing to keep either.
+        assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.WAITING,
+            SyncReason.NOT_CONFIRMED)).connect);
+        // A working pairing is kept: re-pairing asks first, even after a failed check.
         assertEquals(SyncView.Connect.REPAIR,
             view(TrackerConnectionSnapshot.connected(NOW, "41")).connect);
         assertEquals(SyncView.Connect.REPAIR, view(of(TrackerConnectionState.OFFLINE,
             SyncReason.UNREACHABLE)).connect);
         assertEquals(SyncView.Connect.CANCEL_REPAIR, view(of(TrackerConnectionState.WAITING,
             SyncReason.CONFIRM_REPAIR)).connect);
+        // A pairing that waits keeps its button when a check fails.
+        SyncMachine first = new SyncMachine();
+        first.pairingStarted(NOW);
+        assertEquals(SyncView.Connect.CONNECT, view(first.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, NOW, SyncMachine.FAILURE_BACKOFF_SECONDS)).connect);
+        SyncMachine again = new SyncMachine();
+        again.accepted("41", NOW);
+        again.repairStarted(NOW);
+        assertEquals(SyncView.Connect.CANCEL_REPAIR, view(again.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, NOW, SyncMachine.FAILURE_BACKOFF_SECONDS)).connect);
         assertEquals("Re-pair tracker\u2026", SyncView.Connect.REPAIR.label);
     }
 

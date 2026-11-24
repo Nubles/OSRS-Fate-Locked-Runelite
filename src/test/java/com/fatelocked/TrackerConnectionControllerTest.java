@@ -1753,6 +1753,204 @@ public class TrackerConnectionControllerTest
         waitFor(() -> endedCalls.contains(check));
     }
 
+    private static final String OTHER_CODE = "fedcba9876543210fedcba9876543210";
+
+    /** RuneLite, or the plugin, starts again with the settings as they are. */
+    private void restart()
+    {
+        controller.stop();
+        controller = new TrackerConnectionController(
+            http, gson, settings, clock, dispatcher, importer, listener);
+    }
+
+    private void answer404() throws Exception
+    {
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.poll();
+        takeRelay();
+        waitFor(() -> !controller.pollInFlight());
+    }
+
+    private SyncView view()
+    {
+        return SyncView.of(controller.snapshot(), clock.instant(), ZoneOffset.UTC);
+    }
+
+    @Test
+    public void aFirstPairingThatNeverDeliveredIsStillOneAfterARestart() throws Exception
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        String first = settings.pairingCode();
+        assertTrue(settings.pairingUnconfirmed());
+
+        // RuneLite restarts before the browser confirms.
+        restart();
+        assertEquals(SyncReason.NOT_CONFIRMED, controller.snapshot().getReason());
+        assertEquals(SyncView.Connect.CONNECT, view().connect);
+
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        assertEquals("/r/" + first, takeRelay().getPath());
+        waitFor(() -> !controller.pollInFlight());
+        assertEquals(SyncReason.NOT_CONFIRMED, controller.snapshot().getReason());
+        assertEquals(SyncView.Action.CONNECT, view().action);
+        assertEquals(SyncView.Connect.CONNECT, view().connect);
+        // Checked at the same pace as before this change: a minute, not every few seconds.
+        clock.advanceSeconds(SyncMachine.CONNECTED_POLL_SECONDS - 1);
+        controller.pollIfDue();
+        assertNoFurtherRequest();
+
+        // Connect replaces the code instead of re-pairing around it.
+        controller.beginPairing();
+        assertNotEquals(first, settings.pairingCode());
+        assertEquals(settings.pairingCode(), controller.activeCode());
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, controller.snapshot().getReason());
+        assertTrue(settings.pairingUnconfirmed());
+    }
+
+    @Test
+    public void anUnconfirmedFirstPairingStillArrivesIfTheBrowserConfirmsLate() throws Exception
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        String code = settings.pairingCode();
+        restart();
+
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        controller.poll();
+        assertEquals("/r/" + code, takeRelay().getPath());
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+        assertFalse(settings.pairingUnconfirmed());
+        assertFalse(configuration.containsKey(TrackerConnectionSettings.UNCONFIRMED_PAIRING_KEY));
+    }
+
+    @Test
+    public void aFirstPairingThatDeliveredIsAWorkingPairingAfterARestart() throws Exception
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        String code = settings.pairingCode();
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertFalse(settings.pairingUnconfirmed());
+
+        restart();
+        assertEquals(SyncReason.CHECKING, controller.snapshot().getReason());
+        answer404();
+        assertEquals(SyncReason.NO_RECENT_UPDATE, controller.snapshot().getReason());
+        assertEquals(SyncView.Connect.REPAIR, view().connect);
+
+        controller.beginPairing();
+        assertEquals(code, settings.pairingCode());
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void aPairingSavedBeforeThisUpdateStillReadsAsWorking() throws Exception
+    {
+        // Installs that paired before the mark existed have none, and a mark left for
+        // another code says nothing about this one: both read as a working pairing.
+        for (String mark : new String[]{null, PairingSupport.tag(OTHER_CODE)})
+        {
+            if (mark != null)
+            {
+                configuration.put(TrackerConnectionSettings.UNCONFIRMED_PAIRING_KEY, mark);
+            }
+            restart();
+            assertFalse(settings.pairingUnconfirmed());
+            assertEquals(SyncReason.CHECKING, controller.snapshot().getReason());
+            answer404();
+            assertEquals(SyncReason.NO_RECENT_UPDATE, controller.snapshot().getReason());
+            assertEquals(SyncView.Connect.REPAIR, view().connect);
+        }
+
+        // Connect still re-pairs around the saved code, which stays.
+        controller.beginPairing();
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+    }
+
+    @Test
+    public void aConsentToggleOrAProfileChangeKeepsAnUnconfirmedFirstPairingOne() throws Exception
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "false");
+        controller.networkAccessChanged();
+        assertEquals(SyncReason.SYNC_OFF, controller.snapshot().getReason());
+        configuration.put(FateLockedConfig.NETWORK_ACCESS_KEY, "true");
+        controller.networkAccessChanged();
+        assertEquals(SyncReason.NOT_CONFIRMED, controller.snapshot().getReason());
+
+        // A RuneLite profile whose own first pairing never delivered.
+        configuration.put(TrackerConnectionSettings.PAIRING_CODE_KEY, OTHER_CODE);
+        configuration.put(TrackerConnectionSettings.UNCONFIRMED_PAIRING_KEY, PairingSupport.tag(OTHER_CODE));
+        answer404();
+        assertEquals("/r/" + OTHER_CODE, pluginRequests.get(pluginRequests.size() - 1).url().encodedPath());
+        assertEquals(SyncReason.NOT_CONFIRMED, controller.snapshot().getReason());
+
+        controller.beginPairing();
+        assertNotEquals(OTHER_CODE, settings.pairingCode());
+        assertEquals(settings.pairingCode(), controller.activeCode());
+    }
+
+    @Test
+    public void aFailedCheckDuringAFirstPairingKeepsItsStateUntilTheBrowserAnswers() throws Exception
+    {
+        configuration.remove(TrackerConnectionSettings.PAIRING_CODE_KEY);
+        controller.beginPairing();
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+        controller.pollIfDue();
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        waitFor(() -> controller.snapshot().getNextCheck() != null);
+
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, controller.snapshot().getReason());
+        assertEquals(clock.instant().plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS),
+            controller.snapshot().getNextCheck());
+        assertEquals(SyncView.Connect.CONNECT, view().connect);
+
+        clock.advanceSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS);
+        server.enqueue(new MockResponse().setResponseCode(404));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> controller.snapshot().getNextCheck() == null);
+        assertEquals(SyncReason.CONFIRM_IN_BROWSER, controller.snapshot().getReason());
+
+        clock.advanceSeconds(SyncMachine.WAITING_POLL_SECONDS);
+        server.enqueue(relayResponse(1, validV4Payload(), "\"1\""));
+        controller.pollIfDue();
+        takeRelay();
+        waitFor(() -> clientTasks.size() == 1);
+        runClientTasks();
+        assertEquals(TrackerConnectionState.CONNECTED, controller.snapshot().getState());
+    }
+
+    @Test
+    public void aFailedCheckDuringARePairingKeepsCancelRePairing() throws Exception
+    {
+        connect(5, "\"5\"");
+        controller.beginPairing();
+        String newCode = controller.activeCode();
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+        controller.pollIfDue();
+        assertNotNull(server.takeRequest(2, TimeUnit.SECONDS));
+        assertEquals("/r/" + newCode, pluginRequests.get(pluginRequests.size() - 1).url().encodedPath());
+        waitFor(() -> controller.snapshot().getNextCheck() != null);
+
+        assertEquals(SyncReason.CONFIRM_REPAIR, controller.snapshot().getReason());
+        assertEquals(SyncView.Connect.CANCEL_REPAIR, view().connect);
+        assertEquals(newCode, controller.activeCode());
+        assertEquals(INITIAL_CODE, settings.pairingCode());
+    }
+
     private void connect(int version, String etag) throws Exception
     {
         server.enqueue(relayResponse(version, validV4Payload(), etag));

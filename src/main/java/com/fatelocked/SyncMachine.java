@@ -46,6 +46,11 @@ final class SyncMachine
     private Instant pairingStartedAt;
     /** Whether that pairing is a re-pairing, with another still in use until it delivers. */
     private boolean repairing;
+    /**
+     * Whether the saved code came from a first pairing that has never delivered rules,
+     * started before this session or before a reset, so its start time is not known here.
+     */
+    private boolean unconfirmed;
     /** Whether the relay said the owner disconnected this pairing. */
     private boolean pairingGone;
     /** When the player last pressed Check now and it counted. */
@@ -133,6 +138,7 @@ final class SyncMachine
         rejectedVersion = null;
         rejectedReason = null;
         pairingGone = true;
+        unconfirmed = false;
         after(now, LOGGED_OUT_POLL_SECONDS);
         return show(TrackerConnectionState.EXPIRED, SyncReason.GONE);
     }
@@ -144,13 +150,25 @@ final class SyncMachine
     }
 
     /**
-     * Whether this session started a first pairing that hasn't delivered:
-     * its code has never worked, so a new pairing replaces it without
-     * keeping it.
+     * Whether a first pairing hasn't delivered, started in this session or
+     * saved by an earlier one: its code has never worked, so a new pairing
+     * replaces it without keeping it.
      */
     boolean firstPairingWaiting()
     {
-        return pairingStartedAt != null && !repairing;
+        return pairingStartedAt != null && !repairing || unconfirmed;
+    }
+
+    /**
+     * The saved code came from a first pairing that has never delivered
+     * rules, started before this session or before a reset. It counts as a
+     * first pairing, so Connect replaces it, but the checks keep the pace of
+     * a working pairing: its start time is unknown here.
+     */
+    TrackerConnectionSnapshot unconfirmedPairing()
+    {
+        unconfirmed = true;
+        return show(TrackerConnectionState.WAITING, SyncReason.NOT_CONFIRMED);
     }
 
     /**
@@ -256,6 +274,8 @@ final class SyncMachine
             return false;
         }
         acceptedVersion = RelayContract.canonicalVersion(version);
+        // Rules this code sent were saved, so it has delivered.
+        unconfirmed = false;
         return true;
     }
 
@@ -263,6 +283,7 @@ final class SyncMachine
     TrackerConnectionSnapshot confirmed(Instant now)
     {
         lastSync = now;
+        unconfirmed = false;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, acceptedVersion);
     }
@@ -288,6 +309,7 @@ final class SyncMachine
         pairingStartedAt = null;
         repairing = false;
         pairingGone = false;
+        unconfirmed = false;
         healthy(now);
         return TrackerConnectionSnapshot.connected(now, version);
     }
@@ -355,17 +377,53 @@ final class SyncMachine
             return show(TrackerConnectionState.EXPIRED, SyncReason.NO_PROFILE);
         }
         healthy(now);
+        if (!heldVersion && unconfirmed)
+        {
+            // A first pairing from before this session: nothing was confirmed yet.
+            return show(TrackerConnectionState.WAITING, SyncReason.NOT_CONFIRMED);
+        }
         return show(TrackerConnectionState.WAITING, SyncReason.NO_RECENT_UPDATE);
     }
 
     /**
      * A check failed: back off as failed does, and show the state and why,
-     * with when the next check is.
+     * with when the next check is. While a pairing waits for the browser, a
+     * check that got no usable answer keeps that pairing's state, and so its
+     * controls, with the next check time: the time is how the sidebar knows
+     * the last check failed.
      */
     TrackerConnectionSnapshot failure(
         TrackerConnectionState state, SyncReason reason, Instant now, long minimumSeconds)
     {
         failed(now, minimumSeconds);
+        return failureShown(state, reason, now);
+    }
+
+    private TrackerConnectionSnapshot failureShown(
+        TrackerConnectionState state, SyncReason reason, Instant now)
+    {
+        if (state == TrackerConnectionState.OFFLINE && !pairingGone && rejectedVersion == null)
+        {
+            if (pairingStartedAt != null && repairing)
+            {
+                return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
+                    acceptedVersion, SyncReason.CONFIRM_REPAIR, nextCheck);
+            }
+            if (pairingStartedAt != null)
+            {
+                boolean expired = Duration.between(pairingStartedAt, now).getSeconds()
+                    >= PAIRING_CONFIRM_SECONDS;
+                return TrackerConnectionSnapshot.of(
+                    expired ? TrackerConnectionState.EXPIRED : TrackerConnectionState.WAITING, lastSync,
+                    acceptedVersion, expired ? SyncReason.NO_PROFILE : SyncReason.CONFIRM_IN_BROWSER,
+                    nextCheck);
+            }
+            if (unconfirmed)
+            {
+                return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
+                    acceptedVersion, SyncReason.NOT_CONFIRMED, nextCheck);
+            }
+        }
         return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, reason, nextCheck);
     }
 
@@ -385,8 +443,7 @@ final class SyncMachine
         nextCheck = now.plusSeconds(Math.max(FAILURE_BACKOFF_SECONDS,
             Math.min(retryAfterSeconds, MAX_RETRY_AFTER_SECONDS)));
         retryAfterUntil = nextCheck;
-        return TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE,
-            lastSync, acceptedVersion, SyncReason.BUSY, nextCheck);
+        return failureShown(TrackerConnectionState.OFFLINE, SyncReason.BUSY, now);
     }
 
     /**
@@ -426,6 +483,7 @@ final class SyncMachine
         rejectedReason = null;
         repairing = false;
         pairingGone = false;
+        unconfirmed = false;
         lastSync = null;
         resetChecks();
     }

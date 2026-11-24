@@ -91,6 +91,8 @@ final class SyncView
             ? "\u2014" : LocalTimeText.of(snapshot.getLastSync(), now, zone);
         String nextCheck = snapshot.getNextCheck() == null
             ? "" : " Next check at " + LocalTimeText.of(snapshot.getNextCheck(), now, zone) + ".";
+        // A pairing's waiting state carries a next check time only after a check failed.
+        String failed = nextCheck.isEmpty() ? "" : " The last check failed." + nextCheck;
         Tone tone = tone(snapshot.getState());
         TrackerConnectionState state = snapshot.getState();
         Action action = state == TrackerConnectionState.CONNECTED
@@ -110,7 +112,7 @@ final class SyncView
                 break;
             case CONFIRM_REPAIR:
                 detail = "Confirm the profile in the browser tab RuneLite opened."
-                    + " Until it arrives, RuneLite keeps your current pairing.";
+                    + " Until it arrives, RuneLite keeps your current pairing." + failed;
                 break;
             case GONE:
                 detail = "The tracker's owner pressed Disconnect in the web tracker,"
@@ -124,11 +126,16 @@ final class SyncView
                 break;
             case CONFIRM_IN_BROWSER:
                 detail = "Confirm the profile in the browser tab RuneLite opened."
-                    + " RuneLite checks every few seconds.";
+                    + (failed.isEmpty() ? " RuneLite checks every few seconds." : failed);
                 break;
             case NO_PROFILE:
                 detail = "No profile arrived within 10 minutes."
-                    + " Press Connect tracker to try again.";
+                    + " Press Connect tracker to try again." + failed;
+                action = Action.CONNECT;
+                break;
+            case NOT_CONFIRMED:
+                detail = "This pairing hasn't sent any rules yet."
+                    + " Press Connect tracker to pair again." + failed;
                 action = Action.CONNECT;
                 break;
             case NO_RECENT_UPDATE:
@@ -192,6 +199,7 @@ final class SyncView
             case NOT_PAIRED:
             case CONFIRM_IN_BROWSER:
             case NO_PROFILE:
+            case NOT_CONFIRMED:
             case GONE:
                 // Nothing that works to keep: pair from scratch.
                 return Connect.CONNECT;
