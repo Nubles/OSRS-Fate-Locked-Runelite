@@ -89,7 +89,8 @@ public class ChunkBorderRendererTest
 
     /**
      * Three dashes to a tile on the game view, each 0.6 of its third, with half a gap at either
-     * end, so every tile corner falls in a gap; and three to a chunk's side on the minimap.
+     * end, so every tile corner falls in a gap; and on the minimap three to every 8-tile scene zone,
+     * which is 24 along a 64-tile chunk's side.
      */
     @Test
     public void theDashesAreCutOnTheGround()
@@ -105,10 +106,10 @@ public class ChunkBorderRendererTest
 
         double minimap = ChunkBorderRenderer.MINIMAP_PERIOD;
         assertArrayEquals(new double[] {0, 0.2 * 8 / 3, 1}, ChunkBorderRenderer.cuts(0, minimap), 1e-9);
-        assertFalse("a chunk corner is in a gap", ChunkBorderRenderer.dash(8.01, minimap));
+        assertFalse("an 8-tile zone corner is in a gap", ChunkBorderRenderer.dash(8.01, minimap));
         for (double at = 0.05; at < 8; at += 0.1)
         {
-            assertEquals("every chunk side is the same, at " + at, ChunkBorderRenderer.dash(at, minimap),
+            assertEquals("every 8-tile zone side is the same, at " + at, ChunkBorderRenderer.dash(at, minimap),
                 ChunkBorderRenderer.dash(at + 24, minimap));
         }
     }
