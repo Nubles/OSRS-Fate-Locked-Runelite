@@ -91,8 +91,11 @@ final class SyncView
             ? "\u2014" : LocalTimeText.of(snapshot.getLastSync(), now, zone);
         String nextCheck = snapshot.getNextCheck() == null
             ? "" : " Next check at " + LocalTimeText.of(snapshot.getNextCheck(), now, zone) + ".";
-        // A pairing's waiting state carries a next check time only after a check failed.
-        String failed = nextCheck.isEmpty() ? "" : " The last check failed." + nextCheck;
+        // While a pairing waits, why the last check failed, as a failed check says it. A waiting
+        // state carries a next check time only after a check failed.
+        String why = snapshot.getFailure() == null ? null : failure(snapshot.getFailure());
+        String failed = why != null ? " " + why + nextCheck
+            : nextCheck.isEmpty() ? "" : " The last check failed." + nextCheck;
         Tone tone = tone(snapshot.getState());
         TrackerConnectionState state = snapshot.getState();
         Action action = state == TrackerConnectionState.CONNECTED
@@ -149,17 +152,10 @@ final class SyncView
                 action = Action.OPEN_TRACKER;
                 break;
             case UNREACHABLE:
-                detail = "RuneLite couldn't reach the tracker." + nextCheck;
-                break;
             case UNREADABLE:
-                detail = "Something other than the tracker answered, such as a Wi-Fi"
-                    + " sign-in page." + nextCheck;
-                break;
             case BUSY:
-                detail = "The tracker asked RuneLite to check less often." + nextCheck;
-                break;
             case UNAVAILABLE:
-                detail = "The tracker had a problem." + nextCheck;
+                detail = failure(snapshot.getReason()) + nextCheck;
                 break;
             case FUTURE_FORMAT:
                 detail = "Your tracker sent rules in a newer format than this version"
@@ -190,6 +186,24 @@ final class SyncView
             ? "\u2014" : "\u2026" + snapshot.getPairingEnding();
         return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow,
             connect(snapshot.getReason()), pairing);
+    }
+
+    /** Why a check failed, in the sidebar's words, or null for a reason that isn't a failed check. */
+    private static String failure(SyncReason reason)
+    {
+        switch (reason)
+        {
+            case UNREACHABLE:
+                return "RuneLite couldn't reach the tracker.";
+            case UNREADABLE:
+                return "Something other than the tracker answered, such as a Wi-Fi sign-in page.";
+            case BUSY:
+                return "The tracker asked RuneLite to check less often.";
+            case UNAVAILABLE:
+                return "The tracker had a problem.";
+            default:
+                return null;
+        }
     }
 
     private static Connect connect(SyncReason reason)

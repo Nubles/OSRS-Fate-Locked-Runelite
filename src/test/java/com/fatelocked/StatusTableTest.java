@@ -95,6 +95,27 @@ public class StatusTableTest
     }
 
     @Test
+    public void row3AFailedCheckWhileARePairingWaitsSaysWhyAndKeepsItsControls()
+    {
+        SyncReason[] failures = {SyncReason.UNREACHABLE, SyncReason.UNREADABLE, SyncReason.UNAVAILABLE,
+            SyncReason.BUSY};
+        String[] words = {"RuneLite couldn't reach the tracker",
+            "Something other than the tracker answered, such as a Wi-Fi sign-in page",
+            "The tracker had a problem", "The tracker asked RuneLite to check less often"};
+        for (int i = 0; i < failures.length; i++)
+        {
+            StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(5), true)
+                .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, NOW.minusSeconds(300),
+                    "41", SyncReason.CONFIRM_REPAIR, NOW.plusSeconds(30)).withFailure(failures[i])).build());
+            assertCard(card, Tone.PENDING, "Waiting for confirmation", CardAction.OPEN_PAGE_AGAIN,
+                CardAction.CANCEL_REPAIR);
+            assertEquals(failures[i].name(), "Confirm the new profile in the browser tab RuneLite opened. Your"
+                + " current pairing keeps working until it arrives. " + words[i] + "; next check at 12:00.",
+                card.getDetail());
+        }
+    }
+
+    @Test
     public void row4ConnectedSaysWhenTheTrackerSentTheRulesAndWhenRuneLiteLastChecked()
     {
         StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(2), true)

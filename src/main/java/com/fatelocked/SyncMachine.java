@@ -389,8 +389,7 @@ final class SyncMachine
      * A check failed: back off as failed does, and show the state and why,
      * with when the next check is. While a pairing waits for the browser, a
      * check that got no usable answer keeps that pairing's state, and so its
-     * controls, with the next check time: the time is how the sidebar knows
-     * the last check failed.
+     * controls, with why it failed and the next check time.
      */
     TrackerConnectionSnapshot failure(
         TrackerConnectionState state, SyncReason reason, Instant now, long minimumSeconds)
@@ -407,7 +406,7 @@ final class SyncMachine
             if (pairingStartedAt != null && repairing)
             {
                 return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
-                    acceptedVersion, SyncReason.CONFIRM_REPAIR, nextCheck);
+                    acceptedVersion, SyncReason.CONFIRM_REPAIR, nextCheck).withFailure(reason);
             }
             if (pairingStartedAt != null)
             {
@@ -416,12 +415,12 @@ final class SyncMachine
                 return TrackerConnectionSnapshot.of(
                     expired ? TrackerConnectionState.EXPIRED : TrackerConnectionState.WAITING, lastSync,
                     acceptedVersion, expired ? SyncReason.NO_PROFILE : SyncReason.CONFIRM_IN_BROWSER,
-                    nextCheck);
+                    nextCheck).withFailure(reason);
             }
             if (unconfirmed)
             {
                 return TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, lastSync,
-                    acceptedVersion, SyncReason.NOT_CONFIRMED, nextCheck);
+                    acceptedVersion, SyncReason.NOT_CONFIRMED, nextCheck).withFailure(reason);
             }
         }
         return TrackerConnectionSnapshot.of(state, lastSync, acceptedVersion, reason, nextCheck);

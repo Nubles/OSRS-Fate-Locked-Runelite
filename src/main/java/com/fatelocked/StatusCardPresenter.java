@@ -241,8 +241,13 @@ final class StatusCardPresenter
     /** Why the last check failed and when the next one is, or null when it didn't fail. */
     private static String failure(TrackerConnectionSnapshot connection, StatusFacts facts)
     {
+        return failure(connection.getReason(), connection.getNextCheck(), facts);
+    }
+
+    private static String failure(SyncReason why, Instant next, StatusFacts facts)
+    {
         String what;
-        switch (connection.getReason())
+        switch (why)
         {
             case UNREACHABLE:
                 what = "RuneLite couldn't reach the tracker";
@@ -259,17 +264,23 @@ final class StatusCardPresenter
             default:
                 return null;
         }
-        Instant next = connection.getNextCheck();
         return next == null ? what + "." : what + "; next check " + time(next, facts) + ".";
     }
 
     /**
-     * For a pairing that waits: "The last check failed; next check at 12:00." when it did,
-     * or null. Its waiting state carries a next check time only after a failed check.
+     * For a pairing that waits, why the last check failed and when the next one is, as a
+     * failed check says it ("RuneLite couldn't reach the tracker; next check at 12:00."),
+     * or null when the last check didn't fail.
      */
     private static String failedCheck(TrackerConnectionSnapshot connection, StatusFacts facts)
     {
         Instant next = connection.getNextCheck();
+        String why = connection.getFailure() == null ? null : failure(connection.getFailure(), next, facts);
+        if (why != null)
+        {
+            return why;
+        }
+        // A waiting state carries a next check time only after a failed check.
         return next == null ? null : "The last check failed; next check " + time(next, facts) + ".";
     }
 
