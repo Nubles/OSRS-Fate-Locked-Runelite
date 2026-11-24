@@ -64,9 +64,9 @@ have.
 
 The **Pairing** row shows only the last four characters of the code in
 use, as the web tracker's pairing dialog does, so the code stays off
-screen. If you press **Disconnect** in the web tracker, the status card
-says "Disconnected in the tracker"; press **Connect tracker** to pair
-again.
+screen. If you press **Disconnect** in the web tracker, or pair it again
+with a new code, the status card of the RuneLite on the old code says
+"Disconnected in the tracker"; press **Connect tracker** to pair again.
 
 Online sync is off by default, including for existing pairings. No relay
 requests are made until you accept the warning. Canceling leaves sync

@@ -121,16 +121,17 @@ final class SyncMachine
         }
     }
 
-    /** Whether the owner disconnected the pairing in the web tracker. */
+    /** Whether the web tracker ended the pairing: Disconnect there, or a new pairing. */
     boolean pairingGone()
     {
         return pairingGone;
     }
 
     /**
-     * The owner pressed Disconnect in the web tracker, which no longer sends
-     * rules to this code. The rules stay in use, but their version is
-     * dropped. Checked every 5 minutes, in case the code comes back.
+     * The owner pressed Disconnect in the web tracker, or paired it with a
+     * new code, so the tracker no longer sends rules to this code. The rules
+     * stay in use, but their version is dropped. Checked every 5 minutes, in
+     * case the code comes back.
      */
     TrackerConnectionSnapshot gone(Instant now)
     {

@@ -119,8 +119,8 @@ final class SyncView
                 break;
             case GONE:
                 detail = "The tracker's owner pressed Disconnect in the web tracker,"
-                    + " so it sends no more rules to this pairing. Press Connect"
-                    + " tracker to pair again.";
+                    + " or paired it again, so it sends no more rules to this"
+                    + " pairing. Press Connect tracker to pair again.";
                 action = Action.CONNECT;
                 break;
             case REPAIR_ABANDONED:

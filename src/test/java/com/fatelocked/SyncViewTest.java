@@ -167,6 +167,10 @@ public class SyncViewTest
         SyncView view = view(of(TrackerConnectionState.EXPIRED, SyncReason.GONE));
 
         assertEquals("Disconnected in the web tracker", view.status);
+        // The tracker ends a pairing on Disconnect and when it is paired again.
+        assertEquals("The tracker's owner pressed Disconnect in the web tracker, or paired it"
+            + " again, so it sends no more rules to this pairing. Press Connect tracker to pair"
+            + " again.", view.detail);
         assertEquals(SyncView.Action.CONNECT, view.action);
         assertEquals(SyncView.Connect.CONNECT, view.connect);
         assertFalse(view.canCheckNow);
