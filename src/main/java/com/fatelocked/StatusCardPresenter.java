@@ -139,8 +139,13 @@ final class StatusCardPresenter
         String failure = failure(connection, facts);
         if (!confirmedSinceStart)
         {
-            String saved = "Rules saved " + time(facts.getArrivedAt(), facts)
-                + " are in use until the tracker answers.";
+            // Rules the relay sent in this session (their sync time is forgotten when online sync
+            // is turned off and on) are the tracker's; rules restored at start are saved ones.
+            String saved = facts.getArrival() == RulesPrecedence.Arrival.RELAY
+                ? (facts.getExportedAt() == null ? "Rules from the tracker"
+                    : "Rules the tracker sent " + time(facts.getExportedAt(), facts))
+                    + " are in use until it answers."
+                : "Rules saved " + time(facts.getArrivedAt(), facts) + " are in use until the tracker answers.";
             if (failure == null)
             {
                 return StatusCardModel.of(Tone.NEUTRAL, "Checking with the tracker", saved);

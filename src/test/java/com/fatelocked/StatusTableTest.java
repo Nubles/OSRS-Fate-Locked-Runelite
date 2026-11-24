@@ -299,6 +299,41 @@ public class StatusTableTest
     }
 
     /**
+     * Audit (own.d1[8]): turning online sync off and on forgets the sync time but keeps the rules
+     * the relay sent in this session. The card calls them the tracker's, not saved ones, before
+     * the first answer and after a failed check. "Saved" stays for rules restored at start
+     * (the tests above and below).
+     */
+    @Test
+    public void rulesTheRelaySentThisSessionAreTheTrackersAfterSyncIsTurnedOffAndOn()
+    {
+        Instant sent = NOW.minus(Duration.ofMinutes(5));
+        StatusCardModel checking = StatusCardPresenter.present(synced(Duration.ofMinutes(4), false)
+            .arrivedAt(NOW.minus(Duration.ofMinutes(4))).exportedAt(sent)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.CHECKING, null))
+            .build());
+        assertCard(checking, Tone.NEUTRAL, "Checking with the tracker", null, null);
+        assertEquals("Rules the tracker sent at 11:55 are in use until it answers.", checking.getDetail());
+
+        StatusCardModel failed = StatusCardPresenter.present(synced(Duration.ofMinutes(4), false)
+            .arrivedAt(NOW.minus(Duration.ofMinutes(4))).exportedAt(sent)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null,
+                SyncReason.UNREACHABLE, NOW.plusSeconds(90)))
+            .build());
+        assertCard(failed, Tone.PENDING, "Rules may be out of date", CardAction.CHECK_NOW, null);
+        assertEquals("Rules the tracker sent at 11:55 are in use until it answers. RuneLite couldn't reach the"
+            + " tracker; next check at 12:01. Strict Mode is inactive until the rules refresh.", failed.getDetail());
+
+        StatusCardModel undated = StatusCardPresenter.present(synced(Duration.ofMinutes(4), false)
+            .arrivedAt(NOW.minus(Duration.ofMinutes(4)))
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.CHECKING, null))
+            .build());
+        assertEquals("Rules from the tracker are in use until it answers.", undated.getDetail());
+    }
+
+    /**
      * Audit (plugin-connection.d3[0]): checks that fail before any has worked in this session
      * say why and when the next one is, and offer Check now, as the README promises, with the
      * saved rules of the last start and with no rules at all. Before the first answer the card
