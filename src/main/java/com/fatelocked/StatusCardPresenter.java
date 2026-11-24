@@ -111,7 +111,7 @@ final class StatusCardPresenter
         {
             case FILE:
             case IMPORT:
-                return backup(facts, reason);
+                return backup(facts, connection, reason);
             case RELAY:
                 return tracker(facts, connection, reason);
             default:
@@ -146,7 +146,8 @@ final class StatusCardPresenter
             }
             // Every check since this start failed: say why and when the next one is, as the
             // card does once a check has worked, and offer Check now.
-            return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE, saved + " " + failure)
+            // Saved rules wait for a confirmation, so Strict Mode lets everything through meanwhile.
+            return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE, saved + " " + failure + " " + STRICT_WAITS)
                 .withActions(CardAction.CHECK_NOW, null);
         }
         if (facts.isFresh())
@@ -183,7 +184,8 @@ final class StatusCardPresenter
     }
 
     /** Rules from the clipboard or a backup file. */
-    private static StatusCardModel backup(StatusFacts facts, SyncReason reason)
+    private static StatusCardModel backup(StatusFacts facts, TrackerConnectionSnapshot connection,
+        SyncReason reason)
     {
         String from = facts.getSource() == FateLockedPlugin.RulesSource.IMPORT ? "the clipboard" : "a backup file";
         StringBuilder detail = new StringBuilder("Rules from ").append(from);
@@ -210,7 +212,14 @@ final class StatusCardPresenter
         if (facts.isPaired())
         {
             detail.append(" The tracker's copy replaces them at its next check.");
-            return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.toString());
+            String failure = failure(connection, facts);
+            if (failure == null)
+            {
+                return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.toString());
+            }
+            // The README's promise holds here too: a failed check says why, when the next is, and Check now.
+            return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.append(' ').append(failure).toString())
+                .withActions(CardAction.CHECK_NOW, null);
         }
         return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.toString())
             .withActions(null, reason == SyncReason.SYNC_OFF ? CardAction.TURN_ON_SYNC : CardAction.CONNECT);

@@ -325,7 +325,8 @@ public class StatusTableTest
                     .build());
                 assertCard(card, Tone.PENDING, "Rules may be out of date", CardAction.CHECK_NOW, null);
                 assertEquals(failures[i] + " " + lastSync, "Rules saved at Wed 16:00 are in use until the tracker"
-                    + " answers. " + words[i] + "; next check at 12:01.", card.getDetail());
+                    + " answers. " + words[i] + "; next check at 12:01. Strict Mode is inactive until the rules"
+                    + " refresh.", card.getDetail());
             }
 
             StatusCardModel none = StatusCardPresenter.present(facts().paired(true)
@@ -334,6 +335,25 @@ public class StatusTableTest
             assertCard(none, Tone.PENDING, "Couldn't get your rules", CardAction.CHECK_NOW, CardAction.USE_BACKUP);
             assertEquals(failures[i].name(), "No rules are loaded yet. " + words[i] + "; next check at 12:01.",
                 none.getDetail());
+
+            // A paired player on backup rules: the same reason, next check and Check now.
+            for (RulesSource source : new RulesSource[]{RulesSource.FILE, RulesSource.IMPORT})
+            {
+                StatusCardModel backup = StatusCardPresenter.present(facts()
+                    .source(source)
+                    .exportedAt(NOW.minus(Duration.ofDays(3)))
+                    .trust(Trust.TRUSTED)
+                    .paired(true)
+                    .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null,
+                        failures[i], NOW.plusSeconds(90)))
+                    .build());
+                assertCard(backup, Tone.NEUTRAL, "Using a backup", CardAction.CHECK_NOW, null);
+                assertEquals(source + " " + failures[i], "Rules from "
+                    + (source == RulesSource.FILE ? "a backup file" : "the clipboard") + ", exported at Mon 12:00."
+                    + " They're more than 15 minutes old, so Strict Mode doesn't use them. The tracker's copy"
+                    + " replaces them at its next check. " + words[i] + "; next check at 12:01.",
+                    backup.getDetail());
+            }
         }
         // Not paired, nothing checks: the failure words never appear there.
         StatusCardModel unpaired = StatusCardPresenter.present(facts()
