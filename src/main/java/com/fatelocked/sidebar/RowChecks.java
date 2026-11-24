@@ -49,6 +49,11 @@ public final class RowChecks
     private static final Pattern STARTED_BEFORE = Pattern.compile("^Started (.+)$", Pattern.CASE_INSENSITIVE);
     /** A stage of a quest ("While Guthix Sleeps: reached the Ancient Guthixian Temple"). */
     private static final Pattern MILESTONE = Pattern.compile("^([^:]+): .+$");
+    /**
+     * A quest step as the tracker codes it ("Plague City 5", "Dragon Slayer I 5b2"): the tracker's
+     * own pattern, read as a step only where the words before the code are a quest's name.
+     */
+    private static final Pattern STEP = Pattern.compile("^(.+?) \\d[a-z0-9]*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern LEVEL = Pattern.compile("^(.+) (\\d+)$");
     private static final String QUEST_POINTS = "quest points";
     private static final String LIGHT_SOURCE = "light source";
@@ -94,9 +99,16 @@ public final class RowChecks
         String detail;
     }
 
-    /** The row as shown: an undecided row decided by the game, any other as the tracker says. */
+    /**
+     * The row as shown: an undecided row decided by the game; a row that isn't ready without the
+     * checks the game shows are met; any other as the tracker says.
+     */
     public static Decided decide(PermissionStatus status, String detail, GameFacts facts)
     {
+        if (status == PermissionStatus.NOT_READY)
+        {
+            return new Decided(status, withoutMetChecks(detail, facts));
+        }
         if (status != PermissionStatus.UNKNOWN)
         {
             return new Decided(status, detail);
@@ -122,15 +134,97 @@ public final class RowChecks
             left.isEmpty() ? null : String.join("; ", left));
     }
 
+    /**
+     * A row the tracker says isn't ready keeps that status and every requirement the tracker
+     * decided itself (a quest it has as not done, quest points it counts from those, a level
+     * against its cap, an item, anything unread). Only the checks it sends because it can't see
+     * them (gameOnly) go, where the game shows them met. If that would leave nothing, the
+     * tracker's own text stays, since the row is still not ready for a reason it gave.
+     */
+    private static String withoutMetChecks(String detail, GameFacts facts)
+    {
+        List<String> all = clauses(detail);
+        List<String> left = new ArrayList<>();
+        for (String clause : all)
+        {
+            if (!(gameOnly(clause) && met(clause, facts)))
+            {
+                left.add(clause);
+            }
+        }
+        return left.isEmpty() || left.size() == all.size() ? detail : String.join("; ", left);
+    }
+
+    /**
+     * Whether a requirement is one the tracker can't judge and sends for the game to check: a
+     * quest started ("X started", "Started X"), a quest step ("Plague City 5"), a light source
+     * or a free-to-play world. The tracker decides quest names, quest points, levels and every
+     * other form itself.
+     */
+    static boolean gameOnly(String clause)
+    {
+        if (SkillLine.parse(clause) != null)
+        {
+            return false;
+        }
+        String text = clause.trim();
+        String lower = key(text);
+        if (lower.equals(F2P_ONLY) || lower.equals(LIGHT_SOURCE))
+        {
+            return true;
+        }
+        Matcher started = STARTED.matcher(text);
+        Matcher before = STARTED_BEFORE.matcher(text);
+        if ((started.matches() && quest(started.group(1)) != null)
+            || (before.matches() && quest(before.group(1)) != null))
+        {
+            return true;
+        }
+        return quest(text) == null && !MILESTONE.matcher(text).matches() && stepOf(text) != null;
+    }
+
+    /** Whether a row's requirements include one the game is to check (gameOnly). */
+    public static boolean hasGameOnlyCheck(String detail)
+    {
+        for (String clause : clauses(detail))
+        {
+            if (gameOnly(clause))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The quests the requirements name, whose state the game is asked for. */
     public static Set<Quest> questsNamed(Iterable<String> details)
     {
+        return questsNamed(details, Collections.emptyList());
+    }
+
+    /**
+     * The quests whose state the game is asked for: every one the undecided rows name, and those
+     * named by the checks a not-ready row can lose (gameOnly).
+     */
+    public static Set<Quest> questsNamed(Iterable<String> undecided, Iterable<String> notReady)
+    {
         Set<Quest> named = new LinkedHashSet<>();
-        for (String detail : details)
+        for (String detail : undecided)
         {
             for (String clause : clauses(detail))
             {
                 Quest quest = questOf(clause);
+                if (quest != null)
+                {
+                    named.add(quest);
+                }
+            }
+        }
+        for (String detail : notReady)
+        {
+            for (String clause : clauses(detail))
+            {
+                Quest quest = gameOnly(clause) ? questOf(clause) : null;
                 if (quest != null)
                 {
                     named.add(quest);
@@ -167,6 +261,11 @@ public final class RowChecks
         {
             // Finishing a quest passes every stage of it.
             quest = quest(milestone.group(1));
+        }
+        if (quest == null)
+        {
+            // A step of a quest: finishing the quest passes it. Before then the game can't say.
+            quest = stepOf(text);
         }
         if (quest != null)
         {
@@ -234,7 +333,18 @@ public final class RowChecks
         }
         Quest quest = quest(text);
         Matcher milestone = MILESTONE.matcher(text);
-        return quest == null && milestone.matches() ? quest(milestone.group(1)) : quest;
+        if (quest == null && milestone.matches())
+        {
+            quest = quest(milestone.group(1));
+        }
+        return quest == null ? stepOf(text) : quest;
+    }
+
+    /** The quest a step code is a step of ("Shield of Arrav 2a2"), or null if it is no step code. */
+    private static Quest stepOf(String text)
+    {
+        Matcher step = STEP.matcher(text.trim());
+        return step.matches() ? quest(step.group(1)) : null;
     }
 
     private static Quest quest(String name)

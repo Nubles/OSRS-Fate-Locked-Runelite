@@ -3186,9 +3186,11 @@ public class FateLockedPlugin extends Plugin
     }
 
     /**
-     * What the game says, for the rows here the tracker leaves undecided: the quests they
-     * name, quest points, levels, the world, and what the player carries (RowChecks). Read
-     * once a tick, and only where such a row is. Client thread; elsewhere, nothing.
+     * What the game says, for the rows here the tracker leaves undecided or calls not ready with
+     * a check only the game can make: the quests they name (for a not-ready row, only those its
+     * game-only checks name), quest points, levels, the world, and what the player carries
+     * (RowChecks). Read once a tick, and only where such a row is. Client thread; elsewhere,
+     * nothing.
      */
     GameFacts gameFacts(DecisionService ruleDecisions, CanonicalChunk chunk)
     {
@@ -3202,6 +3204,7 @@ public class FateLockedPlugin extends Plugin
             return lastFacts;
         }
         List<String> undecided = new ArrayList<>();
+        List<String> notReady = new ArrayList<>();
         ruleDecisions.details(chunk).ifPresent(snapshot -> {
             for (List<ChunkPermissionRow> rows : snapshot.getCategories().values())
             {
@@ -3211,14 +3214,18 @@ public class FateLockedPlugin extends Plugin
                     {
                         undecided.add(row.getDetail());
                     }
+                    else if (row.getStatus() == PermissionStatus.NOT_READY && RowChecks.hasGameOnlyCheck(row.getDetail()))
+                    {
+                        notReady.add(row.getDetail());
+                    }
                 }
             }
         });
         GameFacts facts = GameFacts.NONE;
-        if (!undecided.isEmpty())
+        if (!undecided.isEmpty() || !notReady.isEmpty())
         {
             Map<Quest, QuestState> quests = new EnumMap<>(Quest.class);
-            for (Quest quest : RowChecks.questsNamed(undecided))
+            for (Quest quest : RowChecks.questsNamed(undecided, notReady))
             {
                 quests.put(quest, quest.getState(client));
             }

@@ -106,6 +106,10 @@ public class FateLockedGameFactsTest
         HereModel.Row frog = row(combat, "Big frog");
         assertEquals("Not ready", frog.getWord());
         assertEquals("Death to the Dorgeshuun", frog.getReason());
+        // The tracker says the crawler isn't ready: the started quest and the lantern go from it.
+        HereModel.Row crawler = row(combat, "Cave crawler");
+        assertEquals("Not ready", crawler.getWord());
+        assertEquals("Death to the Dorgeshuun", crawler.getReason());
     }
 
     @Test
