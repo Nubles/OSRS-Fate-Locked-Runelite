@@ -8,6 +8,11 @@
 #
 # The web app writes the files and lists each one's SHA-256 in its manifest;
 # the tests here read only the copy, so they never need the network.
+#
+# When the manifest lists shop-keepers.json (who runs each shop), the plugin
+# ships it too: a pin copies it over the resource below and --check compares
+# the resource with it. A manifest that doesn't list it leaves the resource
+# alone, and says so.
 set -euo pipefail
 
 repository=Nubles/OSRS-Fate-Locked
@@ -17,6 +22,8 @@ relay_fixture=contracts/relay/relay-get.json
 root=$(cd "$(dirname "$0")/.." && pwd)
 dest="$root/src/test/resources/contracts"
 pinned="$dest/PINNED"
+keepers=shop-keepers.json
+keepers_resource="$root/src/main/resources/com/fatelocked/sidebar/$keepers"
 
 download() {
   # $1 commit, $2 path in the web repository, $3 local file. The contents API
@@ -59,6 +66,16 @@ if [ "${1:-}" = "--check" ]; then
   if diff -r "$scratch/golden-bundles" "$dest/golden-bundles" > /dev/null \
     && diff -r "$scratch/relay" "$dest/relay" > /dev/null; then
     echo "contracts match $repository@$commit"
+    if [ -f "$scratch/golden-bundles/$keepers" ]; then
+      if ! cmp --silent "$scratch/golden-bundles/$keepers" "$keepers_resource"; then
+        echo "$keepers_resource differs from $repository@$commit;" \
+          "re-run scripts/pin-web-contracts.sh instead of editing the copy" >&2
+        exit 1
+      fi
+      echo "the plugin's $keepers matches $repository@$commit"
+    else
+      echo "the manifest at $commit lists no $keepers; the plugin's copy is not checked"
+    fi
   else
     echo "src/test/resources/contracts differs from $repository@$commit;" \
       "re-run scripts/pin-web-contracts.sh instead of editing the copy" >&2
@@ -76,3 +93,9 @@ rm -rf "$dest/golden-bundles" "$dest/relay"
 fetch_contracts "$commit" "$dest"
 printf 'repository=%s\ncommit=%s\n' "$repository" "$commit" > "$pinned"
 echo "copied $source_dir and $relay_fixture from $repository@$commit"
+if [ -f "$dest/golden-bundles/$keepers" ]; then
+  cp "$dest/golden-bundles/$keepers" "$keepers_resource"
+  echo "copied $keepers over $keepers_resource"
+else
+  echo "the manifest at $commit lists no $keepers; $keepers_resource left as it is"
+fi

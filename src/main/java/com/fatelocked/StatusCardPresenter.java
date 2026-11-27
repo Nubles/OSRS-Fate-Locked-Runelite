@@ -26,6 +26,8 @@ final class StatusCardPresenter
      */
     static final String TRACKER_RULES = "Using the tracker's rules";
     static final String OUT_OF_DATE = "Rules may be out of date";
+    /** Paired, no rules loaded, and every check since this start failed. */
+    static final String NO_RULES_YET = "Couldn't get your rules";
     static final String STRICT_WAITS = "Strict Mode is inactive until the rules refresh.";
     /** What opening the tracker does about old rules: it sends them again, with a new time. */
     static final String REFRESH = "Open the tracker, or reload its tab, so it sends them again.";
@@ -50,20 +52,29 @@ final class StatusCardPresenter
         {
             case CONFIRM_IN_BROWSER:
                 return StatusCardModel.of(Tone.PENDING, "Waiting for confirmation",
-                    "Confirm this profile in the browser tab RuneLite opened. RuneLite checks every few seconds.")
+                    "Confirm this profile in the browser tab RuneLite opened. "
+                        + (failedCheck(connection, facts) == null ? "RuneLite checks every few seconds."
+                            : failedCheck(connection, facts)))
                     .withActions(CardAction.OPEN_PAGE_AGAIN, CardAction.CANCEL_PAIRING);
             case CONFIRM_REPAIR:
                 return StatusCardModel.of(Tone.PENDING, "Waiting for confirmation",
-                    "Confirm the new profile in the browser tab RuneLite opened. Your current pairing keeps"
-                        + " working until it arrives.")
+                    withFailedCheck("Confirm the new profile in the browser tab RuneLite opened. Your current"
+                        + " pairing keeps working until it arrives.", connection, facts))
                     .withActions(CardAction.OPEN_PAGE_AGAIN, CardAction.CANCEL_REPAIR);
             case NO_PROFILE:
                 return StatusCardModel.of(Tone.BAD, "No profile arrived",
-                    "Nothing was confirmed in the browser within 10 minutes.")
+                    withFailedCheck("Nothing was confirmed in the browser within 10 minutes.", connection, facts))
+                    .withActions(CardAction.CONNECT, null);
+            case NOT_CONFIRMED:
+                // A first pairing from before this start or a reset: no rules ever came from it.
+                return StatusCardModel.of(Tone.PENDING, "Pairing not confirmed",
+                    withFailedCheck("This pairing hasn't sent any rules yet. Press Connect tracker to pair"
+                        + " again.", connection, facts))
                     .withActions(CardAction.CONNECT, null);
             case GONE:
                 return StatusCardModel.of(Tone.NEUTRAL, "Disconnected in the tracker",
-                    "The web tracker was told to stop sending rules to this pairing. " + keptRules(facts))
+                    withFailedCheck("The web tracker was told to stop sending rules to this pairing. "
+                        + keptRules(facts), connection, facts))
                     .withActions(CardAction.CONNECT, null);
             case FUTURE_FORMAT:
                 return StatusCardModel.of(Tone.BAD, "Plugin update needed",
@@ -76,8 +87,8 @@ final class StatusCardPresenter
                     .withActions(CardAction.OPEN_TRACKER, null);
             case NO_RECENT_UPDATE:
                 return StatusCardModel.of(Tone.PENDING, "Tracker copy expired",
-                    "The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
-                        + " again. " + keptRules(facts))
+                    withFailedCheck("The tracker hasn't sent your rules recently. Open the web tracker so it"
+                        + " can send them again. " + keptRules(facts), connection, facts))
                     .withActions(CardAction.OPEN_TRACKER, null);
             case OLDER_RULES:
                 return StatusCardModel.of(Tone.PENDING, "Tracker has older rules",
@@ -101,11 +112,11 @@ final class StatusCardPresenter
         {
             case FILE:
             case IMPORT:
-                return backup(facts, reason);
+                return backup(facts, connection, reason);
             case RELAY:
                 return tracker(facts, connection, reason);
             default:
-                return nothingLoaded(facts, reason);
+                return nothingLoaded(facts, connection, reason);
         }
     }
 
@@ -125,12 +136,26 @@ final class StatusCardPresenter
         boolean confirmedSinceStart = lastSync != null
             && (facts.getArrival() != RulesPrecedence.Arrival.SAVED || facts.getArrivedAt() == null
                 || !lastSync.isBefore(facts.getArrivedAt()));
+        String failure = failure(connection, facts);
         if (!confirmedSinceStart)
         {
-            return StatusCardModel.of(Tone.NEUTRAL, "Checking with the tracker",
-                "Rules saved " + time(facts.getArrivedAt(), facts) + " are in use until the tracker answers.");
+            // Rules the relay sent in this session (their sync time is forgotten when online sync
+            // is turned off and on) are the tracker's; rules restored at start are saved ones.
+            String saved = facts.getArrival() == RulesPrecedence.Arrival.RELAY
+                ? (facts.getExportedAt() == null ? "Rules from the tracker"
+                    : "Rules the tracker sent " + time(facts.getExportedAt(), facts))
+                    + " are in use until it answers."
+                : "Rules saved " + time(facts.getArrivedAt(), facts) + " are in use until the tracker answers.";
+            if (failure == null)
+            {
+                return StatusCardModel.of(Tone.NEUTRAL, "Checking with the tracker", saved);
+            }
+            // Every check since this start failed: say why and when the next one is, as the
+            // card does once a check has worked, and offer Check now.
+            // Saved rules wait for a confirmation, so Strict Mode lets everything through meanwhile.
+            return StatusCardModel.of(Tone.PENDING, OUT_OF_DATE, saved + " " + failure + " " + STRICT_WAITS)
+                .withActions(CardAction.CHECK_NOW, null);
         }
-        String failure = failure(connection, facts);
         if (facts.isFresh())
         {
             String forWhom = facts.isBound() ? " for " + name(facts.getBoundAccount()) : "";
@@ -165,7 +190,8 @@ final class StatusCardPresenter
     }
 
     /** Rules from the clipboard or a backup file. */
-    private static StatusCardModel backup(StatusFacts facts, SyncReason reason)
+    private static StatusCardModel backup(StatusFacts facts, TrackerConnectionSnapshot connection,
+        SyncReason reason)
     {
         String from = facts.getSource() == FateLockedPlugin.RulesSource.IMPORT ? "the clipboard" : "a backup file";
         StringBuilder detail = new StringBuilder("Rules from ").append(from);
@@ -180,7 +206,10 @@ final class StatusCardPresenter
         }
         else if (facts.isFresh())
         {
-            detail.append("Strict Mode uses them for 15 minutes after the tracker exported them.");
+            // As the tracker's card says: Strict Mode acts only on rules that name a character.
+            detail.append(facts.isBound()
+                ? "Strict Mode uses them for 15 minutes after the tracker exported them."
+                : "These rules name no character, so Strict Mode stays off.");
         }
         else
         {
@@ -189,14 +218,22 @@ final class StatusCardPresenter
         if (facts.isPaired())
         {
             detail.append(" The tracker's copy replaces them at its next check.");
-            return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.toString());
+            String failure = failure(connection, facts);
+            if (failure == null)
+            {
+                return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.toString());
+            }
+            // The README's promise holds here too: a failed check says why, when the next is, and Check now.
+            return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.append(' ').append(failure).toString())
+                .withActions(CardAction.CHECK_NOW, null);
         }
         return StatusCardModel.of(Tone.NEUTRAL, "Using a backup", detail.toString())
             .withActions(null, reason == SyncReason.SYNC_OFF ? CardAction.TURN_ON_SYNC : CardAction.CONNECT);
     }
 
     /** No rules at all yet. */
-    private static StatusCardModel nothingLoaded(StatusFacts facts, SyncReason reason)
+    private static StatusCardModel nothingLoaded(StatusFacts facts, TrackerConnectionSnapshot connection,
+        SyncReason reason)
     {
         if (reason == SyncReason.SYNC_OFF)
         {
@@ -206,6 +243,12 @@ final class StatusCardPresenter
         }
         if (facts.isPaired())
         {
+            String failure = failure(connection, facts);
+            if (failure != null)
+            {
+                return StatusCardModel.of(Tone.PENDING, NO_RULES_YET, "No rules are loaded yet. " + failure)
+                    .withActions(CardAction.CHECK_NOW, CardAction.USE_BACKUP);
+            }
             return StatusCardModel.of(Tone.PENDING, "Checking with the tracker",
                 "RuneLite is asking the tracker for your run's rules.");
         }
@@ -230,8 +273,13 @@ final class StatusCardPresenter
     /** Why the last check failed and when the next one is, or null when it didn't fail. */
     private static String failure(TrackerConnectionSnapshot connection, StatusFacts facts)
     {
+        return failure(connection.getReason(), connection.getNextCheck(), facts);
+    }
+
+    private static String failure(SyncReason why, Instant next, StatusFacts facts)
+    {
         String what;
-        switch (connection.getReason())
+        switch (why)
         {
             case UNREACHABLE:
                 what = "RuneLite couldn't reach the tracker";
@@ -248,8 +296,30 @@ final class StatusCardPresenter
             default:
                 return null;
         }
-        Instant next = connection.getNextCheck();
         return next == null ? what + "." : what + "; next check " + time(next, facts) + ".";
+    }
+
+    /**
+     * For a pairing that waits, why the last check failed and when the next one is, as a
+     * failed check says it ("RuneLite couldn't reach the tracker; next check at 12:00."),
+     * or null when the last check didn't fail.
+     */
+    private static String failedCheck(TrackerConnectionSnapshot connection, StatusFacts facts)
+    {
+        Instant next = connection.getNextCheck();
+        String why = connection.getFailure() == null ? null : failure(connection.getFailure(), next, facts);
+        if (why != null)
+        {
+            return why;
+        }
+        // A waiting state carries a next check time only after a failed check.
+        return next == null ? null : "The last check failed; next check " + time(next, facts) + ".";
+    }
+
+    private static String withFailedCheck(String detail, TrackerConnectionSnapshot connection, StatusFacts facts)
+    {
+        String failed = failedCheck(connection, facts);
+        return failed == null ? detail : detail + " " + failed;
     }
 
     private static String keptRules(StatusFacts facts)

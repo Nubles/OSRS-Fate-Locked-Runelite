@@ -144,6 +144,35 @@ public class ProgressTest
         assertEquals("rounded", 67, new Progress(Progress.AREAS, 2, 3, 0, 0).percent());
     }
 
+    /**
+     * 100% only when the last chunk or area is unlocked: a Chunked run 1 to 3 chunks short used to
+     * read a rounded 100% on the HUD and the infobox while the tracker and Discord said 99%.
+     */
+    @Test
+    public void itIsNeverAHundredPercentBeforeTheLastChunk()
+    {
+        for (int unlocked : new int[]{620, 621, 622})
+        {
+            assertEquals(unlocked + " of 623", 99, new Progress(Progress.CHUNKS, unlocked, 623, unlocked, 623).percent());
+        }
+        Progress oneShort = new Progress(Progress.CHUNKS, 622, 623, 622, 623);
+        assertEquals("622/623 · 99%", ProgressText.hudLine(oneShort));
+        assertEquals("99%", ProgressText.infoBoxText(oneShort));
+        assertEquals("99%", FateLockedInfoBox.text(FateLockedInfoBox.Kind.UNLOCKED, null, oneShort));
+
+        Progress done = new Progress(Progress.CHUNKS, 623, 623, 623, 623);
+        assertEquals(100, done.percent());
+        assertEquals("623/623 · 100%", ProgressText.hudLine(done));
+        assertEquals("100%", ProgressText.infoBoxText(done));
+
+        assertEquals(0, new Progress(Progress.CHUNKS, 0, 623, 0, 623).percent());
+        assertEquals("0/623 · 0%", ProgressText.hudLine(new Progress(Progress.CHUNKS, 0, 623, 0, 623)));
+        assertEquals("still rounded below the cap", 67, new Progress(Progress.AREAS, 2, 3, 0, 0).percent());
+        assertEquals("186 of 187 areas", 99, new Progress(Progress.AREAS, 186, 187, 600, 623).percent());
+        assertEquals("187 of 187 areas", 100, new Progress(Progress.AREAS, 187, 187, 623, 623).percent());
+        assertEquals("nothing to count", -1, new Progress(Progress.CHUNKS, 0, 0, 0, 0).percent());
+    }
+
     /** E6: the HUD's "Unlocked" line is Detailed's, from the decision service, for the rules' character only. */
     @Test
     public void theDetailedHudShowsTheLine() throws Exception

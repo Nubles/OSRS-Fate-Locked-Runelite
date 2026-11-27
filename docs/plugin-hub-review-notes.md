@@ -53,7 +53,7 @@ asks it to. For review:
 - **Says what it covers.** While Strict Mode is Active or Paused, the sidebar
   card and the HUD say "Networks and boats: blocked" or "tagged only".
 - **No new network, file or click.** No new request or local file, no
-  synthetic input, and still one consume site
+  synthetic input, and game actions are still stopped in one place only
   (`PluginHubClickBoundaryTest`).
 
 ## What Stage 4 changes
@@ -206,7 +206,7 @@ to, and without, for any character, while they're bound to no one.
 ## Strict Mode pre-clearance request
 
 Strict Mode is off by default. It does not remove, reorder or create menu
-entries and never performs an action. It consumes a user-selected click only
+entries and never performs an action. It stops a game action only
 when the travel table the tracker sends matches it by id (the active
 spellbook and a spell's name, or a tablet, scroll or teleport item's item
 id), the option goes to one destination, and fresh rules bound to the
@@ -259,8 +259,11 @@ Strict Mode fails open when:
 The sidebar shows whether Strict Mode is Active, Paused, Off, or Inactive and
 why. The pause resumes automatically. Blocked clicks produce only a local
 explanation and bounded local audit record. Suggested alternatives are
-display-only and are never activated. `PluginHubClickBoundaryTest` pins the
-single place a click can be consumed.
+display-only and are never activated. Game actions are stopped in that one
+place only, and `PluginHubClickBoundaryTest` pins it. The banner's own Pause
+button takes the mouse press made on it (with that press's release and
+click), so the press pauses Strict Mode and does not also reach the game or
+other plugins under the banner; the test pins that too.
 
 ## Reviewability
 

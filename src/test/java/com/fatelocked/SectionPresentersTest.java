@@ -119,9 +119,9 @@ public class SectionPresentersTest
     public void connectionOffersTheRightPairingButtonAndSaysWhereTheRulesCameFrom()
     {
         TrackerConnectionSnapshot connected = TrackerConnectionSnapshot.connected(NOW.minusSeconds(120), "41")
-            .forPairing("0123456789abcdef0123456789abcdef");
+            .forPairing("0123456789abcdef0123456789abcdef").withConnectKeepingPairing(true);
         ConnectionModel online = ConnectionPresenter.present(connected, true, true, FateLockedPlugin.RulesSource.RELAY,
-            null, NOW, ZoneOffset.UTC);
+            RulesPrecedence.Arrival.RELAY, null, NOW, ZoneOffset.UTC);
         assertTrue(online.isOnlineSync());
         assertEquals("…cdef", online.getPairing());
         assertEquals(CardAction.REPAIR, online.getPairingAction());
@@ -132,11 +132,12 @@ public class SectionPresentersTest
         // With the rules' own export time, when the tracker sent them is kept apart from
         // when RuneLite last heard from the relay.
         assertEquals("Rules the tracker sent at 09:15, last checked at 11:58.", ConnectionPresenter.present(connected,
-            true, true, FateLockedPlugin.RulesSource.RELAY, Instant.parse("2026-10-01T09:15:00Z"), NOW,
-            ZoneOffset.UTC).getSource());
+            true, true, FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.RELAY,
+            Instant.parse("2026-10-01T09:15:00Z"), NOW, ZoneOffset.UTC).getSource());
 
         ConnectionModel off = ConnectionPresenter.present(TrackerConnectionSnapshot.disconnected(), false, false,
-            FateLockedPlugin.RulesSource.IMPORT, NOW.minusSeconds(3600), NOW, ZoneOffset.UTC);
+            FateLockedPlugin.RulesSource.IMPORT, RulesPrecedence.Arrival.IMPORT, NOW.minusSeconds(3600), NOW,
+            ZoneOffset.UTC);
         assertEquals(CardAction.CONNECT, off.getPairingAction());
         assertFalse(off.isCanCheckNow());
         assertFalse(off.isCanDisconnect());
@@ -146,13 +147,53 @@ public class SectionPresentersTest
 
         ConnectionModel syncOff = ConnectionPresenter.present(TrackerConnectionSnapshot.of(
                 TrackerConnectionState.DISCONNECTED, null, null, SyncReason.SYNC_OFF, null), false, true,
-            FateLockedPlugin.RulesSource.NONE, null, NOW, ZoneOffset.UTC);
+            FateLockedPlugin.RulesSource.NONE, null, null, NOW, ZoneOffset.UTC);
         assertEquals(CardAction.TURN_ON_SYNC, syncOff.getPairingAction());
         assertNull(syncOff.getSource());
         for (String summary : Arrays.asList(online.getSummary(), off.getSummary(), syncOff.getSummary()))
         {
             assertTrue(summary, summary.length() <= 12);
         }
+    }
+
+    /**
+     * Audit (plugin-connection.d1[2]): with no sync time, tracker rules read as "saved by the
+     * last start" only when the last start really restored them. Rules that arrived from the
+     * relay this session keep no such words after sync is turned off, Disconnect or a new
+     * pairing makes the connection forget its sync time.
+     */
+    @Test
+    public void onlyRulesRestoredAtStartSayTheLastStartSavedThem()
+    {
+        Instant sent = Instant.parse("2026-10-01T09:15:00Z");
+        TrackerConnectionSnapshot syncOff = TrackerConnectionSnapshot.of(TrackerConnectionState.DISCONNECTED, null,
+            null, SyncReason.SYNC_OFF, null);
+        TrackerConnectionSnapshot forgotten = TrackerConnectionSnapshot.disconnected();
+        for (TrackerConnectionSnapshot snapshot : Arrays.asList(syncOff, forgotten))
+        {
+            assertEquals("Rules the tracker sent at 09:15.", ConnectionPresenter.present(snapshot, false, true,
+                FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.RELAY, sent, NOW, ZoneOffset.UTC)
+                .getSource());
+            assertEquals("Rules from the tracker.", ConnectionPresenter.present(snapshot, false, true,
+                FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.RELAY, null, NOW, ZoneOffset.UTC)
+                .getSource());
+            // Not known how they arrived: say nothing about the last start.
+            assertEquals("Rules from the tracker.", ConnectionPresenter.present(snapshot, false, true,
+                FateLockedPlugin.RulesSource.RELAY, null, null, NOW, ZoneOffset.UTC).getSource());
+
+            // Restored from disk at start, as before.
+            assertEquals("Rules the tracker sent at 09:15, saved by the last start.", ConnectionPresenter.present(
+                snapshot, true, true, FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.SAVED, sent, NOW,
+                ZoneOffset.UTC).getSource());
+            assertEquals("Rules from the tracker, saved by the last start.", ConnectionPresenter.present(snapshot,
+                true, true, FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.SAVED, null, NOW,
+                ZoneOffset.UTC).getSource());
+        }
+        // Once the relay answers, the sync time says when, whatever the arrival.
+        TrackerConnectionSnapshot connected = TrackerConnectionSnapshot.connected(NOW.minusSeconds(120), "41");
+        assertEquals("Rules the tracker sent at 09:15, last checked at 11:58.", ConnectionPresenter.present(
+            connected, true, true, FateLockedPlugin.RulesSource.RELAY, RulesPrecedence.Arrival.SAVED, sent, NOW,
+            ZoneOffset.UTC).getSource());
     }
 
     private static FateLockedBundle golden(String scenario) throws Exception

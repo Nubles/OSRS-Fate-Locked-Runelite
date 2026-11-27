@@ -195,7 +195,10 @@ public final class Detectors
         return events;
     }
 
-    /** Quests the game newly says are finished. A quest is never forgotten, so one odd reading can't repeat them. */
+    /**
+     * Quests the game newly says are finished. A quest is never forgotten, so one odd reading can't repeat them.
+     * One the tracker doesn't list yet isn't kept, so it's offered once a bundle names it.
+     */
     private List<DetectedEvent> quests(Signal.Quests reading)
     {
         if (finishedQuests == null)
@@ -206,13 +209,12 @@ public final class Detectors
         List<DetectedEvent> events = new ArrayList<>();
         for (String quest : new TreeSet<>(reading.getFinished()))
         {
-            if (!finishedQuests.add(quest)) continue;
+            if (finishedQuests.contains(quest)) continue;
             String id = tables.questId(quest);
-            if (id != null)
-            {
-                events.add(event(FateEventType.QUEST, id, QUEST, 1, EventConfidence.EXACT, DetectedEvent.ONCE,
-                    "quest", quest));
-            }
+            if (id == null) continue;
+            finishedQuests.add(quest);
+            events.add(event(FateEventType.QUEST, id, QUEST, 1, EventConfidence.EXACT, DetectedEvent.ONCE,
+                "quest", quest));
         }
         return events;
     }

@@ -75,6 +75,47 @@ public class StatusTableTest
     }
 
     @Test
+    public void row3AFirstPairingThatNeverDeliveredBeforeThisStartOffersConnect()
+    {
+        StatusCardModel card = StatusCardPresenter.present(facts().paired(true)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.NOT_CONFIRMED, null)).build());
+        assertCard(card, Tone.PENDING, "Pairing not confirmed", CardAction.CONNECT, null);
+        assertEquals("This pairing hasn't sent any rules yet. Press Connect tracker to pair again.",
+            card.getDetail());
+        // Never the advice for a working pairing whose relay copy lapsed.
+        assertTrue(card.getDetail(), !card.getDetail().contains("web tracker"));
+
+        StatusCardModel failed = StatusCardPresenter.present(facts().paired(true)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.NOT_CONFIRMED, NOW.plusSeconds(30))).build());
+        assertCard(failed, Tone.PENDING, "Pairing not confirmed", CardAction.CONNECT, null);
+        assertEquals("This pairing hasn't sent any rules yet. Press Connect tracker to pair again."
+            + " The last check failed; next check at 12:00.", failed.getDetail());
+    }
+
+    @Test
+    public void row3AFailedCheckWhileARePairingWaitsSaysWhyAndKeepsItsControls()
+    {
+        SyncReason[] failures = {SyncReason.UNREACHABLE, SyncReason.UNREADABLE, SyncReason.UNAVAILABLE,
+            SyncReason.BUSY};
+        String[] words = {"RuneLite couldn't reach the tracker",
+            "Something other than the tracker answered, such as a Wi-Fi sign-in page",
+            "The tracker had a problem", "The tracker asked RuneLite to check less often"};
+        for (int i = 0; i < failures.length; i++)
+        {
+            StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(5), true)
+                .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, NOW.minusSeconds(300),
+                    "41", SyncReason.CONFIRM_REPAIR, NOW.plusSeconds(30)).withFailure(failures[i])).build());
+            assertCard(card, Tone.PENDING, "Waiting for confirmation", CardAction.OPEN_PAGE_AGAIN,
+                CardAction.CANCEL_REPAIR);
+            assertEquals(failures[i].name(), "Confirm the new profile in the browser tab RuneLite opened. Your"
+                + " current pairing keeps working until it arrives. " + words[i] + "; next check at 12:00.",
+                card.getDetail());
+        }
+    }
+
+    @Test
     public void row4ConnectedSaysWhenTheTrackerSentTheRulesAndWhenRuneLiteLastChecked()
     {
         StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofMinutes(2), true)
@@ -255,6 +296,130 @@ public class StatusTableTest
                 null)).build());
         assertCard(card, Tone.PENDING, "Checking with the tracker", null, null);
         assertEquals("RuneLite is asking the tracker for your run's rules.", card.getDetail());
+    }
+
+    /**
+     * Audit (own.d1[8]): turning online sync off and on forgets the sync time but keeps the rules
+     * the relay sent in this session. The card calls them the tracker's, not saved ones, before
+     * the first answer and after a failed check. "Saved" stays for rules restored at start
+     * (the tests above and below).
+     */
+    @Test
+    public void rulesTheRelaySentThisSessionAreTheTrackersAfterSyncIsTurnedOffAndOn()
+    {
+        Instant sent = NOW.minus(Duration.ofMinutes(5));
+        StatusCardModel checking = StatusCardPresenter.present(synced(Duration.ofMinutes(4), false)
+            .arrivedAt(NOW.minus(Duration.ofMinutes(4))).exportedAt(sent)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.CHECKING, null))
+            .build());
+        assertCard(checking, Tone.NEUTRAL, "Checking with the tracker", null, null);
+        assertEquals("Rules the tracker sent at 11:55 are in use until it answers.", checking.getDetail());
+
+        StatusCardModel failed = StatusCardPresenter.present(synced(Duration.ofMinutes(4), false)
+            .arrivedAt(NOW.minus(Duration.ofMinutes(4))).exportedAt(sent)
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null,
+                SyncReason.UNREACHABLE, NOW.plusSeconds(90)))
+            .build());
+        assertCard(failed, Tone.PENDING, "Rules may be out of date", CardAction.CHECK_NOW, null);
+        assertEquals("Rules the tracker sent at 11:55 are in use until it answers. RuneLite couldn't reach the"
+            + " tracker; next check at 12:01. Strict Mode is inactive until the rules refresh.", failed.getDetail());
+
+        StatusCardModel undated = StatusCardPresenter.present(synced(Duration.ofMinutes(4), false)
+            .arrivedAt(NOW.minus(Duration.ofMinutes(4)))
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.WAITING, null, null,
+                SyncReason.CHECKING, null))
+            .build());
+        assertEquals("Rules from the tracker are in use until it answers.", undated.getDetail());
+    }
+
+    /**
+     * Audit (plugin-connection.d3[0]): checks that fail before any has worked in this session
+     * say why and when the next one is, and offer Check now, as the README promises, with the
+     * saved rules of the last start and with no rules at all. Before the first answer the card
+     * still says it is checking (the two tests above).
+     */
+    @Test
+    public void checksThatFailBeforeAnyHasWorkedSayWhyAndOfferCheckNow()
+    {
+        SyncReason[] failures = {SyncReason.UNREACHABLE, SyncReason.UNREADABLE, SyncReason.UNAVAILABLE,
+            SyncReason.BUSY};
+        String[] words = {"RuneLite couldn't reach the tracker",
+            "Something other than the tracker answered, such as a Wi-Fi sign-in page",
+            "The tracker had a problem", "The tracker asked RuneLite to check less often"};
+        Instant saved = NOW.minus(Duration.ofHours(20));
+        for (int i = 0; i < failures.length; i++)
+        {
+            // Rules saved by the last start; the sync time, if any, is older than them.
+            for (Instant lastSync : new Instant[]{null, NOW.minus(Duration.ofHours(21))})
+            {
+                StatusCardModel card = StatusCardPresenter.present(synced(Duration.ofHours(21), false)
+                    .arrival(RulesPrecedence.Arrival.SAVED).arrivedAt(saved)
+                    .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, lastSync, null,
+                        failures[i], NOW.plusSeconds(90)))
+                    .build());
+                assertCard(card, Tone.PENDING, "Rules may be out of date", CardAction.CHECK_NOW, null);
+                assertEquals(failures[i] + " " + lastSync, "Rules saved at Wed 16:00 are in use until the tracker"
+                    + " answers. " + words[i] + "; next check at 12:01. Strict Mode is inactive until the rules"
+                    + " refresh.", card.getDetail());
+            }
+
+            StatusCardModel none = StatusCardPresenter.present(facts().paired(true)
+                .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null, failures[i],
+                    NOW.plusSeconds(90))).build());
+            assertCard(none, Tone.PENDING, "Couldn't get your rules", CardAction.CHECK_NOW, CardAction.USE_BACKUP);
+            assertEquals(failures[i].name(), "No rules are loaded yet. " + words[i] + "; next check at 12:01.",
+                none.getDetail());
+
+            // A paired player on backup rules: the same reason, next check and Check now.
+            for (RulesSource source : new RulesSource[]{RulesSource.FILE, RulesSource.IMPORT})
+            {
+                StatusCardModel backup = StatusCardPresenter.present(facts()
+                    .source(source)
+                    .exportedAt(NOW.minus(Duration.ofDays(3)))
+                    .trust(Trust.TRUSTED)
+                    .paired(true)
+                    .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null,
+                        failures[i], NOW.plusSeconds(90)))
+                    .build());
+                assertCard(backup, Tone.NEUTRAL, "Using a backup", CardAction.CHECK_NOW, null);
+                assertEquals(source + " " + failures[i], "Rules from "
+                    + (source == RulesSource.FILE ? "a backup file" : "the clipboard") + ", exported at Mon 12:00."
+                    + " They're more than 15 minutes old, so Strict Mode doesn't use them. The tracker's copy"
+                    + " replaces them at its next check. " + words[i] + "; next check at 12:01.",
+                    backup.getDetail());
+            }
+        }
+        // Not paired, nothing checks: the failure words never appear there.
+        StatusCardModel unpaired = StatusCardPresenter.present(facts()
+            .connection(TrackerConnectionSnapshot.of(TrackerConnectionState.OFFLINE, null, null,
+                SyncReason.UNREACHABLE, NOW.plusSeconds(90))).build());
+        assertCard(unpaired, Tone.NEUTRAL, "Not connected", CardAction.CONNECT, CardAction.USE_BACKUP);
+    }
+
+    /** Audit: fresh rules from the clipboard or a backup file that name no character never feed Strict Mode. */
+    @Test
+    public void aBackupNamingNoCharacterSaysStrictModeStaysOff()
+    {
+        StatusCardModel card = StatusCardPresenter.present(facts()
+            .source(RulesSource.IMPORT)
+            .arrival(RulesPrecedence.Arrival.IMPORT)
+            .exportedAt(NOW.minus(Duration.ofMinutes(2)))
+            .trust(Trust.TRUSTED).bound(false).loggedInAs(RUN)
+            .fresh(true)
+            .build());
+        assertEquals("Rules from the clipboard, exported at 11:58. These rules name no character, so Strict Mode"
+            + " stays off.", card.getDetail());
+
+        StatusCardModel file = StatusCardPresenter.present(facts()
+            .source(RulesSource.FILE)
+            .exportedAt(NOW.minus(Duration.ofMinutes(2)))
+            .trust(Trust.TRUSTED).bound(false).loggedInAs(RUN)
+            .fresh(true)
+            .build());
+        assertTrue(file.getDetail(), file.getDetail().startsWith("Rules from a backup file, exported at 11:58."
+            + " These rules name no character, so Strict Mode stays off."));
+        assertTrue(file.getDetail(), !file.getDetail().contains("Strict Mode uses them"));
     }
 
     @Test

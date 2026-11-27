@@ -133,13 +133,39 @@ public class SyncViewTest
             SyncReason.CONFIRM_IN_BROWSER)).connect);
         assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.EXPIRED,
             SyncReason.NO_PROFILE)).connect);
-        // A working pairing is kept: re-pairing asks first.
+        // A first pairing saved by an earlier start that never delivered: nothing to keep either.
+        assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.WAITING,
+            SyncReason.NOT_CONFIRMED)).connect);
+        // A working pairing is kept: re-pairing asks first, even after a failed check.
         assertEquals(SyncView.Connect.REPAIR,
-            view(TrackerConnectionSnapshot.connected(NOW, "41")).connect);
+            view(TrackerConnectionSnapshot.connected(NOW, "41").withConnectKeepingPairing(true)).connect);
         assertEquals(SyncView.Connect.REPAIR, view(of(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE).withConnectKeepingPairing(true)).connect);
+        // The label follows what Connect does, not the state: when Connect would replace the
+        // code (a first pairing whose rules were refused, a pairing disconnected in the
+        // tracker), the button reads Connect tracker whatever the reason.
+        for (SyncReason reason : new SyncReason[] {SyncReason.FUTURE_FORMAT, SyncReason.INVALID_RULES,
+            SyncReason.NONE})
+        {
+            TrackerConnectionSnapshot refused = of(TrackerConnectionState.IMPORT_FAILED, reason);
+            assertEquals(reason.name(), SyncView.Connect.CONNECT, view(refused).connect);
+            assertEquals(reason.name(), SyncView.Connect.REPAIR,
+                view(refused.withConnectKeepingPairing(true)).connect);
+        }
+        assertEquals(SyncView.Connect.CONNECT, view(of(TrackerConnectionState.OFFLINE,
             SyncReason.UNREACHABLE)).connect);
         assertEquals(SyncView.Connect.CANCEL_REPAIR, view(of(TrackerConnectionState.WAITING,
             SyncReason.CONFIRM_REPAIR)).connect);
+        // A pairing that waits keeps its button when a check fails.
+        SyncMachine first = new SyncMachine();
+        first.pairingStarted(NOW);
+        assertEquals(SyncView.Connect.CONNECT, view(first.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, NOW, SyncMachine.FAILURE_BACKOFF_SECONDS)).connect);
+        SyncMachine again = new SyncMachine();
+        again.accepted("41", NOW);
+        again.repairStarted(NOW);
+        assertEquals(SyncView.Connect.CANCEL_REPAIR, view(again.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, NOW, SyncMachine.FAILURE_BACKOFF_SECONDS)).connect);
         assertEquals("Re-pair tracker\u2026", SyncView.Connect.REPAIR.label);
     }
 
@@ -154,6 +180,10 @@ public class SyncViewTest
         SyncView view = view(of(TrackerConnectionState.EXPIRED, SyncReason.GONE));
 
         assertEquals("Disconnected in the web tracker", view.status);
+        // The tracker ends a pairing on Disconnect and when it is paired again.
+        assertEquals("The tracker's owner pressed Disconnect in the web tracker, or paired it"
+            + " again, so it sends no more rules to this pairing. Press Connect tracker to pair"
+            + " again.", view.detail);
         assertEquals(SyncView.Action.CONNECT, view.action);
         assertEquals(SyncView.Connect.CONNECT, view.connect);
         assertFalse(view.canCheckNow);

@@ -5,7 +5,7 @@
  * with dependency verification on and provides the RuneLite runtime (client,
  * Gson, Guice, SLF4J) itself, so the plugin must NOT shade/fat-jar its deps.
  *
- * Build a sideload jar:  ./gradlew jar  → build/libs/*.jar
+ * Build a sideload jar:  gradle jar  → build/libs/*.jar  (Gradle 8.5, as in CI; there is no wrapper)
  * Sideload:              copy it into ~/.runelite/sideloaded-plugins/
  */
 

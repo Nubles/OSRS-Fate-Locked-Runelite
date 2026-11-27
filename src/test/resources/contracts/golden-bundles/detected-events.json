@@ -68,6 +68,19 @@
       ]
     },
     {
+      "id": "the-graveyard-finished",
+      "about": "The game reports The Graveyard as finished after login. Repeated readings produce one completion, and the tracker still asks about its manual requirements.",
+      "given": { "quests": ["Olaf's Quest", "The Fremennik Exiles", "Pandemonium"], "skills": { "Sailing": 10, "Agility": 10, "Woodcutting": 10, "Fletching": 10 }, "levels": { "Sailing": 65, "Agility": 65, "Woodcutting": 56, "Fletching": 54 }, "regions": ["Rellekka"] },
+      "signals": [
+        { "kind": "quests", "finished": [] },
+        { "kind": "quests", "finished": ["The Graveyard"] },
+        { "kind": "quests", "finished": ["The Graveyard"] }
+      ],
+      "events": [
+        { "eventType": "QUEST", "canonicalLabel": "The Graveyard", "confidence": "EXACT", "detectorId": "quest-state-v1", "detectorVersion": 1, "evidence": { "quest": "The Graveyard" }, "web": { "verdict": "NEEDS_CONFIRMATION", "firstCandidate": "The Graveyard" } }
+      ]
+    },
+    {
       "id": "quest-baseline-only",
       "about": "The first reading is the baseline: quests finished before it are not new.",
       "signals": [
@@ -160,12 +173,12 @@
     },
     {
       "id": "collection-log-several-pages",
-      "about": "A name on six pages: the app asks which page.",
+      "about": "A name on six pages is one item in the game's log: the app fills every page that lists it and asks nothing.",
       "signals": [
         { "kind": "chat", "type": "GAMEMESSAGE", "message": "New item added to your collection log: <col=ef1020>Dragon pickaxe</col>" }
       ],
       "events": [
-        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Dragon pickaxe", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "NEEDS_CONFIRMATION" } }
+        { "eventType": "COLLECTION_LOG", "canonicalLabel": "Dragon pickaxe", "confidence": "EXACT", "detectorId": "collection-log-chat-v1", "detectorVersion": 2, "evidence": { "from": "chat" }, "web": { "verdict": "READY" } }
       ]
     },
     {

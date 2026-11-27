@@ -21,34 +21,39 @@ final class ConnectionPresenter
      * @param onlineSync whether online sync is on
      * @param paired     whether a pairing is saved
      * @param source     where the rules in force came from
+     * @param arrival    how they arrived (restored from disk at start, or sent this session), or null
      * @param exportedAt when the tracker exported them, or null
      */
     static ConnectionModel present(TrackerConnectionSnapshot snapshot, boolean onlineSync, boolean paired,
-        FateLockedPlugin.RulesSource source, Instant exportedAt, Instant now, ZoneId zone)
+        FateLockedPlugin.RulesSource source, RulesPrecedence.Arrival arrival, Instant exportedAt, Instant now,
+        ZoneId zone)
     {
         SyncView view = SyncView.of(snapshot, now, zone);
         String pairing = snapshot.getPairingEnding() == null ? null : "…" + snapshot.getPairingEnding();
-        return new ConnectionModel(onlineSync, pairing, source(source, snapshot, exportedAt, now, zone),
+        return new ConnectionModel(onlineSync, pairing, source(source, arrival, snapshot, exportedAt, now, zone),
             action(view.connect), view.canCheckNow, paired,
             !onlineSync ? "Off" : snapshot.getState() == TrackerConnectionState.CONNECTED ? "Online"
                 : snapshot.getMessage());
     }
 
-    private static String source(FateLockedPlugin.RulesSource source, TrackerConnectionSnapshot snapshot,
-        Instant exportedAt, Instant now, ZoneId zone)
+    private static String source(FateLockedPlugin.RulesSource source, RulesPrecedence.Arrival arrival,
+        TrackerConnectionSnapshot snapshot, Instant exportedAt, Instant now, ZoneId zone)
     {
         switch (source)
         {
             case RELAY:
+                // With no sync time: restored from disk at start, or sent this session before the
+                // connection forgot its sync time (sync off, Disconnect, a new pairing).
+                String noSync = arrival == RulesPrecedence.Arrival.SAVED ? ", saved by the last start." : ".";
                 if (exportedAt == null)
                 {
-                    return snapshot.getLastSync() == null ? "Rules from the tracker, saved by the last start."
+                    return snapshot.getLastSync() == null ? "Rules from the tracker" + noSync
                         : "Rules from the tracker, last synced at "
                             + LocalTimeText.of(snapshot.getLastSync(), now, zone) + ".";
                 }
                 // When the tracker sent them, apart from when RuneLite last heard from the relay.
                 String sent = "Rules the tracker sent at " + LocalTimeText.of(exportedAt, now, zone);
-                return snapshot.getLastSync() == null ? sent + ", saved by the last start."
+                return snapshot.getLastSync() == null ? sent + noSync
                     : sent + ", last checked at " + LocalTimeText.of(snapshot.getLastSync(), now, zone) + ".";
             case IMPORT:
                 return "Rules from the clipboard" + exported(exportedAt, now, zone);

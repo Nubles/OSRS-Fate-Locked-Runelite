@@ -137,11 +137,13 @@
   "rules.chunks.*.categories.*[].status": "status",
   "rules.chunks.*.categories.*[].detail": "string",
   "rules.chunks.*.categories.*[].targetKind": "string",
+  "rules.chunks.*.categories.*[].minigame": "boolean",
   "rules.chunks.*.counts": "object",
   "rules.chunks.*.counts.allowed": "integer",
   "rules.chunks.*.counts.notReady": "integer",
   "rules.chunks.*.counts.locked": "integer",
-  "rules.chunks.*.counts.unknown": "integer"
+  "rules.chunks.*.counts.unknown": "integer",
+  "rules.banks.*.depositOnly": "boolean"
  },
  "required": {
   "about": "The installed builds refuse a version 4 bundle unless each of these is present, and not blank or empty.",
@@ -235,7 +237,7 @@
   ]
  },
  "unread": {
-  "about": "Parsed by the installed builds but never read from a version 4 bundle, and not read by the overlay. Root copies give way to rules, and a snapshot's chunkKey is restored from its map key. The export may leave these out; while present, they keep their types.",
+  "about": "Parsed by the installed builds but never read from a version 4 bundle, or new and read by none of them yet (a bank's depositOnly, a minigame row's minigame), and not read by the overlay. Root copies give way to rules, and a snapshot's chunkKey is restored from its map key. The export may leave these out; while present, they keep their types.",
   "paths": [
    "runId",
    "runRevision",
@@ -256,7 +258,9 @@
    "rules.unlocks.quests",
    "rules.chunks.*.chunkKey",
    "rules.chunks.*.counts",
-   "rules.chunks.*.categories.*[].key"
+   "rules.chunks.*.categories.*[].key",
+   "rules.banks.*.depositOnly",
+   "rules.chunks.*.categories.*[].minigame"
   ]
  }
 }

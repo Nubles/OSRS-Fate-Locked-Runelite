@@ -30,6 +30,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 
 import javax.swing.SwingUtilities;
+import java.util.Collections;
 import java.io.File;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -205,6 +206,69 @@ public class FateLockedPluginStartupContractTest
         {
             harness.plugin.shutDown();
         }
+    }
+
+    /**
+     * Audit: the panel outlives a stop and start, so a start leaves one Here handler rather than
+     * adding another. With two, a click put the arrow up and took it straight down again.
+     */
+    @Test
+    public void aHereRowPointsOnceAfterThePluginIsStoppedAndStartedTwice() throws Exception
+    {
+        Harness harness = new Harness(folder.newFolder("here-restart"));
+        try
+        {
+            for (int restart = 0; restart < 2; restart++)
+            {
+                harness.plugin.shutDown();
+                harness.plugin.startUp();
+                harness.flushEdt();
+            }
+            harness.runClientTasks();
+            SwingUtilities.invokeAndWait(() -> {
+                com.fatelocked.sidebar.HereView here = harness.panel.sidebar().here();
+                java.util.List<com.fatelocked.sidebar.HereModel.Row> trees = Collections.singletonList(
+                    new com.fatelocked.sidebar.HereModel.Row("Oak tree", "Can do",
+                        com.fatelocked.ui.Palette.Tone.GOOD, "Level 15"));
+                here.setOpen(new java.util.TreeSet<>(java.util.Arrays.asList("SKILLING", "SKILLING/Woodcutting")));
+                here.apply(new com.fatelocked.sidebar.HereModel("Lumbridge", "Unlocked",
+                    com.fatelocked.ui.Palette.Tone.GOOD, null, null, Collections.emptyList(),
+                    Collections.singletonList(new com.fatelocked.sidebar.HereModel.Group("SKILLING", "Skilling",
+                        trees, Collections.singletonList(new com.fatelocked.sidebar.HereModel.Subgroup(
+                            "SKILLING/Woodcutting", "Woodcutting", "Woodcutting", "Level 15", trees)))),
+                    null));
+                com.fatelocked.ui.ItemRow oak = firstClickableRow(here);
+                assertNotNull("the Oak tree row can be clicked", oak);
+                oak.click();
+            });
+            harness.runClientTasks();
+
+            assertEquals(Collections.singletonList("SKILLING: Oak tree"), harness.plugin.points);
+        }
+        finally
+        {
+            harness.plugin.shutDown();
+        }
+    }
+
+    private static com.fatelocked.ui.ItemRow firstClickableRow(java.awt.Container root)
+    {
+        for (java.awt.Component child : root.getComponents())
+        {
+            if (child instanceof com.fatelocked.ui.ItemRow && ((com.fatelocked.ui.ItemRow) child).clickable())
+            {
+                return (com.fatelocked.ui.ItemRow) child;
+            }
+            if (child instanceof java.awt.Container)
+            {
+                com.fatelocked.ui.ItemRow found = firstClickableRow((java.awt.Container) child);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     /** A Strict Mode pause belongs to one start: turning the plugin off ends it. */
@@ -1181,6 +1245,9 @@ public class FateLockedPluginStartupContractTest
         private final AtomicInteger pauseCalls = new AtomicInteger();
         private String clipboard = "";
 
+        /** Each Here row the player asked to be pointed at, as "category: row". */
+        private final java.util.List<String> points = new java.util.concurrent.CopyOnWriteArrayList<>();
+
         private TestPlugin(File dataDirectory)
         {
             this.dataDirectory = dataDirectory;
@@ -1190,6 +1257,12 @@ public class FateLockedPluginStartupContractTest
         File dataDirectory()
         {
             return dataDirectory;
+        }
+
+        @Override
+        void pointTo(String category, String row)
+        {
+            points.add(category + ": " + row);
         }
 
         @Override

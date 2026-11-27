@@ -258,9 +258,17 @@ public final class RuneliteRulesManifest
             List<String> physical = stringItems(value.get("physical"));
             banks.put(entry.getKey(), new Bank(name, status == null ? PermissionStatus.UNKNOWN : status,
                 string(value.get("reason")), at,
-                physical == null || physical.isEmpty() ? Collections.singletonList(at) : physical));
+                physical == null || physical.isEmpty() ? Collections.singletonList(at) : physical,
+                isTrue(value.get("depositOnly"))));
         }
         return Collections.unmodifiableMap(banks);
+    }
+
+    /** Whether a value is JSON true; false for anything else, or none. */
+    private static boolean isTrue(JsonElement value)
+    {
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean()
+            && value.getAsBoolean();
     }
 
     /** A JSON string's value; null for anything else. */
@@ -405,14 +413,26 @@ public final class RuneliteRulesManifest
         /** The bank's chunk: where it is on the surface, or the entrance to it. */
         private final String at;
         private final List<String> physical;
+        /**
+         * A place where the bank can't be opened, only deposited into, such as Port Sarim's deposit
+         * boxes; false when the export doesn't say, as older ones don't.
+         */
+        private final boolean depositOnly;
 
         public Bank(String name, PermissionStatus status, String reason, String at, List<String> physical)
+        {
+            this(name, status, reason, at, physical, false);
+        }
+
+        public Bank(String name, PermissionStatus status, String reason, String at, List<String> physical,
+            boolean depositOnly)
         {
             this.name = name;
             this.status = status;
             this.reason = reason;
             this.at = at;
             this.physical = physical;
+            this.depositOnly = depositOnly;
         }
     }
 

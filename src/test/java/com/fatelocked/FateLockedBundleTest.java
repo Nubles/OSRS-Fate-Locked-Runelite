@@ -29,6 +29,34 @@ import static org.junit.Assert.fail;
 
 public class FateLockedBundleTest
 {
+    /**
+     * Audit: Slayer keys lower-case in the root locale, so a Konar task at a place with a capital I
+     * reads the same under a Turkish system locale as anywhere else.
+     */
+    @Test
+    public void aSlayerTaskReadsTheSameUnderATurkishLocale() throws Exception
+    {
+        FateLockedBundle mid = FateLockedBundle.loadFromJson(new Gson(),
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")));
+        String bound = AccountBinding.normalize(AccountBinding.boundAccount(mid));
+        DecisionService decisions = DecisionService.create(RulesSnapshot.of(mid), bound, bound);
+        assertEquals(PermissionStatus.LOCKED,
+            decisions.slayerTask("konar quo maten", "blue dragons", "Isle of Souls Dungeon").getStatus());
+
+        java.util.Locale before = java.util.Locale.getDefault();
+        try
+        {
+            java.util.Locale.setDefault(new java.util.Locale("tr", "TR"));
+            DecisionService turkish = DecisionService.create(RulesSnapshot.of(mid), bound, bound);
+            assertEquals(PermissionStatus.LOCKED,
+                turkish.slayerTask("konar quo maten", "blue dragons", "Isle of Souls Dungeon").getStatus());
+        }
+        finally
+        {
+            java.util.Locale.setDefault(before);
+        }
+    }
+
     private FateLockedBundle fixture(String name) throws Exception
     {
         try (InputStream in = getClass().getClassLoader().getResourceAsStream(name))

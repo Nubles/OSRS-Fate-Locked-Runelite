@@ -124,7 +124,7 @@ public final class HerePresenter
                     PermissionStatus status = decided.getStatus();
                     counts.merge(status, 1, Integer::sum);
                     rows.add(new HereModel.Row(rowName(row.getName()), Terms.row(status), Palette.tone(status),
-                        rowReason(decided.getDetail(), placeLocked)));
+                        rowReason(decided.getDetail(), placeLocked), !row.isMinigame()));
                 }
                 groups.add(new HereModel.Group(id, TITLES.get(id), rows,
                     SKILLING.equals(id) ? bySkill(id, rows) : Collections.emptyList()));
@@ -171,7 +171,7 @@ public final class HerePresenter
             {
                 for (ChunkPermissionRow row : category.getValue())
                 {
-                    PointTarget target = PointTarget.of(category.getKey(), rowName(row.getName()));
+                    PointTarget target = PointTarget.ofRow(category.getKey(), row);
                     if (target != null)
                     {
                         targets.add(target);
@@ -219,7 +219,8 @@ public final class HerePresenter
             left.add("Level " + line.getNeeded());
             left.addAll(clauses.subList(1, clauses.size()));
             bySkill.computeIfAbsent(line.getSkill(), skill -> new ArrayList<>())
-                .add(new HereModel.Row(row.getName(), row.getWord(), row.getTone(), String.join("; ", left)));
+                .add(new HereModel.Row(row.getName(), row.getWord(), row.getTone(), String.join("; ", left),
+                    row.isPointable()));
         }
         List<HereModel.Subgroup> subgroups = new ArrayList<>();
         for (Map.Entry<String, List<HereModel.Row>> skill : bySkill.entrySet())

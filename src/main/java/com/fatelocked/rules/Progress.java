@@ -23,9 +23,13 @@ public class Progress
     /**
      * Percent unlocked of what the count counts, rounded, so "15 of 187 areas" is 8% (the
      * owner's call T7: it was 7%, of the map's chunks); -1 when there is nothing to count.
+     * 100 only once everything is unlocked, and at most 99 before then, as the tracker and the
+     * Discord bot show it: 622 of 623 chunks is 99%, not a rounded 100%.
      */
     public int percent()
     {
-        return total <= 0 ? -1 : (int) Math.round(100.0 * unlocked / total);
+        if (total <= 0) return -1;
+        if (unlocked >= total) return 100;
+        return Math.min(99, (int) Math.round(100.0 * unlocked / total));
     }
 }

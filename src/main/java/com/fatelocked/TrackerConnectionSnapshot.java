@@ -13,6 +13,17 @@ final class TrackerConnectionSnapshot
     private final Instant nextCheck;
     /** The last four characters of the code in use, or null: all the sidebar shows of it. */
     private final String pairingEnding;
+    /**
+     * Why the last check failed, while a pairing that waits for the browser
+     * keeps its own reason (and so its controls); null otherwise.
+     */
+    private final SyncReason failure;
+    /**
+     * Whether pressing Connect now keeps the code in use until a new pairing
+     * delivers (a re-pairing), rather than replacing it at once. Set by the
+     * controller from the same test its pairing uses; false otherwise.
+     */
+    private final boolean connectKeepsPairing;
 
     private TrackerConnectionSnapshot(
         TrackerConnectionState state,
@@ -20,7 +31,9 @@ final class TrackerConnectionSnapshot
         String acceptedVersion,
         SyncReason reason,
         Instant nextCheck,
-        String pairingEnding)
+        String pairingEnding,
+        SyncReason failure,
+        boolean connectKeepsPairing)
     {
         this.state = state;
         this.lastSync = lastSync;
@@ -28,6 +41,8 @@ final class TrackerConnectionSnapshot
         this.reason = reason == null ? SyncReason.NONE : reason;
         this.nextCheck = nextCheck;
         this.pairingEnding = pairingEnding;
+        this.failure = failure;
+        this.connectKeepsPairing = connectKeepsPairing;
     }
 
     TrackerConnectionState getState()
@@ -60,12 +75,38 @@ final class TrackerConnectionSnapshot
         return pairingEnding;
     }
 
+    /** Why the last check failed while a pairing waits, or null. */
+    SyncReason getFailure()
+    {
+        return failure;
+    }
+
+    /** Whether pressing Connect now keeps the code in use until a new pairing delivers. */
+    boolean connectKeepsPairing()
+    {
+        return connectKeepsPairing;
+    }
+
+    /** This snapshot, saying whether pressing Connect now keeps the code in use. */
+    TrackerConnectionSnapshot withConnectKeepingPairing(boolean keeps)
+    {
+        return new TrackerConnectionSnapshot(
+            state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, failure, keeps);
+    }
+
+    /** This snapshot, saying why the last check failed while a pairing waits. */
+    TrackerConnectionSnapshot withFailure(SyncReason why)
+    {
+        return new TrackerConnectionSnapshot(
+            state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, why, connectKeepsPairing);
+    }
+
     /** This snapshot for the pairing whose code this is. */
     TrackerConnectionSnapshot forPairing(String code)
     {
         String ending = code == null || code.length() < 4 ? null : code.substring(code.length() - 4);
         return new TrackerConnectionSnapshot(
-            state, lastSync, acceptedVersion, reason, nextCheck, ending);
+            state, lastSync, acceptedVersion, reason, nextCheck, ending, failure, connectKeepsPairing);
     }
 
     /** The short status: the reason's, or the state's own. */
@@ -98,7 +139,7 @@ final class TrackerConnectionSnapshot
         Instant nextCheck)
     {
         return new TrackerConnectionSnapshot(
-            state, lastSync, acceptedVersion, reason, nextCheck, null);
+            state, lastSync, acceptedVersion, reason, nextCheck, null, null, false);
     }
 
     private static String stateStatus(TrackerConnectionState state)
@@ -136,12 +177,15 @@ final class TrackerConnectionSnapshot
             && Objects.equals(acceptedVersion, that.acceptedVersion)
             && reason == that.reason
             && Objects.equals(nextCheck, that.nextCheck)
-            && Objects.equals(pairingEnding, that.pairingEnding);
+            && Objects.equals(pairingEnding, that.pairingEnding)
+            && failure == that.failure
+            && connectKeepsPairing == that.connectKeepsPairing;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding);
+        return Objects.hash(state, lastSync, acceptedVersion, reason, nextCheck, pairingEnding, failure,
+            connectKeepsPairing);
     }
 }

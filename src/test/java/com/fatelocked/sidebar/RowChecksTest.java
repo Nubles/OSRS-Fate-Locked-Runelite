@@ -121,6 +121,17 @@ public class RowChecksTest
             Collections.emptySet(), false)));
     }
 
+    /** Audit: the Wiki's "Light source" table lists the Max cape and the Jar of Light too. */
+    @Test
+    public void theMaxCapeAndAJarOfLightAreLightSources()
+    {
+        for (int item : new int[] { net.runelite.api.gameval.ItemID.SKILLCAPE_MAX,
+            net.runelite.api.gameval.ItemID.SKILLCAPE_MAX_WORN, net.runelite.api.gameval.ItemID.JAR_OF_LIGHT })
+        {
+            assertTrue(String.valueOf(item), RowChecks.LIGHT_SOURCES.contains(item));
+        }
+    }
+
     @Test
     public void theQuestsNamedAreTheOnesToAskTheGameAbout()
     {
@@ -128,6 +139,131 @@ public class RowChecksTest
                 Quest.WHILE_GUTHIX_SLEEPS, Quest.RECIPE_FOR_DISASTER__MOUNTAIN_DWARF, Quest.THE_RESTLESS_GHOST)),
             RowChecks.questsNamed(Arrays.asList(CAVES, "While Guthix Sleeps: reached the Ancient Guthixian Temple",
                 "RFD: Dwarf; Brass key", null, "Started The Restless Ghost; Attack 15")));
+    }
+
+    /**
+     * A quest step as the tracker codes it counts as met once the game says the quest is
+     * finished; before then the game can't say, so the row isn't ready and names the step.
+     */
+    @Test
+    public void aQuestStepIsMetWhenTheGameSaysTheQuestIsFinished()
+    {
+        assertEquals(new RowChecks.Decided(ALLOWED, null),
+            RowChecks.decide(UNKNOWN, "Plague City 5", quest(Quest.PLAGUE_CITY, QuestState.FINISHED)));
+        assertEquals(new RowChecks.Decided(NOT_READY, "Plague City 5"),
+            RowChecks.decide(UNKNOWN, "Plague City 5", quest(Quest.PLAGUE_CITY, QuestState.IN_PROGRESS)));
+        assertEquals(new RowChecks.Decided(ALLOWED, null),
+            RowChecks.decide(UNKNOWN, "Dragon Slayer I 5b2", quest(Quest.DRAGON_SLAYER_I, QuestState.FINISHED)));
+        assertEquals(new RowChecks.Decided(NOT_READY, "Dragon Slayer I 5b2"),
+            RowChecks.decide(UNKNOWN, "Dragon Slayer I 5b2", quest(Quest.DRAGON_SLAYER_I, QuestState.NOT_STARTED)));
+        assertEquals(new RowChecks.Decided(ALLOWED, null),
+            RowChecks.decide(UNKNOWN, "Shield of Arrav 2a2", quest(Quest.SHIELD_OF_ARRAV, QuestState.FINISHED)));
+        assertEquals(new RowChecks.Decided(NOT_READY, "Shield of Arrav 2a2"),
+            RowChecks.decide(UNKNOWN, "Shield of Arrav 2a2", GameFacts.NONE));
+        assertEquals(new LinkedHashSet<>(Arrays.asList(Quest.PLAGUE_CITY, Quest.SHIELD_OF_ARRAV)),
+            RowChecks.questsNamed(Arrays.asList("Plague City 5; Mining 20; Quest Points 43", "Shield of Arrav 2a2")));
+    }
+
+    /** A level, quest points and an item whose name ends in a number are no quest steps. */
+    @Test
+    public void onlyAQuestsNameMakesAStepCode()
+    {
+        assertTrue(RowChecks.met("Mining 20", level(Skill.MINING, 20)));
+        assertFalse(RowChecks.met("Mining 20", everything()));
+        assertFalse(RowChecks.met("Quest Points 43", facts(true, 42, Collections.emptyMap(),
+            quests(Quest.PLAGUE_CITY, QuestState.FINISHED), Collections.emptySet(), null)));
+        assertFalse("every quest finished passes no item", RowChecks.met("Ring of wealth 5", everything()));
+        assertTrue(RowChecks.met("Ring of wealth 5", carrying("ring of wealth 5")));
+        for (String clause : new String[] {"Mining 20", "Quest Points 43", "Ring of wealth 5"})
+        {
+            assertFalse(clause, RowChecks.gameOnly(clause));
+        }
+        assertEquals(Collections.emptySet(),
+            RowChecks.questsNamed(Arrays.asList("Mining 20; Quest Points 43; Ring of wealth 5")));
+    }
+
+    /**
+     * Cave crawler, which the tracker says isn't ready: the quest started and the lantern carried
+     * are checks only the game can make, so they go once met. Death to the Dorgeshuun is a quest
+     * the tracker has as not done, so it stays even where the game says it is finished.
+     */
+    @Test
+    public void aRowThatIsNotReadyDropsTheGameChecksThatAreMet()
+    {
+        GameFacts startedAndLit = facts(true, 0, Collections.emptyMap(),
+            quests(Quest.THE_LOST_TRIBE, QuestState.IN_PROGRESS, Quest.DEATH_TO_THE_DORGESHUUN, QuestState.NOT_STARTED),
+            Collections.emptySet(), true);
+        assertEquals(new RowChecks.Decided(NOT_READY, "Death to the Dorgeshuun"),
+            RowChecks.decide(NOT_READY, CAVES, startedAndLit));
+        assertEquals(new RowChecks.Decided(NOT_READY, "Death to the Dorgeshuun"),
+            RowChecks.decide(NOT_READY, CAVES, everything()));
+        GameFacts unlit = facts(true, 0, Collections.emptyMap(), quests(Quest.THE_LOST_TRIBE, QuestState.IN_PROGRESS),
+            Collections.emptySet(), false);
+        assertEquals(new RowChecks.Decided(NOT_READY, "Death to the Dorgeshuun; Light source"),
+            RowChecks.decide(NOT_READY, CAVES, unlit));
+        assertEquals("a skilling row keeps its level and cap",
+            new RowChecks.Decided(NOT_READY, "Mining 1/20 · cap 0"),
+            RowChecks.decide(NOT_READY, "Mining 1/20 · cap 0; The Lost Tribe started", startedAndLit));
+        assertEquals(new RowChecks.Decided(NOT_READY, "Dragon Slayer I 3; Attack 40"),
+            RowChecks.decide(NOT_READY, "Plague City 5; Dragon Slayer I 3; Attack 40", facts(true, 0,
+                Collections.emptyMap(), quests(Quest.PLAGUE_CITY, QuestState.FINISHED), Collections.emptySet(), null)));
+    }
+
+    /**
+     * Tears of Guthix: the tracker counts quest points from the quests it has as done and judges
+     * levels against its caps, so none of these is a check it leaves to the game; all stay.
+     */
+    @Test
+    public void whatTheTrackerDecidedStaysOnARowThatIsNotReady()
+    {
+        String tears = "Firemaking 49; Crafting 20; Mining 20; Quest Points 43";
+        Map<Skill, Integer> levels = new EnumMap<>(Skill.class);
+        for (Skill skill : Skill.values())
+        {
+            levels.put(skill, 99);
+        }
+        GameFacts allMet = facts(true, 300, levels, quests(Quest.TEARS_OF_GUTHIX, QuestState.FINISHED),
+            Collections.emptySet(), true);
+        assertEquals(new RowChecks.Decided(NOT_READY, tears), RowChecks.decide(NOT_READY, tears, allMet));
+        assertEquals("nothing met: as the tracker sent it", new RowChecks.Decided(NOT_READY, CAVES),
+            RowChecks.decide(NOT_READY, CAVES, GameFacts.NONE));
+        assertEquals("every check met: the tracker's own text stays",
+            new RowChecks.Decided(NOT_READY, "The Lost Tribe started; Light source; F2P only"),
+            RowChecks.decide(NOT_READY, "The Lost Tribe started; Light source; F2P only", facts(false, 0,
+                Collections.emptyMap(), quests(Quest.THE_LOST_TRIBE, QuestState.IN_PROGRESS), Collections.emptySet(),
+                true)));
+        assertEquals(new RowChecks.Decided(NOT_READY, null), RowChecks.decide(NOT_READY, null, allMet));
+    }
+
+    /** Whatever the game says, a row the tracker calls not ready stays not ready. */
+    @Test
+    public void aRowThatIsNotReadyStaysNotReady()
+    {
+        GameFacts[] all = {GameFacts.NONE, everything(), carrying("lantern"),
+            facts(false, 300, Collections.emptyMap(), Collections.emptyMap(), Collections.emptySet(), true)};
+        for (String detail : new String[] {null, "", CAVES, "Light source", "F2P only", "The Lost Tribe started",
+            "Plague City 5", "Woodcutting 15/60 · cap 20", "Quest Points 43", "Unlock Axe Shops"})
+        {
+            for (GameFacts facts : all)
+            {
+                assertEquals(detail, NOT_READY, RowChecks.decide(NOT_READY, detail, facts).getStatus());
+            }
+        }
+    }
+
+    /** For a row that isn't ready, the game is asked only about the quests its game checks name. */
+    @Test
+    public void aRowThatIsNotReadyAsksOnlyAboutItsGameChecks()
+    {
+        assertEquals(new LinkedHashSet<>(Arrays.asList(Quest.THE_RESTLESS_GHOST, Quest.THE_LOST_TRIBE,
+                Quest.PLAGUE_CITY)),
+            RowChecks.questsNamed(Arrays.asList("Started The Restless Ghost"),
+                Arrays.asList(CAVES, "Thieving 23; Biohazard; Plague City 5", "RFD: Dwarf; Quest Points 175")));
+        assertTrue(RowChecks.hasGameOnlyCheck(CAVES));
+        assertTrue(RowChecks.hasGameOnlyCheck("Woodcutting 1/1 · cap 0; F2P only"));
+        assertFalse(RowChecks.hasGameOnlyCheck("Thieving 23; Agility 23; Head T1; The Lost Tribe"));
+        assertFalse(RowChecks.hasGameOnlyCheck("Woodcutting 1/15 · cap 0"));
+        assertFalse(RowChecks.hasGameOnlyCheck(null));
     }
 
     @Test

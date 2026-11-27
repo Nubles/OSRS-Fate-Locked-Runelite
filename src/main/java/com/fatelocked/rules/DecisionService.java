@@ -206,6 +206,19 @@ public final class DecisionService
         return rules.areaLabel(chunk);
     }
 
+    /**
+     * Whether a chunk is the sea, as the rules mark it ("ocean"): a snapshot's kind, or for a
+     * chunk with no snapshot its place. The sea has no area names, yet it is one area.
+     */
+    public boolean isSea(CanonicalChunk chunk)
+    {
+        if (chunk == null) return false;
+        Optional<ChunkPermissionSnapshot> snapshot = snapshotAt(chunk);
+        if (snapshot.isPresent()) return "ocean".equalsIgnoreCase(snapshot.get().getKind());
+        RuneliteRulesManifest.Place place = rules.placeAt(chunk);
+        return place != null && place.isOcean();
+    }
+
     /** The region (continent) a chunk is in, on any character; null when the rules don't say. */
     public String regionName(CanonicalChunk chunk)
     {
@@ -216,7 +229,8 @@ public final class DecisionService
 
     /**
      * The chunks the rules decide, for the world map: the tracker's land, or
-     * an older export's areas. The sea the rules don't cover isn't in it.
+     * an older export's areas. The sea isn't in it, whether or not the rules
+     * send its snapshots; {@link #chunk} still decides it.
      */
     public Set<CanonicalChunk> mappedChunks()
     {
@@ -385,17 +399,19 @@ public final class DecisionService
      * The nearest bank the tracker's table allows (R5): here when its
      * facilities are in this chunk, else by its own chunk. From inside an
      * interior it is measured from the entrance, and leaving counts as a
-     * chunk, so a bank at the entrance is never "here".
+     * chunk, so a bank at the entrance is never "here". A place the table
+     * marks deposit-only (Port Sarim's deposit boxes) is not a bank the
+     * player can take anything out of, so it is never the nearest.
      */
     private FateLockedBundle.Nearest nearestTrackedBank(CanonicalChunk from)
     {
-        RuneliteRulesManifest.Bank here = rules.bankIn(from);
+        RuneliteRulesManifest.Bank here = rules.openBankIn(from);
         if (here != null && here.getStatus() == PermissionStatus.ALLOWED) return new FateLockedBundle.Nearest(from, 0);
         CanonicalChunk origin = surfaceOf(from);
         int leaving = origin.equals(from) ? 0 : 1;
         CanonicalChunk best = null;
         int bestDistance = Integer.MAX_VALUE;
-        for (Map.Entry<CanonicalChunk, RuneliteRulesManifest.Bank> entry : rules.banksAt().entrySet())
+        for (Map.Entry<CanonicalChunk, RuneliteRulesManifest.Bank> entry : rules.openBanksAt().entrySet())
         {
             if (entry.getValue().getStatus() != PermissionStatus.ALLOWED) continue;
             CanonicalChunk chunk = entry.getKey();

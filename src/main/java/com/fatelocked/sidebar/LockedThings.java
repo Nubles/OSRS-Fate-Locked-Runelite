@@ -81,7 +81,7 @@ public final class LockedThings
             }
             for (ChunkPermissionRow row : category.getValue())
             {
-                PointTarget target = PointTarget.of(category.getKey(), HerePresenter.rowName(row.getName()));
+                PointTarget target = PointTarget.ofRow(category.getKey(), row);
                 if (target != null)
                 {
                     things.add(thing(target, kind, row, placeLocked));

@@ -387,6 +387,7 @@ public class FateLockedPlugin extends Plugin
 
     /** The quests are read again this often, in ticks (a minute), for any finished without the quest scroll. */
     static final int QUEST_READING_TICKS = 100;
+    static final Map<Integer, String> DETECTABLE_QUESTS = detectableQuests();
     /** The Slayer variables a task's reading is made of, as RuneLite's Slayer plugin watches them. */
     private static final Set<Integer> SLAYER_VARPS = new HashSet<>(Arrays.asList(VarPlayerID.SLAYER_COUNT,
         VarPlayerID.SLAYER_TARGET, VarPlayerID.SLAYER_COUNT_ORIGINAL, VarPlayerID.SLAYER_MORTIMER_TASKS_COMPLETED));
@@ -876,7 +877,11 @@ public class FateLockedPlugin extends Plugin
     {
         boolean loggedIn = client.getGameState() == GameState.LOGGED_IN;
         awaitingLogin = !loggedIn;
+        long lastAccountHash = loggedInAccountHash;
         loggedInAccountHash = loggedIn ? client.getAccountHash() : -1;
+        // The plugin may have been off while another account logged in: as on a switch
+        // with it running, that account's task isn't this one's. The same account keeps it.
+        if (loggedInAccountHash != lastAccountHash) forgetSlayerTask();
         forgetLoginWarnings();
         resetBaselines();
         trackerLoggedIn(loggedIn);
@@ -975,6 +980,15 @@ public class FateLockedPlugin extends Plugin
     @Subscribe
     public void onChatMessage(ChatMessage ev)
     {
+        if (ev.getType() == ChatMessageType.DIALOG)
+        {
+            // A master hands out a task in dialogue, with no game message: only the
+            // assignment lines are read, nothing else from the dialogue.
+            String said = ev.getMessage() == null ? "" : ev.getMessage().replace("<br>", " ");
+            learnSlayerTask(SlayerAssignment.fromDialogue(
+                Text.removeTags(said), client.getVarbitValue(VarbitID.SLAYER_MASTER)));
+            return;
+        }
         if (ev.getType() != ChatMessageType.GAMEMESSAGE && ev.getType() != ChatMessageType.SPAM) return;
         String raw = ev.getMessage() == null ? "" : ev.getMessage();
         String m = raw.toLowerCase();
@@ -984,16 +998,20 @@ public class FateLockedPlugin extends Plugin
         detect(new Signal.Chat(ev.getType().name(), raw));
 
         // Slayer assignment / task-check messages mention the monster: the rules may lock the task.
-        if (m.contains("to kill"))
+        // The combat bracelet's "You still need to kill 30 monsters ..." names no task.
+        if (m.contains("to kill") && !m.contains("still need to kill"))
         {
-            SlayerAssignment assignment = SlayerAssignment.fromChat(
-                Text.removeTags(raw), client.getVarbitValue(VarbitID.SLAYER_MASTER));
-            if (assignment != null)
-            {
-                slayerAssignment = assignment;
-                recomputeSlayer();
-            }
+            learnSlayerTask(SlayerAssignment.fromChat(
+                Text.removeTags(raw), client.getVarbitValue(VarbitID.SLAYER_MASTER)));
         }
+    }
+
+    /** A task a message stated becomes the current one; a message that states none changes nothing. */
+    private void learnSlayerTask(SlayerAssignment assignment)
+    {
+        if (assignment == null) return;
+        slayerAssignment = assignment;
+        recomputeSlayer();
     }
 
     /** Re-check whether the rules lock the current slayer task. */
@@ -1146,6 +1164,12 @@ public class FateLockedPlugin extends Plugin
             // Read once the tick's changes are in: the amount and the streak can come apart.
             slayerReadingDue = true;
         }
+        if (ev.getVarpId() == VarPlayerID.SLAYER_COUNT && ev.getValue() == 0 && slayerAssignment != null
+            && client.getGameState() == GameState.LOGGED_IN)
+        {
+            // No kills left: the task is done or cancelled, so its warning goes too.
+            forgetSlayerTask();
+        }
     }
 
     /** The game's notification popup, as RuneLite's Screenshot plugin reads it: its title and text once shown. */
@@ -1240,15 +1264,29 @@ public class FateLockedPlugin extends Plugin
         return new Signal.Varbits(values);
     }
 
+    private static Map<Integer, String> detectableQuests()
+    {
+        Map<Integer, String> names = new LinkedHashMap<>();
+        for (Quest quest : Quest.values())
+        {
+            names.put(quest.getId(), quest.getName());
+        }
+        // RuneLite added this ID after 1.13.8 (runelite/runelite@7f76f00).
+        names.putIfAbsent(17328, "The Graveyard");
+        return Collections.unmodifiableMap(names);
+    }
+
     /** Every quest the game says is finished, by RuneLite's name for it; null when the game can't say. */
     private Signal questsReading()
     {
         Set<String> finished = new HashSet<>();
         try
         {
-            for (Quest quest : Quest.values())
+            for (Map.Entry<Integer, String> quest : DETECTABLE_QUESTS.entrySet())
             {
-                if (questState(quest) == QuestState.FINISHED) finished.add(quest.getName());
+                // Same script and finished value as Quest.getState(Client).
+                client.runScript(ScriptID.QUEST_STATUS_GET, quest.getKey());
+                if (client.getIntStack()[0] == 2) finished.add(quest.getValue());
             }
         }
         catch (RuntimeException error)
@@ -1257,12 +1295,6 @@ public class FateLockedPlugin extends Plugin
             return null;
         }
         return new Signal.Quests(finished);
-    }
-
-    /** A quest's state, from the game's own script. */
-    QuestState questState(Quest quest)
-    {
-        return quest.getState(client);
     }
 
     /** The Slayer task as the game's variables give it, read as RuneLite's Slayer plugin reads them. */
@@ -1592,21 +1624,25 @@ public class FateLockedPlugin extends Plugin
         Decision entry = decisions.chunk(current);
         PermissionStatus status = entry.getStatus();
         String label = decisions.areaName(current);
+        boolean sea = decisions.isSea(current);
+        // The sea is one area with no name of its own: its line and notification
+        // say "Ocean", as the rules' places do, not the first chunk the boat entered.
+        String shown = label != null ? label : sea ? "Ocean" : null;
         // Only the rules' own answers are announced (B6): never a chunk
         // they don't map (dungeons, instances, every chunk before rules
         // load), nor another character's rules. NOT_READY is owned, so
         // it never alerts. Lines and alerts are per area, not per chunk.
-        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label),
+        LockedAreaAlerts.Alert alert = areaAlerts.enter(status, areaKey(current, entry, label, sea),
             client.getTickCount(), config.lockedAreaAlert(), config.announceAreaChanges());
         if (alert.isLine())
         {
-            announceEntry(current, label, entry);
+            announceEntry(current, shown, entry);
             // A locked area's line is the alert's own: the notification goes with it, sound or
             // not, as the notifications setting says (the owner's call T8).
             if (status == PermissionStatus.LOCKED)
             {
                 notifyIfEnabled("You've entered a locked area: "
-                    + (label != null ? label : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
+                    + (shown != null ? shown : "chunk (" + current.getCx() + ", " + current.getCy() + ")"));
             }
         }
         if (alert.isFade())
@@ -1875,12 +1911,13 @@ public class FateLockedPlugin extends Plugin
     }
 
     /**
-     * What groups chunks into one area for chat and alerts: the area's name, else the tracker's
-     * reason, so the sea is one area under "Needs Sailing and Pandemonium", else the chunk.
+     * What groups chunks into one area for chat and alerts: the area's name, else the sea as
+     * one area, open or locked, else the tracker's reason, else the chunk.
      */
-    private static String areaKey(CanonicalChunk chunk, Decision entry, String area)
+    private static String areaKey(CanonicalChunk chunk, Decision entry, String area, boolean sea)
     {
         if (area != null) return area;
+        if (sea) return "sea";
         if (entry.getReason() != null) return "reason:" + entry.getReason();
         return "chunk:" + chunk.getCx() + "," + chunk.getCy();
     }
@@ -2326,6 +2363,10 @@ public class FateLockedPlugin extends Plugin
         decisions = DecisionService.create(current.getSnapshot(), bound, player);
         decisionsBound = bound;
         decisionsPlayer = player;
+        // The chunk the player stands in is judged again, so the warnings count follows new
+        // rules without a step into another chunk.
+        CanonicalChunk standing = lastChunk;
+        if (standing != null) lastStatus = decisions.chunk(standing).getStatus();
         // The pins follow the decisions (B9): new rules, a login, another character.
         showIsolated("world map pins", this::refreshWorldMapMarkers);
     }
@@ -2712,7 +2753,8 @@ public class FateLockedPlugin extends Plugin
         models.run(RunPresenter.present(bundle, ruleDecisions, player));
         TrackerConnectionSettings settings = connectionSettings;
         models.connection(ConnectionPresenter.present(connection, settings != null && settings.networkAccessAllowed(),
-            settings != null && settings.isPaired(), current.getSource(), bundle.exportedAt(), now, zone));
+            settings != null && settings.isPaired(), current.getSource(), current.getArrival(), bundle.exportedAt(),
+            now, zone));
         // A login, a logout, another character or new rules can start or stop the noticing.
         if (!java.util.Objects.equals(rollInboxQuiet(), shownQuiet))
         {
@@ -3153,9 +3195,11 @@ public class FateLockedPlugin extends Plugin
     }
 
     /**
-     * What the game says, for the rows here the tracker leaves undecided: the quests they
-     * name, quest points, levels, the world, and what the player carries (RowChecks). Read
-     * once a tick, and only where such a row is. Client thread; elsewhere, nothing.
+     * What the game says, for the rows here the tracker leaves undecided or calls not ready with
+     * a check only the game can make: the quests they name (for a not-ready row, only those its
+     * game-only checks name), quest points, levels, the world, and what the player carries
+     * (RowChecks). Read once a tick, and only where such a row is. Client thread; elsewhere,
+     * nothing.
      */
     GameFacts gameFacts(DecisionService ruleDecisions, CanonicalChunk chunk)
     {
@@ -3169,6 +3213,7 @@ public class FateLockedPlugin extends Plugin
             return lastFacts;
         }
         List<String> undecided = new ArrayList<>();
+        List<String> notReady = new ArrayList<>();
         ruleDecisions.details(chunk).ifPresent(snapshot -> {
             for (List<ChunkPermissionRow> rows : snapshot.getCategories().values())
             {
@@ -3178,14 +3223,18 @@ public class FateLockedPlugin extends Plugin
                     {
                         undecided.add(row.getDetail());
                     }
+                    else if (row.getStatus() == PermissionStatus.NOT_READY && RowChecks.hasGameOnlyCheck(row.getDetail()))
+                    {
+                        notReady.add(row.getDetail());
+                    }
                 }
             }
         });
         GameFacts facts = GameFacts.NONE;
-        if (!undecided.isEmpty())
+        if (!undecided.isEmpty() || !notReady.isEmpty())
         {
             Map<Quest, QuestState> quests = new EnumMap<>(Quest.class);
-            for (Quest quest : RowChecks.questsNamed(undecided))
+            for (Quest quest : RowChecks.questsNamed(undecided, notReady))
             {
                 quests.put(quest, quest.getState(client));
             }

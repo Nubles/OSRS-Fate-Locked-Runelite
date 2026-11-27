@@ -55,11 +55,14 @@ final class SyncView
     /** The connect button's job in each state. */
     enum Connect
     {
-        /** No working pairing: pair, asking for consent first if need be. */
+        /**
+         * Connect replaces the code at once, or there is none: pair, asking for consent
+         * first if need be.
+         */
         CONNECT("Connect tracker"),
         /** Paired with online sync off: turn it on and use that pairing. */
         TURN_ON_SYNC("Turn on online sync"),
-        /** A working pairing: ask, then pair again, keeping it until the new one delivers. */
+        /** Connect keeps the code in use: ask, then pair again, keeping it until the new one delivers. */
         REPAIR("Re-pair tracker\u2026"),
         /** A re-pairing is waiting: go back to the working pairing. */
         CANCEL_REPAIR("Cancel re-pairing");
@@ -91,6 +94,12 @@ final class SyncView
             ? "\u2014" : LocalTimeText.of(snapshot.getLastSync(), now, zone);
         String nextCheck = snapshot.getNextCheck() == null
             ? "" : " Next check at " + LocalTimeText.of(snapshot.getNextCheck(), now, zone) + ".";
+        // While a pairing waits, or is known to be disconnected or lapsed, why the last check
+        // failed, as a failed check says it. Those states carry a next check time only after a
+        // check failed.
+        String why = snapshot.getFailure() == null ? null : failure(snapshot.getFailure());
+        String failed = why != null ? " " + why + nextCheck
+            : nextCheck.isEmpty() ? "" : " The last check failed." + nextCheck;
         Tone tone = tone(snapshot.getState());
         TrackerConnectionState state = snapshot.getState();
         Action action = state == TrackerConnectionState.CONNECTED
@@ -110,12 +119,12 @@ final class SyncView
                 break;
             case CONFIRM_REPAIR:
                 detail = "Confirm the profile in the browser tab RuneLite opened."
-                    + " Until it arrives, RuneLite keeps your current pairing.";
+                    + " Until it arrives, RuneLite keeps your current pairing." + failed;
                 break;
             case GONE:
                 detail = "The tracker's owner pressed Disconnect in the web tracker,"
-                    + " so it sends no more rules to this pairing. Press Connect"
-                    + " tracker to pair again.";
+                    + " or paired it again, so it sends no more rules to this"
+                    + " pairing. Press Connect tracker to pair again." + failed;
                 action = Action.CONNECT;
                 break;
             case REPAIR_ABANDONED:
@@ -124,16 +133,21 @@ final class SyncView
                 break;
             case CONFIRM_IN_BROWSER:
                 detail = "Confirm the profile in the browser tab RuneLite opened."
-                    + " RuneLite checks every few seconds.";
+                    + (failed.isEmpty() ? " RuneLite checks every few seconds." : failed);
                 break;
             case NO_PROFILE:
                 detail = "No profile arrived within 10 minutes."
-                    + " Press Connect tracker to try again.";
+                    + " Press Connect tracker to try again." + failed;
+                action = Action.CONNECT;
+                break;
+            case NOT_CONFIRMED:
+                detail = "This pairing hasn't sent any rules yet."
+                    + " Press Connect tracker to pair again." + failed;
                 action = Action.CONNECT;
                 break;
             case NO_RECENT_UPDATE:
                 detail = "The tracker hasn't sent your rules recently."
-                    + " Open the web tracker so it can send them again.";
+                    + " Open the web tracker so it can send them again." + failed;
                 action = Action.OPEN_TRACKER;
                 break;
             case OLDER_RULES:
@@ -142,17 +156,10 @@ final class SyncView
                 action = Action.OPEN_TRACKER;
                 break;
             case UNREACHABLE:
-                detail = "RuneLite couldn't reach the tracker." + nextCheck;
-                break;
             case UNREADABLE:
-                detail = "Something other than the tracker answered, such as a Wi-Fi"
-                    + " sign-in page." + nextCheck;
-                break;
             case BUSY:
-                detail = "The tracker asked RuneLite to check less often." + nextCheck;
-                break;
             case UNAVAILABLE:
-                detail = "The tracker had a problem." + nextCheck;
+                detail = failure(snapshot.getReason()) + nextCheck;
                 break;
             case FUTURE_FORMAT:
                 detail = "Your tracker sent rules in a newer format than this version"
@@ -182,25 +189,43 @@ final class SyncView
         String pairing = snapshot.getPairingEnding() == null
             ? "\u2014" : "\u2026" + snapshot.getPairingEnding();
         return new SyncView(snapshot.getMessage(), tone, detail, action, lastSync, canCheckNow,
-            connect(snapshot.getReason()), pairing);
+            connect(snapshot), pairing);
     }
 
-    private static Connect connect(SyncReason reason)
+    /** Why a check failed, in the sidebar's words, or null for a reason that isn't a failed check. */
+    private static String failure(SyncReason reason)
     {
         switch (reason)
         {
-            case NOT_PAIRED:
-            case CONFIRM_IN_BROWSER:
-            case NO_PROFILE:
-            case GONE:
-                // Nothing that works to keep: pair from scratch.
-                return Connect.CONNECT;
+            case UNREACHABLE:
+                return "RuneLite couldn't reach the tracker.";
+            case UNREADABLE:
+                return "Something other than the tracker answered, such as a Wi-Fi sign-in page.";
+            case BUSY:
+                return "The tracker asked RuneLite to check less often.";
+            case UNAVAILABLE:
+                return "The tracker had a problem.";
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Re-pair (which asks first, saying the current pairing is kept) only when
+     * pressing Connect keeps the code in use; Connect tracker whenever it
+     * replaces the code, as for a first pairing whose rules RuneLite refused
+     * or a pairing disconnected in the tracker.
+     */
+    private static Connect connect(TrackerConnectionSnapshot snapshot)
+    {
+        switch (snapshot.getReason())
+        {
             case SYNC_OFF:
                 return Connect.TURN_ON_SYNC;
             case CONFIRM_REPAIR:
                 return Connect.CANCEL_REPAIR;
             default:
-                return Connect.REPAIR;
+                return snapshot.connectKeepsPairing() ? Connect.REPAIR : Connect.CONNECT;
         }
     }
 

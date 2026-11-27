@@ -57,16 +57,20 @@ next check. Outlines, tags and warnings keep working throughout.
 **Re-pair tracker…** in Connection & backup pairs RuneLite with another
 tracker profile, and asks first. RuneLite keeps your current pairing until
 the new one sends your rules; if none arrives within 10 minutes, or you
-press **Cancel re-pairing**, nothing changes. With online sync off, the
+press **Cancel re-pairing**, nothing changes. The button reads **Re-pair
+tracker…** only while your pairing works. With no pairing, a first pairing
+that hasn't sent rules RuneLite could use, or a pairing disconnected in the
+tracker, it reads **Connect tracker**: there is nothing to keep, so it
+starts a new pairing at once with a new code. With online sync off, the
 status card offers **Turn on online sync**, which picks up the pairing you
 already have. **Disconnect** forgets the pairing and keeps the rules you
 have.
 
 The **Pairing** row shows only the last four characters of the code in
 use, as the web tracker's pairing dialog does, so the code stays off
-screen. If you press **Disconnect** in the web tracker, the status card
-says "Disconnected in the tracker"; press **Connect tracker** to pair
-again.
+screen. If you press **Disconnect** in the web tracker, or pair it again
+with a new code, the status card of the RuneLite on the old code says
+"Disconnected in the tracker"; press **Connect tracker** to pair again.
 
 Online sync is off by default, including for existing pairings. No relay
 requests are made until you accept the warning. Canceling leaves sync
@@ -100,7 +104,7 @@ their own:
    file backups.
 
 Here starts open. Every setting is in RuneLite's configuration, under Fate
-Locked Ironman: 29 settings in six sections (Tracker, Strict Mode, Alerts,
+Locked Ironman: 34 settings in six sections (Tracker, Strict Mode, Alerts,
 Display, Custom colours and Backup). Settings from before Stage 3 carry over
 once, the first time the plugin starts.
 
@@ -227,12 +231,14 @@ rules.
 ## Strict Mode
 
 Strict Mode is off by default. It never removes, reorders or creates menu
-entries and never performs an action. It consumes a click in one case only:
-the tracker's travel table matches the click by id (a spell by its spellbook
+entries and never performs an action. It stops a game action in one case
+only: the tracker's travel table matches the click by id (a spell by its spellbook
 and name; a tablet, scroll or teleport item by its item id; with Block
 networks and boats on, also a network or boat by its object or NPC id), the
 option goes to one place, and fresh rules bound to the logged-in character
-lock it.
+lock it. (The warning banner's own Pause button takes the press made on
+it, so that press pauses Strict Mode and does not reach what lies under the
+banner.)
 The tracker locks a trip when the place is locked, or when the run hasn't
 unlocked what the trip needs, such as a spellbook, Teleport Tablets or
 Jewelry Teleports.

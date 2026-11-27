@@ -15,7 +15,7 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Player;
 import net.runelite.api.Quest;
-import net.runelite.api.QuestState;
+import net.runelite.api.ScriptID;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldType;
@@ -47,8 +47,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -59,9 +60,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -144,7 +148,7 @@ public class FateLockedPluginLocalHistoryTest
         Harness harness = harness("quests-minute");
         useDetectionTables(harness);
         readForDetectors(harness);
-        harness.finishedQuests.add(Quest.COOKS_ASSISTANT);
+        harness.questStates.put(Quest.COOKS_ASSISTANT.getId(), 2);
 
         readAtTick(harness, FateLockedPlugin.QUEST_READING_TICKS - 1);
         assertEquals(0, events(harness).size());
@@ -152,11 +156,30 @@ public class FateLockedPluginLocalHistoryTest
         assertEquals(List.of("Cook's Assistant"), labels(harness));
 
         // The next reading is a minute after that one.
-        harness.finishedQuests.add(Quest.RUNE_MYSTERIES);
+        harness.questStates.put(Quest.RUNE_MYSTERIES.getId(), 2);
         readAtTick(harness, 2 * FateLockedPlugin.QUEST_READING_TICKS - 1);
         assertEquals(1, events(harness).size());
         readAtTick(harness, 2 * FateLockedPlugin.QUEST_READING_TICKS);
         assertEquals(List.of("Cook's Assistant", "Rune Mysteries"), labels(harness));
+    }
+
+    @Test
+    public void theGraveyardUsesTheGameQuestIdAndRecordsOneCompletion() throws Exception
+    {
+        Harness harness = harness("graveyard");
+        useDetectionTables(harness);
+        useMemories(harness);
+        readAtTick(harness, 0);
+        harness.questStates.put(17328, 0); // In progress
+        readAtTick(harness, FateLockedPlugin.QUEST_READING_TICKS);
+        assertTrue(events(harness).isEmpty());
+        harness.questStates.put(17328, 2); // Finished
+        readAtTick(harness, 2 * FateLockedPlugin.QUEST_READING_TICKS);
+        readAtTick(harness, 3 * FateLockedPlugin.QUEST_READING_TICKS);
+        assertEquals(List.of("The Graveyard"), labels(harness));
+        assertEquals(Set.of("The Graveyard"),
+            FinishedMemory.open(harness.gson, harness.dataDirectory.resolve(FinishedMemory.QUESTS)).finished());
+        verify(harness.client, times(4)).runScript(ScriptID.QUEST_STATUS_GET, 17328);
     }
 
     @Test
@@ -166,7 +189,7 @@ public class FateLockedPluginLocalHistoryTest
         useDetectionTables(harness);
         useMemories(harness);
         readForDetectors(harness);
-        harness.finishedQuests.add(Quest.COOKS_ASSISTANT);
+        harness.questStates.put(Quest.COOKS_ASSISTANT.getId(), 2);
 
         WidgetLoaded scroll = new WidgetLoaded();
         scroll.setGroupId(153);
@@ -846,7 +869,8 @@ public class FateLockedPluginLocalHistoryTest
         rules.add("capabilities", capabilities);
         rules.add("detection", harness.gson.fromJson("{\"bosses\":[{\"key\":\"Vorkath\",\"raid\":false,"
             + "\"killCounts\":[\"Vorkath\"]}],\"quests\":[{\"id\":\"Cook's Assistant\",\"name\":\"Cook's Assistant\"},"
-            + "{\"id\":\"Rune Mysteries\",\"name\":\"Rune Mysteries\"}],\"diaryTiers\":[]}", JsonObject.class));
+            + "{\"id\":\"Rune Mysteries\",\"name\":\"Rune Mysteries\"},"
+            + "{\"id\":\"The Graveyard\",\"name\":\"The Graveyard\"}],\"diaryTiers\":[]}", JsonObject.class));
         setField(harness.plugin, "active", new ActiveRules(
             FateLockedBundle.loadFromJson(harness.gson, root.toString()), FateLockedPlugin.RulesSource.NONE));
     }
@@ -910,6 +934,13 @@ public class FateLockedPluginLocalHistoryTest
         TestPlugin plugin = new TestPlugin(dataDirectory);
         FateLockedPanel panel = mock(FateLockedPanel.class);
         Client client = mock(Client.class);
+        Map<Integer, Integer> questStates = new HashMap<>();
+        int[] intStack = new int[1];
+        doAnswer(call -> {
+            intStack[0] = questStates.getOrDefault((Integer) call.getArguments()[1], 1);
+            return null;
+        }).when(client).runScript(eq(ScriptID.QUEST_STATUS_GET), anyInt());
+        when(client.getIntStack()).thenReturn(intStack);
         Player player = mock(Player.class);
         when(player.getName()).thenReturn("Nubles");
         when(client.getLocalPlayer()).thenReturn(player);
@@ -934,7 +965,7 @@ public class FateLockedPluginLocalHistoryTest
 
         return new Harness(
             plugin, panel, client, connectionSettings, history,
-            gson, dataDirectory.toPath(), historyPath, plugin.finishedQuests);
+            gson, dataDirectory.toPath(), historyPath, questStates);
     }
 
     /** The events the store holds, oldest first. */
@@ -1008,7 +1039,7 @@ public class FateLockedPluginLocalHistoryTest
         private final Path dataDirectory;
         private final Path historyPath;
         /** The quests the game says are finished. */
-        private final Set<Quest> finishedQuests;
+        private final Map<Integer, Integer> questStates;
 
         private Harness(
             FateLockedPlugin plugin,
@@ -1019,7 +1050,7 @@ public class FateLockedPluginLocalHistoryTest
             Gson gson,
             Path dataDirectory,
             Path historyPath,
-            Set<Quest> finishedQuests)
+            Map<Integer, Integer> questStates)
         {
             this.plugin = plugin;
             this.panel = panel;
@@ -1029,14 +1060,13 @@ public class FateLockedPluginLocalHistoryTest
             this.gson = gson;
             this.dataDirectory = dataDirectory;
             this.historyPath = historyPath;
-            this.finishedQuests = finishedQuests;
+            this.questStates = questStates;
         }
     }
 
     private static final class TestPlugin extends FateLockedPlugin
     {
         private final File dataDirectory;
-        private final Set<Quest> finishedQuests = new HashSet<>();
 
         private TestPlugin(File dataDirectory)
         {
@@ -1047,13 +1077,6 @@ public class FateLockedPluginLocalHistoryTest
         File dataDirectory()
         {
             return dataDirectory;
-        }
-
-        /** The game's script needs a real client: the harness says which quests are finished. */
-        @Override
-        QuestState questState(Quest quest)
-        {
-            return finishedQuests.contains(quest) ? QuestState.FINISHED : QuestState.NOT_STARTED;
         }
     }
 }

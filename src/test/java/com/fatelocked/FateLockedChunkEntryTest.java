@@ -76,6 +76,11 @@ public class FateLockedChunkEntryTest
     private static final CanonicalChunk EAST_CATHERBY = new CanonicalChunk(44, 53);
     /** vanilla-mid: in Zeah, LOCKED by the tracker and outside the old area lists. */
     private static final CanonicalChunk ZEAH = new CanonicalChunk(16, 44);
+    /** The sea off Zeah: snapshots of kind "ocean" (16,44 and 16,45); ocean places with none (15,44 and 15,43). */
+    private static final CanonicalChunk SEA = new CanonicalChunk(16, 44);
+    private static final CanonicalChunk SEA_NORTH = new CanonicalChunk(16, 45);
+    private static final CanonicalChunk SEA_PLACE = new CanonicalChunk(15, 44);
+    private static final CanonicalChunk SEA_PLACE_SOUTH = new CanonicalChunk(15, 43);
 
     private final Client client = mock(Client.class);
     private final FateLockedConfig config = mock(FateLockedConfig.class);
@@ -264,6 +269,26 @@ public class FateLockedChunkEntryTest
         verify(panel, times(2)).showRollInbox(RollInboxModel.builder().build());
     }
 
+    /** Audit: new rules judge the chunk the player stands in again, so the count follows them without a step. */
+    @Test
+    public void theWarningsCountFollowsNewRulesWhileThePlayerStandsStill() throws Exception
+    {
+        loadRules();
+        walk(FALADOR);
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().warnings(1).build());
+
+        // A Key opens Asgarnia while the player stands in Falador.
+        set("active", new ActiveRules(FateLockedBundle.loadFromJson(new Gson(),
+            RULES.replace("[\"Misthalin\"]", "[\"Misthalin\",\"Asgarnia\"]")), FateLockedPlugin.RulesSource.RELAY));
+        walk(FALADOR);
+        verify(panel, times(1)).showRollInbox(RollInboxModel.builder().build());
+
+        // And back: rules that lock it again count it again.
+        loadRules();
+        walk(FALADOR);
+        verify(panel, times(2)).showRollInbox(RollInboxModel.builder().warnings(1).build());
+    }
+
     /** B6, U10: a golden walk warns once, on the way into Rimmington, and announces each area once. */
     @Test
     public void aGoldenWalkFromLumbridgeToFaladorWarnsOnceAtRimmington() throws Exception
@@ -297,7 +322,7 @@ public class FateLockedChunkEntryTest
     {
         FateLockedBundle mid = playing("Iron Example");
         DecisionService decisions = DecisionService.create(RulesSnapshot.of(mid), "iron example", "iron example");
-        CanonicalChunk[] sea = adjacentUnnamed(decisions);
+        CanonicalChunk[] sea = adjacentUnnamed(mid, decisions);
 
         walk(sea);
 
@@ -305,11 +330,56 @@ public class FateLockedChunkEntryTest
         verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
     }
 
-    /** Two neighbouring locked chunks with no area name and the same reason: open sea. */
-    private static CanonicalChunk[] adjacentUnnamed(DecisionService decisions)
+    /**
+     * Audit: the sea's chunks are one area whether the sea is open or locked, those with a
+     * snapshot (16,44 and 16,45) and those only the places mark as ocean (15,44 and 15,43) alike.
+     * Each used to be an area of its own: a line, and on a locked sea a notification, per chunk.
+     */
+    @Test
+    public void theOpenSeaIsOneArea() throws Exception
     {
-        for (CanonicalChunk chunk : decisions.mappedChunks())
+        FateLockedBundle sailing = playing("Iron Example", "vanilla-sailing");
+        assertEquals(PermissionStatus.ALLOWED, sailing.permissionsAt(SEA).get().getEntry());
+        assertFalse("no snapshot", sailing.permissionsAt(SEA_PLACE).isPresent());
+
+        walk(SEA, SEA_NORTH, SEA, SEA_PLACE, SEA_PLACE_SOUTH);
+
+        List<String> lines = chatLines();
+        assertEquals(lines.toString(), 1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("[Fate Locked] Ocean")
+            && lines.get(0).endsWith(": Unlocked"));
+        assertFalse(lines.get(0), lines.get(0).contains("Chunk ("));
+        verify(client, never()).playSoundEffect(LOCKED_SOUND);
+        verify(notifier, never()).notify(anyString());
+    }
+
+    @Test
+    public void theLockedSeaIsOneAreaWhereItsChunksHaveNoSnapshot() throws Exception
+    {
+        FateLockedBundle mid = playing("Iron Example");
+        assertFalse("no snapshot", mid.permissionsAt(SEA_PLACE).isPresent());
+
+        walk(SEA_PLACE_SOUTH, SEA_PLACE, SEA, SEA_NORTH);
+
+        List<String> lines = chatLines();
+        assertEquals(lines.toString(), 1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("[Fate Locked] Ocean")
+            && lines.get(0).contains(": Locked"));
+        assertFalse(lines.get(0), lines.get(0).contains("Chunk ("));
+        verify(client, times(1)).playSoundEffect(LOCKED_SOUND);
+        verify(notifier, times(1)).notify(anyString());
+        verify(notifier).notify("You've entered a locked area: Ocean");
+    }
+
+    /**
+     * Two neighbouring locked chunks with no area name and the same reason: open sea. Over every
+     * snapshot the rules send, as the sea isn't among the mapped (land) chunks.
+     */
+    private static CanonicalChunk[] adjacentUnnamed(FateLockedBundle bundle, DecisionService decisions)
+    {
+        for (String key : bundle.getRules().getChunks().keySet())
         {
+            CanonicalChunk chunk = GoldenBundleContractTest.chunk(key);
             CanonicalChunk east = new CanonicalChunk(chunk.getCx() + 1, chunk.getCy());
             Decision here = decisions.chunk(chunk);
             Decision there = decisions.chunk(east);
@@ -390,11 +460,21 @@ public class FateLockedChunkEntryTest
         return shown.getValue();
     }
 
-    /** A chunk the tracker locks outside the old area lists is announced without an area. */
+    /**
+     * A chunk the tracker locks outside the old area lists is announced without an area. The
+     * sea is named "Ocean" now, so this reads 16,44 as an older bundle sends it, with no kind:
+     * a chunk with no name and not marked as sea is named by where it is.
+     */
     @Test
     public void aChunkOnlyTheTrackerMapsIsAnnounced() throws Exception
     {
-        FateLockedBundle mid = playing("Iron Example");
+        Gson gson = new Gson();
+        JsonObject wire = gson.fromJson(
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")), JsonObject.class);
+        wire.getAsJsonObject("rules").getAsJsonObject("chunks").getAsJsonObject("16,44").remove("kind");
+        FateLockedBundle mid = FateLockedBundle.loadFromJson(gson, gson.toJson(wire));
+        set("active", new ActiveRules(mid, FateLockedPlugin.RulesSource.RELAY));
+        when(player.getName()).thenReturn("Iron Example");
         assertEquals(FateLockedBundle.LockState.UNAUTHORED, mid.lockStateAt(ZEAH));
 
         walk(LUMBRIDGE, ZEAH);
@@ -462,8 +542,14 @@ public class FateLockedChunkEntryTest
     /** vanilla-mid, with a character logged in. */
     private FateLockedBundle playing(String name) throws Exception
     {
+        return playing(name, "vanilla-mid");
+    }
+
+    /** A golden bundle, with a character logged in. */
+    private FateLockedBundle playing(String name, String bundle) throws Exception
+    {
         FateLockedBundle mid = FateLockedBundle.loadFromJson(new Gson(),
-            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes("vanilla-mid.bundle.json.gz")));
+            GoldenBundleContractTest.gunzip(GoldenBundleContractTest.bytes(bundle + ".bundle.json.gz")));
         set("active", new ActiveRules(mid, FateLockedPlugin.RulesSource.RELAY));
         when(player.getName()).thenReturn(name);
         return mid;
@@ -541,10 +627,7 @@ public class FateLockedChunkEntryTest
         }
     }
 
-    /**
-     * The owner's review, 28 Sept: Here is worked out again when the game says more. The caves'
-     * guard needs only The Lost Tribe started, which the tracker can't see but the game can.
-     */
+    /** Here updates a live quest check while preserving the tracker's mine entrance requirements. */
     @Test
     public void hereFollowsWhatTheGameSays() throws Exception
     {
@@ -553,17 +636,23 @@ public class FateLockedChunkEntryTest
         when(client.isClientThread()).thenReturn(true);
         when(client.getGameState()).thenReturn(net.runelite.api.GameState.LOGGED_IN);
         when(client.getWorldType()).thenReturn(java.util.EnumSet.of(net.runelite.api.WorldType.MEMBERS));
-        // The quest-state script's answer: 1 is still to start, 0 under way.
+        // Finishing Shield of Arrav confirms the quest step for Jonny the beard.
+        CanonicalChunk varrock = new CanonicalChunk(50, 53);
         int[] answer = {1};
         when(client.getIntStack()).thenReturn(answer);
         when(client.getTickCount()).thenReturn(1000);
-        walk(LUMBRIDGE);
-        assertEquals("Not ready", HudPresenterTest.lines(plugin.hudModel()).get("Cave goblin guard"));
+        walk(varrock);
+        assertEquals("Not ready", HudPresenterTest.lines(plugin.hudModel()).get("Jonny the beard"));
+
+        answer[0] = 2;
+        when(client.getTickCount()).thenReturn(1001);
+        walk(varrock);
+        assertEquals("Can do", HudPresenterTest.lines(plugin.hudModel()).get("Jonny the beard"));
 
         answer[0] = 0;
-        when(client.getTickCount()).thenReturn(1001);
+        when(client.getTickCount()).thenReturn(1002);
         walk(LUMBRIDGE);
-        assertEquals("Can do", HudPresenterTest.lines(plugin.hudModel()).get("Cave goblin guard"));
+        assertEquals("Not ready", HudPresenterTest.lines(plugin.hudModel()).get("Cave goblin guard"));
     }
 
     /** E6: the way to the nearest bank is found again when the player moves, and when the rules change. */

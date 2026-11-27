@@ -37,9 +37,10 @@ final class ChunkBorderRenderer
     /** A dash and its gap on the game view, in tiles: three to a tile. */
     static final double GROUND_PERIOD = 1 / 3.0;
     /**
-     * A dash and its gap on the minimap, where a tile is a few pixels: three to a chunk's side,
-     * about as long as the screen's dashes were. Both periods divide a chunk's eight tiles, so
-     * the pattern is the same on every chunk line and stays put when the scene loads again.
+     * A dash and its gap on the minimap, where a tile is a few pixels: three to every 8 tiles
+     * (24 along a 64-tile chunk's side), about as long as the screen's dashes were. Both periods
+     * divide a scene zone's eight tiles, so the pattern is the same on every chunk line and
+     * stays put when the scene loads again.
      */
     static final double MINIMAP_PERIOD = 8 / 3.0;
     /** The share of each period that is dash, in its middle, with half the gap at either end. */

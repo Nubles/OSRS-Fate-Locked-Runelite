@@ -5,6 +5,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import com.fatelocked.rules.ChunkPermissionRow;
+import com.google.gson.Gson;
+import java.io.ByteArrayInputStream;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -65,10 +70,108 @@ public class PointTargetTest
     public void aBankByItsBoothsChestsAndBankers()
     {
         PointTarget bank = PointTarget.of("BANKS", "Lumbridge Castle");
-        assertEquals(names("bank booth", "bank chest", "banker"), bank.getNames());
+        // Deposit boxes since the deep audit (plugin-ui.d3[1]): one Banks unlock opens all of a place.
+        assertEquals(names("bank booth", "bank chest", "banker", "bank deposit box", "bank deposit chest",
+            "deposit pool"), bank.getNames());
         assertTrue(bank.matches("Bank booth", null));
         assertTrue(bank.matches("Banker", null));
         assertFalse(bank.matches("Lumbridge Castle", null));
+    }
+
+    /**
+     * plugin-ui.d3[1]: a place whose only facility is a deposit box, chest or NPC is found by it.
+     * The Wiki names the box "Bank Deposit Box" or "Bank deposit box" by version; Zul-Andra's is
+     * a "Chest" (Chest (Zul-Andra), option Deposit); Peer the Seer and Rionasta are NPCs.
+     */
+    @Test
+    public void aDepositOnlyPlaceByItsBoxChestOrNpc()
+    {
+        PointTarget sarim = PointTarget.of("BANKS", "Port Sarim deposit boxes");
+        assertTrue(sarim.matches("Bank deposit box", new String[] {"Deposit"}));
+        assertTrue(sarim.matches("Bank Deposit Box", new String[] {"Deposit"}));
+        assertTrue(PointTarget.of("BANKS", "Guardians of the Rift bank and deposit pool").matches("Deposit Pool", null));
+        assertTrue(PointTarget.of("BANKS", "Peer the Seer deposit service").matches("Peer the Seer", null));
+        assertTrue(PointTarget.of("BANKS", "Rionasta deposit service").matches("Rionasta", null));
+        assertTrue(PointTarget.of("BANKS", "Zul-Andra deposit chest").matches("Chest", new String[] {"Deposit"}));
+        assertFalse("only Zul-Andra's deposit chest goes by a bare Chest",
+            PointTarget.of("BANKS", "Varrock west bank").matches("Chest", null));
+        assertFalse(PointTarget.of("BANKS", "Varrock west bank").matches("Peer the Seer", null));
+    }
+
+    /**
+     * plugin-ui.d1[0]: a shop by the keepers the tracker's table names, where its name doesn't
+     * give them, and by its name's owner, including one ending in s'.
+     */
+    @Test
+    public void aShopByTheKeepersTheTrackerNames()
+    {
+        assertTrue(PointTarget.of("SHOPS", "Fine Fashions").matches("Rometti", new String[] {"Talk-to", "Trade"}));
+        assertTrue(PointTarget.of("SHOPS", "Varrock Swordshop").matches("Shop keeper", null));
+        assertTrue(PointTarget.of("SHOPS", "Agelus' Farm Shop").matches("Agelus", null));
+        assertTrue("a section the card shows in brackets",
+            PointTarget.of("SHOPS", "Battle Runes (Pre-miniquest)").matches("Mage of Zamorak", null));
+        assertTrue("a shop name with its own brackets",
+            PointTarget.of("SHOPS", "Armour Shop (Jatizso)").matches("Raum Urda-Stein", null));
+        assertEquals(names("bob's brilliant axes", "bob"), PointTarget.of("SHOPS", "Bob's Brilliant Axes").getNames());
+        assertFalse("another shop's keeper", PointTarget.of("SHOPS", "Fine Fashions").matches("Bob", null));
+
+        ShopKeepers none = ShopKeepers.NONE;
+        assertEquals("with no table, the s' owner", names("agelus' farm shop", "agelus"),
+            PointTarget.of("SHOPS", "Agelus' Farm Shop", none).getNames());
+        assertEquals(names("gaius' two handed shop", "gaius"),
+            PointTarget.of("SHOPS", "Gaius' Two Handed Shop", none).getNames());
+        assertEquals(names("bob's brilliant axes", "bob"), PointTarget.of("SHOPS", "Bob's Brilliant Axes", none).getNames());
+        assertFalse(PointTarget.of("SHOPS", "Fine Fashions", none).matches("Rometti", null));
+        assertEquals("a shop the table lacks falls back to its name", names("made-up emporium"),
+            PointTarget.of("SHOPS", "Made-up Emporium").getNames());
+        assertEquals(names("lumbridge general store", "shop keeper", "shop assistant"),
+            PointTarget.of("SHOPS", "Lumbridge General Store", none).getNames());
+    }
+
+    /** The table as the tracker writes it; one that can't be read is no table, and the names fall back. */
+    @Test
+    public void theKeeperTableReadsTheTrackersShapeAndFailsOpen()
+    {
+        ShopKeepers table = ShopKeepers.read(new StringReader("{\"schema\": 1, \"about\": \"Who runs each shop.\","
+            + " \"shops\": {\"Fine Fashions\": [\"Rometti\"], \"Culinaromancer's Chest#Food\": [],"
+            + " \"Battle Runes#Pre-miniquest\": [\"Mage of Zamorak\"], \"Odd\": 3}}"));
+        assertEquals(Arrays.asList("rometti"), table.of("Fine Fashions"));
+        assertEquals(Arrays.asList("mage of zamorak"), table.of("Battle Runes (Pre-miniquest)"));
+        assertTrue(table.lists("Culinaromancer's Chest (Food)"));
+        assertTrue(table.of("Culinaromancer's Chest (Food)").isEmpty());
+        assertFalse(table.lists("Odd"));
+        assertFalse(table.lists("Varrock Swordshop"));
+        assertTrue(PointTarget.of("SHOPS", "Fine Fashions", table).matches("Rometti", null));
+
+        assertTrue(ShopKeepers.load(null).of("Fine Fashions").isEmpty());
+        assertTrue(ShopKeepers.load(new ByteArrayInputStream("not json {".getBytes(StandardCharsets.UTF_8)))
+            .of("Fine Fashions").isEmpty());
+        assertTrue(ShopKeepers.load(new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)))
+            .of("Fine Fashions").isEmpty());
+        assertTrue("the plugin's own table loads", ShopKeepers.shared().lists("Fine Fashions"));
+    }
+
+    /**
+     * plugin-ui.d3[3]: a minigame's row names a place, not a thing, so it has no target; a boss
+     * row, and a row from an export without the field, has one as before.
+     */
+    @Test
+    public void aMinigameRowHasNoTarget()
+    {
+        Gson gson = new Gson();
+        ChunkPermissionRow pestControl = gson.fromJson(
+            "{\"name\":\"Pest Control\",\"status\":\"LOCKED\",\"targetKind\":\"ACTIVITY\",\"minigame\":true}",
+            ChunkPermissionRow.class);
+        ChunkPermissionRow vardorvis = gson.fromJson(
+            "{\"name\":\"Vardorvis\",\"status\":\"LOCKED\",\"targetKind\":\"ACTIVITY\"}", ChunkPermissionRow.class);
+        ChunkPermissionRow older = gson.fromJson(
+            "{\"name\":\"Pest Control\",\"status\":\"LOCKED\",\"targetKind\":\"ACTIVITY\"}", ChunkPermissionRow.class);
+        assertNull(PointTarget.ofRow("ACTIVITIES", pestControl));
+        assertEquals(names("vardorvis"), PointTarget.ofRow("ACTIVITIES", vardorvis).getNames());
+        assertEquals(names("pest control"), PointTarget.ofRow("ACTIVITIES", older).getNames());
+        assertEquals("a section keeps its brackets", "Battle Runes (Pre-miniquest)", PointTarget.ofRow("SHOPS",
+            gson.fromJson("{\"name\":\"Battle Runes#Pre-miniquest\",\"status\":\"LOCKED\"}", ChunkPermissionRow.class))
+            .getLabel());
     }
 
     /** A shop by whoever runs it: the owner its name gives, a general store's shop keeper, an inn's bartender. */

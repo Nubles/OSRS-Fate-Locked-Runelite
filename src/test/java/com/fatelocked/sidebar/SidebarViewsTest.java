@@ -163,6 +163,37 @@ public class SidebarViewsTest
         });
     }
 
+    /**
+     * plugin-ui.d3[3]: a minigame's row names a place, not a thing, so it offers no click and no
+     * hand cursor; a boss row in the same category still points.
+     */
+    @Test
+    public void aMinigameRowOffersNoClick() throws Exception
+    {
+        onEdt(() -> {
+            HereView here = new HereView(IconSource.NONE);
+            List<String> points = new ArrayList<>();
+            here.onPoint((category, row) -> points.add(category + ": " + row));
+            List<HereModel.Row> activities = Arrays.asList(
+                new HereModel.Row("Pest Control", "Locked", Tone.BAD, null, false),
+                new HereModel.Row("Zulrah", "Locked", Tone.BAD, null));
+            here.setOpen(new TreeSet<>(Collections.singletonList("ACTIVITIES")));
+            here.apply(new HereModel("Void Knights' Outpost", "Unlocked", Tone.GOOD, null, null,
+                Collections.emptyList(),
+                Collections.singletonList(new HereModel.Group("ACTIVITIES", "Activities", activities)), null));
+
+            List<ItemRow> rows = all(here, ItemRow.class::isInstance).stream().map(ItemRow.class::cast)
+                .collect(Collectors.toList());
+            assertEquals(2, rows.size());
+            assertFalse("Pest Control", rows.get(0).clickable());
+            assertEquals(java.awt.Cursor.DEFAULT_CURSOR, rows.get(0).getCursor().getType());
+            assertTrue("Zulrah", rows.get(1).clickable());
+            assertEquals(java.awt.Cursor.HAND_CURSOR, rows.get(1).getCursor().getType());
+            rows.get(1).click();
+            assertEquals(Collections.singletonList("ACTIVITIES: Zulrah"), points);
+        });
+    }
+
     /** Skilling splits by skill, each with the game's own icon and the player's level and cap. */
     @Test
     public void skillingOpensSkillBySkill() throws Exception

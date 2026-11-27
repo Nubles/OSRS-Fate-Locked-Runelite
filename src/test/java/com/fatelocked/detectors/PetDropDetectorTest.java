@@ -10,7 +10,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-/** Pets stay as they are while the owner's poll decides their reward (Stage 4, plan decision 13). */
+/**
+ * A new pet is recorded without guessing which it is. It's offered in the Roll inbox and copied
+ * to the tracker, which asks which pet it was and gives each pet's Omni-Key once.
+ */
 public class PetDropDetectorTest
 {
     @Test

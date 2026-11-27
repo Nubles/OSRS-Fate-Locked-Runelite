@@ -29,6 +29,7 @@ public class GameLinesTest
         assertKillCount("Your Prifddinas Agility Course lap count is: @mes_hl_red@2</col>.",
             "Prifddinas Agility Course", 2);
         assertKillCount("Your herbiboar harvest count is: <col=ff0000>4091</col>.", "herbiboar", 4091);
+        assertKillCount("Your Bryophyta chests opened count is: 5.", "Bryophyta chests opened", 5);
         assertKillCount("Your <col=6800bf>Kalphite Queen (Echo)</col> kill count is:<col=e00a19>1</col>",
             "Kalphite Queen (Echo)", 1);
     }

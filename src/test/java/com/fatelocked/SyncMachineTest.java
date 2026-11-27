@@ -1,8 +1,13 @@
 package com.fatelocked;
 
+import com.fatelocked.FateLockedPlugin.RulesSource;
+import com.fatelocked.rules.Trust;
+import com.fatelocked.sidebar.CardAction;
+import com.fatelocked.sidebar.StatusCardModel;
 import org.junit.Test;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -348,5 +353,364 @@ public class SyncMachineTest
             machine.networkAccessChanged(false, true).getState());
         assertNull(machine.acceptedVersion());
         assertTrue(machine.checkDue(START));
+    }
+    /** Every way a check can end without an answer the plugin can use, as the controller reports it. */
+    private static final String[] FAILURES = {"UNREACHABLE", "UNREADABLE", "UNAVAILABLE", "BUSY", "BUSY_RETRY_AFTER"};
+
+    /** The reason a failure carries, and the card's words for it, as a working pairing's card says them. */
+    private static SyncReason reasonOf(String failure)
+    {
+        return failure.startsWith("BUSY") ? SyncReason.BUSY : SyncReason.valueOf(failure);
+    }
+
+    private static String wordsFor(String failure)
+    {
+        switch (reasonOf(failure))
+        {
+            case UNREACHABLE:
+                return "RuneLite couldn't reach the tracker";
+            case UNREADABLE:
+                return "Something other than the tracker answered, such as a Wi-Fi sign-in page";
+            case UNAVAILABLE:
+                return "The tracker had a problem";
+            default:
+                return "The tracker asked RuneLite to check less often";
+        }
+    }
+
+    private static TrackerConnectionSnapshot fail(SyncMachine machine, String failure, Instant now)
+    {
+        switch (failure)
+        {
+            case "BUSY":
+                return machine.busy(now, 0);
+            case "BUSY_RETRY_AFTER":
+                return machine.busy(now, 30);
+            default:
+                return machine.failure(TrackerConnectionState.OFFLINE, SyncReason.valueOf(failure), now,
+                    SyncMachine.FAILURE_BACKOFF_SECONDS);
+        }
+    }
+
+    private static StatusCardModel card(TrackerConnectionSnapshot connection, Instant now)
+    {
+        return StatusCardPresenter.present(StatusFacts.builder()
+            .connection(connection)
+            .source(RulesSource.NONE)
+            .trust(Trust.NO_RULES)
+            .paired(true)
+            .now(now)
+            .zone(ZoneOffset.UTC)
+            .build());
+    }
+
+    @Test
+    public void aFailedCheckWhileAFirstPairingWaitsKeepsThePairingsControls()
+    {
+        for (String failure : FAILURES)
+        {
+            SyncMachine pairing = new SyncMachine();
+            pairing.pairingStarted(START);
+            Instant failedAt = START.plusSeconds(20);
+
+            TrackerConnectionSnapshot failed = fail(pairing, failure, failedAt);
+
+            assertEquals(failure, TrackerConnectionState.WAITING, failed.getState());
+            assertEquals(failure, SyncReason.CONFIRM_IN_BROWSER, failed.getReason());
+            assertEquals(failure, reasonOf(failure), failed.getFailure());
+            // The back-off is a failure's, as before.
+            assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
+            assertFalse(failure, pairing.checkDue(failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS - 1)));
+            assertTrue(failure, pairing.firstPairingWaiting());
+            SyncView view = pairedView(pairing, failed, failedAt);
+            assertEquals(failure, "Confirm in browser", view.status);
+            assertEquals(failure, SyncView.Connect.CONNECT, view.connect);
+            assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened. "
+                + wordsFor(failure) + ". Next check at 12:00.", view.detail);
+            StatusCardModel card = card(failed, failedAt);
+            assertEquals(failure, "Waiting for confirmation", card.getTitle());
+            assertEquals(failure, CardAction.OPEN_PAGE_AGAIN, card.getPrimary());
+            assertEquals(failure, CardAction.CANCEL_PAIRING, card.getSecondary());
+            // The card says why, as README.md promises for a failed check.
+            assertEquals(failure, "Confirm this profile in the browser tab RuneLite opened. "
+                + wordsFor(failure) + "; next check at 12:00.", card.getDetail());
+
+            // A 404 brings the plain waiting state back, at the pairing's pace.
+            Instant later = failed.getNextCheck();
+            TrackerConnectionSnapshot waiting = pairing.notFound(false, later);
+            assertEquals(failure, SyncReason.CONFIRM_IN_BROWSER, waiting.getReason());
+            assertNull(failure, waiting.getNextCheck());
+            assertNull(failure, waiting.getFailure());
+            assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened."
+                + " RuneLite checks every few seconds.", SyncView.of(waiting, later, ZoneOffset.UTC).detail);
+            assertEquals(failure, CardAction.CANCEL_PAIRING, card(waiting, later).getSecondary());
+            assertFalse(failure, pairing.checkDue(later.plusSeconds(SyncMachine.WAITING_POLL_SECONDS - 1)));
+            assertTrue(failure, pairing.checkDue(later.plusSeconds(SyncMachine.WAITING_POLL_SECONDS)));
+
+            // Then a 200 connects.
+            TrackerConnectionSnapshot connected = pairing.accepted("1", later.plusSeconds(5));
+            assertEquals(failure, TrackerConnectionState.CONNECTED, connected.getState());
+            assertFalse(failure, pairing.firstPairingWaiting());
+            assertEquals(failure, SyncView.Connect.REPAIR, pairedView(pairing, connected, later).connect);
+        }
+    }
+
+    @Test
+    public void aFailedCheckWhileARePairingWaitsKeepsThePairingsControls()
+    {
+        for (String failure : FAILURES)
+        {
+            SyncMachine pairing = new SyncMachine();
+            Instant synced = START.minusSeconds(3600);
+            pairing.accepted("41", synced);
+            pairing.repairStarted(START);
+            Instant failedAt = START.plusSeconds(20);
+
+            TrackerConnectionSnapshot failed = fail(pairing, failure, failedAt);
+
+            assertEquals(failure, TrackerConnectionState.WAITING, failed.getState());
+            assertEquals(failure, SyncReason.CONFIRM_REPAIR, failed.getReason());
+            assertEquals(failure, reasonOf(failure), failed.getFailure());
+            assertEquals(failure, synced, failed.getLastSync());
+            assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
+            assertTrue(failure, pairing.repairing());
+            SyncView view = pairedView(pairing, failed, failedAt);
+            assertEquals(failure, SyncView.Connect.CANCEL_REPAIR, view.connect);
+            assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened. Until it arrives,"
+                + " RuneLite keeps your current pairing. " + wordsFor(failure) + ". Next check at 12:00.",
+                view.detail);
+            StatusCardModel card = card(failed, failedAt);
+            assertEquals(failure, "Waiting for confirmation", card.getTitle());
+            assertEquals(failure, CardAction.OPEN_PAGE_AGAIN, card.getPrimary());
+            assertEquals(failure, CardAction.CANCEL_REPAIR, card.getSecondary());
+            assertEquals(failure, "Confirm the new profile in the browser tab RuneLite opened. Your current"
+                + " pairing keeps working until it arrives. " + wordsFor(failure) + "; next check at 12:00.",
+                card.getDetail());
+
+            Instant later = failed.getNextCheck();
+            TrackerConnectionSnapshot waiting = pairing.notFound(false, later);
+            assertEquals(failure, SyncReason.CONFIRM_REPAIR, waiting.getReason());
+            assertNull(failure, waiting.getNextCheck());
+            assertNull(failure, waiting.getFailure());
+            assertEquals(failure, "Confirm the profile in the browser tab RuneLite opened. Until it arrives,"
+                + " RuneLite keeps your current pairing.", SyncView.of(waiting, later, ZoneOffset.UTC).detail);
+            assertEquals(failure, SyncView.Connect.CANCEL_REPAIR, pairedView(pairing, waiting, later).connect);
+
+            TrackerConnectionSnapshot connected = pairing.accepted("1", later.plusSeconds(5));
+            assertEquals(failure, TrackerConnectionState.CONNECTED, connected.getState());
+            assertFalse(failure, pairing.repairing());
+        }
+    }
+
+    @Test
+    public void aFailedCheckAfterAFirstPairingRanOutKeepsNoProfile()
+    {
+        machine.pairingStarted(START);
+        machine.notFound(false, START.plusSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS));
+
+        TrackerConnectionSnapshot failed = machine.failure(TrackerConnectionState.OFFLINE, SyncReason.UNREACHABLE,
+            START.plusSeconds(SyncMachine.PAIRING_CONFIRM_SECONDS + 60), SyncMachine.FAILURE_BACKOFF_SECONDS);
+
+        assertEquals(SyncReason.NO_PROFILE, failed.getReason());
+        assertEquals(SyncView.Connect.CONNECT, pairedView(machine, failed, START).connect);
+    }
+
+    @Test
+    public void aWorkingPairingStillShowsWhyACheckFailed()
+    {
+        machine.accepted("41", START);
+        machine.pairingStarted(START);
+        machine.accepted("42", START.plusSeconds(10));
+
+        assertEquals(SyncReason.UNREACHABLE, machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(20), SyncMachine.FAILURE_BACKOFF_SECONDS).getReason());
+        assertEquals(SyncReason.BUSY, machine.busy(START.plusSeconds(30), 60).getReason());
+    }
+
+    @Test
+    public void anUnconfirmedFirstPairingFromAnEarlierStartCountsAsAFirstPairing()
+    {
+        TrackerConnectionSnapshot shown = machine.unconfirmedPairing();
+        assertEquals(SyncReason.NOT_CONFIRMED, shown.getReason());
+        assertTrue(machine.firstPairingWaiting());
+        assertFalse(machine.repairing());
+
+        TrackerConnectionSnapshot missing = machine.notFound(false, START);
+        assertEquals(SyncReason.NOT_CONFIRMED, missing.getReason());
+        SyncView view = pairedView(machine, missing, START);
+        assertEquals("Pairing not confirmed", view.status);
+        assertEquals("This pairing hasn't sent any rules yet. Press Connect tracker to pair again.", view.detail);
+        assertEquals(SyncView.Action.CONNECT, view.action);
+        assertEquals(SyncView.Connect.CONNECT, view.connect);
+        // Checked at a working pairing's pace: its start time is unknown.
+        assertFalse(machine.checkDue(START.plusSeconds(SyncMachine.CONNECTED_POLL_SECONDS - 1)));
+        assertTrue(machine.checkDue(START.plusSeconds(SyncMachine.CONNECTED_POLL_SECONDS)));
+
+        TrackerConnectionSnapshot failed = machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(60), SyncMachine.FAILURE_BACKOFF_SECONDS);
+        assertEquals(SyncReason.NOT_CONFIRMED, failed.getReason());
+        assertEquals(START.plusSeconds(90), failed.getNextCheck());
+        assertEquals(SyncView.Connect.CONNECT, pairedView(machine, failed, START).connect);
+
+        machine.accepted("1", START.plusSeconds(90));
+        assertFalse(machine.firstPairingWaiting());
+        assertEquals(SyncReason.NO_RECENT_UPDATE, machine.notFound(true, START.plusSeconds(200)).getReason());
+    }
+
+    /**
+     * Audit (own.d1[7]): while a pairing is known to be ended in the tracker, a failed check
+     * keeps "Disconnected in the tracker" and Connect tracker, and adds why it failed and when
+     * the next check is. Connect still pairs from scratch, as the status says.
+     */
+    @Test
+    public void aFailedCheckKeepsADisconnectedPairingsStatusAndButton()
+    {
+        for (String failure : FAILURES)
+        {
+            SyncMachine pairing = new SyncMachine();
+            pairing.accepted("41", START.minusSeconds(600));
+            pairing.gone(START.minusSeconds(300));
+            Instant failedAt = START.plusSeconds(20);
+
+            TrackerConnectionSnapshot failed = fail(pairing, failure, failedAt);
+
+            assertEquals(failure, TrackerConnectionState.EXPIRED, failed.getState());
+            assertEquals(failure, SyncReason.GONE, failed.getReason());
+            assertEquals(failure, reasonOf(failure), failed.getFailure());
+            assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
+            assertTrue(failure, pairing.pairingGone());
+            assertTrue(failure, pairing.checkDue(failed.getNextCheck()));
+            SyncView view = pairedView(pairing, failed, failedAt);
+            assertEquals(failure, SyncReason.GONE.status, view.status);
+            assertEquals(failure, SyncView.Connect.CONNECT, view.connect);
+            assertEquals(failure, SyncView.Action.CONNECT, view.action);
+            String gone = "The tracker's owner pressed Disconnect in the web tracker, or paired it again, so it"
+                + " sends no more rules to this pairing. Press Connect tracker to pair again.";
+            assertEquals(failure, gone + " " + wordsFor(failure) + ". Next check at 12:00.", view.detail);
+            StatusCardModel card = card(failed, failedAt);
+            assertEquals(failure, "Disconnected in the tracker", card.getTitle());
+            assertEquals(failure, CardAction.CONNECT, card.getPrimary());
+            assertEquals(failure, "The web tracker was told to stop sending rules to this pairing. No rules are"
+                + " loaded. " + wordsFor(failure) + "; next check at 12:00.", card.getDetail());
+
+            // The next answer from the relay shows the plain state again.
+            TrackerConnectionSnapshot again = pairing.gone(failed.getNextCheck());
+            assertNull(failure, again.getFailure());
+            assertNull(failure, again.getNextCheck());
+            assertEquals(failure, gone, SyncView.of(again, failedAt, ZoneOffset.UTC).detail);
+
+            // Rules from the code again: it works, and a failed check says only why.
+            pairing.accepted("42", START.plusSeconds(600));
+            assertEquals(failure, reasonOf(failure), fail(pairing, failure, START.plusSeconds(660)).getReason());
+        }
+    }
+
+    /**
+     * Audit (own.d1[7]): after the relay's copy of a working pairing lapsed, a failed check keeps
+     * "Tracker copy expired" and its Open tracker, and adds why it failed and when the next
+     * check is. The button stays Re-pair tracker: the pairing works.
+     */
+    @Test
+    public void aFailedCheckKeepsALapsedPairingsStatus()
+    {
+        for (String failure : FAILURES)
+        {
+            SyncMachine pairing = new SyncMachine();
+            Instant synced = START.minusSeconds(3600);
+            pairing.accepted("41", synced);
+            pairing.notFound(true, START.minusSeconds(300));
+            Instant failedAt = START.plusSeconds(20);
+
+            TrackerConnectionSnapshot failed = fail(pairing, failure, failedAt);
+
+            assertEquals(failure, TrackerConnectionState.WAITING, failed.getState());
+            assertEquals(failure, SyncReason.NO_RECENT_UPDATE, failed.getReason());
+            assertEquals(failure, reasonOf(failure), failed.getFailure());
+            assertEquals(failure, synced, failed.getLastSync());
+            assertEquals(failure, failedAt.plusSeconds(SyncMachine.FAILURE_BACKOFF_SECONDS), failed.getNextCheck());
+            assertFalse(failure, pairing.firstPairingWaiting());
+            SyncView view = pairedView(pairing, failed, failedAt);
+            assertEquals(failure, SyncReason.NO_RECENT_UPDATE.status, view.status);
+            assertEquals(failure, SyncView.Connect.REPAIR, view.connect);
+            assertEquals(failure, SyncView.Action.OPEN_TRACKER, view.action);
+            String lapsed = "The tracker hasn't sent your rules recently. Open the web tracker so it can send them"
+                + " again.";
+            assertEquals(failure, lapsed + " " + wordsFor(failure) + ". Next check at 12:00.", view.detail);
+            StatusCardModel card = card(failed, failedAt);
+            assertEquals(failure, "Tracker copy expired", card.getTitle());
+            assertEquals(failure, CardAction.OPEN_TRACKER, card.getPrimary());
+            assertEquals(failure, lapsed + " No rules are loaded. " + wordsFor(failure) + "; next check at 12:00.",
+                card.getDetail());
+
+            // Another 404 shows the plain state again.
+            TrackerConnectionSnapshot again = pairing.notFound(false, failed.getNextCheck());
+            assertEquals(failure, SyncReason.NO_RECENT_UPDATE, again.getReason());
+            assertNull(failure, again.getFailure());
+            assertNull(failure, again.getNextCheck());
+            assertEquals(failure, lapsed, SyncView.of(again, failedAt, ZoneOffset.UTC).detail);
+
+            // Rules from the relay again: a failed check says only why.
+            pairing.accepted("42", START.plusSeconds(600));
+            assertEquals(failure, reasonOf(failure), fail(pairing, failure, START.plusSeconds(660)).getReason());
+        }
+    }
+
+    /** Audit (own.d1[7]): a lapse is forgotten once the relay sends anything, even rules RuneLite can't use. */
+    @Test
+    public void aLapseEndsWhenTheRelaySendsRulesAgain()
+    {
+        machine.accepted("41", START);
+        machine.notFound(true, START.plusSeconds(60));
+        machine.rejected("42", SyncReason.FUTURE_FORMAT, START.plusSeconds(120));
+        machine.accepted("43", START.plusSeconds(180));
+
+        assertEquals(SyncReason.UNREACHABLE, machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(240), SyncMachine.FAILURE_BACKOFF_SECONDS).getReason());
+        machine.notFound(true, START.plusSeconds(300));
+        machine.networkAccessChanged(true, true);
+        assertEquals(SyncReason.UNREACHABLE, machine.failure(TrackerConnectionState.OFFLINE,
+            SyncReason.UNREACHABLE, START.plusSeconds(360), SyncMachine.FAILURE_BACKOFF_SECONDS).getReason());
+    }
+
+    @Test
+    public void refusedRulesDoNotMakeAPairingThatConnectReplacesReadAsRePair()
+    {
+        // A first pairing whose only delivery was refused: Connect replaces the code.
+        SyncMachine first = new SyncMachine();
+        first.pairingStarted(START);
+        TrackerConnectionSnapshot refused = first.rejected("6", SyncReason.FUTURE_FORMAT, START.plusSeconds(5));
+        assertFalse(first.connectKeepsPairing(true));
+        assertEquals(SyncView.Connect.CONNECT, pairedView(first, refused, START).connect);
+        TrackerConnectionSnapshot failed = first.failure(TrackerConnectionState.OFFLINE, SyncReason.UNREACHABLE,
+            START.plusSeconds(10), SyncMachine.FAILURE_BACKOFF_SECONDS);
+        assertEquals(SyncView.Connect.CONNECT, pairedView(first, failed, START).connect);
+
+        // A pairing disconnected in the tracker, then refused rules and a failed check: the same.
+        SyncMachine gone = new SyncMachine();
+        gone.accepted("5", START);
+        gone.gone(START.plusSeconds(60));
+        gone.rejected("6", SyncReason.INVALID_RULES, START.plusSeconds(120));
+        failed = gone.failure(TrackerConnectionState.OFFLINE, SyncReason.UNREACHABLE,
+            START.plusSeconds(180), SyncMachine.FAILURE_BACKOFF_SECONDS);
+        assertFalse(gone.connectKeepsPairing(true));
+        assertEquals(SyncView.Connect.CONNECT, pairedView(gone, failed, START).connect);
+
+        // A working pairing whose newer rules were refused is still kept: Re-pair asks first.
+        SyncMachine working = new SyncMachine();
+        working.accepted("5", START);
+        refused = working.rejected("6", SyncReason.FUTURE_FORMAT, START.plusSeconds(60));
+        assertTrue(working.connectKeepsPairing(true));
+        assertEquals(SyncView.Connect.REPAIR, pairedView(working, refused, START).connect);
+        // Without a saved code there is nothing to keep.
+        assertFalse(working.connectKeepsPairing(false));
+    }
+
+    /**
+     * What the sidebar shows for a machine's snapshot with a saved code, with whether Connect
+     * keeps it, as the controller stamps every snapshot it shows.
+     */
+    private static SyncView pairedView(SyncMachine machine, TrackerConnectionSnapshot shown, Instant now)
+    {
+        return SyncView.of(shown.withConnectKeepingPairing(machine.connectKeepsPairing(true)), now, ZoneOffset.UTC);
     }
 }

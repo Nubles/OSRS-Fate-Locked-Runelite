@@ -10,6 +10,12 @@ final class TrackerConnectionSettings
     static final String RELAY_BASE_URL =
         "https://fate-relay.fatelocked.workers.dev";
     static final String PAIRING_CODE_KEY = "trackerPairingCode";
+    /**
+     * The tag (PairingSupport.tag) of a code a first pairing saved that has not delivered
+     * rules yet. Without it, or for another code, the saved code counts as a working
+     * pairing, as for every pairing made before this key existed.
+     */
+    static final String UNCONFIRMED_PAIRING_KEY = "trackerPairingUnconfirmed";
     private static final String CODE_PATTERN = "[0-9a-f]{32}";
     private static final String[] LEGACY_TOKEN_PREFIXES = {
         "eventToken.", "stateToken.", "suggestToken.", "ackToken."
@@ -70,6 +76,35 @@ final class TrackerConnectionSettings
     {
         configManager.unsetConfiguration(
             FateLockedConfig.GROUP, PAIRING_CODE_KEY);
+        pairingDelivered();
+    }
+
+    /** A first pairing saved this code, which has not delivered rules yet. */
+    void markPairingUnconfirmed(String code)
+    {
+        configManager.setConfiguration(
+            FateLockedConfig.GROUP, UNCONFIRMED_PAIRING_KEY, PairingSupport.tag(code));
+    }
+
+    /**
+     * Whether the saved code is known never to have delivered rules: a first pairing
+     * saved it and nothing has arrived from it since. False when unknown.
+     */
+    boolean pairingUnconfirmed()
+    {
+        String marked = configManager.getConfiguration(
+            FateLockedConfig.GROUP, UNCONFIRMED_PAIRING_KEY);
+        String code = pairingCode();
+        return marked != null && !code.isEmpty() && marked.trim().equals(PairingSupport.tag(code));
+    }
+
+    /** Rules arrived from the saved code, or it is gone: forget any unconfirmed mark. */
+    void pairingDelivered()
+    {
+        if (configManager.getConfiguration(FateLockedConfig.GROUP, UNCONFIRMED_PAIRING_KEY) != null)
+        {
+            configManager.unsetConfiguration(FateLockedConfig.GROUP, UNCONFIRMED_PAIRING_KEY);
+        }
     }
 
     void clearLegacySettings()

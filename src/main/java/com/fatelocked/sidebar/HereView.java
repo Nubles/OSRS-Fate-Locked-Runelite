@@ -15,7 +15,6 @@ import com.fatelocked.ui.StatusPill;
 import com.fatelocked.ui.Type;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -42,9 +41,12 @@ public class HereView extends Section
     private final Set<String> expandedGroups = new HashSet<>();
     /** Categories and skills left open: kept from place to place. */
     private final Set<String> open = new TreeSet<>();
-    private final List<Consumer<Set<String>>> foldListeners = new ArrayList<>();
-    private final List<BiConsumer<String, String>> pointListeners = new ArrayList<>();
-    private final List<Runnable> clearListeners = new ArrayList<>();
+    // One handler each, replaced when set again: the panel outlives a plugin
+    // stop and start, and a second point handler would take the arrow straight
+    // down again.
+    private Consumer<Set<String>> foldListener = open -> { };
+    private BiConsumer<String, String> pointListener = (category, row) -> { };
+    private Runnable clearListener = () -> { };
     /** What the card says about the arrow, or null; and whether an arrow is up to clear. */
     private String pointer;
     private boolean pointing;
@@ -84,22 +86,25 @@ public class HereView extends Section
         return Collections.unmodifiableSet(new TreeSet<>(open));
     }
 
-    /** Called with what's open each time the player opens or closes a category or skill. */
+    /** Called with what's open each time the player opens or closes a category or skill; replaces the last one. */
     public void onFold(Consumer<Set<String>> listener)
     {
-        foldListeners.add(listener);
+        foldListener = listener;
     }
 
-    /** Called with a row's category and name each time the player clicks a row the card can point at. */
+    /**
+     * Called with a row's category and name each time the player clicks a row the card can point at;
+     * replaces the last one.
+     */
     public void onPoint(BiConsumer<String, String> listener)
     {
-        pointListeners.add(listener);
+        pointListener = listener;
     }
 
-    /** Called when the player clears the arrow. */
+    /** Called when the player clears the arrow; replaces the last one. */
     public void onClearPoint(Runnable listener)
     {
-        clearListeners.add(listener);
+        clearListener = listener;
     }
 
     /** What to say about the arrow under the counts, or null for nothing; with Clear while one is up. */
@@ -221,11 +226,7 @@ public class HereView extends Section
             {
                 open.remove(key);
             }
-            Set<String> now = open();
-            for (Consumer<Set<String>> listener : foldListeners)
-            {
-                listener.accept(now);
-            }
+            foldListener.accept(open());
         });
         return fold;
     }
@@ -239,12 +240,7 @@ public class HereView extends Section
         if (pointing)
         {
             FlatButton clear = new FlatButton("Clear", FlatButton.Kind.LINK);
-            clear.addActionListener(e -> {
-                for (Runnable listener : clearListeners)
-                {
-                    listener.run();
-                }
-            });
+            clear.addActionListener(e -> clearListener.run());
             JPanel right = new JPanel(new BorderLayout());
             right.setOpaque(false);
             right.add(clear, BorderLayout.NORTH);
@@ -261,14 +257,9 @@ public class HereView extends Section
         {
             ItemRow item = new ItemRow().show(row.getName(), row.getWord(), row.getTone(), row.getReason());
             item.setPalette(palette);
-            if (PointTarget.pointable(category))
+            if (PointTarget.pointable(category) && row.isPointable())
             {
-                item.onClick(() -> {
-                    for (BiConsumer<String, String> listener : pointListeners)
-                    {
-                        listener.accept(category, row.getName());
-                    }
-                });
+                item.onClick(() -> pointListener.accept(category, row.getName()));
             }
             into.add(indented(item));
         }

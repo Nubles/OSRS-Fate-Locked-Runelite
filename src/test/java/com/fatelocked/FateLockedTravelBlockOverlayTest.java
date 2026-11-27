@@ -2,6 +2,9 @@ package com.fatelocked;
 
 import com.fatelocked.guardian.travel.TravelBlockNoticeStore;
 import com.fatelocked.ui.Palette;
+import net.runelite.client.config.RuneLiteConfig;
+import net.runelite.client.input.MouseAdapter;
+import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.overlay.components.ComponentConstants;
 import org.junit.Test;
 
@@ -22,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -129,10 +132,13 @@ public class FateLockedTravelBlockOverlayTest
         MouseEvent rightInside = mouse(MouseEvent.MOUSE_PRESSED,
             button.x + button.width / 2, button.y + button.height / 2, MouseEvent.BUTTON3);
 
-        assertNull(overlay.mousePressed(inside));
+        assertSame(inside, overlay.mousePressed(inside));
+        assertTrue(inside.isConsumed());
         assertEquals(1, pauses.get());
         assertSame(outside, overlay.mousePressed(outside));
+        assertFalse(outside.isConsumed());
         assertSame(rightInside, overlay.mousePressed(rightInside));
+        assertFalse(rightInside.isConsumed());
         assertEquals(1, pauses.get());
     }
 
@@ -156,9 +162,11 @@ public class FateLockedTravelBlockOverlayTest
             localButton.x + localButton.width / 2,
             localButton.y + localButton.height / 2, MouseEvent.BUTTON1);
 
-        assertNull(overlay.mousePressed(visibleButton));
+        assertSame(visibleButton, overlay.mousePressed(visibleButton));
+        assertTrue(visibleButton.isConsumed());
         assertEquals(1, pauses.get());
         assertSame(oldLocalCoordinates, overlay.mousePressed(oldLocalCoordinates));
+        assertFalse(oldLocalCoordinates.isConsumed());
         assertEquals(1, pauses.get());
     }
 
@@ -233,6 +241,81 @@ public class FateLockedTravelBlockOverlayTest
         assertSame(event, overlay.mouseExited(event));
         assertSame(event, overlay.mouseDragged(event));
         assertSame(event, overlay.mouseMoved(event));
+    }
+
+    /**
+     * The press goes through RuneLite's own MouseManager, with the banner registered as
+     * FateLockedPlugin registers it and another plugin's listener after it. The button's press
+     * pauses once, throws nothing and is consumed; so are its release and click, so the game
+     * and the later listener see neither half. A press elsewhere reaches both untouched.
+     */
+    @Test
+    public void thePauseButtonsPressGoesThroughRuneLitesMouseManagerConsumed() throws Exception
+    {
+        TravelBlockNoticeStore store = new TravelBlockNoticeStore(
+            Clock.fixed(Instant.parse("2026-07-24T10:00:00Z"), ZoneOffset.UTC));
+        AtomicInteger pauses = new AtomicInteger();
+        FateLockedTravelBlockOverlay overlay = new FateLockedTravelBlockOverlay(
+            store, () -> true, () -> false, pauses::incrementAndGet);
+        store.show("walk:locked", "Travel blocked - Walk here", "Locked", null);
+        render(overlay);
+
+        // RuneLite builds its MouseManager by injection; the test reaches its constructor.
+        java.lang.reflect.Constructor<MouseManager> constructor =
+            MouseManager.class.getDeclaredConstructor(RuneLiteConfig.class);
+        constructor.setAccessible(true);
+        MouseManager mouseManager = constructor.newInstance((RuneLiteConfig) null);
+        mouseManager.registerMouseListener(overlay);
+        java.util.List<Integer> later = new java.util.ArrayList<>();
+        mouseManager.registerMouseListener(new MouseAdapter()
+        {
+            @Override
+            public MouseEvent mousePressed(MouseEvent event)
+            {
+                later.add(event.getID());
+                return event;
+            }
+
+            @Override
+            public MouseEvent mouseReleased(MouseEvent event)
+            {
+                later.add(event.getID());
+                return event;
+            }
+
+            @Override
+            public MouseEvent mouseClicked(MouseEvent event)
+            {
+                later.add(event.getID());
+                return event;
+            }
+        });
+
+        Rectangle button = overlay.getPauseButtonBounds();
+        int x = button.x + button.width / 2;
+        int y = button.y + button.height / 2;
+        MouseEvent pressed = mouseManager.processMousePressed(mouse(MouseEvent.MOUSE_PRESSED, x, y, MouseEvent.BUTTON1));
+        assertNotNull(pressed);
+        assertTrue(pressed.isConsumed());
+        assertEquals(1, pauses.get());
+        assertTrue(mouseManager.processMouseReleased(mouse(MouseEvent.MOUSE_RELEASED, x, y, MouseEvent.BUTTON1))
+            .isConsumed());
+        assertTrue(mouseManager.processMouseClicked(mouse(MouseEvent.MOUSE_CLICKED, x, y, MouseEvent.BUTTON1))
+            .isConsumed());
+        assertEquals(java.util.Collections.emptyList(), later);
+        assertEquals(1, pauses.get());
+
+        int outsideX = button.x - 1;
+        int outsideY = button.y - 1;
+        assertFalse(mouseManager.processMousePressed(
+            mouse(MouseEvent.MOUSE_PRESSED, outsideX, outsideY, MouseEvent.BUTTON1)).isConsumed());
+        assertFalse(mouseManager.processMouseReleased(
+            mouse(MouseEvent.MOUSE_RELEASED, outsideX, outsideY, MouseEvent.BUTTON1)).isConsumed());
+        assertFalse(mouseManager.processMouseClicked(
+            mouse(MouseEvent.MOUSE_CLICKED, outsideX, outsideY, MouseEvent.BUTTON1)).isConsumed());
+        assertEquals(java.util.Arrays.asList(MouseEvent.MOUSE_PRESSED, MouseEvent.MOUSE_RELEASED,
+            MouseEvent.MOUSE_CLICKED), later);
+        assertEquals(1, pauses.get());
     }
 
     private static Dimension render(FateLockedTravelBlockOverlay overlay)

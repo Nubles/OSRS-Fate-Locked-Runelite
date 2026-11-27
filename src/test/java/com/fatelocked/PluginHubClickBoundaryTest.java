@@ -17,8 +17,10 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * The Plugin Hub notes promise that Strict Mode stops only exactly matched
- * travel, and that no menu entry is ever removed, reordered or created.
- * Pinned at the source level so a new consume site cannot slip in unnoticed.
+ * travel, that game actions are stopped in that one place only, that the
+ * banner's own Pause button takes the mouse press made on it, and that no
+ * menu entry is ever removed, reordered or created. Pinned at the source
+ * level so a new consume site cannot slip in unnoticed.
  */
 public class PluginHubClickBoundaryTest
 {
@@ -45,6 +47,38 @@ public class PluginHubClickBoundaryTest
         int travel = handler.indexOf("public GuardResult handleTravel(");
         assertTrue(travel >= 0);
         assertTrue(handler.indexOf(".consume()") > travel);
+    }
+
+    /**
+     * The one mouse listener that consumes anything is the block banner, and only for a left
+     * press on its Pause button (and that press's release and click), after it has paused.
+     */
+    @Test
+    public void onlyTheBannersPauseButtonConsumesMouseInput() throws Exception
+    {
+        for (Map.Entry<Path, String> source : productionSources().entrySet())
+        {
+            if (!source.getValue().contains("net.runelite.client.input.Mouse")) continue;
+            if (occurrences(source.getValue(), ".consume()") > 0)
+            {
+                assertEquals("mouse input is consumed in " + source.getKey(),
+                    "FateLockedTravelBlockOverlay.java",
+                    source.getKey().getFileName().toString());
+            }
+        }
+
+        String banner = sourceNamed("FateLockedTravelBlockOverlay.java");
+        assertEquals(3, occurrences(banner, ".consume()"));
+        int pressed = banner.indexOf("public MouseEvent mousePressed(");
+        int released = banner.indexOf("public MouseEvent mouseReleased(");
+        int clicked = banner.indexOf("public MouseEvent mouseClicked(");
+        assertTrue(pressed >= 0 && released > pressed && clicked > released);
+        int first = banner.indexOf(".consume()");
+        assertTrue("the press is consumed only after the pause has run",
+            first > banner.indexOf("pause.run();", pressed) && banner.indexOf("pause.run();", pressed) > pressed
+                && first < released);
+        assertTrue(banner.indexOf(".consume()", first + 1) > released);
+        assertTrue(banner.lastIndexOf(".consume()") > clicked);
     }
 
     @Test

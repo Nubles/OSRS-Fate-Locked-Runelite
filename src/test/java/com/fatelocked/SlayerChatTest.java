@@ -7,6 +7,8 @@ import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.Notifier;
 import net.runelite.client.chat.ChatMessageManager;
@@ -154,6 +156,159 @@ public class SlayerChatTest
         when(config.ruleWarnings()).thenReturn(false);
         GearDecisionTest.configChanged(plugin, "ruleWarnings");
         assertNull(plugin.getSlayerTaskWarn());
+    }
+
+    /**
+     * Audit: the combat bracelet's count line every 10 kills (Wiki "Combat bracelet"; RuneLite's
+     * SlayerPluginTest) names no task, so the task and its warning stay.
+     */
+    @Test
+    public void theCombatBraceletsCountLineKeepsTheTask() throws Exception
+    {
+        say(GEM_CHECK, 7);
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+        assertEquals(List.of(), say("You still need to kill 30 monsters to complete your current Slayer assignment", 7));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+    }
+
+    /**
+     * Audit: Krystilia's lines say "in the Wilderness" (RuneLite's SlayerPluginTest; Wiki
+     * "Transcript:Krystilia"). That's her area, not one of Konar's places.
+     */
+    @Test
+    public void krystiliasWildernessLinesAreHerTasksNotKonars() throws Exception
+    {
+        assertEquals(new SlayerAssignment("Suqahs", null, "krystilia"),
+            SlayerAssignment.fromChat("You're assigned to kill Suqahs in the Wilderness; only 211 more to go.", 7));
+        assertEquals(new SlayerAssignment("aberrant spectres", "Catacombs of Kourend", SlayerAssignment.KONAR),
+            SlayerAssignment.fromChat(KONAR_CHECK, 8));
+
+        List<String> lines = say("You're currently assigned to kill bandits in the Wilderness; only 99 more to go. "
+            + "Your reward point tally is 34.", 7);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("bandits") && lines.get(0).contains("is locked: Area locked."));
+        assertEquals("bandits", plugin.getSlayerTaskWarn());
+    }
+
+    /** Audit: once the game's task count reaches 0 the task is done or cancelled, and its warning goes. */
+    @Test
+    public void aFinishedTaskTakesItsWarningAway() throws Exception
+    {
+        say(GEM_CHECK, 7);
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        // Varps read 0 around a logout or hop: that isn't the task ending.
+        plugin.onVarbitChanged(slayerCount(0));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
+        plugin.onVarbitChanged(slayerCount(12));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+        plugin.onVarbitChanged(slayerCount(0));
+        assertNull(plugin.getSlayerTaskWarn());
+
+        // The next task warns again.
+        assertEquals(1, say(GEM_CHECK, 7).size());
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+    }
+
+    /**
+     * Audit: a master hands out a task in dialogue with no game message (Wiki transcripts of
+     * Turael, Krystilia and Konar). Only the assignment lines are read; Konar's say "bring
+     * balance to", and Turael's first task ("...kill 15 of them.") names no task this way.
+     */
+    @Test
+    public void aMastersDialogueLineGivesTheTask()
+    {
+        assertEquals(new SlayerAssignment("cows", null, null),
+            SlayerAssignment.fromDialogue("Turael|Excellent, you're doing great. Your new task is to kill 15 cows.", 0));
+        assertEquals(new SlayerAssignment("bears", null, "krystilia"),
+            SlayerAssignment.fromDialogue("Your new task is to kill 42 bears.", 7));
+        assertEquals(new SlayerAssignment("bears", null, "mortimer"),
+            SlayerAssignment.fromDialogue("Your new task is to kill 42 bears.", 10));
+        assertEquals("a place in a new-task line isn't Konar's", new SlayerAssignment("green dragons", null, null),
+            SlayerAssignment.fromDialogue("Your new task is to kill 50 green dragons in the Wilderness.", 0));
+        assertEquals(new SlayerAssignment("aberrant spectres", "Catacombs of Kourend", SlayerAssignment.KONAR),
+            SlayerAssignment.fromDialogue(
+                "You are to bring balance to 105 aberrant spectres in the Catacombs of Kourend.", 0));
+        assertNull(SlayerAssignment.fromDialogue(
+            "We'll start you off hunting cows, you'll need to kill 15 of them.", 0));
+        assertNull(SlayerAssignment.fromDialogue("You must be brave to kill the dragon.", 0));
+        assertNull(SlayerAssignment.fromDialogue(GEM_CHECK, 7));
+        assertNull(SlayerAssignment.fromDialogue(null, 0));
+    }
+
+    /** Audit: the chat handler reads a master's dialogue, so a locked task warns as it is handed out. */
+    @Test
+    public void aTaskHandedOutInDialogueWarns() throws Exception
+    {
+        List<String> lines = dialogue("Krystilia|Your new task is to kill 42 bears.", 7);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("bears") && lines.get(0).contains("is locked: Area locked."));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        // Other dialogue keeps the task.
+        assertEquals(List.of(), dialogue("Guard|You must be brave to kill the dragon.", 7));
+        assertEquals(List.of(), dialogue("Turael|We'll start you off hunting cows, you'll need to kill 15 of them.", 7));
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        lines = dialogue("Konar quo Maten|You are to bring balance to 105 aberrant spectres in the<br>Catacombs of Kourend.", 0);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0), lines.get(0).contains("is locked: Master: Mount Karuulm."));
+        assertEquals("aberrant spectres", plugin.getSlayerTaskWarn());
+    }
+
+    /**
+     * Audit: turning the plugin off and on keeps the task for the same account, and forgets it
+     * when another account logged in meanwhile, as a switch with the plugin running does.
+     */
+    @Test
+    public void aRestartForgetsTheTaskOnlyForAnotherAccount() throws Exception
+    {
+        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
+        when(client.getAccountHash()).thenReturn(111L);
+        startSessionTracking();
+        say(GEM_CHECK, 7);
+        assertEquals("bears", plugin.getSlayerTaskWarn());
+
+        startSessionTracking();
+        refreshDecisions();
+        assertEquals("the same account keeps its task", "bears", plugin.getSlayerTaskWarn());
+
+        clearInvocations(chat);
+        when(client.getAccountHash()).thenReturn(222L);
+        startSessionTracking();
+        refreshDecisions();
+        assertNull(plugin.getSlayerTaskWarn());
+        assertEquals(List.of(), queued());
+    }
+
+    private void startSessionTracking() throws Exception
+    {
+        Method start = FateLockedPlugin.class.getDeclaredMethod("startSessionTracking");
+        start.setAccessible(true);
+        start.invoke(plugin);
+    }
+
+    /** A master's dialogue line with this SLAYER_MASTER value; the chat lines it queued. */
+    private List<String> dialogue(String message, int master)
+    {
+        clearInvocations(chat);
+        when(client.getVarbitValue(VarbitID.SLAYER_MASTER)).thenReturn(master);
+        ChatMessage event = new ChatMessage();
+        event.setType(ChatMessageType.DIALOG);
+        event.setMessage(message);
+        plugin.onChatMessage(event);
+        return queued();
+    }
+
+    private static VarbitChanged slayerCount(int value)
+    {
+        VarbitChanged event = new VarbitChanged();
+        event.setVarbitId(-1);
+        event.setVarpId(VarPlayerID.SLAYER_COUNT);
+        event.setValue(value);
+        return event;
     }
 
     /** The chat lines queued since the last clear. */

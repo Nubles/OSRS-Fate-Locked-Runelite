@@ -24,6 +24,18 @@ import org.junit.Test;
 /** U11, D1: the settings, all in RuneLite's configuration, in the order players meet them. */
 public class FateLockedConfigTest
 {
+    /** Audit: the README's count of settings is the config's own. */
+    @Test
+    public void theReadmeCountsEverySetting() throws Exception
+    {
+        long settings = Arrays.stream(FateLockedConfig.class.getDeclaredMethods())
+            .filter(method -> method.isAnnotationPresent(ConfigItem.class)).count();
+        String readme = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("README.md")),
+            java.nio.charset.StandardCharsets.UTF_8).replaceAll("\\s+", " ");
+        assertTrue("README.md says " + settings + " settings",
+            readme.contains("Locked Ironman: " + settings + " settings in six sections"));
+    }
+
     private static final FateLockedConfig DEFAULTS = new FateLockedConfig() { };
 
     /** key, section, position, default: the whole list, so any change is deliberate. */

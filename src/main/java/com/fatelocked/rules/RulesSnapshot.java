@@ -3,6 +3,7 @@ package com.fatelocked.rules;
 import com.fatelocked.CanonicalChunk;
 import com.fatelocked.FateLockedBundle;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -34,6 +35,9 @@ public final class RulesSnapshot
     /** The tracker's bank table, when the rules send it: each bank by its chunk, and by the chunks its facilities are in. */
     private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksAt;
     private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksIn;
+    /** The same two, leaving out the places that only take deposits. */
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> openBanksAt;
+    private final Map<CanonicalChunk, RuneliteRulesManifest.Bank> openBanksIn;
 
     private RulesSnapshot(FateLockedBundle bundle)
     {
@@ -44,8 +48,11 @@ public final class RulesSnapshot
         this.progress = tracked != null ? tracked : new Progress(
             bundle.isChunkedBundle() ? Progress.CHUNKS : Progress.AREAS,
             bundle.getUnlockedAreas(), bundle.getTotalAreas(), bundle.getUnlockedChunks(), bundle.getTotalChunks());
-        this.bankChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "BANKS", "BANK"));
-        this.shopChunks = Collections.unmodifiableSet(withRows(bundle, mapped, "SHOPS", null));
+        // Every snapshot, sea included: a bank or shop at sea is still the nearest one.
+        Set<CanonicalChunk> snapshots = bundle.isLegacyRules() ? Collections.emptySet()
+            : chunks(bundle.getRules().getChunks().keySet());
+        this.bankChunks = Collections.unmodifiableSet(withRows(bundle, snapshots, "BANKS", "BANK"));
+        this.shopChunks = Collections.unmodifiableSet(withRows(bundle, snapshots, "SHOPS", null));
         List<String> frontierKeys = bundle.isLegacyRules() ? null : bundle.getRules().getFrontier();
         this.frontier = frontierKeys == null ? null : Collections.unmodifiableSet(chunks(frontierKeys));
         RuneliteRulesManifest manifest = bundle.isLegacyRules() ? null : bundle.getRules();
@@ -53,16 +60,23 @@ public final class RulesSnapshot
         this.places = Collections.unmodifiableMap(byChunk(manifest == null ? null : manifest.getPlaces()));
         Map<CanonicalChunk, RuneliteRulesManifest.Bank> at = new HashMap<>();
         Map<CanonicalChunk, RuneliteRulesManifest.Bank> in = new HashMap<>();
+        Map<CanonicalChunk, RuneliteRulesManifest.Bank> openAt = new HashMap<>();
+        Map<CanonicalChunk, RuneliteRulesManifest.Bank> openIn = new HashMap<>();
         if (manifest != null && manifest.getBanks() != null)
         {
             for (RuneliteRulesManifest.Bank bank : manifest.getBanks().values())
             {
                 for (CanonicalChunk chunk : chunks(Collections.singletonList(bank.getAt()))) at.putIfAbsent(chunk, bank);
                 for (CanonicalChunk chunk : chunks(bank.getPhysical())) in.putIfAbsent(chunk, bank);
+                if (bank.isDepositOnly()) continue;
+                for (CanonicalChunk chunk : chunks(Collections.singletonList(bank.getAt()))) openAt.putIfAbsent(chunk, bank);
+                for (CanonicalChunk chunk : chunks(bank.getPhysical())) openIn.putIfAbsent(chunk, bank);
             }
         }
         this.banksAt = Collections.unmodifiableMap(at);
         this.banksIn = Collections.unmodifiableMap(in);
+        this.openBanksAt = Collections.unmodifiableMap(openAt);
+        this.openBanksIn = Collections.unmodifiableMap(openIn);
     }
 
     /** A map by "cx,cy" key, keyed by chunk instead, skipping keys that aren't one. */
@@ -100,13 +114,13 @@ public final class RulesSnapshot
         return chunks;
     }
 
-    /** The mapped chunks with a row in a category (of one target kind, when given). */
+    /** The snapshotted chunks with a row in a category (of one target kind, when given). */
     private static Set<CanonicalChunk> withRows(
-        FateLockedBundle bundle, Set<CanonicalChunk> mapped, String category, String targetKind)
+        FateLockedBundle bundle, Set<CanonicalChunk> snapshots, String category, String targetKind)
     {
         Set<CanonicalChunk> chunks = new LinkedHashSet<>();
         if (bundle.isLegacyRules()) return chunks;
-        for (CanonicalChunk chunk : mapped)
+        for (CanonicalChunk chunk : snapshots)
         {
             ChunkPermissionSnapshot snapshot = bundle.permissionsAt(chunk).orElse(null);
             List<ChunkPermissionRow> rows = snapshot == null ? null : snapshot.getCategories().get(category);
@@ -123,7 +137,11 @@ public final class RulesSnapshot
         return chunks;
     }
 
-    /** The tracker's chunk keys ("cx,cy"), or an older export's area chunks. */
+    /**
+     * The tracker's land chunk keys ("cx,cy"), or an older export's area chunks. Snapshots of the
+     * sea ("ocean") are left out, as the web map shows land only; their entries still decide.
+     * Older rules send no kind, and those chunks stay land.
+     */
     private static Set<CanonicalChunk> mapped(FateLockedBundle bundle)
     {
         Set<CanonicalChunk> chunks = new LinkedHashSet<>();
@@ -132,7 +150,13 @@ public final class RulesSnapshot
             for (Set<CanonicalChunk> region : bundle.getRegionChunks().values()) chunks.addAll(region);
             return chunks;
         }
-        chunks.addAll(chunks(bundle.getRules().getChunks().keySet()));
+        List<String> land = new ArrayList<>();
+        for (Map.Entry<String, ChunkPermissionSnapshot> snapshot : bundle.getRules().getChunks().entrySet())
+        {
+            if (snapshot.getValue() != null && "ocean".equalsIgnoreCase(snapshot.getValue().getKind())) continue;
+            land.add(snapshot.getKey());
+        }
+        chunks.addAll(chunks(land));
         return chunks;
     }
 
@@ -186,7 +210,7 @@ public final class RulesSnapshot
         return progress;
     }
 
-    /** Every chunk the rules decide, fixed when they load. */
+    /** Every land chunk the rules decide (the sea left out), fixed when they load. */
     Set<CanonicalChunk> mappedChunks()
     {
         return mapped;
@@ -266,6 +290,18 @@ public final class RulesSnapshot
     Map<CanonicalChunk, RuneliteRulesManifest.Bank> banksAt()
     {
         return banksAt;
+    }
+
+    /** {@link #bankIn}, for a bank that opens: a place that only takes deposits is left out. */
+    RuneliteRulesManifest.Bank openBankIn(CanonicalChunk chunk)
+    {
+        return openBanksIn.get(chunk);
+    }
+
+    /** {@link #banksAt}, for the banks that open: the places that only take deposits are left out. */
+    Map<CanonicalChunk, RuneliteRulesManifest.Bank> openBanksAt()
+    {
+        return openBanksAt;
     }
 
     /** What a chunk that isn't land is, as the rules' places say; null for land or when they don't. */

@@ -5,7 +5,7 @@
   "rules": "newer rules, to parse and import",
   "unchanged": "the rules the plugin holds are still current",
   "unconfirmed": "a 304 for a version the plugin does not hold; nothing changes",
-  "stale": "rules the plugin already holds, or older ones; not imported",
+  "stale": "older rules than the plugin holds, or rules it cannot compare with them; not imported",
   "missing": "no profile for this code",
   "gone": "the owner disconnected this code in the web tracker",
   "unreadable": "a reply the plugin cannot use",

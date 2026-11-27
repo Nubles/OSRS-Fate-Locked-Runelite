@@ -23,9 +23,11 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * B13 (R5, part one): the HUD's nearest bank and shop come from the
- * tracker's BANKS and SHOPS rows. All 125 banks are candidates, including
- * the 17 the old points of interest missed, and a bank or shop the tracker
- * doesn't allow is never chosen.
+ * tracker's BANKS and SHOPS rows. Every bank that opens is a candidate,
+ * including those the old points of interest missed, and a bank or shop
+ * the tracker doesn't allow is never chosen. A place the bank table marks
+ * depositOnly is not a candidate; the tests hold whether or not the pinned
+ * golden bundles carry that field.
  */
 public class NearestBankTest
 {
@@ -37,7 +39,8 @@ public class NearestBankTest
 
     /**
      * vanilla-mid with every bank row, its chunk and the bank table allowed:
-     * each bank is its own nearest, and so is each chunk its facilities are in.
+     * each bank that opens is its own nearest, and so is each chunk its
+     * facilities are in. A place that only takes deposits is never Here.
      */
     @Test
     public void everyBankTheTrackerListsIsACandidate() throws Exception
@@ -45,6 +48,7 @@ public class NearestBankTest
         JsonObject wire = wire("vanilla-mid");
         JsonObject table = wire.getAsJsonObject("rules").getAsJsonObject("banks");
         for (Map.Entry<String, JsonElement> bank : table.entrySet()) bank.getValue().getAsJsonObject().addProperty("status", "ALLOWED");
+        Set<String> boxes = depositOnlyPlaces(wire);
         List<String> banks = new ArrayList<>();
         for (Map.Entry<String, JsonElement> chunk : wire.getAsJsonObject("rules").getAsJsonObject("chunks").entrySet())
         {
@@ -58,20 +62,26 @@ public class NearestBankTest
         DecisionService allBanks = trusted(wire);
 
         List<String> notFound = new ArrayList<>();
+        List<String> boxesChosen = new ArrayList<>();
         for (String key : banks)
         {
             FateLockedBundle.Nearest near = allBanks.nearestBank(GoldenBundleContractTest.chunk(key));
-            if (near == null || near.getDistanceChunks() != 0) notFound.add(key);
+            boolean here = near != null && near.getDistanceChunks() == 0;
+            if (boxes.contains(key) && here) boxesChosen.add(key);
+            if (!boxes.contains(key) && !here) notFound.add(key);
         }
         // 127 until the accuracy review merged two bank unlocks that opened no bank into their neighbours,
         // and 125 until the Falador west bank's deposit box (45,52) joined West Falador.
         assertEquals(124, banks.size());
         assertTrue(banks.containsAll(POI_MISSED));
+        assertTrue(banks.containsAll(boxes));
         assertEquals(List.of(), notFound);
+        assertEquals("a place that only takes deposits is never Here", List.of(), boxesChosen);
 
         List<String> notInside = new ArrayList<>();
         for (Map.Entry<String, JsonElement> bank : table.entrySet())
         {
+            if (isDepositOnly(bank.getValue().getAsJsonObject())) continue;
             for (JsonElement key : bank.getValue().getAsJsonObject().getAsJsonArray("physical"))
             {
                 FateLockedBundle.Nearest near = allBanks.nearestBank(GoldenBundleContractTest.chunk(key.getAsString()));
@@ -112,6 +122,7 @@ public class NearestBankTest
             JsonObject chunks = wire.getAsJsonObject("rules").getAsJsonObject("chunks");
             DecisionService service = trusted(wire);
             List<CanonicalChunk> banks = usable(chunks, "BANKS");
+            for (String box : depositOnlyPlaces(wire)) banks.remove(GoldenBundleContractTest.chunk(box));
             List<CanonicalChunk> shops = usable(chunks, "SHOPS");
             usableBanks += banks.size();
             for (String key : chunks.keySet())
@@ -145,6 +156,91 @@ public class NearestBankTest
         DecisionService lockedPlaying = DecisionService.create(
             RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, locked.toString())), "iron example", "iron example");
         assertEquals("Lumbridge · 2 E", hud(lockedPlaying, new CanonicalChunk(48, 50)).get("Bank"));
+    }
+
+    /**
+     * plugin-ui.d3[2]: a place the bank table marks depositOnly (Port Sarim's deposit boxes, 47,50)
+     * is not a bank the player can take anything out of, so the Bank line never names it and is
+     * never Here there; South Draynor (48,50) is named instead. Without the field, as before:
+     * the test sets the field and takes it off itself.
+     */
+    @Test
+    public void aDepositOnlyPlaceIsNeverTheNearestBank() throws Exception
+    {
+        CanonicalChunk west = new CanonicalChunk(46, 50);
+        CanonicalChunk sarim = new CanonicalChunk(47, 50);
+        CanonicalChunk draynor = new CanonicalChunk(48, 50);
+
+        DecisionService before = playing(sarimAndDraynor(false));
+        assertEquals(new FateLockedBundle.Nearest(sarim, 1), before.nearestBank(west));
+        assertEquals(new FateLockedBundle.Nearest(sarim, 0), before.nearestBank(sarim));
+        assertEquals("Here", hud(before, sarim).get("Bank"));
+
+        DecisionService marked = playing(sarimAndDraynor(true));
+        assertEquals(new FateLockedBundle.Nearest(draynor, 2), marked.nearestBank(west));
+        assertEquals("Draynor Vill… · 2 E", hud(marked, west).get("Bank"));
+        assertEquals(new FateLockedBundle.Nearest(draynor, 1), marked.nearestBank(sarim));
+        assertFalse(hud(marked, sarim).get("Bank").equals("Here"));
+        assertEquals("Here", hud(marked, draynor).get("Bank"));
+        assertEquals("the locked-bank warning still knows the place", "Port Sarim deposit boxes",
+            marked.bankAt(sarim).getLabel());
+
+        JsonObject onlyBoxes = sarimAndDraynor(true);
+        onlyBoxes.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12338").addProperty("status", "LOCKED");
+        assertNull("with no bank that opens, none, as when no bank is usable", playing(onlyBoxes).nearestBank(west));
+        assertEquals("None unlocked", hud(playing(onlyBoxes), west).get("Bank"));
+    }
+
+    /** custom-lumbridge-banks-off with only Port Sarim's deposit boxes and South Draynor allowed. */
+    private static JsonObject sarimAndDraynor(boolean depositOnly) throws Exception
+    {
+        JsonObject wire = wire("custom-lumbridge-banks-off");
+        for (Map.Entry<String, JsonElement> bank : wire.getAsJsonObject("rules").getAsJsonObject("banks").entrySet())
+        {
+            JsonObject entry = bank.getValue().getAsJsonObject();
+            entry.addProperty("status", bank.getKey().equals("12082") || bank.getKey().equals("12338") ? "ALLOWED" : "LOCKED");
+        }
+        JsonObject sarim = wire.getAsJsonObject("rules").getAsJsonObject("banks").getAsJsonObject("12082");
+        assertEquals("Port Sarim deposit boxes", sarim.get("name").getAsString());
+        sarim.remove("depositOnly");
+        if (depositOnly) sarim.addProperty("depositOnly", true);
+        return wire;
+    }
+
+    private static boolean isDepositOnly(JsonObject bank)
+    {
+        return bank.has("depositOnly") && bank.get("depositOnly").getAsBoolean();
+    }
+
+    /**
+     * The chunks of the places the bank table marks depositOnly, where no bank that opens is at
+     * the chunk or has its facilities in it. None in a pin from before the tracker sent the field.
+     */
+    private static Set<String> depositOnlyPlaces(JsonObject wire)
+    {
+        Set<String> boxes = new TreeSet<>();
+        Set<String> opens = new TreeSet<>();
+        JsonObject table = wire.getAsJsonObject("rules").getAsJsonObject("banks");
+        if (table == null) return boxes;
+        for (Map.Entry<String, JsonElement> bank : table.entrySet())
+        {
+            JsonObject entry = bank.getValue().getAsJsonObject();
+            if (isDepositOnly(entry))
+            {
+                boxes.add(entry.get("at").getAsString());
+                continue;
+            }
+            opens.add(entry.get("at").getAsString());
+            for (JsonElement key : entry.getAsJsonArray("physical")) opens.add(key.getAsString());
+        }
+        boxes.removeAll(opens);
+        return boxes;
+    }
+
+    private static DecisionService playing(JsonObject wire) throws Exception
+    {
+        return DecisionService.create(RulesSnapshot.of(FateLockedBundle.loadFromJson(GSON, wire.toString())),
+            "iron example", "iron example");
     }
 
     /** The HUD's Compact lines for a player in this chunk, with the nearest bank and shop. */

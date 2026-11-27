@@ -50,7 +50,8 @@ public class MenuTagFilterTest
             assertEquals(type.name(), couldBeTagged, MenuTagFilter.mayTag(type));
             if (couldBeTagged) taggable++;
         }
-        assertEquals("items and spells, objects, ground items, NPCs, and a use on an NPC", 18, taggable);
+        assertEquals("items and spells, objects, ground items, NPCs, and a use on an NPC, an object or a ground item",
+            20, taggable);
     }
 
     @Test

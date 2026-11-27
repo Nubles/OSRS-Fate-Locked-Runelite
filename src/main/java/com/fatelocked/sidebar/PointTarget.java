@@ -1,5 +1,6 @@
 package com.fatelocked.sidebar;
 
+import com.fatelocked.rules.ChunkPermissionRow;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -15,8 +16,11 @@ import lombok.Value;
  * review, 28 Sept): the names the thing goes by there, an object's or an NPC's. The tracker
  * names skilling spots, monsters and patches as the game does, but for the fly-fishing spots,
  * which the game calls rod fishing spots. A bank goes by its booths,
- * chests and bankers; a shop by whoever runs it, which its name often gives
- * ("Bob's Brilliant Axes": Bob) or which a general store's shop keeper is.
+ * chests, bankers and deposit boxes, and a deposit service by its NPC ("Peer the Seer deposit
+ * service": Peer the Seer). A shop goes by whoever runs it: the keepers the tracker's table
+ * ({@link ShopKeepers}) names for it ("Fine Fashions": Rometti), and else what its name gives
+ * ("Bob's Brilliant Axes": Bob, "Agelus' Farm Shop": Agelus), a general store's shop keeper or
+ * an inn's bartender. A minigame's row names a place, not a thing, so it has no target.
  */
 @Value
 public class PointTarget
@@ -33,6 +37,15 @@ public class PointTarget
     private static final String ROD_FISHING_SPOT = "rod fishing spot";
     private static final Pattern VARIANT = Pattern.compile("^(.*\\S)\\s*\\(([^()]*)\\)$");
     private static final Pattern OWNER = Pattern.compile("^(.+?)'s\\s");
+    /** An owner whose name ends in s: "Agelus' Farm Shop". */
+    private static final Pattern OWNER_S = Pattern.compile("^(.+?s)'\\s");
+    /** What the game calls the deposit-only facilities at the tracker's bank places. */
+    private static final Set<String> DEPOSIT = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(
+        "bank deposit box", "bank deposit chest", "deposit pool")));
+    /** A bank place that is one NPC: "Peer the Seer deposit service". */
+    private static final String DEPOSIT_SERVICE = " deposit service";
+    /** A bank place whose deposit box is a chest the game calls just that: "Zul-Andra deposit chest". */
+    private static final String DEPOSIT_CHEST = " deposit chest";
     private static final Pattern INN = Pattern.compile("\\b(inn|arms|bar|pub|tavern)\\b");
 
     /** The category it's in, as the tracker keys it: SKILLING, SHOPS and so on. */
@@ -50,8 +63,27 @@ public class PointTarget
         return CATEGORIES.contains(category);
     }
 
+    /**
+     * The target for a row of the tracker's rules, or null for one the card can't point at: a
+     * category with no one thing to point at, or a minigame's row, which names a place.
+     */
+    public static PointTarget ofRow(String category, ChunkPermissionRow row)
+    {
+        if (row == null || row.getName() == null || row.isMinigame())
+        {
+            return null;
+        }
+        return of(category, HerePresenter.rowName(row.getName()));
+    }
+
     /** The target for a row of a category, or null for a category the card can't point in. */
     public static PointTarget of(String category, String row)
+    {
+        return of(category, row, ShopKeepers.shared());
+    }
+
+    /** The same, with this table of who runs each shop. */
+    static PointTarget of(String category, String row, ShopKeepers keepers)
     {
         if (!pointable(category) || row == null || row.trim().isEmpty())
         {
@@ -73,13 +105,28 @@ public class PointTarget
         {
             case "BANKS":
                 names.addAll(Arrays.asList("bank booth", "bank chest", "banker"));
+                names.addAll(DEPOSIT);
+                if (name.endsWith(DEPOSIT_SERVICE) && name.length() > DEPOSIT_SERVICE.length())
+                {
+                    names.add(name.substring(0, name.length() - DEPOSIT_SERVICE.length()).trim());
+                }
+                if (name.endsWith(DEPOSIT_CHEST))
+                {
+                    names.add("chest");
+                }
                 break;
             case "SHOPS":
                 names.add(name);
+                names.addAll(keepers.of(label));
                 Matcher owner = OWNER.matcher(base);
+                Matcher ownerS = OWNER_S.matcher(base);
                 if (owner.find())
                 {
                     names.add(key(owner.group(1)));
+                }
+                else if (ownerS.find())
+                {
+                    names.add(key(ownerS.group(1)));
                 }
                 if (name.contains("general store"))
                 {
