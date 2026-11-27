@@ -387,6 +387,7 @@ public class FateLockedPlugin extends Plugin
 
     /** The quests are read again this often, in ticks (a minute), for any finished without the quest scroll. */
     static final int QUEST_READING_TICKS = 100;
+    static final Map<Integer, String> DETECTABLE_QUESTS = detectableQuests();
     /** The Slayer variables a task's reading is made of, as RuneLite's Slayer plugin watches them. */
     private static final Set<Integer> SLAYER_VARPS = new HashSet<>(Arrays.asList(VarPlayerID.SLAYER_COUNT,
         VarPlayerID.SLAYER_TARGET, VarPlayerID.SLAYER_COUNT_ORIGINAL, VarPlayerID.SLAYER_MORTIMER_TASKS_COMPLETED));
@@ -1263,15 +1264,29 @@ public class FateLockedPlugin extends Plugin
         return new Signal.Varbits(values);
     }
 
+    private static Map<Integer, String> detectableQuests()
+    {
+        Map<Integer, String> names = new LinkedHashMap<>();
+        for (Quest quest : Quest.values())
+        {
+            names.put(quest.getId(), quest.getName());
+        }
+        // RuneLite added this ID after 1.13.8 (runelite/runelite@7f76f00).
+        names.putIfAbsent(17328, "The Graveyard");
+        return Collections.unmodifiableMap(names);
+    }
+
     /** Every quest the game says is finished, by RuneLite's name for it; null when the game can't say. */
     private Signal questsReading()
     {
         Set<String> finished = new HashSet<>();
         try
         {
-            for (Quest quest : Quest.values())
+            for (Map.Entry<Integer, String> quest : DETECTABLE_QUESTS.entrySet())
             {
-                if (questState(quest) == QuestState.FINISHED) finished.add(quest.getName());
+                // Same script and finished value as Quest.getState(Client).
+                client.runScript(ScriptID.QUEST_STATUS_GET, quest.getKey());
+                if (client.getIntStack()[0] == 2) finished.add(quest.getValue());
             }
         }
         catch (RuntimeException error)
@@ -1280,12 +1295,6 @@ public class FateLockedPlugin extends Plugin
             return null;
         }
         return new Signal.Quests(finished);
-    }
-
-    /** A quest's state, from the game's own script. */
-    QuestState questState(Quest quest)
-    {
-        return quest.getState(client);
     }
 
     /** The Slayer task as the game's variables give it, read as RuneLite's Slayer plugin reads them. */

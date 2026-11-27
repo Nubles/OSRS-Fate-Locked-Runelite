@@ -30,16 +30,15 @@ public class HerePresenterGoldenTest
         assertEquals(Tone.GOOD, here.getTone());
         assertNull("an unlocked place needs no reason", here.getReason());
         assertEquals("Lumbridge · Misthalin · 50, 50", here.getWhere());
-        // Six rows the tracker leaves undecided, the caves' monsters, count as not ready: logged out,
-        // the game can't say The Lost Tribe is started.
-        assertEquals(List.of(14, 24, 37),
+        // Both Dorgesh-Kaan chests are present, with their Thieving and access requirements.
+        assertEquals(List.of(14, 26, 37),
             here.getCounts().stream().map(HereModel.Count::getValue).collect(Collectors.toList()));
         assertEquals(List.of("Can do", "Not ready", "Locked"),
             here.getCounts().stream().map(HereModel.Count::getLabel).collect(Collectors.toList()));
 
         HereModel.Group skilling = group(here, "SKILLING");
-        HereModel.Row deadTree = skilling.getRows().get(0);
-        assertEquals("Dead tree", deadTree.getName());
+        HereModel.Row deadTree = skilling.getRows().stream().filter(row -> row.getName().equals("Dead tree"))
+            .findFirst().orElseThrow(AssertionError::new);
         assertEquals("Not ready", deadTree.getWord());
         assertEquals("Woodcutting 1/1 · cap 0", deadTree.getReason());
 
@@ -51,7 +50,7 @@ public class HerePresenterGoldenTest
         HereModel.Row guard = group(here, "COMBAT").getRows().stream()
             .filter(row -> row.getName().equals("Cave goblin guard")).findFirst().orElseThrow(AssertionError::new);
         assertEquals("Not ready", guard.getWord());
-        assertEquals("The Lost Tribe started", guard.getReason());
+        assertEquals("The Lost Tribe started; Mining level 17; Agility level 13", guard.getReason());
     }
 
     /** The owner's review, 28 Sept: no row of any golden, anywhere, is left without a status. */
@@ -87,8 +86,11 @@ public class HerePresenterGoldenTest
         HereModel.Group skilling = group(here("vanilla-mid", "iron example", 50, 50), "SKILLING");
         List<String> skills = skilling.getSubgroups().stream().map(HereModel.Subgroup::getTitle)
             .collect(Collectors.toList());
-        assertEquals(List.of("Fishing", "Mining", "Woodcutting"), skills);
-        HereModel.Subgroup woodcutting = skilling.getSubgroups().get(2);
+        assertEquals(List.of("Fishing", "Mining", "Thieving", "Woodcutting"), skills);
+        HereModel.Subgroup thieving = skilling.getSubgroups().get(2);
+        assertEquals(List.of("Chest (Dorgesh-Kaan Average)", "Chest (Dorgesh-Kaan Rich)"),
+            thieving.getRows().stream().map(HereModel.Row::getName).collect(Collectors.toList()));
+        HereModel.Subgroup woodcutting = skilling.getSubgroups().get(3);
         assertEquals("SKILLING/Woodcutting", woodcutting.getKey());
         assertEquals("Woodcutting", woodcutting.getSkill());
         assertEquals("Level 1 · cap 0", woodcutting.getNote());

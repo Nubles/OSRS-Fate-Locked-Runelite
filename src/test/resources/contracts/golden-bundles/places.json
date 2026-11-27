@@ -3941,6 +3941,7 @@
    "name": "Blood altar",
    "entrances": [
     "48,55",
+    "54,54",
     "56,51"
    ]
   },
@@ -4038,7 +4039,7 @@
    "kind": "interior",
    "name": "Entrana Dungeon",
    "entrances": [
-    "50,58"
+    "44,52"
    ]
   },
   "44,153": {
@@ -4170,6 +4171,8 @@
    "kind": "interior",
    "name": "Rune essence mine",
    "entrances": [
+    "37,53",
+    "40,48",
     "41,51",
     "48,49",
     "50,53"
@@ -5924,6 +5927,7 @@
    "name": "Meiyerditch Laboratories",
    "entrances": [
     "48,55",
+    "54,54",
     "56,51"
    ]
   },
@@ -5990,6 +5994,7 @@
    "name": "Meiyerditch Laboratories",
    "entrances": [
     "48,55",
+    "54,54",
     "56,51"
    ]
   },
@@ -6059,7 +6064,8 @@
    "name": "Motherlode Mine",
    "area": "Motherlode Mine",
    "entrances": [
-    "47,52"
+    "47,52",
+    "47,53"
    ]
   },
   "58,146": {

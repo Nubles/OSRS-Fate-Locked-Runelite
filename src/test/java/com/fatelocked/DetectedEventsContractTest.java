@@ -11,7 +11,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import net.runelite.api.Quest;
 import net.runelite.client.util.Text;
 import org.junit.Test;
 
@@ -107,17 +106,17 @@ public class DetectedEventsContractTest
         assertEquals(kinds, seen);
     }
 
-    /** Every quest RuneLite knows has the tracker's id, but the whole of Recipe for Disaster: its last part is RFD: Finale. */
+    /** Each quest the plugin reads maps to the tracker, except the aggregate Recipe for Disaster. */
     @Test
-    public void everyQuestRuneLiteKnowsHasTheTrackersId() throws Exception
+    public void everyQuestThePluginReadsHasTheTrackersId() throws Exception
     {
         DetectionTables tables = tables();
         List<String> unnamed = new ArrayList<>();
         Set<String> named = new TreeSet<>();
-        for (Quest quest : Quest.values())
+        for (String name : FateLockedPlugin.DETECTABLE_QUESTS.values())
         {
-            String id = tables.questId(quest.getName());
-            if (id == null) unnamed.add(quest.getName());
+            String id = tables.questId(name);
+            if (id == null) unnamed.add(name);
             else named.add(id);
         }
         assertEquals(List.of("Recipe for Disaster"), unnamed);

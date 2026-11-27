@@ -39,7 +39,7 @@ import org.junit.Test;
 /** The owner's review, 28 Sept: what the game says, read for the rows the tracker leaves undecided. */
 public class FateLockedGameFactsTest
 {
-    /** Lumbridge Castle, whose caves' monsters the tracker leaves undecided. */
+    /** Lumbridge Castle, where some cave entrances need a live quest-stage check. */
     private static final CanonicalChunk CASTLE = new CanonicalChunk(50, 50);
 
     private final Client client = mock(Client.class);
@@ -84,32 +84,33 @@ public class FateLockedGameFactsTest
         assertEquals(Boolean.TRUE, facts.getMembers());
         assertEquals(41, facts.getQuestPoints());
         assertEquals(Integer.valueOf(30), facts.getLevels().get(Skill.MINING));
-        assertEquals("only the quests its rows name", EnumSet.of(Quest.THE_LOST_TRIBE, Quest.DEATH_TO_THE_DORGESHUUN),
+        assertEquals("only the quest stage left to the client", EnumSet.of(Quest.THE_LOST_TRIBE),
             facts.getQuests().keySet());
         assertEquals(QuestState.IN_PROGRESS, facts.getQuests().get(Quest.THE_LOST_TRIBE));
-        assertEquals(QuestState.NOT_STARTED, facts.getQuests().get(Quest.DEATH_TO_THE_DORGESHUUN));
         assertEquals(new HashSet<>(Arrays.asList("candle lantern", "brass key")), facts.getCarried());
         assertEquals(Boolean.TRUE, facts.getLight());
 
         assertSame("read once a tick", facts, plugin.gameFacts(rules, CASTLE));
-        verify(client, times(2)).runScript(any(), any());
+        verify(client, times(1)).runScript(any(), any());
     }
 
-    /** The caves' guard only needs The Lost Tribe started: now it can be done; the frogs need more. */
+    /** A started quest and a lit lantern remove only those conditions from the tracker rows. */
     @Test
     public void theHereCardDecidesByThem()
     {
         HereModel here = new HerePresenter().present(rules, CASTLE, plugin.gameFacts(rules, CASTLE));
         HereModel.Group combat = here.getGroups().stream().filter(group -> group.getCategory().equals("COMBAT"))
             .findFirst().orElseThrow(AssertionError::new);
-        assertEquals("Can do", row(combat, "Cave goblin guard").getWord());
+        HereModel.Row guard = row(combat, "Cave goblin guard");
+        assertEquals("Not ready", guard.getWord());
+        assertEquals("Mining level 17; Agility level 13", guard.getReason());
         HereModel.Row frog = row(combat, "Big frog");
         assertEquals("Not ready", frog.getWord());
         assertEquals("Death to the Dorgeshuun", frog.getReason());
         // The tracker says the crawler isn't ready: the started quest and the lantern go from it.
         HereModel.Row crawler = row(combat, "Cave crawler");
         assertEquals("Not ready", crawler.getWord());
-        assertEquals("Death to the Dorgeshuun", crawler.getReason());
+        assertEquals("Slayer 1/10 · cap 0; Death to the Dorgeshuun", crawler.getReason());
     }
 
     @Test
